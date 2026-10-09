@@ -693,3 +693,62 @@ Pour « voir » ce qui se passait avec le direct — que je n'arrivais pas à re
 Les prompts sont inscrits définitivement dans les fichiers de session. **Je n'y touche pas** : le format est en lecture seule et modifier un JSONL de session risque de le corrompre.
 
 **Règle inscrite dans `AGENTS.md`** : *un agent lancé par l'utilisateur n'est JAMAIS une cible de test ; un agent de test est lancé par moi, dans un répertoire jetable, et fermé après usage.* Un helper `scripts/test-agent.sh` matérialise cette procédure.
+
+---
+
+## D013 — Conversation vide et perte de contexte au rafraîchissement
+
+**Date :** 2026-10-09 · Deuxième retour utilisateur après essai réel
+
+### D013.1 — La conversation restait vide : une chaîne passée là où un objet était attendu
+
+L'API renvoyait bien les données. Mesure sur la vraie réponse : **55 entrées, 31 messages affichables**. Et pourtant l'écran n'affichait **rien**.
+
+**Cause** : dans le composant, `entry.raw` — une **chaîne JSON** — était passée directement au schéma de décodage, qui attend un **objet**. Le décodage échouait sur *chaque* message et renvoyait `None`.
+
+```ts
+// ❌ `raw` est une chaîne, `MessageLine` attend un objet → None, silencieusement
+const decoded = Option.getOrUndefined(decodeMessageLine(entry.raw));
+
+// ✅ analyser PUIS décoder
+const parsed = JSON.parse(entry.raw);
+const decoded = Option.getOrUndefined(decodeMessageLine(parsed));
+```
+
+**Pourquoi c'était invisible** : un décodage qui renvoie `None` ne lève rien, ne journalise rien, ne casse rien. La liste est simplement vide. Mes simulations manuelles, elles, faisaient `JSON.parse` — donc elles « marchaient », et ne testaient pas le vrai code.
+
+**Correction** : la logique est extraite dans `apps/web/src/messages.ts`, **donc testable**. `decodeRawLine` analyse puis décode, et `toBubbles` produit les messages affichables. **13 tests** couvrent le cas, dont un nommé explicitement « c'est le test qui aurait attrapé la conversation vide ».
+
+**Leçon** : une logique encastrée dans un composant ne peut être vérifiée qu'en ouvrant l'application sur un appareil. Extraite, elle coûte 13 tests et ne se reproduit plus.
+
+### D013.2 — Rafraîchir sur un agent ramenait à l'accueil
+
+L'état vivait uniquement dans React. Un rechargement le perdait, et le bouton retour ne faisait rien.
+
+**Correction** : routage par fragment d'URL, extrait dans `apps/web/src/routing.ts` (**10 tests**).
+
+| Route | Écran |
+|---|---|
+| `#/projets` · `#/agents` · `#/activite` · `#/reglages` | les quatre onglets |
+| `#/agent/<paneId>` | la conversation d'un agent |
+
+Le fragment survit au rechargement et alimente l'historique du navigateur. Un fragment inconnu retombe sur l'onglet par défaut plutôt que de produire un écran vide, et un encodage d'URI malformé (`#/agent/%`, qui fait **lever** `decodeURIComponent`) ne casse pas le rendu.
+
+### D013.3 — Fenêtre initiale élargie
+
+| Taille | Entrées | Messages affichés | Durée |
+|---|---|---|---|
+| 128 Ko | 55 | 31 | 0,12 s |
+| **512 Ko** | **230** | **138** | **0,14 s** |
+
+Le rafraîchissement reste à **243 octets en 0,005 s**. On voit 138 messages au premier écran pour 0,02 s de plus.
+
+### D013.4 — Ce que ces deux défauts ont en commun
+
+Les deux n'étaient visibles **qu'en ouvrant l'application**. Ni `verify`, ni les 49 tests de l'époque, ni `curl` ne pouvaient les voir :
+
+- `curl` valide la **forme** d'une réponse, pas le **décodage du client** ;
+- un test unitaire de la logique n'existait pas, parce que la logique était **dans le composant** ;
+- le typecheck ne voit pas un `Option` qui vaut `None`.
+
+**Règle qui en découle** : toute logique qui transforme une donnée en affichage est **extraite du composant et testée**. C'est désormais le cas pour les messages (`messages.ts`), le routage (`routing.ts`), et le contrat d'API (`packages/shared/src/api.ts`).

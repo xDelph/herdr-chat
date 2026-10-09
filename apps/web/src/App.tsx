@@ -30,9 +30,34 @@ import type {
   SessionEntry,
   WorkspaceView,
 } from "./api.ts";
+import { toBubbles } from "./messages.ts";
+import { parseRoute, routeToHash, TabSchema } from "./routing.ts";
+import type { Route, Tab } from "./routing.ts";
 
-const TabSchema = Schema.Literals(["projets", "agents", "activite", "reglages"]);
-type Tab = typeof TabSchema.Type;
+/**
+ * Lit le fragment courant et se resynchronise sur les navigations, y compris le
+ * bouton retour. L'analyse vit dans `routing.ts`, où elle est testée.
+ */
+const useHashRoute = (): [Route, (next: Route) => void] => {
+  const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
+
+  useEffect(() => {
+    const onChange = () => setRoute(parseRoute(window.location.hash));
+    window.addEventListener("hashchange", onChange);
+    return () => window.removeEventListener("hashchange", onChange);
+  }, []);
+
+  const navigate = useCallback((next: Route) => {
+    const hash = routeToHash(next);
+    if (window.location.hash !== hash) {
+      // Passer par l'historique : le bouton retour redevient utile.
+      window.location.hash = hash;
+    }
+    setRoute(next);
+  }, []);
+
+  return [route, navigate];
+};
 
 /** Rend un événement du flux lisible, sans JSON brut à l'écran. */
 const describeEvent = (kind: string, data: unknown): string => {
@@ -68,31 +93,6 @@ const describeEvent = (kind: string, data: unknown): string => {
     return `prompt envoyé à ${decoded.paneId ?? "?"} (${decoded.status ?? ""})`;
   if (kind === "prompt-suppressed") return `double envoi supprimé pour ${decoded.paneId ?? "?"}`;
   return kind;
-};
-
-/** Forme minimale reconnue d'une ligne de message de session. */
-const MessageLine = Schema.Struct({
-  message: Schema.optional(
-    Schema.Struct({
-      content: Schema.optional(Schema.Unknown),
-      role: Schema.optional(Schema.String),
-    }),
-  ),
-});
-const decodeMessageLine = Schema.decodeUnknownOption(MessageLine);
-
-/** Extrait le texte d'un contenu qui peut être une chaîne ou des blocs. */
-const contentToText = (content: unknown): string => {
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .map((block) => {
-      const decoded = Option.getOrUndefined(
-        Schema.decodeUnknownOption(Schema.Struct({ text: Schema.String }))(block),
-      );
-      return decoded?.text ?? "";
-    })
-    .join("");
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -181,7 +181,7 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
         const session =
           mode === "incremental" && known !== null
             ? await fetchSession(agent.paneId, { since: known.offset })
-            : await fetchSession(agent.paneId, { tail: 131_072 });
+            : await fetchSession(agent.paneId, { tail: 524_288 });
 
         cursor.current = { offset: session.offset, path: session.sessionPath };
 
@@ -216,21 +216,10 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [entries.length]);
 
-  const messages = useMemo(
-    () =>
-      entries
-        .filter((entry) => entry.type === "message")
-        .flatMap((entry) => {
-          const decoded = Option.getOrUndefined(decodeMessageLine(entry.raw));
-          if (decoded === undefined) return [];
-          const text = contentToText(decoded.message?.content);
-          if (text.trim().length === 0) return [];
-          return [
-            { id: entry.id ?? entry.raw.slice(0, 12), role: decoded.message?.role ?? "?", text },
-          ];
-        }),
-    [entries],
-  );
+  // L'extraction vit dans `messages.ts` : isolée, donc **testable**. Le défaut
+  // qui vidait la conversation venait de cette logique encastrée dans le
+  // composant, où rien ne pouvait la couvrir.
+  const messages = useMemo(() => toBubbles(entries), [entries]);
 
   const onDraftChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setDraft(event.target.value);
@@ -365,14 +354,15 @@ const AgentRow = ({ agent, onOpen }: { agent: AgentView; onOpen: (paneId: string
 };
 
 export const App = () => {
-  const [tab, setTab] = useState<Tab>("projets");
+  const [route, navigate] = useHashRoute();
+  const tab: Tab = route.kind === "tab" ? route.tab : "agents";
   const [overview, setOverview] = useState<Overview | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState<"live" | "down">("down");
   const activitySeq = useRef(0);
   const [activity, setActivity] = useState<readonly { at: number; id: number; text: string }[]>([]);
-  const [selected, setSelected] = useState<AgentView | null>(null);
+  const [selectedPaneId, setSelectedPaneId] = useState<string | null>(null);
   const [terminal, setTerminal] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("tous");
   const [workspaceFilter, setWorkspaceFilter] = useState<string>("tous");
@@ -436,11 +426,14 @@ export const App = () => {
   );
 
   // Handlers stables : évite de recréer une fonction à chaque rendu.
-  const onTabClick = useCallback((event: React.MouseEvent<HTMLButtonElement>) => {
-    const next = event.currentTarget.dataset["tab"];
-    const valid = Option.getOrUndefined(Schema.decodeUnknownOption(TabSchema)(next));
-    if (valid !== undefined) setTab(valid);
-  }, []);
+  const onTabClick = useCallback(
+    (event: React.MouseEvent<HTMLButtonElement>) => {
+      const next = event.currentTarget.dataset["tab"];
+      const valid = Option.getOrUndefined(Schema.decodeUnknownOption(TabSchema)(next));
+      if (valid !== undefined) navigate({ kind: "tab", tab: valid });
+    },
+    [navigate],
+  );
   const onWorkspaceFilter = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
     setWorkspaceFilter(event.target.value);
   }, []);
@@ -448,10 +441,10 @@ export const App = () => {
     setStatusFilter(event.target.value);
   }, []);
 
-  const closeAgent = useCallback(() => setSelected(null), []);
+  const closeAgent = useCallback(() => navigate({ kind: "tab", tab: "agents" }), [navigate]);
 
   const openAgent = useCallback(async (agent: AgentView) => {
-    setSelected(agent);
+    setSelectedPaneId(agent.paneId);
     setTerminal("");
     try {
       const read = await fetchTerminal(agent.paneId);
@@ -461,11 +454,14 @@ export const App = () => {
     }
   }, []);
 
-  const onOpenWorkspace = useCallback((workspaceId: string) => {
-    setWorkspaceFilter(workspaceId);
-    setStatusFilter("tous");
-    setTab("agents");
-  }, []);
+  const onOpenWorkspace = useCallback(
+    (workspaceId: string) => {
+      setWorkspaceFilter(workspaceId);
+      setStatusFilter("tous");
+      navigate({ kind: "tab", tab: "agents" });
+    },
+    [navigate],
+  );
 
   const onOpenAgent = useCallback(
     (paneId: string) => {
@@ -475,10 +471,15 @@ export const App = () => {
     [openAgent, overview],
   );
 
-  if (selected !== null) {
+  // L'agent affiché est **dérivé de la route** : après un rafraîchissement, le
+  // fragment `#/agent/<paneId>` rouvre le même agent.
+  const selectedPane = route.kind === "agent" ? route.paneId : selectedPaneId;
+  const selectedAgent = agents.find((agent) => agent.paneId === selectedPane) ?? null;
+
+  if (route.kind === "agent" && selectedAgent !== null) {
     return (
       <div className="app">
-        <ChatScreen agent={selected} onBack={closeAgent} />
+        <ChatScreen agent={selectedAgent} onBack={closeAgent} />
       </div>
     );
   }
