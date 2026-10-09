@@ -10,10 +10,16 @@
  */
 import { Option, Schema } from "effect";
 
-export const TabSchema = Schema.Literals(["projets", "agents", "activite", "reglages"]);
+export const TabSchema = Schema.Literals(["a-traiter", "projets", "agents", "reglages"]);
 export type Tab = typeof TabSchema.Type;
 
-export const DEFAULT_TAB: Tab = "projets";
+/**
+ * Onglet par défaut : **ce qui demande une action**.
+ *
+ * Ouvrir sur une liste de projets oblige à chercher ce qui attend. La question
+ * utile en mobilité est « qu'est-ce qui m'attend ? ».
+ */
+export const DEFAULT_TAB: Tab = "a-traiter";
 
 export type Route =
   | { readonly kind: "tab"; readonly tab: Tab }

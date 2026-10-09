@@ -26,7 +26,7 @@ describe("parseRoute", () => {
   });
 
   test("les quatre onglets sont reconnus", () => {
-    for (const tab of ["projets", "agents", "activite", "reglages"] as const) {
+    for (const tab of ["a-traiter", "projets", "agents", "reglages"] as const) {
       const route = parseRoute(`#/${tab}`);
       expect(route.kind).toBe("tab");
       if (route.kind === "tab") expect(route.tab).toBe(tab);
@@ -56,7 +56,7 @@ describe("parseRoute", () => {
 
 describe("routeToHash", () => {
   test("aller-retour stable pour un onglet", () => {
-    expect(routeToHash(parseRoute("#/activite"))).toBe("#/activite");
+    expect(routeToHash(parseRoute("#/projets"))).toBe("#/projets");
   });
 
   test("aller-retour stable pour un agent", () => {

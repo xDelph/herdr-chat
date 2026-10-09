@@ -920,3 +920,58 @@ Deux hypothèses vérifiées, toutes deux **écartées par la mesure** :
 **Reconnaissance honnête** : je n'ai pas reproduit les barres elles-mêmes. Ce qui est établi, c'est que le rendu bloquait le fil principal à chaque frappe et que le défilement se déclenchait de façon incontrôlée — deux causes suffisantes pour produire un affichage instable, et corrigées.
 
 Si le phénomène persiste après ces corrections, il faudra le décrire autrement : **quel écran**, **à quel moment**, et si les barres disparaissent au rechargement. Mon diagnostic actuel ne va pas plus loin que ce que j'ai pu mesurer.
+
+---
+
+## D017 — Cinq fonctionnalités, et l'accueil change de nature
+
+**Date :** 2026-10-09 · Suite de `docs/IDEAS.md`
+
+### D017.1 — La file d'attention devient l'écran d'accueil
+
+L'onglet par défaut était `projets`. Il devient **`a-traiter`**.
+
+Ouvrir sur une liste de projets oblige à **chercher** ce qui attend. La question utile en mobilité est *« qu'est-ce qui m'attend ? »*.
+
+Pour chaque agent `blocked` : **ce qu'il demande**, quatre réponses rapides (`oui` / `non` / `continue` / `stop`), et un accès à la conversation. On répond sans changer d'écran.
+
+**D'où vient la question.** Du **dernier texte écrit par l'agent**, lu dans le fichier de session (`lastAssistantText`). Aucun résumé n'est fabriqué : si l'agent n'a rien dit, on l'annonce — *« L'agent est bloqué mais n'a rien écrit »* — au lieu d'inventer une question plausible.
+
+### D017.2 — Les sous-agents, enfin visibles
+
+`toolResult.details.results[]` porte une structure riche, qui était jusqu'ici **déversée en sortie brute**.
+
+Désormais affichés : agent, **modèle**, statut, **fichiers modifiés**, résumé, **auto-vérification**, questions ouvertes, erreur.
+
+**Les deux statuts sont affichés quand ils divergent.** Dans les données réelles, `status: "failed"` coexiste avec `digest.status: "ok"` — le lanceur a échoué alors que le sous-agent s'auto-évalue satisfait. **Les deux sont vrais.** Choisir l'un des deux serait mentir sur l'état réel ; l'interface les montre côte à côte.
+
+### D017.3 — Les points de reprise
+
+Une entrée `compaction` devient un **repère** dans la conversation : jetons résumés, résumé consultable. Sur une session longue, cela évite de relire dans le vide — et **explique pourquoi un agent a « oublié »** quelque chose.
+
+### D017.4 — Les appels d'outils sont regroupés
+
+`toItems` réunit les messages **consécutifs** qui ne portent que des outils sous un résumé : *« 12 appels · bash ×8, edit ×4 »*.
+
+Une session réelle alterne `assistant(toolCall)` → `toolResult` sur des centaines de tours. Les afficher un par un noie complètement les décisions et les réponses.
+
+**Deux garde-fous, et ils comptent :**
+
+| Règle | Motif |
+|---|---|
+| Un groupe contenant une **erreur** est déplié d'office | replier un échec derrière un résumé reviendrait à le cacher |
+| Un texte d'assistant **coupe** le groupe | les décisions restent toujours visibles, jamais noyées dans le bruit |
+
+Un groupe d'**un seul** message n'est pas créé : cela n'apporterait rien.
+
+### D017.5 — Les sorties d'outil sont repliées par défaut
+
+Chaque résultat se présente comme une ligne : nom de l'outil, aperçu, nombre de lignes. On déplie à la demande.
+
+**Un échec reste déplié d'office.** Même raison que ci-dessus.
+
+### D017.6 — Ce qui n'est pas fait
+
+- **Le sélecteur de type d'agent** reste fixé à `pi` dans l'interface ; l'API accepte les 11 types de la liste blanche.
+- **La question en attente** est lue à la demande, pour les seuls agents bloqués. Aucun coût sur le rafraîchissement du parc.
+- `docs/IDEAS.md` §3.3 à §3.8 : non commencées.

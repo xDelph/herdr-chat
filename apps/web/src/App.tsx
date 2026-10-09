@@ -31,9 +31,10 @@ import type {
   SessionEntry,
   WorkspaceView,
 } from "./api.ts";
-import { toMessages } from "./blocks.ts";
+import { toItems, toMessages } from "./blocks.ts";
+import { AttentionCard } from "./Attention.tsx";
 import type { RenderedMessage } from "./blocks.ts";
-import { BlockView } from "./Blocks.tsx";
+import { ItemsView } from "./Blocks.tsx";
 import { parseRoute, routeToHash, TabSchema } from "./routing.ts";
 import type { Route, Tab } from "./routing.ts";
 
@@ -311,18 +312,7 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
       {error !== null ? <p className="notice notice--error">{error}</p> : null}
 
       <div className="messages" ref={scrollerRef} onScroll={onScroll}>
-        {messages.map((message) => (
-          <article key={message.id} className={`bubble bubble--${message.role}`}>
-            <span className="bubble__role">
-              {message.role}
-              {message.meta["model"] !== undefined ? ` · ${message.meta["model"]}` : ""}
-              {message.meta["tokens"] !== undefined ? ` · ${message.meta["tokens"]} tok` : ""}
-            </span>
-            {message.blocks.map((block, index) => (
-              <BlockView key={`${message.id}-${String(index)}`} block={block} />
-            ))}
-          </article>
-        ))}
+        <ItemsView items={toItems(messages)} />
       </div>
 
       <div className="composer">
@@ -718,21 +708,25 @@ export const App = () => {
         </section>
       ) : null}
 
-      {/* « À traiter » : ce qui demande une action, puis ce qui vient de se passer.
-          Un simple journal est inutile — on commence par ce qui bloque. */}
-      {tab === "activite" ? (
+      {/*
+        « À traiter » : ce qui demande une intervention, puis ce qui a bougé.
+        Un simple journal est inutile — on commence par ce qui bloque, avec la
+        question de l'agent et de quoi y répondre sans changer d'écran.
+      */}
+      {tab === "a-traiter" ? (
         <section className="screen">
           <h2>À traiter</h2>
           {awaiting.length === 0 ? (
-            <p className="muted">Aucun agent n'attend d'intervention.</p>
+            <p className="muted">
+              Aucun agent n'attend d'intervention. Les agents bloqués apparaissent ici, avec leur
+              demande.
+            </p>
           ) : (
-            <ul className="list">
+            <div className="attention__list">
               {awaiting.map((agent) => (
-                <li key={agent.paneId}>
-                  <AgentRow agent={agent} onOpen={onOpenAgent} />
-                </li>
+                <AttentionCard key={agent.paneId} agent={agent} onOpen={onOpenAgent} />
               ))}
-            </ul>
+            </div>
           )}
 
           <h2>Activité récente</h2>
@@ -795,7 +789,7 @@ export const App = () => {
           [
             ["projets", "Projets"],
             ["agents", "Agents"],
-            ["activite", "À traiter"],
+            ["a-traiter", "À traiter"],
             ["reglages", "Réglages"],
           ] as const
         ).map(([key, label]) => (

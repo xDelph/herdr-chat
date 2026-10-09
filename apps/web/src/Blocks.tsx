@@ -10,7 +10,7 @@ import { memo, useState } from "react";
 import { Schema } from "effect";
 import { Option } from "effect";
 import { Markdown } from "./Markdown.tsx";
-import type { Block } from "./blocks.ts";
+import type { Block, Item, RenderedMessage } from "./blocks.ts";
 
 const str = (value: unknown): string => (typeof value === "string" ? value : "");
 
@@ -227,25 +227,127 @@ const ToolCallBlock = ({ block }: { block: Extract<Block, { kind: "toolCall" }> 
  * Un échec est **visuellement distinct** : confondre une sortie normale et une
  * erreur fait perdre du temps à qui relit une session.
  */
-const ToolResultBlock = ({ block }: { block: Extract<Block, { kind: "toolResult" }> }) => (
-  <div className={block.isError ? "blk blk--result blk--error" : "blk blk--result"}>
-    <ToolHead name={block.toolName} target={block.isError ? "échec" : null} />
-    {block.text.trim().length > 0 ? (
-      <pre className="term term--out">
-        <code>{block.text}</code>
-      </pre>
-    ) : (
-      <p className="blk__hint">aucune sortie</p>
-    )}
-    {block.images.map((image, index) => (
-      <img
-        key={`${image.mimeType}:${image.data.slice(0, 32)}:${String(index)}`}
-        className="blk__image"
-        src={`data:${image.mimeType};base64,${image.data}`}
-        alt="contenu renvoyé par l'outil"
-      />
+const ToolResultBlock = ({ block }: { block: Extract<Block, { kind: "toolResult" }> }) => {
+  const lines = block.text.split("\n");
+  const preview = lines.find((line) => line.trim().length > 0)?.slice(0, 80) ?? "";
+
+  // ⚠️ Un échec est **déplié d'office**. Le replier derrière un résumé serait
+  // masquer le seul élément qui demande une action.
+  const [open, setOpen] = useState(block.isError);
+
+  return (
+    <div className={block.isError ? "blk blk--result blk--error" : "blk blk--result"}>
+      <button
+        type="button"
+        className="blk__row"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+      >
+        <ToolHead name={block.toolName} target={block.isError ? "échec" : null} />
+        {!open && preview.length > 0 ? <span className="blk__preview">{preview}</span> : null}
+        {!open ? <span className="blk__hint">{lines.length} lignes</span> : null}
+      </button>
+
+      {open ? (
+        block.text.trim().length > 0 ? (
+          <pre className="term term--out">
+            <code>{block.text}</code>
+          </pre>
+        ) : (
+          <p className="blk__hint">aucune sortie</p>
+        )
+      ) : null}
+
+      {block.images.map((image, index) => (
+        <img
+          key={`${image.mimeType}:${image.data.slice(0, 32)}:${String(index)}`}
+          className="blk__image"
+          src={`data:${image.mimeType};base64,${image.data}`}
+          alt="contenu renvoyé par l'outil"
+        />
+      ))}
+    </div>
+  );
+};
+
+/**
+ * Résultat de sous-agent.
+ *
+ * Pi rapporte une **structure riche** : agent, modèle, statut, fichiers
+ * modifiés, résumé, auto-vérification, questions ouvertes. Tout cela était
+ * jusqu'ici déversé en sortie brute — c'est-à-dire illisible.
+ *
+ * ⚠️ `status` et `digest.status` peuvent diverger. Les deux sont affichés :
+ * choisir l'un des deux serait mentir sur l'état réel.
+ */
+const SubagentBlock = ({ block }: { block: Extract<Block, { kind: "subagent" }> }) => (
+  <div className="blk blk--tool blk--subagent">
+    <ToolHead name="subagent" target={`${block.mode} · ${String(block.results.length)}`} />
+    {block.results.map((result) => (
+      <div key={result.id} className="sa">
+        <div className="sa__head">
+          <strong>{result.agent}</strong>
+          {result.model !== null ? <span className="sa__model">{result.model}</span> : null}
+          <span className={`sa__status sa__status--${result.status}`}>{result.status}</span>
+        </div>
+
+        {/* Les deux statuts, côte à côte, quand ils divergent. */}
+        {result.digest?.status !== null &&
+        result.digest?.status !== undefined &&
+        result.digest.status !== result.status ? (
+          <p className="blk__hint">
+            exécution : {result.status}
+            {result.stopReason !== null ? ` (${result.stopReason})` : ""} · auto-évaluation :{" "}
+            {result.digest.status}
+          </p>
+        ) : null}
+
+        {result.digest?.summary !== null && result.digest?.summary !== undefined ? (
+          <p className="sa__summary">{result.digest.summary}</p>
+        ) : null}
+
+        {result.digest !== null && result.digest.filesChanged.length > 0 ? (
+          <ul className="sa__files">
+            {result.digest.filesChanged.map((file) => (
+              <li key={file} className="mono small">
+                {file}
+              </li>
+            ))}
+          </ul>
+        ) : null}
+
+        {result.digest?.verified !== null && result.digest?.verified !== undefined ? (
+          <p className="sa__verified">
+            <span className="blk__tag">vérifié</span> {result.digest.verified}
+          </p>
+        ) : null}
+
+        {result.digest?.questions !== null &&
+        result.digest?.questions !== undefined &&
+        result.digest.questions !== "none" ? (
+          <p className="sa__questions">question : {result.digest.questions}</p>
+        ) : null}
+
+        {result.errorMessage !== null ? (
+          <p className="notice notice--error">{result.errorMessage}</p>
+        ) : null}
+      </div>
     ))}
   </div>
+);
+
+/** Point où le contexte a été résumé — un repère, pas un message. */
+const CompactionBlock = ({ block }: { block: Extract<Block, { kind: "compaction" }> }) => (
+  <details className="blk blk--compaction">
+    <summary>
+      <span className="blk__tag">contexte résumé</span>
+      {block.tokensBefore !== null ? (
+        <span className="blk__hint">{block.tokensBefore.toLocaleString("fr-FR")} jetons</span>
+      ) : null}
+      <span className="blk__preview">{block.summary.slice(0, 80)}</span>
+    </summary>
+    {block.summary.length > 0 ? <Markdown source={block.summary} /> : null}
+  </details>
 );
 
 /** Exécution shell directe : commande, sortie, code de retour. */
@@ -298,6 +400,10 @@ export const BlockView = memo(({ block }: { block: Block }) => {
       return <ToolResultBlock block={block} />;
     case "bashExecution":
       return <BashExecutionBlock block={block} />;
+    case "subagent":
+      return <SubagentBlock block={block} />;
+    case "compaction":
+      return <CompactionBlock block={block} />;
     case "image":
       return <ImageContentBlock block={block} />;
     default:
@@ -306,3 +412,80 @@ export const BlockView = memo(({ block }: { block: Block }) => {
   }
 });
 BlockView.displayName = "BlockView";
+
+// ---------------------------------------------------------------------------
+// Groupes d'appels d'outils
+// ---------------------------------------------------------------------------
+
+/** Une bulle : rôle, métadonnées, blocs. Mémoïsée. */
+export const MessageBubble = memo(({ message }: { message: RenderedMessage }) => (
+  <article className={`bubble bubble--${message.role}`}>
+    <span className="bubble__role">
+      {message.role}
+      {message.meta["model"] !== undefined ? ` · ${message.meta["model"]}` : ""}
+      {message.meta["tokens"] !== undefined ? ` · ${message.meta["tokens"]} tok` : ""}
+    </span>
+    {message.blocks.map((block, index) => (
+      <BlockView key={`${message.id}-${String(index)}`} block={block} />
+    ))}
+  </article>
+));
+MessageBubble.displayName = "MessageBubble";
+
+/**
+ * Suite d'appels d'outils, repliée en un résumé.
+ *
+ * Une session réelle alterne `assistant(toolCall)` → `toolResult` sur des
+ * centaines de tours. Les afficher un par un rend la conversation illisible :
+ * les décisions et les réponses disparaissent dans le bruit.
+ *
+ * ⚠️ Un groupe contenant une **erreur** s'ouvre **d'office**. Replier un échec
+ * derrière un résumé reviendrait à le cacher.
+ */
+const ToolGroup = ({ item }: { item: Extract<Item, { kind: "tools" }> }) => {
+  const [open, setOpen] = useState(item.hasError);
+
+  return (
+    <div className={item.hasError ? "group group--error" : "group"}>
+      <button
+        type="button"
+        className="group__head"
+        onClick={() => setOpen((value) => !value)}
+        aria-expanded={open}
+      >
+        <span className="group__count">{item.callCount} appels</span>
+        <span className="group__tools">
+          {item.tools.map((tool) => (
+            <span key={tool.name} className="group__tool">
+              {tool.name}
+              {tool.count > 1 ? ` ×${String(tool.count)}` : ""}
+            </span>
+          ))}
+        </span>
+        {item.hasError ? <span className="group__flag">échec</span> : null}
+        <span className="group__chevron">{open ? "▾" : "▸"}</span>
+      </button>
+
+      {open ? (
+        <div className="group__body">
+          {item.messages.map((message) => (
+            <MessageBubble key={message.id} message={message} />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+/** Rend une liste d'éléments de conversation. */
+export const ItemsView = ({ items }: { items: ReadonlyArray<Item> }) => (
+  <>
+    {items.map((item) =>
+      item.kind === "single" ? (
+        <MessageBubble key={item.message.id} message={item.message} />
+      ) : (
+        <ToolGroup key={item.id} item={item} />
+      ),
+    )}
+  </>
+);
