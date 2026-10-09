@@ -1,0 +1,32 @@
+# Dépendances
+node_modules/
+
+# Builds
+dist/
+build/
+*.tsbuildinfo
+
+# Environnement / secrets
+.env
+.env.*
+!.env.example
+*.local
+
+# Système
+.DS_Store
+Thumbs.db
+
+# Tests & couverture
+coverage/
+
+# Données locales
+.tailscale/
+*.sqlite
+*.sqlite-journal
+*.db
+data/
+
+# Logs
+*.log
+npm-debug.log*
+bun-debug.log*

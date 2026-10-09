@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Refuse un commit qui ne passe pas la porte de vérification.
+set -euo pipefail
+if ! ./scripts/verify.sh; then
+  echo
+  echo "pre-commit : la porte 'verify' a échoué — commit refusé."
+  echo "Corriger, ou contourner volontairement avec : git commit --no-verify"
+  exit 1
+fi

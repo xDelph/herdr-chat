@@ -1,0 +1,73 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": [
+    "unicorn",
+    "oxc",
+    "typescript",
+    "react",
+    "jsx-a11y",
+    "react-perf",
+    "promise"
+  ],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "warn"
+  },
+  "env": {
+    "browser": true,
+    "es2024": true
+  },
+  "settings": {
+    "react": {
+      "version": "19.3"
+    }
+  },
+  "rules": {
+    "no-console": [
+      "warn",
+      {
+        "allow": [
+          "warn",
+          "error"
+        ]
+      }
+    ],
+    "no-debugger": "error",
+    "no-var": "error",
+    "prefer-const": "error",
+    "eqeqeq": "error",
+    "no-underscore-dangle": [
+      "error",
+      {
+        "allow": [
+          "_tag",
+          "_id",
+          "_meta"
+        ]
+      }
+    ],
+    "typescript/no-explicit-any": "error",
+    "typescript/no-non-null-assertion": "error",
+    "typescript/consistent-type-imports": "error",
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "react/exhaustive-deps": "error",
+    "react/no-array-index-key": "error",
+    "react/jsx-key": "error",
+    "jsx-a11y/alt-text": "error",
+    "promise/always-return": "error",
+    "promise/no-return-in-finally": "error",
+    "promise/prefer-await-to-then": "error",
+    "react/react-in-jsx-scope": "off",
+    "react/set-state-in-effect": "off",
+    "react/exhaustive-effect-dependencies": "off",
+    "react/memo-dependencies": "off",
+    "react-perf/jsx-no-new-function-as-prop": "off"
+  },
+  "ignorePatterns": [
+    "node_modules",
+    "dist",
+    "coverage"
+  ]
+}
