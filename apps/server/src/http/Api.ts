@@ -13,7 +13,16 @@
  */
 import { Effect, Option, Result, Schema } from "effect";
 import type { Cause } from "effect";
-import { AgentInfo, WorkspaceInfo } from "@herdr-remote/shared";
+import {
+  ApiErrorResponse,
+  HealthResponse,
+  OverviewResponse,
+  PromptSentResponse,
+  PromptSuppressedResponse,
+  SessionResponse,
+  SnapshotPayload,
+  TerminalResponse,
+} from "@herdr-remote/shared";
 import { buildOverview } from "../agents/AgentRegistry.ts";
 import type { ServerConfig } from "../config.ts";
 import type { EventHubApi } from "../events/EventHub.ts";
@@ -39,14 +48,7 @@ const AgentSessionSlot = Schema.Struct({
   ),
 });
 
-const SnapshotShape = Schema.Struct({
-  agents: Schema.Array(AgentInfo),
-  protocol: Schema.Number,
-  version: Schema.String,
-  workspaces: Schema.Array(WorkspaceInfo),
-});
-
-const decodeSnapshot = Schema.decodeUnknownOption(SnapshotShape);
+const decodeSnapshot = Schema.decodeUnknownOption(SnapshotPayload);
 const decodePromptBody = Schema.decodeUnknownOption(PromptBody);
 const decodeSessionSlot = Schema.decodeUnknownOption(AgentSessionSlot);
 
@@ -60,6 +62,44 @@ export const sessionPathOf = (agent: unknown): string | undefined => {
 
 const json = (body: unknown, status = 200): Response =>
   Response.json(body, { status, headers: { "cache-control": "no-store" } });
+
+/**
+ * Sérialise une réponse **en la validant contre le contrat partagé**.
+ *
+ * C'est la garantie structurelle : le serveur ne peut plus émettre une réponse
+ * que le client refusera de décoder. Le bug initial — `reachable` absent de la
+ * branche succès de `/api/health` — aurait été attrapé ici, immédiatement, au
+ * lieu de se manifester sur l'iPhone comme « Herdr injoignable ».
+ */
+/**
+ * Construit un décodeur pour un schéma concret.
+ *
+ * On ne peut pas écrire `respond<A>(schema: Schema.Schema<A>)` : la signature
+ * réelle de `decodeUnknownOption` exige un `ConstraintDecoder`, et un
+ * `Schema<A>` générique ne s'y conforme pas.
+ */
+const decoderOf =
+  <S extends Parameters<typeof Schema.decodeUnknownOption>[0]>(schema: S) =>
+  (payload: unknown): S["Type"] | undefined =>
+    Option.getOrUndefined(Schema.decodeUnknownOption(schema)(payload));
+
+const respond = (
+  decodeBody: (payload: unknown) => unknown,
+  body: unknown,
+  status = 200,
+): Response => {
+  const value = decodeBody(body);
+  if (value === undefined) {
+    return json(
+      {
+        error: "le serveur a produit une réponse hors contrat",
+        hint: "voir packages/shared/src/api.ts — le contrat fait foi",
+      },
+      500,
+    );
+  }
+  return json(value, status);
+};
 
 /** Rend lisible n'importe quelle erreur typée d'Effect. */
 const describe = (error: unknown): string => {
@@ -104,29 +144,56 @@ const run = async <A, E>(
   return json({ error: failure === undefined ? "échec inconnu" : describe(failure) }, 500);
 };
 
+/**
+ * Requête minimale dont un handler a besoin.
+ *
+ * Volontairement plus étroite que `Bun.BunRequest` : cela évite toute assertion
+ * de type dans les tests, qui peuvent construire un objet littéral conforme.
+ */
+export interface RouteRequest {
+  readonly params: Record<string, string | undefined>;
+  readonly headers: { get(name: string): string | null };
+  json(): Promise<unknown>;
+}
+
 export interface Routes {
-  readonly [path: string]: (request: Bun.BunRequest) => Response | Promise<Response>;
+  readonly [path: string]: (request: RouteRequest) => Response | Promise<Response>;
 }
 
 export const makeRoutes = (deps: ApiDeps): Routes => {
   const { config, herdr, hub, sender, startedAt } = deps;
 
   const health = (): Promise<Response> =>
-    run(
-      Effect.gen(function* () {
-        const ping = yield* herdr.ping();
-        return {
-          herdr: {
-            protocol: ping.protocol,
-            socket: config.herdrSocketPath,
-            version: ping.version,
+    Effect.gen(function* () {
+      const ping = yield* Effect.result(herdr.ping());
+      // Herdr injoignable n'est pas une erreur du backend : on répond 503 avec
+      // `reachable: false`, jamais une 200 qui laisserait croire que tout va bien.
+      if (Result.isFailure(ping)) {
+        return respond(
+          decoderOf(HealthResponse),
+          {
+            herdr: { reachable: false, socket: config.herdrSocketPath },
+            ok: false,
+            uptimeMs: Date.now() - startedAt,
           },
-          ok: true,
-          uptimeMs: Date.now() - startedAt,
-        };
-      }),
-      (body) => json(body),
-    );
+          503,
+        );
+      }
+      const value = Option.getOrUndefined(Result.getSuccess(ping));
+      if (value === undefined) {
+        return respond(decoderOf(ApiErrorResponse), { error: "réponse `ping` illisible" }, 500);
+      }
+      return respond(decoderOf(HealthResponse), {
+        herdr: {
+          protocol: value.protocol,
+          reachable: true,
+          socket: config.herdrSocketPath,
+          version: value.version,
+        },
+        ok: true,
+        uptimeMs: Date.now() - startedAt,
+      });
+    }).pipe(Effect.runPromise);
 
   const overview = (): Promise<Response> =>
     run(
@@ -138,19 +205,19 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
         }
         return yield* buildOverview(snapshot);
       }),
-      (body) => json(body),
+      (body) => respond(decoderOf(OverviewResponse), body),
     );
 
-  const terminal = (request: Bun.BunRequest): Promise<Response> =>
+  const terminal = (request: RouteRequest): Promise<Response> =>
     run(
       Effect.gen(function* () {
         const paneId = request.params["paneId"] ?? "";
         return yield* herdr.readAgent(paneId);
       }),
-      (body) => json(body),
+      (body) => respond(decoderOf(TerminalResponse), body),
     );
 
-  const session = async (request: Bun.BunRequest): Promise<Response> => {
+  const session = async (request: RouteRequest): Promise<Response> => {
     const result = await Effect.runPromise(
       Effect.result(
         Effect.gen(function* () {
@@ -169,16 +236,28 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     {
       if (Result.isFailure(result)) {
         const failure = failureOf(result);
-        return json({ error: failure === undefined ? "échec inconnu" : describe(failure) }, 502);
+        return respond(
+          decoderOf(ApiErrorResponse),
+          { error: failure === undefined ? "échec inconnu" : describe(failure) },
+          502,
+        );
       }
       const value = Option.getOrUndefined(Result.getSuccess(result));
       if (value === undefined) {
-        return json({ error: "résultat de session illisible" }, 500);
+        return respond(
+          decoderOf(ApiErrorResponse),
+          { error: "résultat de session illisible" },
+          500,
+        );
       }
       if (value.kind === "no-session") {
-        return json({ error: "aucun chemin de session exploitable pour cet agent" }, 404);
+        return respond(
+          decoderOf(ApiErrorResponse),
+          { error: "aucun chemin de session exploitable pour cet agent" },
+          404,
+        );
       }
-      return json({
+      return respond(decoderOf(SessionResponse), {
         entries: value.tailed.entries,
         offset: value.tailed.offset,
         sessionPath: value.path,
@@ -186,11 +265,15 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     }
   };
 
-  const prompt = async (request: Bun.BunRequest): Promise<Response> => {
+  const prompt = async (request: RouteRequest): Promise<Response> => {
     const raw: unknown = await request.json().catch(() => undefined);
     const body = Option.getOrUndefined(decodePromptBody(raw));
     if (body === undefined) {
-      return json({ error: "corps invalide : `text` (chaîne) requis" }, 400);
+      return respond(
+        decoderOf(ApiErrorResponse),
+        { error: "corps invalide : `text` (chaîne) requis" },
+        400,
+      );
     }
     const paneId = request.params["paneId"] ?? "";
 
@@ -199,10 +282,10 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     if (Result.isSuccess(result)) {
       const outcome = Option.getOrUndefined(Result.getSuccess(result));
       if (outcome === undefined) {
-        return json({ error: "résultat d'envoi illisible" }, 500);
+        return respond(decoderOf(ApiErrorResponse), { error: "résultat d'envoi illisible" }, 500);
       }
       await Effect.runPromise(hub.publish("prompt", { paneId, ...outcome }));
-      return json(outcome);
+      return respond(decoderOf(PromptSentResponse), outcome);
     }
 
     const failure = failureOf(result);
@@ -211,12 +294,13 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       await Effect.runPromise(
         hub.publish("prompt-suppressed", { paneId, reason: "envoi identique consécutif" }),
       );
-      return json({
+      return respond(decoderOf(PromptSuppressedResponse), {
         reason: "envoi identique déjà confirmé dans la fenêtre",
         status: "suppressed",
       });
     }
-    return json(
+    return respond(
+      decoderOf(ApiErrorResponse),
       { error: `envoi non confirmé : ${failure === undefined ? "inconnu" : describe(failure)}` },
       502,
     );
@@ -229,7 +313,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
    * exactement les événements manqués. Si le journal a été tronqué, un
    * événement `resync` est émis plutôt que de laisser un trou silencieux.
    */
-  const events = (request: Request): Response => {
+  const events = (request: RouteRequest): Response => {
     const header = request.headers.get("last-event-id");
     const parsed = header === null ? 0 : Number.parseInt(header, 10);
     let cursor = Number.isInteger(parsed) ? parsed : 0;

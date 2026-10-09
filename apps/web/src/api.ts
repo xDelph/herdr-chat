@@ -13,88 +13,45 @@
  * diverger entre le décodage et le type affiché. Aucune assertion de type.
  */
 import { Option, Schema } from "effect";
+import {
+  ApiErrorResponse,
+  HealthResponse,
+  OverviewResponse,
+  PromptSentResponse,
+  PromptSuppressedResponse,
+  SessionResponse as SessionResponseSchema,
+  TerminalResponse,
+} from "@herdr-remote/shared";
 
-const AgentViewSchema = Schema.Struct({
-  agent: Schema.NullOr(Schema.String),
-  cwd: Schema.NullOr(Schema.String),
-  focused: Schema.Boolean,
-  paneId: Schema.String,
-  parentSession: Schema.NullOr(Schema.String),
-  sessionCwd: Schema.NullOr(Schema.String),
-  /** `null` = non vérifiable, volontairement distinct de `false`. */
-  sessionCwdMatches: Schema.NullOr(Schema.Boolean),
-  sessionId: Schema.NullOr(Schema.String),
-  sessionKind: Schema.NullOr(Schema.Literals(["id", "path"])),
-  sessionPath: Schema.NullOr(Schema.String),
-  status: Schema.String,
-  tabId: Schema.String,
-  title: Schema.NullOr(Schema.String),
-  workspaceId: Schema.String,
-});
-export type AgentView = typeof AgentViewSchema.Type;
+/**
+ * Le contrat vient de `@herdr-remote/shared` : **une seule définition**,
+ * partagée avec le serveur. C'est ce qui empêche la divergence qui a produit le
+ * bug « Forme de réponse inattendue : health ».
+ */
+export type {
+  AgentView,
+  HealthResponse as Health,
+  OverviewResponse as Overview,
+  PromptSentResponse,
+  PromptSuppressedResponse,
+  SessionEntry,
+  SessionResponse,
+  TerminalResponse as Terminal,
+  WorkspaceView,
+} from "@herdr-remote/shared";
 
-const WorkspaceViewSchema = Schema.Struct({
-  agentStatus: Schema.NullOr(Schema.String),
-  focused: Schema.Boolean,
-  label: Schema.NullOr(Schema.String),
-  paneCount: Schema.Number,
-  tabCount: Schema.Number,
-  workspaceId: Schema.String,
-});
-export type WorkspaceView = typeof WorkspaceViewSchema.Type;
-
-const HealthSchema = Schema.Struct({
-  herdr: Schema.Struct({
-    protocol: Schema.optional(Schema.Number),
-    reachable: Schema.Boolean,
-    socket: Schema.String,
-    version: Schema.optional(Schema.String),
-  }),
-  ok: Schema.Boolean,
-  uptimeMs: Schema.Number,
-});
-export type Health = typeof HealthSchema.Type;
-
-const OverviewSchema = Schema.Struct({
-  agents: Schema.Array(AgentViewSchema),
-  herdrProtocol: Schema.Number,
-  herdrVersion: Schema.String,
-  withoutSession: Schema.Number,
-  workspaces: Schema.Array(WorkspaceViewSchema),
-});
-export type Overview = typeof OverviewSchema.Type;
-
-const SessionEntrySchema = Schema.Struct({
-  id: Schema.optional(Schema.String),
-  parentId: Schema.optional(Schema.NullOr(Schema.String)),
-  raw: Schema.String,
-  timestamp: Schema.optional(Schema.String),
-  type: Schema.String,
-});
-export type SessionEntry = typeof SessionEntrySchema.Type;
-
-const SessionResponseSchema = Schema.Struct({
-  entries: Schema.Array(SessionEntrySchema),
-  offset: Schema.Number,
-  sessionPath: Schema.String,
-});
-export type SessionResponse = typeof SessionResponseSchema.Type;
-
-const TerminalSchema = Schema.Struct({ text: Schema.String, truncated: Schema.Boolean });
-export type Terminal = typeof TerminalSchema.Type;
-
-const ErrorPayload = Schema.Struct({ error: Schema.String });
-const SuppressedPayload = Schema.Struct({ reason: Schema.String, status: Schema.String });
-const SentPayload = Schema.Struct({
-  confirmation: Schema.String,
-  fingerprint: Schema.String,
-  status: Schema.String,
-});
+const HealthSchema = HealthResponse;
+const OverviewSchema = OverviewResponse;
+const TerminalSchema = TerminalResponse;
 
 export type SendResult =
   | { kind: "sent"; confirmation: "confirmed" | "unknown"; fingerprint: string }
   | { kind: "suppressed"; reason: string }
   | { kind: "failed"; message: string };
+
+const ErrorPayload = ApiErrorResponse;
+const SuppressedPayload = PromptSuppressedResponse;
+const SentPayload = PromptSentResponse;
 
 /**
  * Construit un décodeur non-générique pour un schéma concret.

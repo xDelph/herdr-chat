@@ -547,3 +547,70 @@ En diagnostiquant le blocage, un `lsof` a montré un processus `Python server.py
 **Réparation effectuée** : relancé à l'identique, depuis son répertoire, avec exactement les arguments observés. Vérifié : `TCP 100.80.161.83:8765 (LISTEN)` et `GET / → 200`.
 
 **Leçon de méthode** : `pkill`/`kill` sur un processus non identifié positivement est une erreur. Après un `lsof`, il faut **nommer le processus** (chemin complet, PPID, plist) avant d'agir. Un port occupé n'est pas un port orphelin.
+
+---
+
+## D011 — Bug « Forme de réponse inattendue : health » : deux définitions d'un même contrat
+
+**Date :** 2026-10-09 · **Symptôme rapporté :** depuis l'iPhone
+
+### Le défaut
+
+L'application affichait deux symptômes simultanés :
+
+```
+Forme de réponse inattendue : health
+herdr hors ligne / injoignable
+```
+
+**Un seul bug, deux symptômes.** La réponse réelle du serveur était :
+
+```json
+{"herdr":{"protocol":22,"socket":"…","version":"0.9.3"},"ok":true,"uptimeMs":295877}
+```
+
+**`reachable` était absent.** Le handler `/api/health` ne l'émettait que dans sa branche **503** (Herdr injoignable), pas dans sa branche **200**. Le schéma du client l'exigeant, le décodage échouait → `health` restait `null` → l'interface concluait « Herdr injoignable ».
+
+Aggravant : le serveur répondait **`reachable: true` absent** sur une réponse **200**, donc l'interface annonçait qu'Herdr était injoignable alors qu'il répondait parfaitement.
+
+### La cause réelle, et ce n'est pas le champ oublié
+
+Le champ oublié est le symptôme. La cause est d'avoir **deux définitions du même contrat** :
+
+| Fichier | Rôle | Défini par |
+|---|---|---|
+| `apps/server/src/http/Api.ts` | produit la réponse | le serveur, à la main |
+| `apps/web/src/api.ts` | décode la réponse | le client, à la main |
+
+Deux définitions libres de diverger, **et aucun test ne couvrait la branche succès**.
+
+### La correction structurelle
+
+Le contrat devient **unique** — `packages/shared/src/api.ts` — et les deux côtés l'utilisent :
+
+1. **Le serveur valide ses propres réponses sortantes** avant de les émettre (`respond(decoderOf(Schema), body)`). Une réponse hors contrat devient un **500 explicite** nommant le fichier du contrat, au lieu d'un objet silencieusement incomplet.
+2. **Le client décode avec les mêmes schémas** importés de `@herdr-remote/shared`.
+3. **Un test de contrat** (`apps/server/src/http/Api.test.ts`, 11 tests) valide chaque réponse émise contre le contrat partagé.
+
+### Preuve que le garde-fou fonctionne
+
+Le bug d'origine a été **réintroduit volontairement** pour vérifier que le test le rattrape :
+
+| État | Résultat du test |
+|---|---|
+| `reachable: true` **retiré** de la branche succès | **2 tests échouent** |
+| `reachable: true` restauré | **11 tests passent** |
+
+**Les deux branches de `/api/health` sont testées** — succès **et** échec. C'est la branche non testée qui portait le défaut.
+
+### Leçon
+
+C'est **exactement** le piège documenté en `docs/PROTOCOL.md` §10 à propos d'Herdr — « le schéma n'est pas la source de vérité de l'implémentation » — reproduit cette fois **dans mon propre code**, entre deux fichiers que j'avais écrits.
+
+Un contrat dupliqué diverge. Toujours. La seule défense qui tient est une **définition unique**, plus une **validation à l'émission**, plus un **test de contrat**. Les trois sont maintenant en place.
+
+### Note de méthode
+
+Le défaut n'a été visible qu'en ouvrant réellement l'application depuis un autre appareil. Les 30 tests existants passaient, `verify` était verte, et l'API répondait `200` sur toutes les routes en test local — parce que je testais le serveur avec `curl`, qui ne décode pas.
+
+**Un test qui n'applique pas le décodage du client ne teste pas la même chose que le client.**
