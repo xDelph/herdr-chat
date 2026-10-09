@@ -13,7 +13,7 @@
  * `state_labels` étaient **absents** sur l'instance mesurée, pas vides.
  */
 import { Effect, Result, Schema } from "effect";
-import type { AgentInfo, TabInfo, WorkspaceInfo } from "@herdr-remote/shared";
+import type { AgentInfo, SnapshotPane, TabInfo, WorkspaceInfo } from "@herdr-remote/shared";
 import { readHeader } from "../sessions/SessionReader.ts";
 
 /** Vue d'un agent exposée à l'interface. */
@@ -51,6 +51,10 @@ export interface WorkspaceView {
   readonly paneCount: number;
   readonly tabCount: number;
   readonly focused: boolean;
+  /** Panes d'agents présents dans ce projet : sert à savoir s'il y en a déjà un. */
+  readonly agentPanes: ReadonlyArray<string>;
+  /** Chemin du projet — cible de lancement d'un nouvel agent. */
+  readonly checkoutPath: string | null;
 }
 
 export interface OverviewView {
@@ -152,15 +156,30 @@ export const toAgentViews = (
 
 export const toWorkspaceViews = (
   workspaces: ReadonlyArray<WorkspaceInfo>,
+  agents: ReadonlyArray<AgentView> = [],
+  panes: ReadonlyArray<SnapshotPane> = [],
 ): ReadonlyArray<WorkspaceView> =>
-  workspaces.map((workspace) => ({
-    agentStatus: workspace.agent_status ?? null,
-    focused: workspace.focused ?? false,
-    label: workspace.label ?? null,
-    paneCount: workspace.pane_count ?? 0,
-    tabCount: workspace.tab_count ?? 0,
-    workspaceId: workspace.workspace_id,
-  }));
+  workspaces.map((workspace) => {
+    // Dossier de travail : `worktree.checkout_path` quand il existe, sinon le
+    // `cwd` du premier pane du projet. `worktree` est souvent `null`, alors
+    // qu'un pane en porte toujours un.
+    const paneCwd = panes.find(
+      (pane) =>
+        pane.workspace_id === workspace.workspace_id && pane.cwd !== null && pane.cwd !== undefined,
+    )?.cwd;
+    return {
+      agentPanes: agents
+        .filter((agent) => agent.workspaceId === workspace.workspace_id)
+        .map((agent) => agent.paneId),
+      agentStatus: workspace.agent_status ?? null,
+      checkoutPath: workspace.worktree?.checkout_path ?? paneCwd ?? null,
+      focused: workspace.focused ?? false,
+      label: workspace.label ?? null,
+      paneCount: workspace.pane_count ?? 0,
+      tabCount: workspace.tab_count ?? 0,
+      workspaceId: workspace.workspace_id,
+    };
+  });
 
 /**
  * Construit la vue d'accueil.
@@ -171,6 +190,7 @@ export const toWorkspaceViews = (
  */
 export const buildOverview = (snapshot: {
   readonly agents: ReadonlyArray<AgentInfo>;
+  readonly panes: ReadonlyArray<SnapshotPane> | undefined;
   /**
    * `undefined` explicite, et non une propriété optionnelle : avec
    * `exactOptionalPropertyTypes`, `{ tabs: undefined }` n'est pas assignable à
@@ -189,6 +209,6 @@ export const buildOverview = (snapshot: {
       herdrProtocol: snapshot.protocol,
       herdrVersion: snapshot.version,
       withoutSession: agents.filter((agent) => agent.sessionPath === null).length,
-      workspaces: toWorkspaceViews(snapshot.workspaces),
+      workspaces: toWorkspaceViews(snapshot.workspaces, agents, snapshot.panes ?? []),
     };
   });

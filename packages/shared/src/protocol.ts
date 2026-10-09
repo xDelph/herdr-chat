@@ -62,6 +62,21 @@ export const AgentInfo = Schema.Struct({
 });
 export type AgentInfo = typeof AgentInfo.Type;
 
+/**
+ * Dossier de travail d'un projet.
+ *
+ * `checkout_path` est **le** chemin où lancer un agent : c'est le dossier de
+ * travail réel, worktree lié compris.
+ */
+export const WorkspaceWorktreeInfo = Schema.Struct({
+  checkout_path: Schema.String,
+  is_linked_worktree: Schema.Boolean,
+  repo_key: Schema.String,
+  repo_name: Schema.String,
+  repo_root: Schema.String,
+});
+export type WorkspaceWorktreeInfo = typeof WorkspaceWorktreeInfo.Type;
+
 /** Un workspace tel que renvoyé dans `session.snapshot`. */
 export const WorkspaceInfo = Schema.Struct({
   active_tab_id: Schema.optional(Schema.NullOr(Schema.String)),
@@ -71,9 +86,18 @@ export const WorkspaceInfo = Schema.Struct({
   number: Schema.optional(Schema.NullOr(Schema.Number)),
   pane_count: Schema.optional(Schema.Number),
   tab_count: Schema.optional(Schema.Number),
+  worktree: Schema.optional(Schema.NullOr(WorkspaceWorktreeInfo)),
   workspace_id: Schema.String,
 });
 export type WorkspaceInfo = typeof WorkspaceInfo.Type;
+
+/** Un pane tel que renvoyé par `tab.create` et `pane.split`. */
+export const PaneInfo = Schema.Struct({
+  pane_id: Schema.String,
+  tab_id: Schema.optional(Schema.String),
+  workspace_id: Schema.optional(Schema.String),
+});
+export type PaneInfo = typeof PaneInfo.Type;
 
 /**
  * Photo complète de l'état.
@@ -159,10 +183,12 @@ export const Method = {
   agentList: "agent.list",
   agentPrompt: "agent.prompt",
   agentRead: "agent.read",
+  agentStart: "agent.start",
   eventsSubscribe: "events.subscribe",
   eventsWait: "events.wait",
   ping: "ping",
   sessionSnapshot: "session.snapshot",
+  tabCreate: "tab.create",
 } as const;
 export type Method = (typeof Method)[keyof typeof Method];
 

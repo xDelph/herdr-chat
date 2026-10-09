@@ -50,6 +50,40 @@ const decodePaneRead = Schema.decodeUnknownOption(PaneReadPayload);
 const decodePong = Schema.decodeUnknownOption(PongPayload);
 const decodeAgent = Schema.decodeUnknownOption(AgentInfo);
 
+/**
+ * Réponse de `tab.create` : `{ tab, root_pane }`.
+ *
+ * `root_pane` est le pane **à l'invite shell** où `agent.start` pourra démarrer.
+ * Sans lui, un lancement n'a nulle part où aller.
+ */
+const TabCreated = Schema.Struct({
+  root_pane: Schema.Struct({ pane_id: Schema.String }),
+  tab: Schema.Struct({ tab_id: Schema.String }),
+});
+const decodeTabCreated = (payload: unknown): Option.Option<{ paneId: string; tabId: string }> => {
+  const decoded = Option.getOrUndefined(Schema.decodeUnknownOption(TabCreated)(payload));
+  return decoded === undefined
+    ? Option.none()
+    : Option.some({ paneId: decoded.root_pane.pane_id, tabId: decoded.tab.tab_id });
+};
+
+/** Paramètres de création d'un onglet. */
+export interface CreateTabParams {
+  readonly cwd?: string;
+  readonly focus?: boolean;
+  readonly label?: string;
+  readonly workspace_id?: string;
+}
+
+/** Paramètres de démarrage d'un agent dans un pane existant. */
+export interface StartAgentParams {
+  readonly args?: ReadonlyArray<string>;
+  readonly kind: string;
+  readonly name: string;
+  readonly pane_id: string;
+  readonly timeout_ms?: number;
+}
+
 export interface HerdrApi {
   /** Envoie une requête brute et renvoie le `result` décodé. */
   readonly request: (
@@ -78,6 +112,19 @@ export interface HerdrApi {
   ) => Effect.Effect<{ readonly text: string; readonly truncated: boolean }, HerdrError>;
 
   readonly promptAgent: (target: string, text: string) => Effect.Effect<ResultPayload, HerdrError>;
+
+  /**
+   * Crée un onglet et renvoie son pane racine.
+   *
+   * C'est la première moitié d'un lancement d'agent : `agent.start` exige un
+   * pane **déjà à son invite shell**.
+   */
+  readonly createTab: (
+    params: CreateTabParams,
+  ) => Effect.Effect<{ readonly paneId: string; readonly tabId: string }, HerdrError>;
+
+  /** Démarre un agent dans un pane existant. */
+  readonly startAgent: (params: StartAgentParams) => Effect.Effect<ResultPayload, HerdrError>;
 }
 
 export class HerdrClient extends Context.Service<HerdrClient, HerdrApi>()(
@@ -181,6 +228,38 @@ export class HerdrClient extends Context.Service<HerdrClient, HerdrApi>()(
     const promptAgent = (target: string, text: string) =>
       request(Method.agentPrompt, { target, text });
 
+    const createTab = (params: CreateTabParams) =>
+      pipe(
+        request(Method.tabCreate, {
+          cwd: params.cwd ?? null,
+          focus: params.focus ?? false,
+          label: params.label ?? null,
+          workspace_id: params.workspace_id ?? null,
+        }),
+        Effect.flatMap((payload) => {
+          const decoded = decodeTabCreated(payload);
+          if (Option.isNone(decoded)) {
+            return Effect.fail(
+              new HerdrDecodeError({
+                detail: "`tab.create` sans pane racine exploitable",
+                method: Method.tabCreate,
+                raw: JSON.stringify(payload).slice(0, 300),
+              }),
+            );
+          }
+          return Effect.succeed(decoded.value);
+        }),
+      );
+
+    const startAgent = (params: StartAgentParams) =>
+      request(Method.agentStart, {
+        args: params.args ?? [],
+        kind: params.kind,
+        name: params.name,
+        pane_id: params.pane_id,
+        timeout_ms: params.timeout_ms ?? 60_000,
+      });
+
     const ping = () =>
       pipe(
         request(Method.ping),
@@ -199,6 +278,7 @@ export class HerdrClient extends Context.Service<HerdrClient, HerdrApi>()(
       );
 
     return HerdrClient.of({
+      createTab,
       getAgent,
       listAgents,
       ping,
@@ -206,6 +286,7 @@ export class HerdrClient extends Context.Service<HerdrClient, HerdrApi>()(
       readAgent,
       request,
       snapshot,
+      startAgent,
     });
   };
 

@@ -16,6 +16,7 @@ import { Option, Schema } from "effect";
 import {
   ApiErrorResponse,
   HealthResponse,
+  LaunchAgentResponse,
   OverviewResponse,
   PromptSentResponse,
   PromptSuppressedResponse,
@@ -31,6 +32,7 @@ import {
 export type {
   AgentView,
   HealthResponse as Health,
+  LaunchAgentResponse,
   OverviewResponse as Overview,
   PromptSentResponse,
   PromptSuppressedResponse,
@@ -43,6 +45,29 @@ export type {
 const HealthSchema = HealthResponse;
 const OverviewSchema = OverviewResponse;
 const TerminalSchema = TerminalResponse;
+
+/**
+ * Lance un agent dans un projet.
+ *
+ * Deux étapes côté serveur (onglet puis agent), une seule action côté client.
+ * Un projet qui a déjà un agent est **refusé** : lancer un second agent est un
+ * choix explicite, pas un effet de bord.
+ */
+export const launchAgent = async (
+  workspaceId: string,
+  kind: string,
+): Promise<LaunchAgentResponse> => {
+  const payload = await request(`/api/workspaces/${encodeURIComponent(workspaceId)}/agents`, {
+    body: JSON.stringify({ kind }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const decoded = decoderOf(LaunchAgentResponse)(payload);
+  if (decoded === undefined) {
+    throw new Error("forme de réponse inattendue : lancement");
+  }
+  return decoded;
+};
 
 export type SendResult =
   | { kind: "sent"; confirmation: "confirmed" | "unknown"; fingerprint: string }

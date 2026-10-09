@@ -810,3 +810,70 @@ Les trois défauts (conversation vide, rafraîchissement, clic inerte) partagent
 | Clic inerte | écran décidé par `route` **et** par `selectedPaneId` |
 
 Chaque fois, la correction a consisté à **supprimer la seconde source** : `messages.ts`, `routing.ts`, et la route seule. Une seule source de vérité par décision.
+
+---
+
+## D015 — Rendu typé des messages, et une application qui agit
+
+**Date :** 2026-10-09 · Quatrième retour utilisateur
+
+### D015.1 — Le rendu était du texte brut
+
+Une réponse d'agent est du **markdown**, ses appels d'outils sont **structurés**, sa réflexion doit être **repliée**. Tout était affiché en `pre` monospace, y compris du JSON d'arguments.
+
+**Base du travail** : un census des sessions réelles, qui donne la répartition utile — et évite d'inventer des rendus pour des blocs inexistants.
+
+| Bloc | Occurrences | Outil | Appels |
+|---|---|---|---|
+| `text` | 8 343 | `bash` | 3 964 |
+| `toolCall` | 5 663 | `edit` | 801 |
+| `thinking` | 3 218 | `read` | 499 |
+| `image` | 49 | `write` | 372 |
+
+**Rendus écrits** : markdown (titres, listes, tableaux, citations, code), **réflexion repliée** avec mention explicite d'un bloc masqué, **`bash`** en style terminal, **`edit`** en **diff** (lignes retirées/ajoutées), **`write`** avec contenu repliable, **`read`** avec plage de lignes, outil inconnu en JSON replié, **résultat d'outil** avec état d'échec distinct, **exécution shell directe** avec code de retour.
+
+**Sécurité** : `marked` fait la **tokenisation**, le rendu en éléments React est fait à la main. **Aucun `dangerouslySetInnerHTML`** — le HTML d'un modèle est rendu **comme du texte**, jamais interprété. Un lien `javascript:` est neutralisé. L'injection n'est pas filtrée, elle est **impossible**.
+
+**Analyse extraite** dans `apps/web/src/blocks.ts` (**18 tests**) : une logique de rendu encastrée dans un composant ne se vérifie qu'en ouvrant l'application — c'est la leçon des défauts D013/D014.
+
+### D015.2 — L'onglet Activité ne servait à rien
+
+Retour utilisateur : *« je vois même pas à quoi sert cette vue »*, et il affichait `w8:p1` au lieu d'un nom.
+
+Deux corrections :
+1. **Noms lisibles partout**, y compris dans le journal : une table `paneId → nom` est résolue à l'arrivée de chaque événement.
+2. **L'onglet devient « À traiter »** : il commence par les agents **bloqués** — la seule catégorie qui appelle une action — puis l'activité récente. Un journal brut n'est pas une vue.
+
+### D015.3 — L'application n'agissait pas
+
+Retour utilisateur : *« si un agent n'est pas lancé, on n'a pas la possibilité d'en lancer un. Sois plus proactif. »*
+
+**Nouveau** : `POST /api/workspaces/:workspaceId/agents` lance un agent.
+
+Deux étapes, **imposées par Herdr** : `tab.create` (le pane doit être à son invite shell), puis `agent.start` dans ce pane.
+
+Gardes-fous, tous vérifiés en exécution :
+
+| Garde | Comportement |
+|---|---|
+| Type d'agent | **liste blanche** — `sh` refusé, avec la liste des types valides |
+| Corps invalide | `400` |
+| Projet ayant déjà un agent | **refusé** : *« en lancer un second est un choix explicite »* |
+| Projet sans dossier connu | refusé, le bouton est désactivé |
+
+**Rien n'est lancé silencieusement** : c'est la seule opération de l'application qui crée quelque chose chez Herdr, elle est déclenchée par un bouton explicite.
+
+### D015.4 — Deux bugs trouvés en câblant le lancement
+
+Les deux se masquaient :
+
+1. **`worktree` est absent** de presque tous les workspaces (`null`). Le chemin de projet semblait donc introuvable. **Source réelle** : `PaneInfo.cwd` — chaque pane en porte un, et cela fonctionne pour tous les projets.
+2. **La branche « cache » de `/api/overview` ne passait ni agents ni panes** à la construction des vues de projet. `agentPanes` était donc **toujours vide**, et l'interface affichait « Lancer » sur des projets qui tournaient déjà.
+
+Le second est le même motif que D012.4 et D011 : **deux chemins de calcul pour une même donnée**, dont un seul était correct.
+
+### D015.5 — Ce qui reste ouvert
+
+- **Aucun agent n'a été lancé** pour vérifier le chemin complet : c'est une opération qui crée un pane chez l'utilisateur, et elle attend son clic.
+- Le sélecteur de type d'agent est fixé à `pi` dans l'interface ; l'API accepte les 11 types de la liste blanche.
+- L'onglet « À traiter » ne connaît qu'un seul motif d'action : `blocked`. Les approbations (V1) enrichiront cette vue.

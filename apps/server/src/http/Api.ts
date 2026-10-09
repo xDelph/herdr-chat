@@ -14,8 +14,11 @@
 import { Effect, Option, Result, Schema } from "effect";
 import type { Cause } from "effect";
 import {
+  AGENT_KINDS,
   ApiErrorResponse,
   HealthResponse,
+  LaunchAgentRequest,
+  LaunchAgentResponse,
   OverviewResponse,
   PromptSentResponse,
   PromptSuppressedResponse,
@@ -223,7 +226,10 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
               herdrProtocol: snapshot.protocol,
               herdrVersion: snapshot.version,
               withoutSession: cached.filter((agent) => agent.sessionPath === null).length,
-              workspaces: toWorkspaceViews(snapshot.workspaces),
+              // ⚠️ Le cache servait des vues de projet SANS agents ni panes :
+              // `agentPanes` était donc toujours vide, et l'interface croyait
+              // que chaque projet était vide.
+              workspaces: toWorkspaceViews(snapshot.workspaces, cached, snapshot.panes ?? []),
             };
           }
         }
@@ -235,6 +241,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
         }
         return yield* buildOverview({
           agents: snapshot.agents,
+          panes: snapshot.panes,
           protocol: snapshot.protocol,
           // Explicite : avec `exactOptionalPropertyTypes`, une propriété absente
           // n'est pas la même chose qu'une propriété valant `undefined`.
@@ -375,6 +382,104 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
    * exactement les événements manqués. Si le journal a été tronqué, un
    * événement `resync` est émis plutôt que de laisser un trou silencieux.
    */
+  /**
+   * Lance un agent dans un projet.
+   *
+   * **C'est la seule opération qui crée quelque chose chez Herdr.** Deux étapes,
+   * imposées par Herdr : d'abord un onglet (le pane doit être à son invite
+   * shell), puis l'agent dedans.
+   *
+   * Le projet n'est jamais touché s'il a déjà un agent : lancer un second agent
+   * dans le même dossier est une décision de l'utilisateur, pas un effet de bord
+   * d'un clic.
+   */
+  const launchAgent = async (request: RouteRequest): Promise<Response> => {
+    const workspaceId = request.params["workspaceId"] ?? "";
+    const raw: unknown = await request.json().catch(() => undefined);
+    const body = decoderOf(LaunchAgentRequest)(raw);
+    if (body === undefined) {
+      return respond(decoderOf(ApiErrorResponse), { error: "corps invalide : `kind` requis" }, 400);
+    }
+    if (!(AGENT_KINDS as ReadonlyArray<string>).includes(body.kind)) {
+      // Liste blanche : on n'accepte que les types que Herdr sait démarrer.
+      return respond(
+        decoderOf(ApiErrorResponse),
+        { error: `type d'agent inconnu : « ${body.kind} »`, hint: AGENT_KINDS.join(", ") },
+        400,
+      );
+    }
+
+    const result = await Effect.runPromise(
+      Effect.result(
+        Effect.gen(function* () {
+          const payload = yield* herdr.snapshot();
+          const snapshot = Option.getOrUndefined(decodeSnapshot(payload["snapshot"]));
+          if (snapshot === undefined) {
+            return yield* Effect.fail({ message: "snapshot Herdr illisible" });
+          }
+          const workspace = snapshot.workspaces.find((w) => w.workspace_id === workspaceId);
+          if (workspace === undefined) {
+            return yield* Effect.fail({ message: `projet inconnu : ${workspaceId}` });
+          }
+          if (snapshot.agents.some((agent) => agent.workspace_id === workspaceId)) {
+            return yield* Effect.fail({
+              message: "ce projet a déjà un agent — en lancer un second est un choix explicite",
+            });
+          }
+
+          const name = body.name ?? workspace.label ?? "agent";
+          const checkout = workspace.worktree?.checkout_path ?? null;
+          if (checkout === null) {
+            return yield* Effect.fail({
+              message: `aucun dossier de travail connu pour ${workspaceId}`,
+            });
+          }
+
+          // Étape 1 : un onglet dans le projet, ouvert dans son dossier.
+          const tab = yield* herdr.createTab({
+            cwd: checkout,
+            focus: false,
+            label: name,
+            workspace_id: workspaceId,
+          });
+
+          // Étape 2 : l'agent, dans le pane à l'invite shell.
+          yield* herdr.startAgent({
+            kind: body.kind,
+            name,
+            pane_id: tab.paneId,
+            timeout_ms: 120_000,
+          });
+
+          return { kind: body.kind, name, paneId: tab.paneId, tabId: tab.tabId };
+        }),
+      ),
+    );
+
+    if (Result.isFailure(result)) {
+      const failure = failureOf(result);
+      return respond(
+        decoderOf(ApiErrorResponse),
+        { error: failure === undefined ? "échec inconnu" : describe(failure) },
+        502,
+      );
+    }
+    const started = Option.getOrUndefined(Result.getSuccess(result));
+    if (started === undefined) {
+      return respond(
+        decoderOf(ApiErrorResponse),
+        { error: "résultat de lancement illisible" },
+        500,
+      );
+    }
+
+    await Effect.runPromise(
+      hub.publish("agent-launched", { kind: started.kind, paneId: started.paneId, workspaceId }),
+    );
+
+    return respond(decoderOf(LaunchAgentResponse), { ...started, status: "started" }, 201);
+  };
+
   const events = (request: RouteRequest): Response => {
     const header = request.headers.get("last-event-id");
     const parsed = header === null ? 0 : Number.parseInt(header, 10);
@@ -425,6 +530,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
 
   return {
     "/api/agents/:paneId/prompt": prompt,
+    "/api/workspaces/:workspaceId/agents": launchAgent,
     "/api/agents/:paneId/session": session,
     "/api/agents/:paneId/terminal": terminal,
     "/api/events": events,

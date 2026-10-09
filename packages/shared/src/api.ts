@@ -55,7 +55,15 @@ export const AgentViewSchema = Schema.Struct({
 export type AgentView = typeof AgentViewSchema.Type;
 
 export const WorkspaceViewSchema = Schema.Struct({
+  /** Panes d'agents de ce projet, pour savoir s'il y en a déjà un. */
+  agentPanes: Schema.Array(Schema.String),
   agentStatus: Schema.NullOr(Schema.String),
+  /**
+   * Chemin du projet. Vient du dossier de travail (`checkout_path`) : c'est
+   * **là** qu'un nouvel agent doit démarrer. Sans lui, impossible de lancer
+   * un agent sans demander le chemin à la main.
+   */
+  checkoutPath: Schema.NullOr(Schema.String),
   focused: Schema.Boolean,
   label: Schema.NullOr(Schema.String),
   paneCount: Schema.Number,
@@ -115,6 +123,39 @@ export const PromptSuppressedResponse = Schema.Struct({
 });
 export type PromptSuppressedResponse = typeof PromptSuppressedResponse.Type;
 
+/** Demande de lancement d'un agent dans un projet. */
+export const LaunchAgentRequest = Schema.Struct({
+  /** Type d'agent, tel que Herdr le connaît (`pi`, `claude`, `codex`…). */
+  kind: Schema.String,
+  name: Schema.optional(Schema.String),
+});
+export type LaunchAgentRequest = typeof LaunchAgentRequest.Type;
+
+export const LaunchAgentResponse = Schema.Struct({
+  kind: Schema.String,
+  name: Schema.String,
+  /** Pane dans lequel l'agent a été lancé. */
+  paneId: Schema.String,
+  status: Schema.Literal("started"),
+  tabId: Schema.String,
+});
+export type LaunchAgentResponse = typeof LaunchAgentResponse.Type;
+
+/** Types d'agents que Herdr sait démarrer (liste `herdr agent start --kind`). */
+export const AGENT_KINDS = [
+  "pi",
+  "claude",
+  "codex",
+  "gemini",
+  "cursor",
+  "opencode",
+  "copilot",
+  "droid",
+  "amp",
+  "grok",
+  "hermes",
+] as const;
+
 /** Erreur d'API. */
 export const ApiErrorResponse = Schema.Struct({
   error: Schema.String,
@@ -133,9 +174,23 @@ export const TabInfo = Schema.Struct({
 });
 export type TabInfo = typeof TabInfo.Type;
 
+/**
+ * Un pane du snapshot.
+ *
+ * `cwd` est **la** source du dossier de travail d'un projet : `worktree` est
+ * souvent absent, alors que chaque pane en porte un.
+ */
+export const SnapshotPane = Schema.Struct({
+  cwd: Schema.optional(Schema.NullOr(Schema.String)),
+  pane_id: Schema.String,
+  workspace_id: Schema.optional(Schema.String),
+});
+export type SnapshotPane = typeof SnapshotPane.Type;
+
 /** Vue du snapshot Herdr telle que consommée par le serveur. */
 export const SnapshotPayload = Schema.Struct({
   agents: Schema.Array(AgentInfo),
+  panes: Schema.optional(Schema.Array(SnapshotPane)),
   protocol: Schema.Number,
   tabs: Schema.optional(Schema.Array(TabInfo)),
   version: Schema.String,

@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Option, Schema } from "effect";
 import {
+  launchAgent,
   fetchHealth,
   fetchOverview,
   fetchSession,
@@ -30,7 +31,8 @@ import type {
   SessionEntry,
   WorkspaceView,
 } from "./api.ts";
-import { toBubbles } from "./messages.ts";
+import { toMessages } from "./blocks.ts";
+import { BlockView } from "./Blocks.tsx";
 import { parseRoute, routeToHash, TabSchema } from "./routing.ts";
 import type { Route, Tab } from "./routing.ts";
 
@@ -59,12 +61,21 @@ const useHashRoute = (): [Route, (next: Route) => void] => {
   return [route, navigate];
 };
 
+/**
+ * Table `paneId → nom lisible`.
+ *
+ * Sert partout où un identifiant de pane apparaît — y compris dans le journal
+ * d'activité, qui affichait `w8:p1` au lieu du nom du projet.
+ */
+const nameByPane = (agents: ReadonlyArray<AgentView>): ReadonlyMap<string, string> =>
+  new Map(agents.map((agent) => [agent.paneId, agentName(agent)]));
+
 /** Premier pane de la liste, ou `undefined` s'il n'y a aucun agent. */
 const filteredFirstPane = (agents: ReadonlyArray<AgentView>): string | undefined =>
   agents[0]?.paneId;
 
 /** Rend un événement du flux lisible, sans JSON brut à l'écran. */
-const describeEvent = (kind: string, data: unknown): string => {
+const describeEvent = (kind: string, data: unknown, names: ReadonlyMap<string, string>): string => {
   const decoded = Option.getOrUndefined(
     Schema.decodeUnknownOption(
       Schema.Struct({
@@ -81,21 +92,25 @@ const describeEvent = (kind: string, data: unknown): string => {
 
   if (decoded === undefined) return kind;
 
+  // Un identifiant de pane n'apprend rien : on affiche le nom du projet.
+  const raw = decoded.paneId ?? "?";
+  const label = names.get(raw) ?? raw;
+
   if (kind === "agent_status") {
-    const pane = decoded.paneId ?? "?";
     switch (decoded.kind) {
       case "appeared":
-        return `${pane} — agent apparu (${decoded.to ?? "?"})`;
+        return `${label} — agent lancé`;
       case "disappeared":
-        return `${pane} — agent disparu`;
+        return `${label} — agent arrêté`;
       default:
-        return `${pane} — ${statusLabel(decoded.from ?? "?")} → ${statusLabel(decoded.to ?? "?")}`;
+        return `${label} — ${statusLabel(decoded.from ?? "?")} → ${statusLabel(decoded.to ?? "?")}`;
     }
   }
 
-  if (kind === "prompt")
-    return `prompt envoyé à ${decoded.paneId ?? "?"} (${decoded.status ?? ""})`;
-  if (kind === "prompt-suppressed") return `double envoi supprimé pour ${decoded.paneId ?? "?"}`;
+  if (kind === "prompt") return `message envoyé à ${label}`;
+  if (kind === "prompt-suppressed") return `double envoi supprimé pour ${label}`;
+  if (kind === "agent-launched") return `${label} — agent lancé (${decoded.kind ?? ""})`;
+  if (kind === "resync") return "journal tronqué — rechargement complet";
   return kind;
 };
 
@@ -220,10 +235,9 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [entries.length]);
 
-  // L'extraction vit dans `messages.ts` : isolée, donc **testable**. Le défaut
-  // qui vidait la conversation venait de cette logique encastrée dans le
-  // composant, où rien ne pouvait la couvrir.
-  const messages = useMemo(() => toBubbles(entries), [entries]);
+  // L'analyse vit dans `blocks.ts` : isolée, donc **testable**. Le défaut qui
+  // vidait la conversation venait de cette logique encastrée dans le composant.
+  const messages = useMemo(() => toMessages(entries), [entries]);
 
   const onDraftChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setDraft(event.target.value);
@@ -272,8 +286,14 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
       <div className="messages">
         {messages.map((message) => (
           <article key={message.id} className={`bubble bubble--${message.role}`}>
-            <span className="bubble__role">{message.role}</span>
-            <pre className="bubble__text">{message.text}</pre>
+            <span className="bubble__role">
+              {message.role}
+              {message.meta["model"] !== undefined ? ` · ${message.meta["model"]}` : ""}
+              {message.meta["tokens"] !== undefined ? ` · ${message.meta["tokens"]} tok` : ""}
+            </span>
+            {message.blocks.map((block, index) => (
+              <BlockView key={`${message.id}-${String(index)}`} block={block} />
+            ))}
           </article>
         ))}
         <div ref={endRef} />
@@ -308,29 +328,63 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
  * Avant, la ligne était statique — le clic ne faisait rien, ce qui laissait
  * croire à une application cassée.
  */
+/**
+ * Ligne de projet.
+ *
+ * Elle montre **ce qui s'y passe** et propose l'action utile : ouvrir l'agent
+ * s'il y en a un, en lancer un sinon. Une ligne qui ne fait rien laisse croire
+ * que l'application est cassée.
+ */
 const WorkspaceRow = ({
   workspace,
+  agentPaneCount,
+  launching,
+  onLaunch,
   onOpen,
 }: {
   workspace: WorkspaceView;
+  agentPaneCount: number;
+  launching: boolean;
+  onLaunch: (workspaceId: string) => void;
   onOpen: (workspaceId: string) => void;
 }) => {
-  const handleClick = useCallback(
+  const hasAgent = agentPaneCount > 0;
+  const handleOpen = useCallback(
     () => onOpen(workspace.workspaceId),
     [onOpen, workspace.workspaceId],
   );
+  const handleLaunch = useCallback(
+    () => onLaunch(workspace.workspaceId),
+    [onLaunch, workspace.workspaceId],
+  );
 
   return (
-    <button type="button" className="row" onClick={handleClick}>
+    <div className="row row--project">
       <span className={statusClass(workspace.agentStatus ?? "unknown")} />
       <span className="row__main">
-        <strong>{workspace.label ?? workspace.workspaceId}</strong>
+        <strong>{workspace.label ?? "(projet sans nom)"}</strong>
         <span className="muted small">
-          {workspace.paneCount} pane(s) · {workspace.tabCount} onglet(s)
+          {workspace.agentStatus === null
+            ? "aucun agent"
+            : `${statusLabel(workspace.agentStatus)} · ${String(agentPaneCount)} agent(s)`}
+          {workspace.checkoutPath !== null ? ` · ${shortPath(workspace.checkoutPath)}` : ""}
         </span>
       </span>
-      <span className="row__side small muted">voir les agents ›</span>
-    </button>
+      {hasAgent ? (
+        <button type="button" className="row__action" onClick={handleOpen}>
+          Ouvrir
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="row__action row__action--primary"
+          onClick={handleLaunch}
+          disabled={launching || workspace.checkoutPath === null}
+        >
+          {launching ? "…" : "Lancer"}
+        </button>
+      )}
+    </div>
   );
 };
 
@@ -365,12 +419,22 @@ export const App = () => {
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState<"live" | "down">("down");
   const activitySeq = useRef(0);
+  /**
+   * Dernière table `paneId → nom`.
+   *
+   * Un `ref` plutôt qu'une dépendance d'effet : le gestionnaire d'événements est
+   * enregistré **une fois** et doit résoudre les noms au moment où l'événement
+   * arrive, pas au moment où l'abonnement est posé.
+   */
+  const namesRef = useRef<ReadonlyMap<string, string>>(new Map());
   const [activity, setActivity] = useState<readonly { at: number; id: number; text: string }[]>([]);
 
   const [terminal, setTerminal] = useState<string>("");
   const [terminalError, setTerminalError] = useState<string | null>(null);
   const [terminalLoading, setTerminalLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("tous");
+  const [launching, setLaunching] = useState<string | null>(null);
+  const [launchError, setLaunchError] = useState<string | null>(null);
   const [workspaceFilter, setWorkspaceFilter] = useState<string>("tous");
 
   const refresh = useCallback(async () => {
@@ -392,6 +456,12 @@ export const App = () => {
     return () => clearInterval(timer);
   }, [refresh]);
 
+  // Le tableau de noms suit la liste d'agents, sans être une dépendance de
+  // l'abonnement : les événements arrivent après le rendu.
+  useEffect(() => {
+    namesRef.current = nameByPane(overview?.agents ?? []);
+  }, [overview]);
+
   useEffect(
     () =>
       openEventStream({
@@ -400,7 +470,7 @@ export const App = () => {
           const entry = {
             at: Date.now(),
             id: activitySeq.current,
-            text: describeEvent(kind, data),
+            text: describeEvent(kind, data, namesRef.current),
           };
           setActivity((current) => [entry, ...current].slice(0, 80));
           // Un changement d'état d'agent est le signal du **direct** : on
@@ -414,7 +484,7 @@ export const App = () => {
           const entry = {
             at: Date.now(),
             id: activitySeq.current,
-            text: "resync — journal tronqué, rechargement complet",
+            text: describeEvent("resync", {}, namesRef.current),
           };
           setActivity((current) => [entry, ...current]);
           void refresh();
@@ -425,6 +495,9 @@ export const App = () => {
   );
 
   const agents = overview?.agents ?? [];
+  // Un agent « bloqué » attend une intervention : c'est la seule catégorie qui
+  // appelle une action de l'utilisateur.
+  const awaiting = agents.filter((agent) => agent.status === "blocked");
   // Onglet Activité : le terminal est lu pour l'agent sélectionné s'il y en a un,
   // sinon le premier de la liste. Jamais deviné au-delà.
   const activePaneId = route.kind === "agent" ? route.paneId : (filteredFirstPane(agents) ?? "");
@@ -468,6 +541,26 @@ export const App = () => {
   const onLoadTerminalClick = useCallback(() => {
     void onLoadTerminal();
   }, [onLoadTerminal]);
+
+  const onLaunchAgent = useCallback(
+    (workspaceId: string) => {
+      void (async () => {
+        setLaunching(workspaceId);
+        setLaunchError(null);
+        try {
+          const started = await launchAgent(workspaceId, "pi");
+          // Le projet a maintenant un agent : on ouvre sa conversation.
+          navigate({ kind: "agent", paneId: started.paneId });
+          await refresh();
+        } catch (cause) {
+          setLaunchError(cause instanceof Error ? cause.message : String(cause));
+        } finally {
+          setLaunching(null);
+        }
+      })();
+    },
+    [navigate, refresh],
+  );
 
   const onWorkspaceFilter = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
     setWorkspaceFilter(event.target.value);
@@ -543,11 +636,21 @@ export const App = () => {
       {tab === "projets" ? (
         <section className="screen">
           <h2>Projets</h2>
-          <p className="muted small">Toucher un projet ouvre ses agents.</p>
+          <p className="muted small">
+            Ouvrir un projet qui tourne, ou en lancer un. Un agent n'est jamais lancé deux fois dans
+            le même projet.
+          </p>
+          {launchError !== null ? <p className="notice notice--error">{launchError}</p> : null}
           <ul className="list">
             {overview?.workspaces.map((workspace) => (
               <li key={workspace.workspaceId}>
-                <WorkspaceRow workspace={workspace} onOpen={onOpenWorkspace} />
+                <WorkspaceRow
+                  agentPaneCount={workspace.agentPanes.length}
+                  launching={launching === workspace.workspaceId}
+                  onLaunch={onLaunchAgent}
+                  onOpen={onOpenWorkspace}
+                  workspace={workspace}
+                />
               </li>
             ))}
           </ul>
@@ -589,20 +692,41 @@ export const App = () => {
         </section>
       ) : null}
 
+      {/* « À traiter » : ce qui demande une action, puis ce qui vient de se passer.
+          Un simple journal est inutile — on commence par ce qui bloque. */}
       {tab === "activite" ? (
         <section className="screen">
-          <h2>Activité</h2>
-          {activity.length === 0 ? (
-            <p className="muted">Aucun événement reçu.</p>
+          <h2>À traiter</h2>
+          {awaiting.length === 0 ? (
+            <p className="muted">Aucun agent n'attend d'intervention.</p>
           ) : (
-            <ul className="list list--compact">
-              {activity.map((item) => (
-                <li key={item.id} className="small mono">
-                  {new Date(item.at).toLocaleTimeString()} — {item.text}
+            <ul className="list">
+              {awaiting.map((agent) => (
+                <li key={agent.paneId}>
+                  <AgentRow agent={agent} onOpen={onOpenAgent} />
                 </li>
               ))}
             </ul>
           )}
+
+          <h2>Activité récente</h2>
+          {activity.length === 0 ? (
+            <p className="muted small">
+              Rien reçu pour l'instant. Les lancements, messages et changements d'état apparaissent
+              ici.
+            </p>
+          ) : (
+            <ul className="list list--compact">
+              {activity.map((item) => (
+                <li key={item.id} className="small">
+                  <span className="mono muted">{new Date(item.at).toLocaleTimeString()}</span>{" "}
+                  {item.text}
+                </li>
+              ))}
+            </ul>
+          )}
+
+          <h2>Sortie terminal</h2>
           <button
             type="button"
             className="ghost"
@@ -645,7 +769,7 @@ export const App = () => {
           [
             ["projets", "Projets"],
             ["agents", "Agents"],
-            ["activite", "Activité"],
+            ["activite", "À traiter"],
             ["reglages", "Réglages"],
           ] as const
         ).map(([key, label]) => (
