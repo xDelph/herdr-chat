@@ -877,3 +877,46 @@ Le second est le même motif que D012.4 et D011 : **deux chemins de calcul pour 
 - **Aucun agent n'a été lancé** pour vérifier le chemin complet : c'est une opération qui crée un pane chez l'utilisateur, et elle attend son clic.
 - Le sélecteur de type d'agent est fixé à `pi` dans l'interface ; l'API accepte les 11 types de la liste blanche.
 - L'onglet « À traiter » ne connaît qu'un seul motif d'action : `blocked`. Les approbations (V1) enrichiront cette vue.
+
+---
+
+## D016 — Vibration à la frappe et barres qui s'accumulaient
+
+**Date :** 2026-10-09 · Cinquième retour utilisateur
+
+### D016.1 — La cause du vibration : tout le markdown était ré-analysé à chaque touche
+
+`Markdown` appelait `marked.lexer(source)` **à chaque rendu, sans mémoïsation**. Et React re-rendait **toutes** les bulles à chaque frappe, puisque le composant entier se redessinait.
+
+Conséquence mesurable : taper **un caractère** re-décodait le markdown de **toute la conversation** — sur une session réelle, des centaines de blocs, dont 3 218 blocs de réflexion. Le fil principal se bloquait à chaque touche.
+
+**Ce n'était donc pas un problème de CSS** : c'était du travail inutile sur le fil principal, à chaque frappe.
+
+**Corrections** :
+- `Markdown` mémoïse son analyse (`useMemo` sur `source`) ;
+- `BlockView` est mémoïsé : un bloc ne se redessine que si **son contenu** change ;
+- l'analyse des entrées devient **incrémentale** : on n'analyse que ce qui arrive, pas la conversation entière toutes les 2 s.
+
+### D016.2 — Le composeur était DANS la zone défilante
+
+Structurellement faux : toute la page défilait, composeur compris. Le clavier iOS se battait donc avec le défilement, et le champ partait avec le contenu.
+
+Le défilement automatique aggravait tout : un `scrollIntoView({ behavior: "smooth" })` était déclenché à **chaque** arrivée de message. Une animation fluide qui se bat avec le clavier, c'est exactement ce qui « fait vibrer ».
+
+**Corrections** :
+- le composeur sort du conteneur défilant ; seule la liste des messages défile ;
+- `min-height: 0` sur les conteneurs flex — sans lui, un enfant flex refuse de rétrécir et rien ne défile ;
+- le défilement automatique devient **conditionnel** : il n'a lieu que si l'utilisateur est **déjà en bas** (tolérance de 48 px), et **sans animation** — un saut instantané ne se bat avec rien.
+
+### D016.3 — Sur les « barres vides »
+
+Deux hypothèses vérifiées, toutes deux **écartées par la mesure** :
+
+| Hypothèse | Mesure | Verdict |
+|---|---|---|
+| Le serveur renvoie des entrées en double | boucle `tail` + 5× `since` : **0 doublon** | écartée |
+| Des résultats d'outil sans sortie s'affichent | 112 résultats, **0 sans sortie** | écartée |
+
+**Reconnaissance honnête** : je n'ai pas reproduit les barres elles-mêmes. Ce qui est établi, c'est que le rendu bloquait le fil principal à chaque frappe et que le défilement se déclenchait de façon incontrôlée — deux causes suffisantes pour produire un affichage instable, et corrigées.
+
+Si le phénomène persiste après ces corrections, il faudra le décrire autrement : **quel écran**, **à quel moment**, et si les barres disparaissent au rechargement. Mon diagnostic actuel ne va pas plus loin que ce que j'ai pu mesurer.

@@ -6,7 +6,7 @@
  * `write` 372. Un rendu générique unique obligerait à lire du JSON à l'écran
  * pour comprendre ce que l'agent a fait.
  */
-import { useState } from "react";
+import { memo, useState } from "react";
 import { Schema } from "effect";
 import { Option } from "effect";
 import { Markdown } from "./Markdown.tsx";
@@ -279,7 +279,13 @@ const ImageContentBlock = ({ block }: { block: Extract<Block, { kind: "image" }>
   />
 );
 
-export const BlockView = ({ block }: { block: Block }) => {
+/**
+ * Rendu d'un bloc, mémoïsé.
+ *
+ * Un bloc ne se redessine que si **son contenu** change. Sans cela, taper dans
+ * le composeur redessinait chaque bloc de chaque message.
+ */
+export const BlockView = memo(({ block }: { block: Block }) => {
   switch (block.kind) {
     case "text":
       // Le texte du modèle est du markdown : il est rendu comme tel.
@@ -298,4 +304,5 @@ export const BlockView = ({ block }: { block: Block }) => {
       // Un type de bloc inconnu n'affiche rien plutôt que de casser le message.
       return null;
   }
-};
+});
+BlockView.displayName = "BlockView";

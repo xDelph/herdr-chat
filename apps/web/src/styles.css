@@ -283,7 +283,8 @@ button:disabled {
   border-top: 1px solid var(--border);
   display: flex;
   gap: 8px;
-  padding: 10px 16px max(10px, env(safe-area-inset-bottom));
+  /* `env(safe-area-inset-bottom)` garde le champ au-dessus de la barre iOS. */
+  padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
 }
 
 .composer textarea {
@@ -633,4 +634,43 @@ button:disabled {
 
 .bubble__text {
   white-space: pre-wrap;
+}
+
+/* ---------------------------------------------------------------------------
+   Écran de conversation
+   ---------------------------------------------------------------------------
+   Le composeur est HORS du conteneur défilant. Avant, toute la page défilait :
+   le composeur partait avec le contenu et le clavier iOS se battait avec le
+   défilement automatique à chaque frappe.
+   --------------------------------------------------------------------------- */
+
+.chat {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  /* Sans `min-height: 0`, un enfant flex refuse de rétrécir sous sa taille de
+     contenu : le conteneur défilant ne défile alors pas du tout. */
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chat .screen__head {
+  flex: 0 0 auto;
+}
+
+.chat .messages {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 16px 12px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.chat .composer {
+  flex: 0 0 auto;
+}
+
+.chat .sendState {
+  flex: 0 0 auto;
 }

@@ -12,7 +12,7 @@
  * - Ce qui n'est pas exposé par la source est affiché comme absent, jamais
  *   remplacé par un substitut inventé.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Option, Schema } from "effect";
 import {
   launchAgent,
@@ -32,6 +32,7 @@ import type {
   WorkspaceView,
 } from "./api.ts";
 import { toMessages } from "./blocks.ts";
+import type { RenderedMessage } from "./blocks.ts";
 import { BlockView } from "./Blocks.tsx";
 import { parseRoute, routeToHash, TabSchema } from "./routing.ts";
 import type { Route, Tab } from "./routing.ts";
@@ -172,11 +173,19 @@ const statusClass = (status: string): string => {
 
 const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void }) => {
   const [entries, setEntries] = useState<readonly SessionEntry[]>([]);
+  /**
+   * Messages déjà analysés.
+   *
+   * ⚠️ Analyser **toute** la conversation à chaque rafraîchissement coûtait un
+   * `JSON.parse` et un décodage par entrée, toutes les 2 s. En incrémental, on
+   * n'analyse que ce qui arrive.
+   */
+  const [messages, setMessages] = useState<readonly RenderedMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
   const [lastSend, setLastSend] = useState<SendResult | null>(null);
   const [sending, setSending] = useState(false);
-  const endRef = useRef<HTMLDivElement | null>(null);
+  const scrollerRef = useRef<HTMLDivElement | null>(null);
   const placeholder = `Message à ${agentName(agent)}…`;
 
   /**
@@ -206,10 +215,14 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
 
         if (session.incremental) {
           if (session.entries.length > 0) {
+            // Analyse des seules entrées nouvelles.
+            const added = toMessages(session.entries);
             setEntries((current) => [...current, ...session.entries]);
+            setMessages((current) => [...current, ...added]);
           }
         } else {
           setEntries(session.entries);
+          setMessages(toMessages(session.entries));
         }
         setError(null);
       } catch (cause) {
@@ -231,13 +244,27 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
     return () => clearInterval(timer);
   }, [load]);
 
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [entries.length]);
+  /**
+   * Défilement automatique — **conditionnel**.
+   *
+   * Avant, chaque arrivée de message déclenchait un `scrollIntoView` animé.
+   * Pendant la saisie, l'animation se battait avec le clavier iOS et le
+   * défilement partait en vrille. On ne défile donc que si l'utilisateur est
+   * déjà en bas, et **sans animation** : un saut instantané ne se bat avec rien.
+   */
+  const atBottom = useRef(true);
 
-  // L'analyse vit dans `blocks.ts` : isolée, donc **testable**. Le défaut qui
-  // vidait la conversation venait de cette logique encastrée dans le composant.
-  const messages = useMemo(() => toMessages(entries), [entries]);
+  const onScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
+    const el = event.currentTarget;
+    // 48 px de tolérance : un doigt sur un écran ne vise pas le pixel.
+    atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+  }, []);
+
+  useEffect(() => {
+    if (!atBottom.current) return;
+    const el = scrollerRef.current;
+    if (el !== null) el.scrollTop = el.scrollHeight;
+  }, [entries.length]);
 
   const onDraftChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
     setDraft(event.target.value);
@@ -261,7 +288,7 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
   }, [submit]);
 
   return (
-    <section className="screen">
+    <section className="chat">
       <header className="screen__head">
         <button type="button" className="ghost" onClick={onBack}>
           ‹ Retour
@@ -283,7 +310,7 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
 
       {error !== null ? <p className="notice notice--error">{error}</p> : null}
 
-      <div className="messages">
+      <div className="messages" ref={scrollerRef} onScroll={onScroll}>
         {messages.map((message) => (
           <article key={message.id} className={`bubble bubble--${message.role}`}>
             <span className="bubble__role">
@@ -296,15 +323,14 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
             ))}
           </article>
         ))}
-        <div ref={endRef} />
       </div>
 
-      <footer className="composer">
+      <div className="composer">
         <textarea value={draft} onChange={onDraftChange} placeholder={placeholder} rows={2} />
         <button type="button" onClick={onSubmit} disabled={sending}>
           {sending ? "…" : "Envoyer"}
         </button>
-      </footer>
+      </div>
 
       {lastSend !== null ? (
         <p className="sendState">

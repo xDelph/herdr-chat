@@ -10,7 +10,7 @@
  * Le HTML brut dans le markdown (`<script>`, `<img onerror=…>`) est donc rendu
  * comme du **texte**, jamais exécuté.
  */
-import { Fragment, type ReactNode } from "react";
+import { Fragment, memo, useMemo, type ReactNode } from "react";
 import { marked, type Tokens } from "marked";
 
 /**
@@ -209,6 +209,16 @@ const blocks = (tokens: Tokens.Generic[], keyPrefix: string): ReactNode[] =>
     }
   });
 
-export const Markdown = ({ source }: { source: string }) => (
-  <div className="md">{blocks(lexer(source), "md")}</div>
-);
+/**
+ * Rendu markdown, mémoïsé.
+ *
+ * ⚠️ Sans `useMemo`, `marked.lexer` **re-analysait tout le markdown à chaque
+ * rendu**, pour chaque message. Taper un caractère dans le composeur
+ * re-décodait donc toute la conversation : le fil principal se bloquait à
+ * chaque touche, l'affichage vibrait et le défilement partait en vrille.
+ */
+export const Markdown = memo(({ source }: { source: string }) => {
+  const rendered = useMemo(() => blocks(lexer(source), "md"), [source]);
+  return <div className="md">{rendered}</div>;
+});
+Markdown.displayName = "Markdown";
