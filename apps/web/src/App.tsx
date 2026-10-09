@@ -59,6 +59,10 @@ const useHashRoute = (): [Route, (next: Route) => void] => {
   return [route, navigate];
 };
 
+/** Premier pane de la liste, ou `undefined` s'il n'y a aucun agent. */
+const filteredFirstPane = (agents: ReadonlyArray<AgentView>): string | undefined =>
+  agents[0]?.paneId;
+
 /** Rend un événement du flux lisible, sans JSON brut à l'écran. */
 const describeEvent = (kind: string, data: unknown): string => {
   const decoded = Option.getOrUndefined(
@@ -362,8 +366,10 @@ export const App = () => {
   const [live, setLive] = useState<"live" | "down">("down");
   const activitySeq = useRef(0);
   const [activity, setActivity] = useState<readonly { at: number; id: number; text: string }[]>([]);
-  const [selectedPaneId, setSelectedPaneId] = useState<string | null>(null);
+
   const [terminal, setTerminal] = useState<string>("");
+  const [terminalError, setTerminalError] = useState<string | null>(null);
+  const [terminalLoading, setTerminalLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("tous");
   const [workspaceFilter, setWorkspaceFilter] = useState<string>("tous");
 
@@ -419,6 +425,9 @@ export const App = () => {
   );
 
   const agents = overview?.agents ?? [];
+  // Onglet Activité : le terminal est lu pour l'agent sélectionné s'il y en a un,
+  // sinon le premier de la liste. Jamais deviné au-delà.
+  const activePaneId = route.kind === "agent" ? route.paneId : (filteredFirstPane(agents) ?? "");
   const filtered = agents.filter(
     (agent) =>
       (statusFilter === "tous" || agent.status === statusFilter) &&
@@ -434,6 +443,32 @@ export const App = () => {
     },
     [navigate],
   );
+  /**
+   * Lecture du terminal — **uniquement sur demande explicite**.
+   *
+   * C'est le seul appel de l'application qui interroge le pane côté Herdr. Il
+   * n'a donc pas sa place dans l'ouverture d'un agent : le contenu de la
+   * conversation vient du fichier de session, pas du terminal.
+   */
+  const onLoadTerminal = useCallback(async () => {
+    if (terminalLoading) return;
+    setTerminalLoading(true);
+    setTerminalError(null);
+    try {
+      const read = await fetchTerminal(activePaneId);
+      setTerminal(read.text);
+    } catch (cause) {
+      setTerminalError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setTerminalLoading(false);
+    }
+  }, [activePaneId, terminalLoading]);
+
+  // Wrapper synchrone : `onClick` attend un retour `void`.
+  const onLoadTerminalClick = useCallback(() => {
+    void onLoadTerminal();
+  }, [onLoadTerminal]);
+
   const onWorkspaceFilter = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
     setWorkspaceFilter(event.target.value);
   }, []);
@@ -443,16 +478,14 @@ export const App = () => {
 
   const closeAgent = useCallback(() => navigate({ kind: "tab", tab: "agents" }), [navigate]);
 
-  const openAgent = useCallback(async (agent: AgentView) => {
-    setSelectedPaneId(agent.paneId);
-    setTerminal("");
-    try {
-      const read = await fetchTerminal(agent.paneId);
-      setTerminal(read.text);
-    } catch {
-      setTerminal("(sortie terminal indisponible)");
-    }
-  }, []);
+  const openAgent = useCallback(
+    (agent: AgentView) => {
+      // ⚠️ Naviguer **est** l'ouverture : le rendu se fonde sur la route. Mettre
+      // à jour un état local sans toucher à la route ne faisait rien du tout.
+      navigate({ kind: "agent", paneId: agent.paneId });
+    },
+    [navigate],
+  );
 
   const onOpenWorkspace = useCallback(
     (workspaceId: string) => {
@@ -466,15 +499,15 @@ export const App = () => {
   const onOpenAgent = useCallback(
     (paneId: string) => {
       const agent = (overview?.agents ?? []).find((candidate) => candidate.paneId === paneId);
-      if (agent !== undefined) void openAgent(agent);
+      if (agent !== undefined) openAgent(agent);
     },
     [openAgent, overview],
   );
 
   // L'agent affiché est **dérivé de la route** : après un rafraîchissement, le
   // fragment `#/agent/<paneId>` rouvre le même agent.
-  const selectedPane = route.kind === "agent" ? route.paneId : selectedPaneId;
-  const selectedAgent = agents.find((agent) => agent.paneId === selectedPane) ?? null;
+  const selectedAgent =
+    route.kind === "agent" ? (agents.find((a) => a.paneId === route.paneId) ?? null) : null;
 
   if (route.kind === "agent" && selectedAgent !== null) {
     return (
@@ -570,12 +603,16 @@ export const App = () => {
               ))}
             </ul>
           )}
-          {terminal.length > 0 ? (
-            <details>
-              <summary>Sortie terminal (lecture)</summary>
-              <pre className="terminal">{terminal.slice(-4000)}</pre>
-            </details>
-          ) : null}
+          <button
+            type="button"
+            className="ghost"
+            onClick={onLoadTerminalClick}
+            disabled={terminalLoading}
+          >
+            {terminalLoading ? "Lecture…" : "Lire la sortie terminal"}
+          </button>
+          {terminalError !== null ? <p className="notice notice--error">{terminalError}</p> : null}
+          {terminal.length > 0 ? <pre className="terminal">{terminal.slice(-4000)}</pre> : null}
         </section>
       ) : null}
 

@@ -752,3 +752,61 @@ Les deux n'étaient visibles **qu'en ouvrant l'application**. Ni `verify`, ni le
 - le typecheck ne voit pas un `Option` qui vaut `None`.
 
 **Règle qui en découle** : toute logique qui transforme une donnée en affichage est **extraite du composant et testée**. C'est désormais le cas pour les messages (`messages.ts`), le routage (`routing.ts`), et le contrat d'API (`packages/shared/src/api.ts`).
+
+---
+
+## D014 — Le clic sur un agent ne faisait rien, et « ça ne devrait pas être lié comme ça »
+
+**Date :** 2026-10-09 · Troisième retour utilisateur
+
+### D014.1 — Le clic ne faisait rien : je naviguais sans naviguer
+
+`openAgent` mettait à jour un état local (`setSelectedPaneId`) **sans appeler `navigate`**. Or le rendu exige `route.kind === "agent"`. La route restait sur un onglet, donc **rien ne s'affichait**.
+
+**Correction** : la route fait foi, et elle seule. `openAgent` appelle `navigate({ kind: "agent", paneId })`. L'état local `selectedPaneId` est **supprimé** — deux sources de vérité pour un même affichage, c'est une source de divergence.
+
+**Ce que ce défaut révèle** : en introduisant le routage (D013.2), j'ai laissé **deux mécanismes** décider de l'écran affiché. Le bug n'est pas la ligne oubliée, c'est la duplication de la décision.
+
+### D014.2 — Ouvrir un agent ne doit toucher à Herdr d'aucune façon
+
+L'ouverture d'un agent appelait `fetchTerminal`, donc `agent.read` côté Herdr. **L'utilisateur a raison : ça ne devrait pas être lié comme ça.**
+
+Le contenu d'une conversation vient du **fichier de session Pi**, lu sur le disque. Rien n'oblige à interroger le pane.
+
+**Correction** : ouvrir un agent ne contacte **plus Herdr du tout**.
+
+| Action | Avant | Après |
+|---|---|---|
+| Ouvrir une conversation | lecture du JSONL **+ `agent.read`** | **JSONL uniquement** |
+| Lire le terminal | automatique à l'ouverture | **sur bouton explicite** |
+
+### D014.3 — Le défilement : mesuré, et non reproduit
+
+L'utilisateur signale que son pane défile « de manière bizarre » au clic. **Mesure** sur `wA:p1`, en comparant `offset_from_bottom` avant/après chaque appel :
+
+| Appel | `offset_from_bottom` |
+|---|---|
+| repos | `0` |
+| après `agent.read` (`recent`) | `0` |
+| après `agent.read` (`recent_unwrapped`) | `0` |
+| après `agent.read` (`visible`) | `0` |
+| après `session.snapshot` | `0` |
+| après `agent.get` | `0` |
+
+**Aucun de ces appels ne déplace le défilement.** Le probe est dans `/tmp/spike/scrollprobe.ts`, en lecture seule.
+
+**Mais** : l'application interrogeait Herdr toutes les 2 s (veilleur) et 4 s (client), et lisait le terminal à chaque ouverture. Même si la mesure ne montre pas de déplacement, **ce niveau de sollicitation d'une TUI attachée n'est pas justifié** — et le lien automatique terminal/ouverture était de trop. Il est supprimé.
+
+**Reconnaissance honnête** : je n'ai pas reproduit le défilement. La suppression du lien terminal est une correction de conception justifiée par elle-même, **pas** une preuve que c'était la cause. Si le phénomène persiste, il faudra le mesurer autrement — en observant Herdr côté client, pas seulement l'état du serveur.
+
+### D014.4 — Leçon commune aux trois derniers retours
+
+Les trois défauts (conversation vide, rafraîchissement, clic inerte) partagent la même cause : **une décision dupliquée ou encastrée**.
+
+| Défaut | Décision dupliquée |
+|---|---|
+| Conversation vide | logique d'affichage dans le composant → intestable |
+| Rafraîchissement | état dans React **et** dans l'URL |
+| Clic inerte | écran décidé par `route` **et** par `selectedPaneId` |
+
+Chaque fois, la correction a consisté à **supprimer la seconde source** : `messages.ts`, `routing.ts`, et la route seule. Une seule source de vérité par décision.
