@@ -107,12 +107,28 @@ const decoded = async <A>(
 export const fetchHealth = () => decoded("/api/health", decoderOf(HealthSchema), "health");
 export const fetchOverview = () => decoded("/api/overview", decoderOf(OverviewSchema), "overview");
 
-export const fetchSession = (paneId: string) =>
-  decoded(
-    `/api/agents/${encodeURIComponent(paneId)}/session`,
+/**
+ * Charge une session.
+ *
+ * - **premier affichage** : `tail` lit la fin du fichier. Sans cela, une session
+ *   de 1,8 Mo bloque la première peinture.
+ * - **rafraîchissement** : `since` ne renvoie que le nouveau. Sans cela, le chat
+ *   re-téléchargeait 1,8 Mo toutes les 2,5 s et ne s'affichait jamais.
+ */
+export const fetchSession = (
+  paneId: string,
+  options: { readonly since?: number; readonly tail?: number } = {},
+) => {
+  const query = new URLSearchParams();
+  if (options.since !== undefined) query.set("since", String(options.since));
+  if (options.tail !== undefined) query.set("tail", String(options.tail));
+  const suffix = query.size > 0 ? `?${query.toString()}` : "";
+  return decoded(
+    `/api/agents/${encodeURIComponent(paneId)}/session${suffix}`,
     decoderOf(SessionResponseSchema),
     "session",
   );
+};
 
 export const fetchTerminal = (paneId: string) =>
   decoded(
@@ -172,10 +188,41 @@ export const openEventStream = (handlers: {
 }): (() => void) => {
   const source = new EventSource("/api/events");
 
-  source.addEventListener("open", () => handlers.onStatus("live"));
-  source.addEventListener("error", () => handlers.onStatus("down"));
-  source.addEventListener("ready", () => handlers.onStatus("live"));
+  /**
+   * Anti-clignotement du statut.
+   *
+   * `EventSource` déclenche `error` à **chaque** tentative de reconnexion, y
+   * compris quand tout va bien : le réseau change, l'onglet sort de veille, le
+   * serveur répond un peu lentement. Marquer « hors ligne » immédiatement
+   * faisait clignoter l'indicateur en permanence.
+   *
+   * On attend donc quelques secondes sans rétablissement avant de l'annoncer.
+   */
+  let downTimer: ReturnType<typeof setTimeout> | undefined;
+
+  const markLive = () => {
+    if (downTimer !== undefined) {
+      clearTimeout(downTimer);
+      downTimer = undefined;
+    }
+    handlers.onStatus("live");
+  };
+
+  const markDownSoon = () => {
+    if (downTimer !== undefined) return;
+    downTimer = setTimeout(() => {
+      downTimer = undefined;
+      handlers.onStatus("down");
+    }, 6_000);
+  };
+
+  source.addEventListener("open", markLive);
+  source.addEventListener("error", markDownSoon);
+  source.addEventListener("ready", markLive);
   source.addEventListener("resync", () => handlers.onResync());
+
+  // Un événement reçu prouve que le flux vit, même après un `error`.
+  source.addEventListener("message", markLive);
 
   const forward = (kind: string) => (event: MessageEvent<string>) => {
     let data: unknown = event.data;
@@ -187,9 +234,13 @@ export const openEventStream = (handlers: {
     handlers.onEvent(kind, data);
   };
 
-  for (const kind of ["prompt", "prompt-suppressed", "agent_status"]) {
+  for (const kind of ["agent_status", "prompt", "prompt-suppressed", "resync", "ready"]) {
+    if (kind === "resync" || kind === "ready") continue;
     source.addEventListener(kind, forward(kind));
   }
 
-  return () => source.close();
+  return () => {
+    if (downTimer !== undefined) clearTimeout(downTimer);
+    source.close();
+  };
 };

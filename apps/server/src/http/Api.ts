@@ -23,18 +23,20 @@ import {
   SnapshotPayload,
   TerminalResponse,
 } from "@herdr-remote/shared";
-import { buildOverview } from "../agents/AgentRegistry.ts";
+import { buildOverview, toWorkspaceViews } from "../agents/AgentRegistry.ts";
 import type { ServerConfig } from "../config.ts";
+import type { WatchLoop } from "../events/AgentWatcher.ts";
 import type { EventHubApi } from "../events/EventHub.ts";
 import type { HerdrApi } from "../herdr/HerdrClient.ts";
 import type { PromptSenderApi } from "../send/PromptSender.ts";
-import { readAll } from "../sessions/SessionReader.ts";
+import { readTail, tailFrom } from "../sessions/SessionReader.ts";
 
 export interface ApiDeps {
   readonly config: ServerConfig;
   readonly herdr: HerdrApi;
   readonly hub: EventHubApi;
   readonly sender: PromptSenderApi;
+  readonly watch: WatchLoop;
   readonly startedAt: number;
 }
 
@@ -153,6 +155,7 @@ const run = async <A, E>(
 export interface RouteRequest {
   readonly params: Record<string, string | undefined>;
   readonly headers: { get(name: string): string | null };
+  readonly url: string;
   json(): Promise<unknown>;
 }
 
@@ -161,7 +164,7 @@ export interface Routes {
 }
 
 export const makeRoutes = (deps: ApiDeps): Routes => {
-  const { config, herdr, hub, sender, startedAt } = deps;
+  const { config, herdr, hub, sender, watch, startedAt } = deps;
 
   const health = (): Promise<Response> =>
     Effect.gen(function* () {
@@ -195,15 +198,50 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       });
     }).pipe(Effect.runPromise);
 
+  /**
+   * Vue d'accueil.
+   *
+   * Servie depuis le **cache du veilleur** quand il est chaud : l'iPhone
+   * rafraîchit souvent, et Herdr n'a pas à payer un snapshot complet pour
+   * chaque client. Le cache est alimenté toutes les 2 s par la boucle de veille.
+   */
   const overview = (): Promise<Response> =>
     run(
       Effect.gen(function* () {
+        const [cached, lastAt] = yield* Effect.all([watch.lastAgents(), watch.lastAt()]);
+        // Le cache n'est utilisé que s'il est **frais ET non vide**. La condition
+        // précédente (`cached.length >= 0`) était toujours vraie : un cache vide
+        // aurait été servi comme une vue valide à zéro agent.
+        const fresh = lastAt > 0 && Date.now() - lastAt < 15_000 && cached.length > 0;
+
+        if (fresh) {
+          const payload = yield* herdr.snapshot();
+          const snapshot = Option.getOrUndefined(decodeSnapshot(payload["snapshot"]));
+          if (snapshot !== undefined) {
+            return {
+              agents: cached,
+              herdrProtocol: snapshot.protocol,
+              herdrVersion: snapshot.version,
+              withoutSession: cached.filter((agent) => agent.sessionPath === null).length,
+              workspaces: toWorkspaceViews(snapshot.workspaces),
+            };
+          }
+        }
+
         const payload = yield* herdr.snapshot();
         const snapshot = Option.getOrUndefined(decodeSnapshot(payload["snapshot"]));
         if (snapshot === undefined) {
           return yield* Effect.fail({ message: "snapshot Herdr illisible (forme inattendue)" });
         }
-        return yield* buildOverview(snapshot);
+        return yield* buildOverview({
+          agents: snapshot.agents,
+          protocol: snapshot.protocol,
+          // Explicite : avec `exactOptionalPropertyTypes`, une propriété absente
+          // n'est pas la même chose qu'une propriété valant `undefined`.
+          tabs: snapshot.tabs,
+          version: snapshot.version,
+          workspaces: snapshot.workspaces,
+        });
       }),
       (body) => respond(decoderOf(OverviewResponse), body),
     );
@@ -217,7 +255,23 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       (body) => respond(decoderOf(TerminalResponse), body),
     );
 
+  /**
+   * Contenu d'une session.
+   *
+   * Deux modes, et le second est indispensable :
+   * - **premier affichage** : `?tail=<octets>` lit la fin du fichier. Sur une
+   *   session de 1,8 Mo, tout renvoyer avant la première peinture rend l'écran
+   *   inutilisable.
+   * - **rafraîchissement** : `?since=<offset>` ne renvoie que le nouveau. Sans
+   *   cela, le chat re-téléchargeait 1,8 Mo toutes les 2,5 s.
+   */
   const session = async (request: RouteRequest): Promise<Response> => {
+    const url = new URL(request.url);
+    const sinceParam = url.searchParams.get("since");
+    const tailParam = url.searchParams.get("tail");
+    const since = sinceParam === null ? undefined : Number.parseInt(sinceParam, 10);
+    const tailBytes = tailParam === null ? 262_144 : Number.parseInt(tailParam, 10);
+
     const result = await Effect.runPromise(
       Effect.result(
         Effect.gen(function* () {
@@ -228,8 +282,14 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
             return { kind: "no-session" as const };
           }
           // Contenu depuis le JSONL Pi — jamais depuis Herdr (D008.1).
-          const tailed = yield* readAll(path);
-          return { kind: "ok" as const, path, tailed };
+          if (since !== undefined && Number.isInteger(since) && since >= 0) {
+            const tailed = yield* tailFrom(path, since, "");
+            return { kind: "ok" as const, path, tailed, truncated: false };
+          }
+          const finite =
+            Number.isInteger(tailBytes) && tailBytes > 0 ? Math.min(tailBytes, 4_194_304) : 262_144;
+          const tailed = yield* readTail(path, finite);
+          return { kind: "ok" as const, path, tailed, truncated: tailed.truncated };
         }),
       ),
     );
@@ -259,8 +319,10 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       }
       return respond(decoderOf(SessionResponse), {
         entries: value.tailed.entries,
+        incremental: since !== undefined,
         offset: value.tailed.offset,
         sessionPath: value.path,
+        truncated: value.truncated,
       });
     }
   };

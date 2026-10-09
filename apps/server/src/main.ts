@@ -15,6 +15,8 @@ import { join } from "node:path";
 import { ServerConfigTag } from "./config.ts";
 import { HerdrClient } from "./herdr/HerdrClient.ts";
 import { EventHub } from "./events/EventHub.ts";
+import { AgentWatcher, startWatchLoop } from "./events/AgentWatcher.ts";
+import { toAgentViews } from "./agents/AgentRegistry.ts";
 import { PromptSender } from "./send/PromptSender.ts";
 import { makeRoutes } from "./http/Api.ts";
 import type { Routes } from "./http/Api.ts";
@@ -68,7 +70,12 @@ export const program = Effect.gen(function* () {
 
   const sender = yield* PromptSender.make(herdr, config.duplicateWindowMs);
 
-  const routes: Routes = makeRoutes({ config, herdr, hub, sender, startedAt });
+  // Veille : c'est ce qui produit le direct. Sans elle, le flux n'émettait que
+  // les actions de l'utilisateur et jamais ce que font les agents.
+  const watcher = yield* AgentWatcher.make(hub);
+  const watch = yield* startWatchLoop(herdr, watcher, toAgentViews);
+
+  const routes: Routes = makeRoutes({ config, herdr, hub, sender, startedAt, watch });
   const staticHandler = makeStaticHandler(join(import.meta.dir, "..", "..", "web", "dist"));
 
   const server = Bun.serve({

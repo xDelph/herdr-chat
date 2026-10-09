@@ -22,10 +22,53 @@ import {
   openEventStream,
   sendPrompt,
 } from "./api.ts";
-import type { AgentView, Health, Overview, SendResult, SessionEntry } from "./api.ts";
+import type {
+  AgentView,
+  Health,
+  Overview,
+  SendResult,
+  SessionEntry,
+  WorkspaceView,
+} from "./api.ts";
 
 const TabSchema = Schema.Literals(["projets", "agents", "activite", "reglages"]);
 type Tab = typeof TabSchema.Type;
+
+/** Rend un événement du flux lisible, sans JSON brut à l'écran. */
+const describeEvent = (kind: string, data: unknown): string => {
+  const decoded = Option.getOrUndefined(
+    Schema.decodeUnknownOption(
+      Schema.Struct({
+        from: Schema.optional(Schema.NullOr(Schema.String)),
+        kind: Schema.optional(Schema.String),
+        paneId: Schema.optional(Schema.String),
+        reason: Schema.optional(Schema.String),
+        status: Schema.optional(Schema.String),
+        text: Schema.optional(Schema.String),
+        to: Schema.optional(Schema.String),
+      }),
+    )(data),
+  );
+
+  if (decoded === undefined) return kind;
+
+  if (kind === "agent_status") {
+    const pane = decoded.paneId ?? "?";
+    switch (decoded.kind) {
+      case "appeared":
+        return `${pane} — agent apparu (${decoded.to ?? "?"})`;
+      case "disappeared":
+        return `${pane} — agent disparu`;
+      default:
+        return `${pane} — ${statusLabel(decoded.from ?? "?")} → ${statusLabel(decoded.to ?? "?")}`;
+    }
+  }
+
+  if (kind === "prompt")
+    return `prompt envoyé à ${decoded.paneId ?? "?"} (${decoded.status ?? ""})`;
+  if (kind === "prompt-suppressed") return `double envoi supprimé pour ${decoded.paneId ?? "?"}`;
+  return kind;
+};
 
 /** Forme minimale reconnue d'une ligne de message de session. */
 const MessageLine = Schema.Struct({
@@ -63,6 +106,29 @@ const STATUS_LABEL: Record<string, string> = {
 /** Aucun statut `error` n'existe côté Herdr : on ne le fabrique pas. */
 const statusLabel = (status: string): string => STATUS_LABEL[status] ?? status;
 
+/**
+ * Nom lisible d'un agent.
+ *
+ * Herdr fournit un libellé de projet et d'onglet. Afficher `wB:p1` à l'écran
+ * n'apprend rien à personne : on préfère le projet, puis l'onglet, puis le nom
+ * de l'agent. L'identifiant de pane reste visible, mais **en second**, pour le
+ * diagnostic.
+ */
+const agentName = (agent: AgentView): string =>
+  agent.workspaceLabel ?? agent.title ?? agent.agent ?? "agent";
+
+const agentContext = (agent: AgentView): string => {
+  const parts: string[] = [];
+  if (agent.tabLabel !== null && agent.tabLabel !== undefined && agent.tabLabel.length > 0) {
+    parts.push(agent.tabLabel);
+  } else if (agent.tabNumber !== null && agent.tabNumber !== undefined) {
+    parts.push(`onglet ${agent.tabNumber}`);
+  }
+  if (agent.agent !== null) parts.push(agent.agent);
+  parts.push(agent.paneId);
+  return parts.join(" · ");
+};
+
 const shortPath = (path: string | null): string => {
   if (path === null) return "—";
   const parts = path.split("/");
@@ -92,24 +158,57 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
   const [lastSend, setLastSend] = useState<SendResult | null>(null);
   const [sending, setSending] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
-  const placeholder = `Message à ${agent.paneId}…`;
+  const placeholder = `Message à ${agentName(agent)}…`;
 
-  const load = useCallback(async () => {
-    try {
-      const session = await fetchSession(agent.paneId);
-      setEntries(session.entries);
-      setError(null);
-    } catch (cause) {
-      // La cause réelle est affichée : pas de message générique qui masque.
-      setError(cause instanceof Error ? cause.message : String(cause));
-    }
-  }, [agent.paneId]);
+  /**
+   * Chargement **incrémental** de la conversation.
+   *
+   * Premier passage : on lit la fin du fichier (`tail`), pour peindre vite.
+   * Ensuite : on ne demande que ce qui suit le dernier offset connu (`since`).
+   *
+   * Avant, chaque rafraîchissement re-téléchargeait la session entière — 1,8 Mo
+   * sur une session réelle, toutes les 2,5 s — et l'écran ne s'affichait jamais.
+   */
+  const cursor = useRef<{ offset: number; path: string } | null>(null);
+  const loading = useRef(false);
+
+  const load = useCallback(
+    async (mode: "initial" | "incremental") => {
+      if (loading.current) return;
+      loading.current = true;
+      try {
+        const known = cursor.current;
+        const session =
+          mode === "incremental" && known !== null
+            ? await fetchSession(agent.paneId, { since: known.offset })
+            : await fetchSession(agent.paneId, { tail: 131_072 });
+
+        cursor.current = { offset: session.offset, path: session.sessionPath };
+
+        if (session.incremental) {
+          if (session.entries.length > 0) {
+            setEntries((current) => [...current, ...session.entries]);
+          }
+        } else {
+          setEntries(session.entries);
+        }
+        setError(null);
+      } catch (cause) {
+        // La cause réelle est affichée : pas de message générique qui masque.
+        setError(cause instanceof Error ? cause.message : String(cause));
+      } finally {
+        loading.current = false;
+      }
+    },
+    [agent.paneId],
+  );
 
   useEffect(() => {
-    void load();
+    cursor.current = null;
+    void load("initial");
     const timer = setInterval(() => {
-      void load();
-    }, 2500);
+      void load("incremental");
+    }, 2000);
     return () => clearInterval(timer);
   }, [load]);
 
@@ -161,9 +260,9 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
           ‹ Retour
         </button>
         <div>
-          <strong>{agent.title ?? agent.paneId}</strong>
+          <strong>{agentName(agent)}</strong>
           <div className="muted small">
-            {agent.paneId} · {agent.agent ?? "agent inconnu"} · {statusLabel(agent.status)}
+            {agentContext(agent)} · {statusLabel(agent.status)}
           </div>
         </div>
       </header>
@@ -207,6 +306,38 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
         </p>
       ) : null}
     </section>
+  );
+};
+
+/**
+ * Ligne de projet. **Cliquable** : ouvre les agents de ce projet.
+ *
+ * Avant, la ligne était statique — le clic ne faisait rien, ce qui laissait
+ * croire à une application cassée.
+ */
+const WorkspaceRow = ({
+  workspace,
+  onOpen,
+}: {
+  workspace: WorkspaceView;
+  onOpen: (workspaceId: string) => void;
+}) => {
+  const handleClick = useCallback(
+    () => onOpen(workspace.workspaceId),
+    [onOpen, workspace.workspaceId],
+  );
+
+  return (
+    <button type="button" className="row" onClick={handleClick}>
+      <span className={statusClass(workspace.agentStatus ?? "unknown")} />
+      <span className="row__main">
+        <strong>{workspace.label ?? workspace.workspaceId}</strong>
+        <span className="muted small">
+          {workspace.paneCount} pane(s) · {workspace.tabCount} onglet(s)
+        </span>
+      </span>
+      <span className="row__side small muted">voir les agents ›</span>
+    </button>
   );
 };
 
@@ -273,9 +404,12 @@ export const App = () => {
           const entry = {
             at: Date.now(),
             id: activitySeq.current,
-            text: `${kind} ${JSON.stringify(data).slice(0, 120)}`,
+            text: describeEvent(kind, data),
           };
-          setActivity((current) => [entry, ...current].slice(0, 60));
+          setActivity((current) => [entry, ...current].slice(0, 80));
+          // Un changement d'état d'agent est le signal du **direct** : on
+          // rafraîchit la vue, servie depuis le cache du veilleur.
+          if (kind === "agent_status") void refresh();
         },
         onResync: () => {
           // Continuité rompue côté serveur : on recharge au lieu de croire
@@ -327,6 +461,12 @@ export const App = () => {
     }
   }, []);
 
+  const onOpenWorkspace = useCallback((workspaceId: string) => {
+    setWorkspaceFilter(workspaceId);
+    setStatusFilter("tous");
+    setTab("agents");
+  }, []);
+
   const onOpenAgent = useCallback(
     (paneId: string) => {
       const agent = (overview?.agents ?? []).find((candidate) => candidate.paneId === paneId);
@@ -369,17 +509,11 @@ export const App = () => {
       {tab === "projets" ? (
         <section className="screen">
           <h2>Projets</h2>
+          <p className="muted small">Toucher un projet ouvre ses agents.</p>
           <ul className="list">
             {overview?.workspaces.map((workspace) => (
-              <li key={workspace.workspaceId} className="row row--static">
-                <span className={statusClass(workspace.agentStatus ?? "unknown")} />
-                <span className="row__main">
-                  <strong>{workspace.label ?? workspace.workspaceId}</strong>
-                  <span className="muted small">
-                    {workspace.paneCount} pane(s) · {workspace.tabCount} onglet(s)
-                  </span>
-                </span>
-                <span className="row__side small muted">{workspace.workspaceId}</span>
+              <li key={workspace.workspaceId}>
+                <WorkspaceRow workspace={workspace} onOpen={onOpenWorkspace} />
               </li>
             ))}
           </ul>

@@ -274,3 +274,47 @@ Quatre règles d'Oxlint sont désactivées explicitement dans `.oxlintrc.json`. 
 | `decodeUnknownOption` exige `ConstraintDecoder` | Un helper générique `<A>(schema: Schema.Schema<A>)` **ne se conforme pas**. Il faut passer une **fonction de décodage** construite sur un schéma concret |
 | Types dérivés des schémas | `typeof X.Type` évite toute divergence entre le décodage et le type affiché — et supprime le besoin d'assertions |
 | Import CSS | Nécessite `vite/client` dans un `vite-env.d.ts`, sinon `TS2882` |
+
+---
+
+## Effet 4 : `zipRight` n'existe pas
+
+**Quatre occurrences rencontrées.** `Effect.zipRight` n'existe pas en Effect 4 (il existait en v3). L'équivalent est **`Effect.andThen`**.
+
+```ts
+// ❌ Effect.zipRight existe en v3, pas en v4
+Ref.update(n, (x) => x + 1).pipe(Effect.zipRight(Effect.log("…")))
+
+// ✅
+Effect.andThen(Ref.update(n, (x) => x + 1), Effect.log("…"))
+```
+
+Comme les autres écarts v3 → v4 rencontrés ici, **le typecheck le voit** — mais seulement si le fichier est typé, ce qui n'est pas le cas d'un script jetable.
+
+## `Effect.scoped` ferme le scope dès que l'effet interne se termine
+
+Piège lors de l'écriture des tests de veille :
+
+```ts
+// ❌ la fibre forkee est tuée avant que le `sleep` ne s'exécute
+Effect.scoped(startWatchLoop(…)).pipe(Effect.andThen(Effect.sleep("250 millis")))
+
+// ✅ le `sleep` est DANS le scope, la fibre vit pendant la veille
+Effect.scoped(Effect.andThen(startWatchLoop(…), Effect.sleep("250 millis")))
+```
+
+`startWatchLoop` utilise `Effect.forkScoped` : la fibre est rattachée au scope. La sortir du scope la tue immédiatement.
+
+## Récapitulatif des pièges Effect 4 rencontrés
+
+| Piège | v3 | v4 |
+|---|---|---|
+| `Result.getFailure` | renvoie `E` | renvoie **`Option<E>`** |
+| `Result.getOrUndefined` | — | renvoie la valeur de **succès**, jamais l'échec |
+| `Cause.failureOption` | existe | **n'existe pas** → `Cause.findFail` ou `Effect.result` |
+| `Effect.zipRight` | existe | **n'existe pas** → `Effect.andThen` |
+| `Schema<T>` | `Schema<A, I>` | **un seul** paramètre de type |
+| `decodeUnknownOption` | accepte `Schema<A>` | exige un **`ConstraintDecoder`** |
+| `Schema.Struct` | conserve/retire selon option | **retire** les propriétés non déclarées |
+
+**Règle** : pour toute opération sur `Result`, `Cause` ou `Schema`, vérifier la signature réelle dans `effect/dist/*.d.ts` avant d'écrire. Ces écarts ne se devinent pas.

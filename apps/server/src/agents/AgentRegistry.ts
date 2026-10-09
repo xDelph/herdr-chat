@@ -13,7 +13,7 @@
  * `state_labels` étaient **absents** sur l'instance mesurée, pas vides.
  */
 import { Effect, Result, Schema } from "effect";
-import type { AgentInfo, WorkspaceInfo } from "@herdr-remote/shared";
+import type { AgentInfo, TabInfo, WorkspaceInfo } from "@herdr-remote/shared";
 import { readHeader } from "../sessions/SessionReader.ts";
 
 /** Vue d'un agent exposée à l'interface. */
@@ -26,6 +26,11 @@ export interface AgentView {
   readonly status: string;
   readonly cwd: string | null;
   readonly focused: boolean;
+  /** Libellé humain de l'onglet. `null` = nom par défaut côté Herdr. */
+  readonly tabLabel: string | null;
+  readonly tabNumber: number | null;
+  /** Libellé humain du projet. `null` = nom par défaut côté Herdr. */
+  readonly workspaceLabel: string | null;
   /** Chemin absolu du fichier de session, fourni par Herdr. */
   readonly sessionPath: string | null;
   /** `path` ou `id` — dans quel référentiel `sessionPath`/`sessionId` vit. */
@@ -61,8 +66,36 @@ export class SnapshotError extends Schema.TaggedError<SnapshotError>()("Snapshot
   detail: Schema.String,
 }) {}
 
+/** Un libellé n'est utile que s'il n'est pas le numéro d'onglet par défaut. */
+const usefulLabel = (label: string | null): string | null => {
+  if (label === null || label.trim().length === 0) return null;
+  return /^\d+$/.test(label.trim()) ? null : label;
+};
+
+/** Contexte de nommage : évite d'afficher des identifiants de pane à l'écran. */
+export interface NamingContext {
+  readonly workspaces: ReadonlyMap<string, string | null>;
+  readonly tabs: ReadonlyMap<string, { label: string | null; number: number }>;
+}
+
+export const emptyNaming: NamingContext = { tabs: new Map(), workspaces: new Map() };
+
+/** Construit le contexte de nommage depuis un snapshot. */
+export const namingFrom = (
+  workspaces: ReadonlyArray<WorkspaceInfo>,
+  tabs: ReadonlyArray<TabInfo>,
+): NamingContext => ({
+  tabs: new Map(tabs.map((tab) => [tab.tab_id, { label: tab.label, number: tab.number }])),
+  workspaces: new Map(
+    workspaces.map((workspace) => [workspace.workspace_id, workspace.label ?? null]),
+  ),
+});
+
 /** Enrichit un agent Herdr avec les métadonnées lues dans son fichier de session. */
-const enrich = (agent: AgentInfo): Effect.Effect<AgentView> =>
+export const enrichAgent = (
+  agent: AgentInfo,
+  naming: NamingContext = emptyNaming,
+): Effect.Effect<AgentView> =>
   Effect.gen(function* () {
     const session = agent.agent_session ?? null;
     const path = session?.kind === "path" ? session.value : null;
@@ -100,14 +133,22 @@ const enrich = (agent: AgentInfo): Effect.Effect<AgentView> =>
       sessionPath: path,
       status: agent.agent_status,
       tabId: agent.tab_id,
+      // Herdr nomme les onglets par défaut « 1 », « 2 »… Un libellé purement
+      // numérique n'apprend rien : on le traite comme absent et on affiche le
+      // numéro d'onglet, qui au moins est exact.
+      tabLabel: usefulLabel(naming.tabs.get(agent.tab_id)?.label ?? null),
+      tabNumber: naming.tabs.get(agent.tab_id)?.number ?? null,
       title: agent.terminal_title ?? null,
       workspaceId: agent.workspace_id,
+      workspaceLabel: naming.workspaces.get(agent.workspace_id) ?? null,
     } satisfies AgentView;
   });
 
 export const toAgentViews = (
   agents: ReadonlyArray<AgentInfo>,
-): Effect.Effect<ReadonlyArray<AgentView>> => Effect.forEach(agents, enrich);
+  naming: NamingContext = emptyNaming,
+): Effect.Effect<ReadonlyArray<AgentView>> =>
+  Effect.forEach(agents, (agent) => enrichAgent(agent, naming));
 
 export const toWorkspaceViews = (
   workspaces: ReadonlyArray<WorkspaceInfo>,
@@ -130,12 +171,19 @@ export const toWorkspaceViews = (
  */
 export const buildOverview = (snapshot: {
   readonly agents: ReadonlyArray<AgentInfo>;
+  /**
+   * `undefined` explicite, et non une propriété optionnelle : avec
+   * `exactOptionalPropertyTypes`, `{ tabs: undefined }` n'est pas assignable à
+   * une propriété optionnelle.
+   */
+  readonly tabs: ReadonlyArray<TabInfo> | undefined;
   readonly workspaces: ReadonlyArray<WorkspaceInfo>;
   readonly version: string;
   readonly protocol: number;
 }): Effect.Effect<OverviewView> =>
   Effect.gen(function* () {
-    const agents = yield* toAgentViews(snapshot.agents);
+    const naming = namingFrom(snapshot.workspaces, snapshot.tabs ?? []);
+    const agents = yield* toAgentViews(snapshot.agents, naming);
     return {
       agents,
       herdrProtocol: snapshot.protocol,

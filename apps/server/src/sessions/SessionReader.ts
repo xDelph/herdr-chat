@@ -174,3 +174,52 @@ export const tailFrom = (path: string, offset: number, pending: string) =>
 
 /** Lit tout le fichier. Réservé au premier chargement d'une session courte. */
 export const readAll = (path: string) => tailFrom(path, 0, "");
+
+/**
+ * Lit **la fin** d'un fichier sans le charger entièrement.
+ *
+ * Sert au premier affichage d'une conversation : sur une session réelle de
+ * 1,8 Mo, tout renvoyer avant la première peinture rend l'écran inutilisable.
+ * On lit les `maxBytes` derniers octets, et on **jette la première ligne**,
+ * presque toujours tronquée.
+ *
+ * Le résultat porte `offset` : le client reprend ensuite en incrémental.
+ */
+export const readTail = (path: string, maxBytes: number) =>
+  Effect.tryPromise({
+    try: async (): Promise<TailedSession & { readonly truncated: boolean }> => {
+      const handle: FileHandle = await open(path, "r");
+      try {
+        const stats = await handle.stat();
+        const start = Math.max(0, stats.size - maxBytes);
+        const length = stats.size - start;
+        const buffer = Buffer.alloc(length);
+        const { bytesRead } = await handle.read(buffer, 0, length, start);
+        let text = buffer.subarray(0, bytesRead).toString("utf8");
+
+        let truncated = false;
+        if (start > 0) {
+          // La première ligne est très probablement coupée en plein milieu.
+          const firstNewline = text.indexOf("\n");
+          text = firstNewline === -1 ? "" : text.slice(firstNewline + 1);
+          truncated = true;
+        }
+
+        const { lines, pending } = splitCompleteLines(text);
+        return {
+          entries: lines.map(parseEntry),
+          offset: start + bytesRead,
+          pending,
+          truncated,
+        };
+      } finally {
+        await handle.close();
+      }
+    },
+    catch: (cause) =>
+      new SessionReadError({
+        cause,
+        detail: cause instanceof Error ? cause.message : String(cause),
+        path,
+      }),
+  });

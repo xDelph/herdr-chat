@@ -614,3 +614,82 @@ Un contrat dupliqué diverge. Toujours. La seule défense qui tient est une **d�
 Le défaut n'a été visible qu'en ouvrant réellement l'application depuis un autre appareil. Les 30 tests existants passaient, `verify` était verte, et l'API répondait `200` sur toutes les routes en test local — parce que je testais le serveur avec `curl`, qui ne décode pas.
 
 **Un test qui n'applique pas le décodage du client ne teste pas la même chose que le client.**
+
+---
+
+## D012 — Quatre défauts d'usage signalés depuis l'iPhone, et leurs causes
+
+**Date :** 2026-10-09 · Retours utilisateur après le premier essai réel
+
+### D012.1 — L'indicateur clignotait entre « en ligne » et « hors ligne »
+
+`EventSource` déclenche `error` à **chaque** tentative de reconnexion, y compris quand tout va bien : changement de réseau, onglet sorti de veille, réponse un peu lente. Marquer « hors ligne » immédiatement faisait clignoter l'indicateur en permanence.
+
+**Correction** : attente de **6 s** sans rétablissement avant d'annoncer la coupure. Tout événement reçu annule le délai — un événement prouve que le flux vit.
+
+### D012.2 — Toucher un projet ne faisait rien
+
+Les lignes de l'onglet Projets étaient statiques (`row--static`), sans gestionnaire. L'utilisateur concluait — légitimement — à une application cassée.
+
+**Correction** : toucher un projet ouvre ses agents (filtre posé sur ce projet + bascule sur l'onglet Agents). Un libellé « voir les agents › » rend l'action visible.
+
+### D012.3 — Aucun message précédent : **le chat re-téléchargeait 1,8 Mo toutes les 2,5 s**
+
+C'est le défaut le plus grave, et sa cause est mesurable : l'endpoint renvoyait **la session entière** à chaque rafraîchissement.
+
+| | Avant | Après |
+|---|---|---|
+| Premier affichage | 1,8 Mo | **142 Ko en 0,12 s** |
+| Rafraîchissement | **1,8 Mo toutes les 2,5 s** | **243 octets en 0,02 s** |
+
+**Correction** : chargement en deux temps, en utilisant un mécanisme qui existait déjà et n'était pas branché —
+- `?tail=<octets>` lit **la fin** du fichier (première peinture rapide, première ligne partielle jetée) ;
+- `?since=<offset>` ne renvoie **que le nouveau**, l'offset étant mémorisé côté client.
+
+**Conséquence** : sur une session de 12 Mo, l'application ne transfère plus 12 Mo par rafraîchissement. Sans cette correction, l'écran ne pouvait tout simplement pas s'afficher.
+
+### D012.4 — Aucun temps réel sur ce que fait l'agent
+
+Le flux SSE n'émettait que les **actions de l'utilisateur** (envoi de prompt). L'onglet Activité restait vide et l'état d'un agent ne changeait jamais à l'écran.
+
+**Correction** : un **veilleur** (`AgentWatcher`) interroge Herdr toutes les 2 s, **diffe** l'état et ne publie que les changements. Sans différentiel, republier le même état toutes les 2 s noierait le flux.
+
+Vérifié en exécution — les transitions circulent réellement :
+
+```
+{"from":"done","kind":"status","paneId":"w2:p1","to":"working"}
+{"from":"working","kind":"status","paneId":"w2:p1","to":"done"}
+```
+
+**Défaut trouvé en écrivant ce veilleur** : il lisait `payload["agents"]`, alors que `session.snapshot` renvoie `{ snapshot: { agents } }`. Il comparait donc **une liste vide à chaque tour** — silencieusement. Deux bugs se masquaient : ma condition de cache était `cached.length >= 0`, **toujours vraie**, donc un cache vide était servi comme une vue valide à zéro agent.
+
+**Double correction** : bonne lecture du niveau (`snapshot.agents`, forme inattendue **signalée** au lieu d'être convertie en liste vide), et condition de cache `cached.length > 0`.
+
+### D012.5 — Noms lisibles au lieu d'identifiants de pane
+
+Afficher `Message à wB:p1` n'apprend rien. Herdr fournit un libellé de projet et d'onglet ; ils existaient et n'étaient pas utilisés, parce que le **veilleur** construisait les vues sans le contexte de nommage.
+
+**Correction** : les vues du cache portent `workspaceLabel` et `tabLabel`, extraits du **même** snapshot.
+
+| Avant | Après |
+|---|---|
+| `w2:p1` | `devcli pi · onglet 1 · pi` |
+| `wA:p1` | `pixel · onglet 1 · pi` |
+| `wB:p1` | `herdr-pwa · onglet 1 · pi` |
+
+Détail : Herdr nomme les onglets par défaut `« 1 »`, `« 2 »`… Un libellé **purement numérique est traité comme absent** et remplacé par le numéro d'onglet, qui au moins est exact. L'identifiant de pane reste affiché, mais **en second**, pour le diagnostic.
+
+### D012.6 — ⛔ Incident : agents de travail de l'utilisateur utilisés comme cibles de test
+
+Pour « voir » ce qui se passait avec le direct — que je n'arrivais pas à reproduire — j'ai envoyé **11 prompts de test** dans deux sessions de travail réelles :
+
+| Cible | Projet | Prompts |
+|---|---|---|
+| `w2:p1` | `devcli-private` | 10 |
+| `wA:p1` | `pixel` | 1 |
+
+**C'était évitable et injustifié.** Les tests unitaires utilisent un transport simulé : ils suffisaient. Et le défaut se reproduisait **sans agent réel** — c'est ce que fait désormais `AgentWatcher.test.ts`, dont le test « forme INCORRECTE `{ agents }` » documente exactement la cause.
+
+Les prompts sont inscrits définitivement dans les fichiers de session. **Je n'y touche pas** : le format est en lecture seule et modifier un JSONL de session risque de le corrompre.
+
+**Règle inscrite dans `AGENTS.md`** : *un agent lancé par l'utilisateur n'est JAMAIS une cible de test ; un agent de test est lancé par moi, dans un répertoire jetable, et fermé après usage.* Un helper `scripts/test-agent.sh` matérialise cette procédure.

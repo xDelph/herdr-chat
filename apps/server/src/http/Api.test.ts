@@ -31,6 +31,7 @@ import type { EventHubApi } from "../events/EventHub.ts";
 import type { HerdrApi } from "../herdr/HerdrClient.ts";
 import type { HerdrError } from "../herdr/HerdrClient.ts";
 import { PromptSender } from "../send/PromptSender.ts";
+import type { WatchLoop } from "../events/AgentWatcher.ts";
 import { HerdrProtocolError } from "../herdr/HerdrClient.ts";
 
 const config: ServerConfig = {
@@ -74,10 +75,23 @@ const fakeHub: EventHubApi = {
   since: () => Effect.succeed({ events: [], resyncRequired: false }),
 };
 
+const fakeWatch: WatchLoop = {
+  errorCount: () => Effect.succeed(0),
+  lastAgents: () => Effect.succeed([]),
+  lastAt: () => Effect.succeed(0),
+};
+
 const build = async (healthy: boolean) => {
   const herdr = fakeHerdr({ healthy });
   const sender = await Effect.runPromise(PromptSender.make(herdr, 60_000));
-  return makeRoutes({ config, herdr, hub: fakeHub, sender, startedAt: Date.now() });
+  return makeRoutes({
+    config,
+    herdr,
+    hub: fakeHub,
+    sender,
+    startedAt: Date.now(),
+    watch: fakeWatch,
+  });
 };
 
 /**
@@ -91,10 +105,15 @@ const handler = (routes: ReturnType<typeof makeRoutes>, path: string) => {
 };
 
 /** Requête minimale conforme à `RouteRequest` — aucune assertion nécessaire. */
-const request = (params: Record<string, string | undefined> = {}, body?: unknown) => ({
+const request = (
+  params: Record<string, string | undefined> = {},
+  body?: unknown,
+  url = "http://127.0.0.1/api/test",
+) => ({
   headers: { get: () => null },
   json: async () => body,
   params,
+  url,
 });
 
 /** Décode le corps d'une réponse contre un schéma du contrat partagé. */

@@ -43,8 +43,13 @@ export const AgentViewSchema = Schema.Struct({
   sessionKind: Schema.NullOr(Schema.Literals(["id", "path"])),
   sessionPath: Schema.NullOr(Schema.String),
   status: Schema.String,
+  /** Libellé humain de l'onglet, quand Herdr en fournit un. */
+  tabLabel: Schema.NullOr(Schema.String),
   tabId: Schema.String,
+  tabNumber: Schema.NullOr(Schema.Number),
   title: Schema.NullOr(Schema.String),
+  /** Libellé humain du projet. `null` = nom par défaut côté Herdr. */
+  workspaceLabel: Schema.NullOr(Schema.String),
   workspaceId: Schema.String,
 });
 export type AgentView = typeof AgentViewSchema.Type;
@@ -79,8 +84,13 @@ export type SessionEntry = typeof SessionEntrySchema.Type;
 
 export const SessionResponse = Schema.Struct({
   entries: Schema.Array(SessionEntrySchema),
+  /** `true` quand seule la suite a été renvoyée (mode `?since=`). */
+  incremental: Schema.Boolean,
+  /** Offset à renvoyer au prochain appel pour ne recevoir que le nouveau. */
   offset: Schema.Number,
   sessionPath: Schema.String,
+  /** `true` quand les entrées précédentes existent mais n'ont pas été renvoyées. */
+  truncated: Schema.Boolean,
 });
 export type SessionResponse = typeof SessionResponse.Type;
 
@@ -112,10 +122,22 @@ export const ApiErrorResponse = Schema.Struct({
 });
 export type ApiErrorResponse = typeof ApiErrorResponse.Type;
 
+/** Un onglet Herdr. `label` et `number` sont toujours présents côté Herdr. */
+export const TabInfo = Schema.Struct({
+  agent_status: Schema.optional(Schema.NullOr(Schema.String)),
+  label: Schema.NullOr(Schema.String),
+  number: Schema.Number,
+  pane_count: Schema.optional(Schema.Number),
+  tab_id: Schema.String,
+  workspace_id: Schema.String,
+});
+export type TabInfo = typeof TabInfo.Type;
+
 /** Vue du snapshot Herdr telle que consommée par le serveur. */
 export const SnapshotPayload = Schema.Struct({
   agents: Schema.Array(AgentInfo),
   protocol: Schema.Number,
+  tabs: Schema.optional(Schema.Array(TabInfo)),
   version: Schema.String,
   workspaces: Schema.Array(WorkspaceInfo),
 });
