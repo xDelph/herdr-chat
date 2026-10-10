@@ -16,7 +16,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Option, Schema } from "effect";
 import {
   fetchHealth,
-  fetchRecentImages,
   launchAgent,
   fetchOverview,
   fetchSession,
@@ -26,7 +25,6 @@ import {
 } from "./api.ts";
 import type {
   AgentView,
-  RecentImage,
   Health,
   Overview,
   SendResult,
@@ -36,10 +34,11 @@ import type {
 import { digestOf, toItems, toMessages } from "./blocks.ts";
 import { FilesSheet } from "./Files.tsx";
 import { Gallery } from "./Gallery.tsx";
+import { FileViewer } from "./Viewer.tsx";
 import { AGENT_KINDS } from "./api.ts";
 import { AttentionCard } from "./Attention.tsx";
 import type { RenderedMessage } from "./blocks.ts";
-import { ItemsView } from "./Blocks.tsx";
+import { FileOpenerContext, ItemsView } from "./Blocks.tsx";
 import { parseRoute, routeToHash, TabSchema } from "./routing.ts";
 import type { Route, Tab } from "./routing.ts";
 
@@ -216,6 +215,8 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
   const placeholder = `Message à ${agentName(agent)}…`;
   const files = digestOf(messages).files;
   const [showFiles, setShowFiles] = useState(false);
+  /** Fichier ouvert dans la visionneuse plein écran. */
+  const [openFile, setOpenFile] = useState<string | null>(null);
   const onToggleFiles = useCallback(() => setShowFiles((value) => !value), []);
 
   /**
@@ -318,63 +319,80 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
   }, [submit]);
 
   return (
-    <section className="chat">
-      <header className="screen__head">
-        <button type="button" className="ghost" onClick={onBack}>
-          ‹ Retour
-        </button>
-        <div className="screen__title">
-          <strong>{agentName(agent)}</strong>
-          <div className="muted small">
-            {agentContext(agent)} · {statusLabel(agent.status)}
+    // La visionneuse est fournie au fond de l'arbre : un bloc qui cite une image
+    // l'ouvre sans qu'aucun composant intermédiaire n'ait à la connaître.
+    <FileOpenerContext.Provider value={setOpenFile}>
+      <section className="chat">
+        <header className="screen__head">
+          <button type="button" className="ghost" onClick={onBack}>
+            ‹ Retour
+          </button>
+          <div className="screen__title">
+            <strong>{agentName(agent)}</strong>
+            <div className="muted small">
+              {agentContext(agent)} · {statusLabel(agent.status)}
+            </div>
           </div>
-        </div>
-        {/*
+          {/*
           Les fichiers sont une **action**, pas une section permanente : un
           bouton discret, avec le compte, uniquement s'il y en a.
         */}
-        {files.length > 0 ? (
-          <button type="button" className="row__action" onClick={onToggleFiles}>
-            Fichiers · {files.length}
-          </button>
+          {files.length > 0 ? (
+            <button type="button" className="row__action" onClick={onToggleFiles}>
+              Fichiers · {files.length}
+            </button>
+          ) : null}
+        </header>
+
+        {agent.sessionPath === null ? (
+          <p className="notice notice--warn">
+            Aucun chemin de session exposé par Herdr pour cet agent. Le contenu n'est pas affichable
+            — et il n'est pas reconstruit artificiellement.
+          </p>
         ) : null}
-      </header>
 
-      {agent.sessionPath === null ? (
-        <p className="notice notice--warn">
-          Aucun chemin de session exposé par Herdr pour cet agent. Le contenu n'est pas affichable —
-          et il n'est pas reconstruit artificiellement.
-        </p>
-      ) : null}
+        {error !== null ? <p className="notice notice--error">{error}</p> : null}
 
-      {error !== null ? <p className="notice notice--error">{error}</p> : null}
+        <div className="messages" ref={scrollerRef} onScroll={onScroll}>
+          <ItemsView items={toItems(messages)} />
+        </div>
 
-      <div className="messages" ref={scrollerRef} onScroll={onScroll}>
-        <ItemsView items={toItems(messages)} />
-      </div>
+        {openFile !== null ? (
+          // La visionneuse est **au-dessus** de tout : elle ne peut pas être
+          // recouverte par le composeur, contrairement à l'ancien panneau.
+          <FileViewer path={openFile} onClose={() => setOpenFile(null)} />
+        ) : showFiles ? (
+          <FilesSheet
+            files={files}
+            onClose={onToggleFiles}
+            onOpenFile={(path) => {
+              setShowFiles(false);
+              setOpenFile(path);
+            }}
+          />
+        ) : null}
 
-      {showFiles ? <FilesSheet files={files} onClose={onToggleFiles} /> : null}
+        <div className="composer">
+          <textarea value={draft} onChange={onDraftChange} placeholder={placeholder} rows={2} />
+          <button type="button" onClick={onSubmit} disabled={sending}>
+            {sending ? "…" : "Envoyer"}
+          </button>
+        </div>
 
-      <div className="composer">
-        <textarea value={draft} onChange={onDraftChange} placeholder={placeholder} rows={2} />
-        <button type="button" onClick={onSubmit} disabled={sending}>
-          {sending ? "…" : "Envoyer"}
-        </button>
-      </div>
-
-      {lastSend !== null ? (
-        <p className="sendState">
-          {lastSend.kind === "sent" && lastSend.confirmation === "confirmed"
-            ? "envoyé (confirmé par Herdr)"
-            : null}
-          {lastSend.kind === "sent" && lastSend.confirmation === "unknown"
-            ? "envoi effectué, confirmation incertaine — état inconnu"
-            : null}
-          {lastSend.kind === "suppressed" ? `double envoi supprimé — ${lastSend.reason}` : null}
-          {lastSend.kind === "failed" ? `échec : ${lastSend.message}` : null}
-        </p>
-      ) : null}
-    </section>
+        {lastSend !== null ? (
+          <p className="sendState">
+            {lastSend.kind === "sent" && lastSend.confirmation === "confirmed"
+              ? "envoyé (confirmé par Herdr)"
+              : null}
+            {lastSend.kind === "sent" && lastSend.confirmation === "unknown"
+              ? "envoi effectué, confirmation incertaine — état inconnu"
+              : null}
+            {lastSend.kind === "suppressed" ? `double envoi supprimé — ${lastSend.reason}` : null}
+            {lastSend.kind === "failed" ? `échec : ${lastSend.message}` : null}
+          </p>
+        ) : null}
+      </section>
+    </FileOpenerContext.Provider>
   );
 };
 
@@ -520,12 +538,6 @@ export const App = () => {
   const [terminalError, setTerminalError] = useState<string | null>(null);
   const [terminalLoading, setTerminalLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("tous");
-  /**
-   * Images récentes — chargées **à la demande**, pas en permanence : le balayage
-   * disque n'a pas à tourner toutes les 4 secondes.
-   */
-  const [images, setImages] = useState<readonly RecentImage[]>([]);
-  const [imagesError, setImagesError] = useState<string | null>(null);
   const [launching, setLaunching] = useState<string | null>(null);
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [workspaceFilter, setWorkspaceFilter] = useState<string>("tous");
@@ -572,23 +584,6 @@ export const App = () => {
       }),
     [refresh],
   );
-
-  const loadImages = useCallback(() => {
-    void (async () => {
-      try {
-        setImages(await fetchRecentImages());
-        setImagesError(null);
-      } catch (cause) {
-        setImagesError(cause instanceof Error ? cause.message : String(cause));
-      }
-    })();
-  }, []);
-  const onLoadImages = useCallback(() => loadImages(), [loadImages]);
-
-  // Chargement des images à l'ouverture de l'onglet Réglages.
-  useEffect(() => {
-    if (route.kind === "tab" && route.tab === "reglages") loadImages();
-  }, [route, loadImages]);
 
   const agents = overview?.agents ?? [];
   // Table de noms **du rendu** : un nom arrivé après un événement s'y applique.
@@ -902,19 +897,6 @@ export const App = () => {
             Le contenu des conversations est lu dans les fichiers de session Pi, jamais depuis
             Herdr. Aucune action shell arbitraire n'est exposée.
           </p>
-          <h2>Images récentes</h2>
-          <p className="muted small">
-            Captures d'écran, bureau, téléchargements. Les plus récentes d'abord — toucher pour
-            agrandir.
-          </p>
-          <button type="button" className="row__action" onClick={onLoadImages}>
-            Actualiser
-          </button>
-          {imagesError !== null ? (
-            <p className="notice notice--error">{imagesError}</p>
-          ) : (
-            <Gallery paths={images.map((image) => image.path)} title="" />
-          )}
           {projectRoot.length > 0 ? <Gallery paths={screenshotPaths} /> : null}
         </section>
       ) : null}

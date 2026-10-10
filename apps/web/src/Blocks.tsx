@@ -6,10 +6,20 @@
  * `write` 372. Un rendu générique unique obligerait à lire du JSON à l'écran
  * pour comprendre ce que l'agent a fait.
  */
-import { memo, useState } from "react";
+import { createContext, memo, useContext, useState } from "react";
 import { Schema } from "effect";
 import { Option } from "effect";
 import { Markdown } from "./Markdown.tsx";
+import { fileUrl } from "./api.ts";
+
+/**
+ * Ouvre un fichier dans la visionneuse.
+ *
+ * Un contexte plutôt qu'une prop traversant trois niveaux : la fonction est
+ * utilisée au fond de l'arbre (blocs → bulles → liste) et n'a rien à voir avec
+ * les composants intermédiaires.
+ */
+export const FileOpenerContext = createContext<(path: string) => void>(() => undefined);
 import type { Block, Item, RenderedMessage } from "./blocks.ts";
 
 const str = (value: unknown): string => (typeof value === "string" ? value : "");
@@ -373,6 +383,36 @@ const BashExecutionBlock = ({ block }: { block: Extract<Block, { kind: "bashExec
 
 // ---------------------------------------------------------------------------
 
+/**
+ * Image désignée par un chemin : rendue **en ligne** et ouvrable.
+ *
+ * Un agent qui cite `/tmp/capture.png` doit la montrer — c'est tout l'objet de
+ * cette application.
+ */
+const ImagePathBlock = ({ block }: { block: Extract<Block, { kind: "imagePath" }> }) => {
+  const openFile = useContext(FileOpenerContext);
+  const [failed, setFailed] = useState(false);
+
+  if (failed) {
+    // Le fichier peut avoir été déplacé ou supprimé : on le dit, on n'affiche
+    // pas une image cassée.
+    return <p className="blk__hint">image indisponible : {block.path}</p>;
+  }
+
+  return (
+    <button type="button" className="inline-image" onClick={() => openFile(block.path)}>
+      <img
+        className="inline-image__img"
+        src={fileUrl(block.path)}
+        alt={block.path}
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+      <span className="inline-image__path mono small">{block.path}</span>
+    </button>
+  );
+};
+
 const ImageContentBlock = ({ block }: { block: Extract<Block, { kind: "image" }> }) => (
   <img
     className="blk__image"
@@ -406,6 +446,8 @@ export const BlockView = memo(({ block }: { block: Block }) => {
       return <CompactionBlock block={block} />;
     case "image":
       return <ImageContentBlock block={block} />;
+    case "imagePath":
+      return <ImagePathBlock block={block} />;
     default:
       // Un type de bloc inconnu n'affiche rien plutôt que de casser le message.
       return null;

@@ -82,24 +82,20 @@ export class ServerConfigTag extends Context.Service<ServerConfigTag, ServerConf
       }
 
       /**
-       * Dossiers de médias ajoutés par défaut, **s'ils existent**.
+       * Racines **supplémentaires**, vides par défaut.
        *
-       * Le service est local, lié à `127.0.0.1` ou à l'IP Tailscale, et sans
-       * en-tête CORS : aucun site web tiers ne peut le lire depuis un
-       * navigateur. La liste reste **explicite et bornée** — pas de `$HOME`.
+       * ⚠️ J'avais ajouté Bureau, Téléchargements, Images et le dossier média
+       * de CleanShot. C'était trop : l'application exposait les fichiers
+       * personnels de la machine au lieu de ce qui **appartient au travail des
+       * agents**.
+       *
+       * Seuls les dossiers de travail des projets sont lus. Ce qu'un agent
+       * produit, ou ce qu'un outil capture, vit là.
        */
-      const mediaDefaults = [
-        `${home}/Desktop`,
-        `${home}/Downloads`,
-        `${home}/Pictures`,
-        `${home}/Library/Application Support/CleanShot/media`,
-      ];
-      const configured = (env["HERDR_REMOTE_FILES_ROOTS"] ?? "")
+      const extraFileRoots = (env["HERDR_REMOTE_FILES_ROOTS"] ?? "")
         .split(":")
         .map((entry) => entry.trim())
-        .filter((entry) => entry.length > 0);
-
-      const extraFileRoots = [...configured, ...mediaDefaults].filter((root) => existsSync(root));
+        .filter((entry) => entry.length > 0 && existsSync(entry));
 
       return ServerConfigTag.of({
         // `HERDR_SOCKET` (couche B) n'est délibérément jamais lu ici.

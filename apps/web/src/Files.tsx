@@ -10,71 +10,17 @@
  * vérifie qu'ils sont bien sous un dossier de projet — un chemin hors de là est
  * refusé, pas servi.
  */
-import { useState } from "react";
-import { baseName, fileUrl, isImagePath, isTextPath } from "./api.ts";
+import { baseName, isImagePath } from "./api.ts";
 
 interface Props {
   readonly files: ReadonlyArray<string>;
 }
 
-/** Affiche un fichier : image en ligne, texte en ligne, le reste téléchargeable. */
-const FilePreview = ({ path }: { path: string }) => {
-  const [open, setOpen] = useState(false);
-  const [failed, setFailed] = useState(false);
-
-  if (isImagePath(path)) {
-    return failed ? (
-      <p className="blk__hint">
-        Image indisponible — le fichier a peut-être été supprimé ou déplacé.
-      </p>
-    ) : (
-      <a href={fileUrl(path)} rel="noreferrer" target="_blank">
-        <img
-          className="file__image"
-          src={fileUrl(path)}
-          alt={baseName(path)}
-          loading="lazy"
-          onError={() => setFailed(true)}
-        />
-      </a>
-    );
-  }
-
-  if (!isTextPath(path)) {
-    return (
-      <a className="file__download" href={fileUrl(path)} download>
-        télécharger
-      </a>
-    );
-  }
-
-  return (
-    <>
-      <button type="button" className="blk__toggle" onClick={() => setOpen((value) => !value)}>
-        {open ? "masquer" : "voir"}
-      </button>
-      {open ? (
-        // `src` plutôt que `fetch` : le navigateur affiche le texte brut, et le
-        // serveur décide seul du type — un type inconnu est téléchargé.
-        // `sandbox` vide : le contenu est rendu sans script, sans formulaire,
-        // sans origine. Une sortie d'outil n'est pas une page de confiance.
-        <iframe className="file__text" sandbox="" src={fileUrl(path)} title={baseName(path)} />
-      ) : null}
-    </>
-  );
-};
-
-/**
- * Panneau des fichiers touchés — **feuille plein écran**, pas un bloc du chat.
- *
- * ⚠️ Il vivait auparavant **dans** la conversation, en permanence, et occupait
- * les deux tiers de l'écran avec une centaine d'entrées. Il ne servait à rien
- * là : on lit le chat pour ce que l'agent a **dit**, et on ouvre les fichiers
- * quand on en a besoin.
- *
- * Il s'ouvre depuis l'en-tête, et se referme.
- */
-export const FilesSheet = ({ files, onClose }: Props & { readonly onClose: () => void }) => {
+export const FilesSheet = ({
+  files,
+  onClose,
+  onOpenFile,
+}: Props & { readonly onClose: () => void; readonly onOpenFile: (path: string) => void }) => {
   if (files.length === 0) return null;
 
   // Les images d'abord : ce sont elles qu'on ne pouvait pas voir.
@@ -94,11 +40,11 @@ export const FilesSheet = ({ files, onClose }: Props & { readonly onClose: () =>
       <ul className="files__list">
         {sorted.map((path) => (
           <li key={path} className="file">
-            <div className="file__head">
+            {/* Ouvre la visionneuse **dans** l'application, jamais un onglet. */}
+            <button type="button" className="file__open" onClick={() => onOpenFile(path)}>
               <span className="file__name">{baseName(path)}</span>
               <span className="file__path mono small">{path}</span>
-            </div>
-            <FilePreview path={path} />
+            </button>
           </li>
         ))}
       </ul>

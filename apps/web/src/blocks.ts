@@ -35,6 +35,8 @@ export type Block =
       readonly name: string;
     }
   | { readonly kind: "image"; readonly data: string; readonly mimeType: string }
+  /** Image **désignée par un chemin** : affichée en ligne, pas un lien. */
+  | { readonly kind: "imagePath"; readonly path: string }
   | {
       readonly kind: "toolResult";
       readonly images: ReadonlyArray<{ readonly data: string; readonly mimeType: string }>;
@@ -241,6 +243,23 @@ export const toSubagent = (
       stopReason: result.stopReason ?? null,
     })),
   };
+};
+
+/**
+ * Chemins d'image cités dans un texte.
+ *
+ * ⚠️ **Un agent qui donne le chemin d'une image doit la MONTRER.** Afficher
+ * `/tmp/capture.png` en texte oblige à le recopier ailleurs pour la regarder —
+ * ce qui est exactement ce qu'on cherche à éviter depuis un téléphone.
+ *
+ * Le motif exige un chemin **absolu** terminé par une extension d'image : un
+ * simple mot ne déclenche rien.
+ */
+const IMAGE_PATH_PATTERN = /(\/[^\s"'`()[\]]+\.(?:png|jpe?g|gif|webp|avif))/gi;
+
+export const imagePathsIn = (text: string): string[] => {
+  const found = text.match(IMAGE_PATH_PATTERN) ?? [];
+  return [...new Set(found)];
 };
 
 /** Convertit un contenu en texte, quel que soit son emballage. */
@@ -461,13 +480,20 @@ export const toRenderedMessage = (entry: {
 
   if (blocks.length === 0) return undefined;
 
+  // Un texte qui cite une image la montre : on ajoute un bloc par chemin.
+  const withImages: ReadonlyArray<Block> = blocks.flatMap((block) =>
+    block.kind === "text"
+      ? [block, ...imagePathsIn(block.text).map((path): Block => ({ kind: "imagePath", path }))]
+      : [block],
+  );
+
   return {
     at: entry.timestamp ?? null,
-    blocks,
+    blocks: withImages,
     id: entry.id ?? `${role}:${contentToText(body?.content).slice(0, 24)}`,
     meta: metaOf(body),
     role,
-    text: blocks
+    text: withImages
       .map((block) => blockToText(block))
       .join("\n")
       .trim(),
@@ -483,6 +509,8 @@ export const blockToText = (block: Block): string => {
       return block.thinking;
     case "image":
       return "[image]";
+    case "imagePath":
+      return `[image ${block.path}]`;
     case "bashExecution":
       return `${block.command}\n${block.output}`;
     case "toolResult":
