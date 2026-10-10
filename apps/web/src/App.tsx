@@ -32,6 +32,7 @@ import type {
   WorkspaceView,
 } from "./api.ts";
 import { toItems, toMessages } from "./blocks.ts";
+import { AGENT_KINDS } from "./api.ts";
 import { AttentionCard } from "./Attention.tsx";
 import type { RenderedMessage } from "./blocks.ts";
 import { ItemsView } from "./Blocks.tsx";
@@ -388,18 +389,24 @@ const WorkspaceRow = ({
   workspace: WorkspaceView;
   agentPaneCount: number;
   launching: boolean;
-  onLaunch: (workspaceId: string) => void;
+  onLaunch: (workspaceId: string, kind: string) => void;
   onOpen: (workspaceId: string) => void;
 }) => {
   const hasAgent = agentPaneCount > 0;
+  // `pi` par défaut : c'est l'agent réellement utilisé, mais le choix reste
+  // ouvert à tout ce que Herdr sait démarrer.
+  const [kind, setKind] = useState<string>("pi");
   const handleOpen = useCallback(
     () => onOpen(workspace.workspaceId),
     [onOpen, workspace.workspaceId],
   );
   const handleLaunch = useCallback(
-    () => onLaunch(workspace.workspaceId),
-    [onLaunch, workspace.workspaceId],
+    () => onLaunch(workspace.workspaceId, kind),
+    [kind, onLaunch, workspace.workspaceId],
   );
+  const onKindChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
+    setKind(event.target.value);
+  }, []);
 
   return (
     <div className="row row--project">
@@ -418,14 +425,28 @@ const WorkspaceRow = ({
           Ouvrir
         </button>
       ) : (
-        <button
-          type="button"
-          className="row__action row__action--primary"
-          onClick={handleLaunch}
-          disabled={launching || workspace.checkoutPath === null}
-        >
-          {launching ? "…" : "Lancer"}
-        </button>
+        <span className="launch">
+          <select
+            className="launch__kind"
+            value={kind}
+            onChange={onKindChange}
+            aria-label="Type d'agent à lancer"
+          >
+            {AGENT_KINDS.map((candidate) => (
+              <option key={candidate} value={candidate}>
+                {candidate}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="row__action row__action--primary"
+            onClick={handleLaunch}
+            disabled={launching || workspace.checkoutPath === null}
+          >
+            {launching ? "…" : "Lancer"}
+          </button>
+        </span>
       )}
     </div>
   );
@@ -586,12 +607,12 @@ export const App = () => {
   }, [onLoadTerminal]);
 
   const onLaunchAgent = useCallback(
-    (workspaceId: string) => {
+    (workspaceId: string, kind: string) => {
       void (async () => {
         setLaunching(workspaceId);
         setLaunchError(null);
         try {
-          const started = await launchAgent(workspaceId, "pi");
+          const started = await launchAgent(workspaceId, kind);
           // Le projet a maintenant un agent : on ouvre sa conversation.
           navigate({ kind: "agent", paneId: started.paneId });
           await refresh();
