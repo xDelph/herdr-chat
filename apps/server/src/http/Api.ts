@@ -150,12 +150,8 @@ const respond = (
 
 /** Rend lisible n'importe quelle erreur typée d'Effect. */
 const describe = (error: unknown): string => {
-  if (typeof error === "object" && error !== null && "message" in error) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === "string") return message;
-    return JSON.stringify(error);
-  }
-  return String(error);
+  const value = describeCause(error);
+  return value.trim().length > 0 ? value : "erreur sans message";
 };
 
 const describeCause = (cause: unknown): string => {
@@ -167,7 +163,19 @@ const describeCause = (cause: unknown): string => {
       }),
     )(cause),
   );
-  return decoded?.detail ?? decoded?.message ?? String(cause);
+  const readable = decoded?.detail ?? decoded?.message;
+  if (readable !== undefined && readable.trim().length > 0) return readable;
+
+  // Dernier recours : une sérialisation, ou le type, mais jamais rien.
+  try {
+    const serialized = JSON.stringify(cause);
+    if (serialized !== undefined && serialized !== "{}" && serialized.length > 2) {
+      return serialized.slice(0, 300);
+    }
+  } catch {
+    // Sérialisation impossible (référence circulaire) : on continue.
+  }
+  return `échec sans message (${cause === null ? "null" : typeof cause})`;
 };
 
 /**

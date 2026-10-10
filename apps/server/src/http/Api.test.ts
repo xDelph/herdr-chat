@@ -255,6 +255,77 @@ describe("contrat HTTP — /api/agents/:paneId/prompt", () => {
 });
 
 /**
+ * Lancement d'agent — **les cas d'erreur, pas seulement le succès**.
+ *
+ * ⚠️ Ces tests manquaient, et c'est précisément ce qui a laissé passer une
+ * réponse `{"error":""}` : le lancement échouait sans rien dire, et
+ * l'utilisateur ne pouvait rien diagnostiquer.
+ */
+describe("contrat HTTP — lancement d'agent", () => {
+  test("projet inconnu : erreur LISIBLE, jamais vide", async () => {
+    const routes = await build(true);
+    const response = await handler(
+      routes,
+      "/api/workspaces/:workspaceId/agents",
+    )(request({ workspaceId: "zzz" }, { kind: "pi" }));
+
+    expect(response.status).toBeGreaterThanOrEqual(400);
+    const body = await decodeBody(response, ApiErrorResponse, "launch/projet-inconnu");
+    expect(body.error.trim().length).toBeGreaterThan(0);
+  });
+
+  test("type d'agent inconnu : 400 avec la liste des types valides", async () => {
+    const routes = await build(true);
+    const response = await handler(
+      routes,
+      "/api/workspaces/:workspaceId/agents",
+    )(request({ workspaceId: "w1" }, { kind: "pasunagent" }));
+
+    expect(response.status).toBe(400);
+    const body = await decodeBody(response, ApiErrorResponse, "launch/type-inconnu");
+    expect(body.error).toContain("pasunagent");
+    expect(body.hint).toBeDefined();
+  });
+
+  test("corps invalide : 400, message non vide", async () => {
+    const routes = await build(true);
+    const response = await handler(
+      routes,
+      "/api/workspaces/:workspaceId/agents",
+    )(request({ workspaceId: "w1" }, {}));
+
+    expect(response.status).toBe(400);
+    const body = await decodeBody(response, ApiErrorResponse, "launch/corps-invalide");
+    expect(body.error.trim().length).toBeGreaterThan(0);
+  });
+
+  test("AUCUNE réponse d'erreur ne peut être vide", async () => {
+    // Le défaut observé : `{"error":""}`. On l'interdit pour tous les cas.
+    const routes = await build(true);
+    const handlerFn = handler(routes, "/api/workspaces/:workspaceId/agents");
+    const cases: ReadonlyArray<readonly [Record<string, string>, unknown]> = [
+      [{ workspaceId: "zzz" }, { kind: "pi" }],
+      [{ workspaceId: "w1" }, { kind: "inconnu" }],
+      [{ workspaceId: "w1" }, {}],
+      [{ workspaceId: "" }, { kind: "pi" }],
+    ];
+
+    const responses: Response[] = [];
+    for (const [params, body] of cases) {
+      // Séquentiel : le handler est synchrone côté routeur, et la boucle garde
+      // l'ordre des cas lisible en cas d'échec.
+      responses.push(await handlerFn(request(params, body)));
+    }
+
+    for (const response of responses) {
+      // Décodage, pas d'assertion : une forme inattendue échoue le test.
+      const payload = await decodeBody(response, ApiErrorResponse, "launch/non-vide");
+      expect(payload.error.trim().length).toBeGreaterThan(0);
+    }
+  });
+});
+
+/**
  * Garde-fou anti-régression ciblé : vérifie que **les deux branches** de
  * `/api/health` contiennent bien tous les champs requis par le contrat.
  * Un champ retiré d'une seule branche fait échouer ce test.
