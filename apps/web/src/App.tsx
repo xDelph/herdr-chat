@@ -217,6 +217,8 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
   const [showFiles, setShowFiles] = useState(false);
   /** Fichier ouvert dans la visionneuse plein écran. */
   const [openFile, setOpenFile] = useState<string | null>(null);
+  /** `true` quand la visionneuse a été ouverte depuis la liste des fichiers. */
+  const [fromFiles, setFromFiles] = useState(false);
   const onToggleFiles = useCallback(() => setShowFiles((value) => !value), []);
 
   /**
@@ -321,7 +323,12 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
   return (
     // La visionneuse est fournie au fond de l'arbre : un bloc qui cite une image
     // l'ouvre sans qu'aucun composant intermédiaire n'ait à la connaître.
-    <FileOpenerContext.Provider value={setOpenFile}>
+    <FileOpenerContext.Provider
+      value={(path) => {
+        setFromFiles(false);
+        setOpenFile(path);
+      }}
+    >
       <section className="chat">
         <header className="screen__head">
           <button type="button" className="ghost" onClick={onBack}>
@@ -360,7 +367,22 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
         {openFile !== null ? (
           // La visionneuse est **au-dessus** de tout : elle ne peut pas être
           // recouverte par le composeur, contrairement à l'ancien panneau.
-          <FileViewer path={openFile} onClose={() => setOpenFile(null)} />
+          <FileViewer
+            path={openFile}
+            onClose={() => {
+              setOpenFile(null);
+              setFromFiles(false);
+            }}
+            onBack={
+              // Revenir d'un cran **seulement** si on vient de la liste.
+              fromFiles
+                ? () => {
+                    setOpenFile(null);
+                    setShowFiles(true);
+                  }
+                : undefined
+            }
+          />
         ) : showFiles ? (
           <FilesSheet
             files={files}

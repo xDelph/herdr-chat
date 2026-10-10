@@ -37,6 +37,8 @@ export type Block =
   | { readonly kind: "image"; readonly data: string; readonly mimeType: string }
   /** Image **désignée par un chemin** : affichée en ligne, pas un lien. */
   | { readonly kind: "imagePath"; readonly path: string }
+  /** Image désignée par une **URL** : rendue en ligne elle aussi. */
+  | { readonly kind: "imageUrl"; readonly url: string }
   | {
       readonly kind: "toolResult";
       readonly images: ReadonlyArray<{ readonly data: string; readonly mimeType: string }>;
@@ -255,11 +257,52 @@ export const toSubagent = (
  * Le motif exige un chemin **absolu** terminé par une extension d'image : un
  * simple mot ne déclenche rien.
  */
-const IMAGE_PATH_PATTERN = /(\/[^\s"'`()[\]]+\.(?:png|jpe?g|gif|webp|avif))/gi;
+const IMAGE_EXTENSIONS = "(?:png|jpe?g|gif|webp|avif)";
 
-export const imagePathsIn = (text: string): string[] => {
-  const found = text.match(IMAGE_PATH_PATTERN) ?? [];
-  return [...new Set(found)];
+/** Chemin absolu local : `/tmp/capture.png`. */
+const IMAGE_PATH_PATTERN = new RegExp(`(\\/[^\\s"'\u0060()\\[\\]]+\\.${IMAGE_EXTENSIONS})`, "gi");
+
+/**
+ * URL d'image : `https://exemple/capture.png`.
+ *
+ * ⚠️ Un agent cite **plus souvent une URL qu'un chemin local**. Ne détecter que
+ * les chemins laissait l'URL s'afficher comme un lien : il fallait cliquer,
+ * sortir de l'application, puis revenir. C'est ce qu'on cherche à éviter.
+ */
+const IMAGE_URL_PATTERN = new RegExp(
+  `(https?://[^\\s"'\u0060()\\[\\]]+\\.${IMAGE_EXTENSIONS})`,
+  "gi",
+);
+
+export interface ImageRefs {
+  /** Chemins locaux, à lire via `/api/file`. */
+  readonly paths: ReadonlyArray<string>;
+  /** URLs distantes, affichées telles quelles. */
+  readonly urls: ReadonlyArray<string>;
+}
+
+/**
+ * Références d'image citées dans un texte, sans doublon.
+ *
+ * ⚠️ **Les URLs sont masquées avant de chercher les chemins.** Sans cela,
+ * `http://hote/x.png` contient `//hote/x.png`, qui correspond aussi au motif de
+ * chemin local — on produisait une URL bidon `/api/file?path=//hote/x.png`, qui
+ * échouait, et l'image ne s'affichait jamais.
+ */
+export const imageRefsIn = (text: string): ImageRefs => {
+  const urls = [...new Set(text.match(IMAGE_URL_PATTERN) ?? [])];
+
+  // On remplace chaque URL par des espaces de même longueur : les positions
+  // restent valides et aucun chemin ne peut plus chevaucher une URL.
+  let masked = text;
+  for (const url of urls) {
+    masked = masked.split(url).join(" ".repeat(url.length));
+  }
+
+  return {
+    paths: [...new Set(masked.match(IMAGE_PATH_PATTERN) ?? [])],
+    urls,
+  };
 };
 
 /** Convertit un contenu en texte, quel que soit son emballage. */
@@ -480,12 +523,16 @@ export const toRenderedMessage = (entry: {
 
   if (blocks.length === 0) return undefined;
 
-  // Un texte qui cite une image la montre : on ajoute un bloc par chemin.
-  const withImages: ReadonlyArray<Block> = blocks.flatMap((block) =>
-    block.kind === "text"
-      ? [block, ...imagePathsIn(block.text).map((path): Block => ({ kind: "imagePath", path }))]
-      : [block],
-  );
+  // Un texte qui cite une image la montre : chemins **et** URLs.
+  const withImages: ReadonlyArray<Block> = blocks.flatMap((block) => {
+    if (block.kind !== "text") return [block];
+    const refs = imageRefsIn(block.text);
+    return [
+      block,
+      ...refs.paths.map((path): Block => ({ kind: "imagePath", path })),
+      ...refs.urls.map((url): Block => ({ kind: "imageUrl", url })),
+    ];
+  });
 
   return {
     at: entry.timestamp ?? null,
@@ -511,6 +558,8 @@ export const blockToText = (block: Block): string => {
       return "[image]";
     case "imagePath":
       return `[image ${block.path}]`;
+    case "imageUrl":
+      return `[image ${block.url}]`;
     case "bashExecution":
       return `${block.command}\n${block.output}`;
     case "toolResult":

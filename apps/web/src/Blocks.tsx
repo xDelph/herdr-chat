@@ -413,6 +413,42 @@ const ImagePathBlock = ({ block }: { block: Extract<Block, { kind: "imagePath" }
   );
 };
 
+/**
+ * Image désignée par une URL.
+ *
+ * L'URL est aussi proposée en repli : si l'image ne charge pas — hôte éteint,
+ * fichier déplacé — on ne laisse pas l'utilisateur devant un vide.
+ */
+const ImageUrlBlock = ({ block }: { block: Extract<Block, { kind: "imageUrl" }> }) => {
+  const [failed, setFailed] = useState(false);
+
+  if (failed) {
+    return (
+      <a
+        className="inline-image__path mono small"
+        href={block.url}
+        rel="noreferrer"
+        target="_blank"
+      >
+        image indisponible — {block.url}
+      </a>
+    );
+  }
+
+  return (
+    <a className="inline-image" href={block.url} rel="noreferrer" target="_blank">
+      <img
+        className="inline-image__img"
+        src={block.url}
+        alt={block.url}
+        loading="lazy"
+        onError={() => setFailed(true)}
+      />
+      <span className="inline-image__path mono small">{block.url}</span>
+    </a>
+  );
+};
+
 const ImageContentBlock = ({ block }: { block: Extract<Block, { kind: "image" }> }) => (
   <img
     className="blk__image"
@@ -448,6 +484,8 @@ export const BlockView = memo(({ block }: { block: Block }) => {
       return <ImageContentBlock block={block} />;
     case "imagePath":
       return <ImagePathBlock block={block} />;
+    case "imageUrl":
+      return <ImageUrlBlock block={block} />;
     default:
       // Un type de bloc inconnu n'affiche rien plutôt que de casser le message.
       return null;

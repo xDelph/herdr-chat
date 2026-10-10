@@ -132,10 +132,18 @@ const CodeView = ({ path }: { path: string }) => {
 interface ViewerProps {
   readonly path: string;
   readonly onClose: () => void;
+  /**
+   * Retour à la liste des fichiers.
+   *
+   * ⚠️ Sans ce bouton, « Fermer » fermait **tout** et renvoyait au chat : on
+   * perdait la liste qu'on était en train de parcourir. Il faut pouvoir revenir
+   * d'un cran, pas tout quitter.
+   */
+  readonly onBack?: (() => void) | undefined;
 }
 
 /** Modal plein écran : image avec agrandissement, ou fichier colorisé. */
-export const FileViewer = ({ path, onClose }: ViewerProps) => {
+export const FileViewer = ({ path, onClose, onBack }: ViewerProps) => {
   const [zoomed, setZoomed] = useState(false);
   const name = baseName(path);
   const isImage = /\.(png|jpe?g|gif|webp|avif)$/i.test(path);
@@ -151,6 +159,11 @@ export const FileViewer = ({ path, onClose }: ViewerProps) => {
   return (
     <div className="sheet">
       <header className="sheet__head">
+        {onBack !== undefined ? (
+          <button type="button" className="ghost" onClick={onBack}>
+            ‹ Fichiers
+          </button>
+        ) : null}
         <span className="sheet__name">{name}</span>
         <button type="button" className="ghost" onClick={onClose}>
           Fermer
