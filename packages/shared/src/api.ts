@@ -141,6 +141,22 @@ export const LaunchAgentResponse = Schema.Struct({
 });
 export type LaunchAgentResponse = typeof LaunchAgentResponse.Type;
 
+/** Un type d'agent **réellement installé** sur la machine. */
+export const InstalledKind = Schema.Struct({
+  /** Valeur à passer à `agent.start`. */
+  kind: Schema.String,
+  /** Libellé lisible. */
+  label: Schema.String,
+  /** `current` ou `outdated` — les deux fonctionnent. */
+  state: Schema.String,
+});
+export type InstalledKind = typeof InstalledKind.Type;
+
+export const InstalledKindsResponse = Schema.Struct({
+  kinds: Schema.Array(InstalledKind),
+});
+export type InstalledKindsResponse = typeof InstalledKindsResponse.Type;
+
 /** Types d'agents que Herdr sait démarrer (liste `herdr agent start --kind`). */
 export const AGENT_KINDS = [
   "pi",

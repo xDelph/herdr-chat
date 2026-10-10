@@ -15,6 +15,7 @@ import { Effect, Option, Result, Schema } from "effect";
 import type { Cause } from "effect";
 import {
   AGENT_KINDS,
+  InstalledKindsResponse,
   ApiErrorResponse,
   HealthResponse,
   RecentImagesResponse,
@@ -68,6 +69,37 @@ export const sessionPathOf = (agent: unknown): string | undefined => {
   if (info === undefined || info === null || info.kind !== "path") return undefined;
   return info.value;
 };
+
+/**
+ * Types acceptés par `agent.start`, relevés dans `herdr agent start --help`.
+ * Sert à décider si l'on passe la commande ou la cible comme `kind`.
+ */
+const ACCEPTED_KINDS = new Set([
+  "pi",
+  "claude",
+  "codex",
+  "gemini",
+  "cursor",
+  "devin",
+  "agy",
+  "cline",
+  "omp",
+  "mastracode",
+  "opencode",
+  "copilot",
+  "kimi",
+  "kiro",
+  "droid",
+  "amp",
+  "grok",
+  "hermes",
+  "kilo",
+  "qodercli",
+  "qwen",
+  "letta",
+  "maki",
+  "muse",
+]);
 
 const json = (body: unknown, status = 200): Response =>
   Response.json(body, { status, headers: { "cache-control": "no-store" } });
@@ -431,11 +463,9 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
           // identifiants internes.
           const label = workspace.label ?? "ce projet";
 
-          if (snapshot.agents.some((agent) => agent.workspace_id === workspaceId)) {
-            return yield* Effect.fail({
-              message: `${label} a déjà un agent — en lancer un second est un choix explicite`,
-            });
-          }
+          // Lancer dans un projet qui a **déjà** un agent est permis : cela crée
+          // un nouvel onglet. Interdire obligeait à passer par Herdr à la main
+          // pour la manœuvre la plus courante.
 
           const name = body.name ?? workspace.label ?? "agent";
           // **Même** fonction que l'aperçu : une seule source pour le dossier.
@@ -593,6 +623,52 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     return respond(decoderOf(RecentImagesResponse), { images: found });
   };
 
+  /**
+   * Types d'agents **installés sur cette machine**.
+   *
+   * ⚠️ J'avais codé une liste fixe de onze types. Neuf n'étaient pas installés :
+   * le menu proposait de lancer des agents qui n'existent pas. Herdr sait
+   * lesquels sont là (`integration.list`) — on lui demande.
+   */
+  const agentKinds = async (): Promise<Response> => {
+    const result = await Effect.runPromise(Effect.result(herdr.request("integration.list")));
+    if (Result.isFailure(result)) {
+      return respond(decoderOf(ApiErrorResponse), { error: "types d'agents indisponibles" }, 502);
+    }
+    const payload = Option.getOrUndefined(Result.getSuccess(result)) ?? {};
+    const decoded = Option.getOrUndefined(
+      Schema.decodeUnknownOption(
+        Schema.Struct({
+          integrations: Schema.Array(
+            Schema.Struct({
+              available: Schema.Boolean,
+              command: Schema.String,
+              label: Schema.String,
+              state: Schema.String,
+              target: Schema.String,
+            }),
+          ),
+        }),
+      )(payload),
+    );
+    if (decoded === undefined) {
+      return respond(decoderOf(ApiErrorResponse), { error: "réponse Herdr illisible" }, 502);
+    }
+
+    // `agent.start` attend un `kind`. Pour la plupart c'est la **commande** ;
+    // pour quelques-uns c'est la **cible** (Cursor : commande `cursor-agent`,
+    // kind `cursor`). On prend la commande quand Herdr la connaît.
+    const kinds = decoded.integrations
+      .filter((integration) => integration.state !== "not_installed")
+      .map((integration) => ({
+        kind: ACCEPTED_KINDS.has(integration.command) ? integration.command : integration.target,
+        label: integration.label,
+        state: integration.state,
+      }));
+
+    return respond(decoderOf(InstalledKindsResponse), { kinds });
+  };
+
   const events = (request: RouteRequest): Response => {
     const header = request.headers.get("last-event-id");
     const parsed = header === null ? 0 : Number.parseInt(header, 10);
@@ -646,6 +722,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     "/api/workspaces/:workspaceId/agents": launchAgent,
     "/api/agents/:paneId/session": session,
     "/api/agents/:paneId/terminal": terminal,
+    "/api/agents/kinds": agentKinds,
     "/api/events": events,
     "/api/file": file,
     "/api/images": images,

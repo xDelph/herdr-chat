@@ -15,6 +15,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Option, Schema } from "effect";
 import {
+  fetchAgentKinds,
   fetchHealth,
   launchAgent,
   fetchOverview,
@@ -25,6 +26,7 @@ import {
 } from "./api.ts";
 import type {
   AgentView,
+  InstalledKind,
   Health,
   Overview,
   SendResult,
@@ -35,7 +37,6 @@ import { toItems, toMessages, touchedFilesOf } from "./blocks.ts";
 import { FilesSheet } from "./Files.tsx";
 import { Gallery } from "./Gallery.tsx";
 import { FileViewer } from "./Viewer.tsx";
-import { AGENT_KINDS } from "./api.ts";
 import { AttentionCard } from "./Attention.tsx";
 import type { RenderedMessage } from "./blocks.ts";
 import { FileOpenerContext, ItemsView, UrlOpenerContext } from "./Blocks.tsx";
@@ -444,6 +445,7 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
 const WorkspaceRow = ({
   workspace,
   agentPaneCount,
+  kinds,
   launching,
   onLaunch,
   onOpen,
@@ -451,6 +453,7 @@ const WorkspaceRow = ({
   workspace: WorkspaceView;
   agentPaneCount: number;
   launching: boolean;
+  kinds: ReadonlyArray<InstalledKind>;
   onLaunch: (workspaceId: string, kind: string) => void;
   onOpen: (workspaceId: string) => void;
 }) => {
@@ -471,33 +474,54 @@ const WorkspaceRow = ({
   }, []);
 
   return (
+    /*
+      Un vrai `<button>` pour la zone « ouvrir », et les contrôles de lancement
+      **à côté** — jamais imbriqués. Un bouton dans un bouton est du HTML
+      invalide ; le lint l'a signalé, et il avait raison.
+    */
     <div className="row row--project">
-      <span className={statusClass(workspace.agentStatus ?? "unknown")} />
-      <span className="row__main">
-        <strong>{workspace.label ?? "(projet sans nom)"}</strong>
-        <span className="muted small">
-          {agentPaneCount === 0
-            ? // « état inconnu » sur un projet sans agent est du bruit : il n'y a
-              // pas d'état à connaître.
-              "aucun agent"
-            : `${String(agentPaneCount)} agent${agentPaneCount > 1 ? "s" : ""} · ${statusLabel(workspace.agentStatus ?? "unknown")}`}
+      <button
+        type="button"
+        className="row__open"
+        aria-label={
+          hasAgent
+            ? `Ouvrir ${workspace.label ?? "le projet"}`
+            : `Lancer un agent dans ${workspace.label ?? "le projet"}`
+        }
+        onClick={hasAgent ? handleOpen : handleLaunch}
+      >
+        <span className={statusClass(workspace.agentStatus ?? "unknown")} />
+        <span className="row__main">
+          <strong>{workspace.label ?? "(projet sans nom)"}</strong>
+          <span className="muted small">
+            {agentPaneCount === 0
+              ? // « état inconnu » sur un projet sans agent est du bruit : il n'y a
+                // pas d'état à connaître.
+                "aucun agent"
+              : `${String(agentPaneCount)} agent${agentPaneCount > 1 ? "s" : ""} · ${statusLabel(workspace.agentStatus ?? "unknown")}`}
+          </span>
         </span>
-      </span>
-      {hasAgent ? (
-        <button type="button" className="row__action" onClick={handleOpen}>
-          Ouvrir
-        </button>
-      ) : (
-        <span className="launch">
+      </button>
+      {/* Lancement possible **même si un agent tourne** : cela crée un nouvel
+          onglet dans le projet. */}
+      {
+        <span
+          className="launch"
+          role="presentation"
+          // Le choix du type et le lancement ne doivent pas déclencher
+          // l'ouverture du projet.
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
           <select
             className="launch__kind"
             value={kind}
             onChange={onKindChange}
             aria-label="Type d'agent à lancer"
           >
-            {AGENT_KINDS.map((candidate) => (
-              <option key={candidate} value={candidate}>
-                {candidate}
+            {kinds.map((candidate) => (
+              <option key={candidate.kind} value={candidate.kind}>
+                {candidate.label}
               </option>
             ))}
           </select>
@@ -505,12 +529,12 @@ const WorkspaceRow = ({
             type="button"
             className="row__action row__action--primary"
             onClick={handleLaunch}
-            disabled={launching || workspace.checkoutPath === null}
+            disabled={launching || workspace.checkoutPath === null || kinds.length === 0}
           >
-            {launching ? "…" : "Lancer"}
+            {launching ? "…" : hasAgent ? "+" : "Lancer"}
           </button>
         </span>
-      )}
+      }
     </div>
   );
 };
@@ -571,6 +595,8 @@ export const App = () => {
   const [terminalLoading, setTerminalLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("tous");
   const [launching, setLaunching] = useState<string | null>(null);
+  /** Types **réellement installés**, lus depuis Herdr — pas une liste codée. */
+  const [kinds, setKinds] = useState<readonly InstalledKind[]>([]);
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [workspaceFilter, setWorkspaceFilter] = useState<string>("tous");
 
@@ -592,6 +618,19 @@ export const App = () => {
     }, 4000);
     return () => clearInterval(timer);
   }, [refresh]);
+
+  // Une seule lecture : les intégrations installées ne changent pas en cours de
+  // session. Un échec laisse la liste vide et désactive le lancement, plutôt que
+  // de proposer des agents inexistants.
+  useEffect(() => {
+    void (async () => {
+      try {
+        setKinds(await fetchAgentKinds());
+      } catch {
+        setKinds([]);
+      }
+    })();
+  }, []);
 
   useEffect(
     () =>
@@ -795,6 +834,7 @@ export const App = () => {
               <li key={workspace.workspaceId}>
                 <WorkspaceRow
                   agentPaneCount={workspace.agentPanes.length}
+                  kinds={kinds}
                   launching={launching === workspace.workspaceId}
                   onLaunch={onLaunchAgent}
                   onOpen={onOpenWorkspace}

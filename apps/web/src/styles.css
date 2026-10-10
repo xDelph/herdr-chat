@@ -1295,3 +1295,17 @@ button:disabled {
   gap: 8px;
   justify-content: space-between;
 }
+
+/* Zone « ouvrir » du projet : toute la largeur restante. */
+.row__open {
+  align-items: center;
+  background: transparent;
+  border: none;
+  color: inherit;
+  display: flex;
+  flex: 1 1 auto;
+  gap: 12px;
+  min-width: 0;
+  padding: 0;
+  text-align: left;
+}

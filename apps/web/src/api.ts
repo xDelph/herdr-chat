@@ -14,10 +14,11 @@
  */
 import { Option, Schema } from "effect";
 // Import **local** : `export type { X } from "…"` ne crée aucune liaison ici.
-import type { RecentImage } from "@herdr-remote/shared";
+import type { InstalledKind, RecentImage } from "@herdr-remote/shared";
 import {
   ApiErrorResponse,
   HealthResponse,
+  InstalledKindsResponse,
   LaunchAgentResponse,
   RecentImagesResponse,
   OverviewResponse,
@@ -37,6 +38,7 @@ export { AGENT_KINDS } from "@herdr-remote/shared";
 export type {
   AgentView,
   HealthResponse as Health,
+  InstalledKind,
   LaunchAgentResponse,
   OverviewResponse as Overview,
   RecentImage,
@@ -167,6 +169,14 @@ export const fetchTerminal = (paneId: string) =>
     decoderOf(TerminalSchema),
     "terminal",
   );
+
+/** Types d'agents installés sur la machine, d'après Herdr. */
+export const fetchAgentKinds = async (): Promise<ReadonlyArray<InstalledKind>> => {
+  const payload = await request("/api/agents/kinds");
+  const kinds = decoderOf(InstalledKindsResponse)(payload);
+  if (kinds === undefined) throw new Error("forme de réponse inattendue : types d'agents");
+  return kinds.kinds;
+};
 
 /** Images récentes des dossiers autorisés — captures comprises. */
 export const fetchRecentImages = async (): Promise<ReadonlyArray<RecentImage>> => {
