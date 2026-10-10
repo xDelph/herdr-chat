@@ -33,6 +33,7 @@ import type {
 } from "./api.ts";
 import { digestOf, toItems, toMessages } from "./blocks.ts";
 import { FilesSheet } from "./Files.tsx";
+import { Gallery } from "./Gallery.tsx";
 import { AGENT_KINDS } from "./api.ts";
 import { AttentionCard } from "./Attention.tsx";
 import type { RenderedMessage } from "./blocks.ts";
@@ -499,14 +500,19 @@ export const App = () => {
   const [live, setLive] = useState<"live" | "down">("down");
   const activitySeq = useRef(0);
   /**
-   * Dernière table `paneId → nom`.
+   * Activité brute : on stocke `(kind, data)`, pas le texte.
    *
-   * Un `ref` plutôt qu'une dépendance d'effet : le gestionnaire d'événements est
-   * enregistré **une fois** et doit résoudre les noms au moment où l'événement
-   * arrive, pas au moment où l'abonnement est posé.
+   * ⚠️ Résoudre le nom **à la réception** produisait « un agent » pour tout
+   * l'historique rejoué : le journal du serveur renvoie les événements passés
+   * dès la connexion, **avant** que la liste des agents ne soit chargée. Le nom
+   * n'existe pas encore à cet instant.
+   *
+   * En résolvant au **rendu**, un nom arrivé plus tard s'applique aussi aux
+   * événements passés.
    */
-  const namesRef = useRef<ReadonlyMap<string, string>>(new Map());
-  const [activity, setActivity] = useState<readonly { at: number; id: number; text: string }[]>([]);
+  const [activity, setActivity] = useState<
+    readonly { at: number; data: unknown; id: number; kind: string }[]
+  >([]);
 
   const [terminal, setTerminal] = useState<string>("");
   const [terminalError, setTerminalError] = useState<string | null>(null);
@@ -535,22 +541,12 @@ export const App = () => {
     return () => clearInterval(timer);
   }, [refresh]);
 
-  // Le tableau de noms suit la liste d'agents, sans être une dépendance de
-  // l'abonnement : les événements arrivent après le rendu.
-  useEffect(() => {
-    namesRef.current = nameByPane(overview?.agents ?? []);
-  }, [overview]);
-
   useEffect(
     () =>
       openEventStream({
         onEvent: (kind, data) => {
           activitySeq.current += 1;
-          const entry = {
-            at: Date.now(),
-            id: activitySeq.current,
-            text: describeEvent(kind, data, namesRef.current),
-          };
+          const entry = { at: Date.now(), data, id: activitySeq.current, kind };
           setActivity((current) => [entry, ...current].slice(0, 80));
           // Un changement d'état d'agent est le signal du **direct** : on
           // rafraîchit la vue, servie depuis le cache du veilleur.
@@ -560,11 +556,7 @@ export const App = () => {
           // Continuité rompue côté serveur : on recharge au lieu de croire
           // à un flux continu.
           activitySeq.current += 1;
-          const entry = {
-            at: Date.now(),
-            id: activitySeq.current,
-            text: describeEvent("resync", {}, namesRef.current),
-          };
+          const entry = { at: Date.now(), data: {}, id: activitySeq.current, kind: "resync" };
           setActivity((current) => [entry, ...current]);
           void refresh();
         },
@@ -574,9 +566,35 @@ export const App = () => {
   );
 
   const agents = overview?.agents ?? [];
+  // Table de noms **du rendu** : un nom arrivé après un événement s'y applique.
+  const activityNames = nameByPane(agents);
+
+  /**
+   * Racine du projet courant, déduite d'un agent qui tourne dedans.
+   *
+   * On ne code pas le chemin en dur : il vient de Herdr, comme tout le reste.
+   * En l'absence d'agent dans ce projet, on retombe sur le dossier de travail
+   * du premier agent disponible — la galerie est un outil de développement, et
+   * elle disparaît d'elle-même si aucun chemin n'est connu.
+   */
+  const projectRoot =
+    agents.find((agent) => agent.workspaceLabel === "herdr-pwa")?.cwd ?? agents[0]?.cwd ?? "";
   // Un agent « bloqué » attend une intervention : c'est la seule catégorie qui
   // appelle une action de l'utilisateur.
   const awaiting = agents.filter((agent) => agent.status === "blocked");
+  /** `true` si au moins un agent tourne — sert à ne jamais afficher un vide. */
+  const waiting = agents.length > 0;
+
+  /**
+   * Captures servies par le backend.
+   *
+   * Elles vivent dans `apps/web/public/screenshots`, donc sous le dossier du
+   * projet : le service de fichiers les accepte comme n'importe quel fichier de
+   * projet, sans route dédiée.
+   */
+  const screenshotPaths = ["00-a-traiter", "01-projets", "02-agents", "03-conversation"].map(
+    (name) => `${projectRoot}/apps/web/public/screenshots/${name}.png`,
+  );
   // Onglet Activité : le terminal est lu pour l'agent sélectionné s'il y en a un,
   // sinon le premier de la liste. Jamais deviné au-delà.
   const activePaneId = route.kind === "agent" ? route.paneId : (filteredFirstPane(agents) ?? "");
@@ -780,10 +798,25 @@ export const App = () => {
         <section className="screen">
           <h2>À traiter</h2>
           {awaiting.length === 0 ? (
-            <p className="muted">
-              Aucun agent n'attend d'intervention. Les agents bloqués apparaissent ici, avec leur
-              demande.
-            </p>
+            waiting ? (
+              /*
+                ⚠️ Un écran d'accueil ne doit pas être vide. Quand rien n'attend,
+                on montre **l'état du parc** : qui tourne, et depuis quand.
+              */
+              <ul className="list list--compact">
+                {agents.map((agent) => (
+                  <li key={agent.paneId} className="row row--static">
+                    <span className={statusClass(agent.status)} />
+                    <span className="row__main">
+                      <strong>{agentName(agent)}</strong>
+                      <span className="muted small">{statusLabel(agent.status)}</span>
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="muted">Rien ne tourne pour l'instant.</p>
+            )
           ) : (
             <div className="attention__list">
               {awaiting.map((agent) => (
@@ -803,7 +836,7 @@ export const App = () => {
               {activity.map((item) => (
                 <li key={item.id} className="small">
                   <span className="mono muted">{new Date(item.at).toLocaleTimeString()}</span>{" "}
-                  {item.text}
+                  {describeEvent(item.kind, item.data, activityNames)}
                 </li>
               ))}
             </ul>
@@ -844,6 +877,7 @@ export const App = () => {
             Le contenu des conversations est lu dans les fichiers de session Pi, jamais depuis
             Herdr. Aucune action shell arbitraire n'est exposée.
           </p>
+          {projectRoot.length > 0 ? <Gallery paths={screenshotPaths} /> : null}
         </section>
       ) : null}
 
