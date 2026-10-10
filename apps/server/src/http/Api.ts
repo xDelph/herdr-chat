@@ -34,7 +34,7 @@ import type { WatchLoop } from "../events/AgentWatcher.ts";
 import type { EventHubApi } from "../events/EventHub.ts";
 import type { HerdrApi } from "../herdr/HerdrClient.ts";
 import type { PromptSenderApi } from "../send/PromptSender.ts";
-import { readTail, tailFrom } from "../sessions/SessionReader.ts";
+import { isMissingFile, readTail, tailFrom } from "../sessions/SessionReader.ts";
 import { isInline, readAllowedFile } from "../files/FileService.ts";
 import { LOG_PATH, writeLog } from "../logging/LogFile.ts";
 import { listRecentImages } from "../files/RecentImages.ts";
@@ -416,14 +416,51 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
             return { kind: "no-session" as const };
           }
           // Contenu depuis le JSONL Pi — jamais depuis Herdr (D008.1).
+          /*
+            ⚠️ Un agent fraîchement lancé a un `agent_session` valide vers un
+            fichier que Pi **n'a pas encore créé** : le JSONL naît au premier
+            message. Ce n'est pas une panne, c'est une session vide. Le dire
+            évite une erreur rouge en boucle et un agent qui « ne donne rien ».
+          */
+          const empty = {
+            entries: [] as const,
+            offset: 0,
+            pending: "",
+          };
+
           if (since !== undefined && Number.isInteger(since) && since >= 0) {
-            const tailed = yield* tailFrom(path, since, "");
-            return { kind: "ok" as const, path, tailed, truncated: false };
+            const tailed = yield* Effect.result(tailFrom(path, since, ""));
+            return {
+              kind: "ok" as const,
+              path,
+              tailed: Result.isFailure(tailed)
+                ? empty
+                : (Option.getOrUndefined(Result.getSuccess(tailed)) ?? empty),
+              truncated: false,
+            };
           }
+
           const finite =
             Number.isInteger(tailBytes) && tailBytes > 0 ? Math.min(tailBytes, 4_194_304) : 262_144;
-          const tailed = yield* readTail(path, finite);
-          return { kind: "ok" as const, path, tailed, truncated: tailed.truncated };
+          const tailed = yield* Effect.result(readTail(path, finite));
+          if (Result.isFailure(tailed)) {
+            const failure = failureOf(tailed);
+            // Absence de fichier → session vide. Autre erreur → vraie panne.
+            if (isMissingFile(failure)) {
+              return { kind: "ok" as const, path, tailed: empty, truncated: false };
+            }
+            return yield* Effect.fail(failure);
+          }
+          const value = Option.getOrUndefined(Result.getSuccess(tailed));
+          if (value === undefined) {
+            return { kind: "ok" as const, path, tailed: empty, truncated: false };
+          }
+          return {
+            kind: "ok" as const,
+            path,
+            tailed: { entries: value.entries, offset: value.offset, pending: value.pending },
+            truncated: value.truncated,
+          };
         }),
       ),
     );

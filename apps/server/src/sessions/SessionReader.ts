@@ -26,12 +26,42 @@ const HeaderLine = Schema.Struct({
 
 const decodeUnknown = Schema.decodeUnknownOption(HeaderLine);
 
-/** Session illisible : fichier absent, disparu, ou illisible. */
+/** Session illisible : disparue en cours de lecture, ou permissions. */
 export class SessionReadError extends Schema.TaggedError<SessionReadError>()("SessionReadError", {
   cause: Schema.Defect(),
   detail: Schema.String,
   path: Schema.String,
 }) {}
+
+/**
+ * `true` si l'erreur signifie « le fichier n'existe pas ».
+ *
+ * ⚠️ **Herdr annonce un chemin de session qui n'existe pas encore.** Pi crée le
+ * fichier JSONL au **premier message** : un agent fraîchement lancé a donc un
+ * `agent_session` valide pointant vers un fichier absent.
+ *
+ * Ce n'est pas une erreur — c'est une session vide. La traiter comme une panne
+ * faisait échouer l'ouverture de tout nouvel agent, en boucle toutes les deux
+ * secondes.
+ */
+export const isMissingFile = (error: unknown): boolean => {
+  // Décodage plutôt qu'assertion : on cherche un code `ENOENT` où qu'il soit.
+  const decoded = Option.getOrUndefined(
+    Schema.decodeUnknownOption(
+      Schema.Struct({
+        cause: Schema.optional(Schema.Struct({ code: Schema.optional(Schema.String) })),
+      }),
+    )(error),
+  );
+  if (decoded?.cause?.code === "ENOENT") return true;
+
+  return (
+    error instanceof Error &&
+    Option.getOrUndefined(
+      Schema.decodeUnknownOption(Schema.Struct({ code: Schema.optional(Schema.String) }))(error),
+    )?.code === "ENOENT"
+  );
+};
 
 export interface RawEntry {
   readonly type: string;
@@ -171,6 +201,8 @@ export const tailFrom = (path: string, offset: number, pending: string) =>
         path,
       }),
   });
+
+export { tailFrom as tailFromRaw };
 
 /** Lit tout le fichier. Réservé au premier chargement d'une session courte. */
 export const readAll = (path: string) => tailFrom(path, 0, "");

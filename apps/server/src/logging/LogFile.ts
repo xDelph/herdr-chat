@@ -61,12 +61,38 @@ const rotateIfNeeded = async (): Promise<void> => {
 };
 
 /**
+ * Anti-répétition.
+ *
+ * ⚠️ Une erreur qui se reproduit à chaque interrogation — l'ouverture d'une
+ * session manquante, toutes les deux secondes — noyait le journal sous des
+ * centaines de lignes identiques, et les vraies erreurs disparaissaient dedans.
+ *
+ * On garde la **première** occurrence de chaque message, et on annonce le nombre
+ * de répétitions quand il change.
+ */
+const lastSeen = new Map<string, number>();
+const REPEAT_WINDOW_MS = 60_000;
+
+const shouldWrite = (entry: LogEntry): boolean => {
+  const key = `${entry.source}|${entry.level}|${entry.message}`;
+  const now = Date.now();
+  const previous = lastSeen.get(key);
+  if (previous !== undefined && now - previous < REPEAT_WINDOW_MS) {
+    lastSeen.set(key, now);
+    return false;
+  }
+  lastSeen.set(key, now);
+  return true;
+};
+
+/**
  * Écrit une entrée. **Ne peut pas échouer** : un journal qui casse le service
  * serait pire que pas de journal.
  */
 export const writeLog = (entry: LogEntry): Effect.Effect<void> =>
   Effect.promise(async () => {
     try {
+      if (!shouldWrite(entry)) return;
       await mkdir(dirname(LOG_PATH), { recursive: true });
       await rotateIfNeeded();
       await appendFile(LOG_PATH, line(entry), "utf8");
