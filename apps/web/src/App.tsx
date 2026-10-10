@@ -16,6 +16,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Option, Schema } from "effect";
 import {
   fetchAgentKinds,
+  reportError,
   fetchHealth,
   launchAgent,
   fetchOverview,
@@ -263,7 +264,9 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
         setError(null);
       } catch (cause) {
         // La cause réelle est affichée : pas de message générique qui masque.
-        setError(cause instanceof Error ? cause.message : String(cause));
+        const message = cause instanceof Error ? cause.message : String(cause);
+        setError(message);
+        reportError("échec du chargement de session", { message, paneId: agent.paneId });
       } finally {
         loading.current = false;
       }
@@ -618,7 +621,10 @@ export const App = () => {
       setHealth(nextHealth);
       setError(null);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : String(cause));
+      const message = cause instanceof Error ? cause.message : String(cause);
+      setError(message);
+      // Journalisé : une barre rouge disparaît au rechargement, pas le journal.
+      reportError("échec du chargement de la vue d'ensemble", message);
     }
   }, []);
 
@@ -752,7 +758,9 @@ export const App = () => {
           navigate({ kind: "agent", paneId: started.paneId });
           await refresh();
         } catch (cause) {
-          setLaunchError(cause instanceof Error ? cause.message : String(cause));
+          const message = cause instanceof Error ? cause.message : String(cause);
+          setLaunchError(message);
+          reportError("échec du lancement d'agent", { message, workspaceId, kind });
         } finally {
           setLaunching(null);
         }

@@ -25,6 +25,8 @@ export const HealthResponse = Schema.Struct({
     socket: Schema.String,
     version: Schema.optional(Schema.String),
   }),
+  /** Chemin du journal d'erreurs, pour le retrouver vite. */
+  log: Schema.optional(Schema.String),
   ok: Schema.Boolean,
   uptimeMs: Schema.optional(Schema.Number),
 });

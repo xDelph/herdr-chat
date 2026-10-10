@@ -36,6 +36,7 @@ import type { HerdrApi } from "../herdr/HerdrClient.ts";
 import type { PromptSenderApi } from "../send/PromptSender.ts";
 import { readTail, tailFrom } from "../sessions/SessionReader.ts";
 import { isInline, readAllowedFile } from "../files/FileService.ts";
+import { LOG_PATH, writeLog } from "../logging/LogFile.ts";
 import { listRecentImages } from "../files/RecentImages.ts";
 
 export interface ApiDeps {
@@ -107,8 +108,28 @@ class LaunchFailed extends Schema.TaggedError<LaunchFailed>()("LaunchFailed", {
   phase: Schema.String,
 }) {}
 
-const json = (body: unknown, status = 200): Response =>
-  Response.json(body, { status, headers: { "cache-control": "no-store" } });
+/**
+ * Réponse JSON, **et journalisation automatique des erreurs**.
+ *
+ * ⚠️ Un avertissement affiché dans l'application sans trace laissée nulle part
+ * est indiagnosticable après coup. Toute réponse >= 400 part au journal.
+ */
+const json = (body: unknown, status = 200): Response => {
+  if (status >= 400) {
+    const described = describeCause(body);
+    // eslint-disable-next-line no-console -- trace console en plus du fichier
+    console.error(`[http ${String(status)}] ${described}`);
+    void Effect.runPromise(
+      writeLog({
+        level: status >= 500 ? "error" : "warn",
+        message: `HTTP ${String(status)}`,
+        source: "server",
+        detail: body,
+      }),
+    );
+  }
+  return Response.json(body, { status, headers: { "cache-control": "no-store" } });
+};
 
 /**
  * Sérialise une réponse **en la validant contre le contrat partagé**.
@@ -238,6 +259,39 @@ export interface Routes {
   readonly [path: string]: (request: RouteRequest) => Response | Promise<Response>;
 }
 
+/**
+ * Remontée d'erreur depuis le navigateur.
+ *
+ * La cause réelle d'un problème est souvent côté client — un appel qui échoue,
+ * un décodage impossible. Sans ce canal, ces erreurs n'existaient que dans une
+ * barre rouge, puis disparaissaient.
+ */
+const clientLog = async (request: RouteRequest): Promise<Response> => {
+  const raw: unknown = await request.json().catch(() => undefined);
+  const entry = Option.getOrUndefined(
+    Schema.decodeUnknownOption(
+      Schema.Struct({
+        detail: Schema.optional(Schema.Unknown),
+        level: Schema.Literal("error"),
+        message: Schema.String,
+      }),
+    )(raw),
+  );
+  if (entry === undefined) return json({ ok: false }, 400);
+
+  // eslint-disable-next-line no-console -- trace console en plus du fichier
+  console.error(`[client] ${entry.message}`);
+  await Effect.runPromise(
+    writeLog({
+      level: entry.level,
+      message: entry.message,
+      source: "client",
+      ...(entry.detail !== undefined ? { detail: entry.detail } : {}),
+    }),
+  );
+  return json({ ok: true });
+};
+
 export const makeRoutes = (deps: ApiDeps): Routes => {
   const { config, herdr, hub, sender, watch, startedAt } = deps;
 
@@ -268,6 +322,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
           socket: config.herdrSocketPath,
           version: value.version,
         },
+        log: LOG_PATH,
         ok: true,
         uptimeMs: Date.now() - startedAt,
       });
@@ -801,6 +856,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     "/api/agents/:paneId/session": session,
     "/api/agents/:paneId/terminal": terminal,
     "/api/agents/kinds": agentKinds,
+    "/api/log": clientLog,
     "/api/events": events,
     "/api/file": file,
     "/api/images": images,

@@ -186,6 +186,28 @@ export const fetchRecentImages = async (): Promise<ReadonlyArray<RecentImage>> =
   return images.images;
 };
 
+/**
+ * Signale une erreur au serveur, pour qu'elle soit **journalisée**.
+ *
+ * Une barre rouge disparaît au rechargement : sans ce canal, une erreur vue
+ * dans le navigateur n'existait plus au moment de la diagnostiquer.
+ */
+export const reportError = (message: string, detail?: unknown): void => {
+  void (async () => {
+    try {
+      await fetch("/api/log", {
+        body: JSON.stringify(
+          detail === undefined ? { level: "error", message } : { detail, level: "error", message },
+        ),
+        headers: { "content-type": "application/json" },
+        method: "POST",
+      });
+    } catch {
+      // Signaler une erreur ne doit jamais en produire une : on abandonne.
+    }
+  })();
+};
+
 export const sendPrompt = async (paneId: string, text: string): Promise<SendResult> => {
   const response = await fetch(`/api/agents/${encodeURIComponent(paneId)}/prompt`, {
     body: JSON.stringify({ text }),
