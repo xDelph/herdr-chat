@@ -533,7 +533,9 @@ const WorkspaceRow = ({
             onClick={handleLaunch}
             disabled={launching || workspace.checkoutPath === null || kinds.length === 0}
           >
-            {launching ? "…" : hasAgent ? "+" : "Lancer"}
+            {/* ⚠️ Un seul libellé : dans tous les cas on **ajoute** un agent.
+                « Lancer » et « + » faisaient la même chose sous deux noms. */}
+            {launching ? "…" : "+"}
           </button>
         </span>
       }
@@ -834,8 +836,8 @@ export const App = () => {
         <section className="screen">
           <h2>Projets</h2>
           <p className="muted small">
-            Ouvrir un projet qui tourne, ou en lancer un. Un agent n'est jamais lancé deux fois dans
-            le même projet.
+            Toucher un projet ouvre son agent. Le <strong>+</strong> ajoute un agent — dans un
+            projet vide, ou dans un nouvel onglet s'il en a déjà un.
           </p>
           {launchError !== null ? <p className="notice notice--error">{launchError}</p> : null}
           <ul className="list">

@@ -11,7 +11,7 @@
  * Le flux temps réel est en **SSE**, pas en WebSocket (voir D009) : c'est ce
  * qui donne le rattrapage après coupure, qu'Herdr ne peut pas fournir.
  */
-import { Effect, Option, Result, Schema } from "effect";
+import { Effect, Option, Result, Schedule, Schema } from "effect";
 import {
   AGENT_KINDS,
   InstalledKindsResponse,
@@ -164,7 +164,7 @@ const describeCause = (cause: unknown): string => {
     )(cause),
   );
   const readable = decoded?.detail ?? decoded?.message;
-  if (readable !== undefined && readable.trim().length > 0) return readable;
+  if (readable !== undefined && readable.trim().length > 0) return stripIdentifiers(readable);
 
   // Dernier recours : une sérialisation, ou le type, mais jamais rien.
   try {
@@ -177,6 +177,19 @@ const describeCause = (cause: unknown): string => {
   }
   return `échec sans message (${cause === null ? "null" : typeof cause})`;
 };
+
+/**
+ * Retire les identifiants internes d'un message destiné à l'écran.
+ *
+ * ⚠️ Herdr parle en `wB:p4` ; l'utilisateur, lui, voit « le nouvel onglet ». Un
+ * identifiant dans une phrase d'erreur ne l'aide pas, et l'a mis en colère à
+ * juste titre.
+ */
+const stripIdentifiers = (message: string): string =>
+  message
+    .replace(/\bw[0-9A-Za-z]*:p[0-9A-Za-z]+\b/g, "le nouvel onglet")
+    .replace(/\bw[0-9A-Za-z]*:t[0-9A-Za-z]+\b/g, "son onglet")
+    .replace(/\b(?:pane|tab|workspace)_id=\S+/g, "");
 
 /**
  * Extrait l'**échec** typé d'un `Result`.
@@ -530,8 +543,21 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
             );
 
           // Étape 2 : l'agent, dans le pane à l'invite shell.
+          //
+          // ⚠️ Un pane fraîchement créé n'est pas **immédiatement** prêt : le
+          // shell démarre, lit sa configuration (`zshrc`), puis seulement devient
+          // interactif. Herdr répond alors `is not an available shell`.
+          // Il n'expose pas cet état dans le snapshot, donc on **réessaie** —
+          // attendre un temps fixe serait aussi faux qu'essayer tout de suite.
           yield* herdr
             .startAgent({ kind: body.kind, name, pane_id: tab.paneId, timeout_ms: 120_000 })
+            .pipe(
+              Effect.retry({
+                schedule: Schedule.spaced("3 seconds"),
+                while: (cause) => describeCause(cause).includes("not an available shell"),
+                times: 10,
+              }),
+            )
             .pipe(
               Effect.mapError(
                 (cause) =>
