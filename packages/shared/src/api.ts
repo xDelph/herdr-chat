@@ -156,6 +156,18 @@ export const AGENT_KINDS = [
   "hermes",
 ] as const;
 
+export const RecentImageSchema = Schema.Struct({
+  modifiedAt: Schema.Number,
+  path: Schema.String,
+  size: Schema.Number,
+});
+export type RecentImage = typeof RecentImageSchema.Type;
+
+export const RecentImagesResponse = Schema.Struct({
+  images: Schema.Array(RecentImageSchema),
+});
+export type RecentImagesResponse = typeof RecentImagesResponse.Type;
+
 /** Erreur d'API. */
 export const ApiErrorResponse = Schema.Struct({
   error: Schema.String,

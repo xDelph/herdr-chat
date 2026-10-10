@@ -17,6 +17,7 @@ import {
   AGENT_KINDS,
   ApiErrorResponse,
   HealthResponse,
+  RecentImagesResponse,
   LaunchAgentRequest,
   LaunchAgentResponse,
   OverviewResponse,
@@ -35,6 +36,7 @@ import type { HerdrApi } from "../herdr/HerdrClient.ts";
 import type { PromptSenderApi } from "../send/PromptSender.ts";
 import { readTail, tailFrom } from "../sessions/SessionReader.ts";
 import { isInline, readAllowedFile } from "../files/FileService.ts";
+import { listRecentImages } from "../files/RecentImages.ts";
 
 export interface ApiDeps {
   readonly config: ServerConfig;
@@ -558,6 +560,39 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     });
   };
 
+  /**
+   * Images récentes des dossiers autorisés.
+   *
+   * C'est ce qui remplace « connaître le chemin par cœur » : on ouvre l'app, on
+   * voit ses dernières captures.
+   */
+  const images = async (): Promise<Response> => {
+    const result = await Effect.runPromise(
+      Effect.result(
+        Effect.gen(function* () {
+          const payload = yield* herdr.snapshot();
+          const snapshot = Option.getOrUndefined(decodeSnapshot(payload["snapshot"]));
+          if (snapshot === undefined) {
+            return yield* Effect.fail({ message: "Herdr illisible" });
+          }
+          const roots = [
+            ...snapshot.workspaces
+              .map((workspace) => checkoutPathOf(workspace, snapshot.panes ?? []))
+              .filter((root): root is string => root !== null),
+            ...config.extraFileRoots,
+          ];
+          return yield* listRecentImages(roots);
+        }),
+      ),
+    );
+
+    if (Result.isFailure(result)) {
+      return respond(decoderOf(ApiErrorResponse), { error: "balayage impossible" }, 502);
+    }
+    const found = Option.getOrUndefined(Result.getSuccess(result)) ?? [];
+    return respond(decoderOf(RecentImagesResponse), { images: found });
+  };
+
   const events = (request: RouteRequest): Response => {
     const header = request.headers.get("last-event-id");
     const parsed = header === null ? 0 : Number.parseInt(header, 10);
@@ -613,6 +648,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     "/api/agents/:paneId/terminal": terminal,
     "/api/events": events,
     "/api/file": file,
+    "/api/images": images,
     "/api/health": health,
     "/api/overview": overview,
   };

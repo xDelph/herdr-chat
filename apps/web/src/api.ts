@@ -13,10 +13,13 @@
  * diverger entre le décodage et le type affiché. Aucune assertion de type.
  */
 import { Option, Schema } from "effect";
+// Import **local** : `export type { X } from "…"` ne crée aucune liaison ici.
+import type { RecentImage } from "@herdr-remote/shared";
 import {
   ApiErrorResponse,
   HealthResponse,
   LaunchAgentResponse,
+  RecentImagesResponse,
   OverviewResponse,
   PromptSentResponse,
   PromptSuppressedResponse,
@@ -36,6 +39,7 @@ export type {
   HealthResponse as Health,
   LaunchAgentResponse,
   OverviewResponse as Overview,
+  RecentImage,
   PromptSentResponse,
   PromptSuppressedResponse,
   SessionEntry,
@@ -163,6 +167,14 @@ export const fetchTerminal = (paneId: string) =>
     decoderOf(TerminalSchema),
     "terminal",
   );
+
+/** Images récentes des dossiers autorisés — captures comprises. */
+export const fetchRecentImages = async (): Promise<ReadonlyArray<RecentImage>> => {
+  const payload = await request("/api/images");
+  const images = decoderOf(RecentImagesResponse)(payload);
+  if (images === undefined) throw new Error("forme de réponse inattendue : images");
+  return images.images;
+};
 
 export const sendPrompt = async (paneId: string, text: string): Promise<SendResult> => {
   const response = await fetch(`/api/agents/${encodeURIComponent(paneId)}/prompt`, {

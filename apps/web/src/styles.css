@@ -1073,7 +1073,9 @@ button:disabled {
 .gallery__grid {
   display: grid;
   gap: 10px;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  /* Une seule colonne sur téléphone : une capture large y est lisible, deux
+     colonnes la réduiraient à l'état d'icône. */
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   margin-top: 8px;
 }
 
@@ -1089,11 +1091,18 @@ button:disabled {
   text-align: left;
 }
 
+/*
+   ⚠️ Pas de `aspect-ratio` imposé ni de `object-fit: cover`.
+   Les captures d'écran sont LARGES : les forcer au portrait les recadrait sur
+   une bande verticale, et on ne voyait qu'un fragment de texte au lieu de
+   l'image. On laisse chaque image garder ses proportions.
+*/
 .gallery__thumb {
-  aspect-ratio: 9 / 16;
   background: #05080f;
-  object-fit: cover;
-  object-position: top;
+  display: block;
+  height: auto;
+  max-height: 60vh;
+  object-fit: contain;
   width: 100%;
 }
 

@@ -15,8 +15,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Option, Schema } from "effect";
 import {
-  launchAgent,
   fetchHealth,
+  fetchRecentImages,
+  launchAgent,
   fetchOverview,
   fetchSession,
   fetchTerminal,
@@ -25,6 +26,7 @@ import {
 } from "./api.ts";
 import type {
   AgentView,
+  RecentImage,
   Health,
   Overview,
   SendResult,
@@ -518,6 +520,12 @@ export const App = () => {
   const [terminalError, setTerminalError] = useState<string | null>(null);
   const [terminalLoading, setTerminalLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("tous");
+  /**
+   * Images récentes — chargées **à la demande**, pas en permanence : le balayage
+   * disque n'a pas à tourner toutes les 4 secondes.
+   */
+  const [images, setImages] = useState<readonly RecentImage[]>([]);
+  const [imagesError, setImagesError] = useState<string | null>(null);
   const [launching, setLaunching] = useState<string | null>(null);
   const [launchError, setLaunchError] = useState<string | null>(null);
   const [workspaceFilter, setWorkspaceFilter] = useState<string>("tous");
@@ -564,6 +572,23 @@ export const App = () => {
       }),
     [refresh],
   );
+
+  const loadImages = useCallback(() => {
+    void (async () => {
+      try {
+        setImages(await fetchRecentImages());
+        setImagesError(null);
+      } catch (cause) {
+        setImagesError(cause instanceof Error ? cause.message : String(cause));
+      }
+    })();
+  }, []);
+  const onLoadImages = useCallback(() => loadImages(), [loadImages]);
+
+  // Chargement des images à l'ouverture de l'onglet Réglages.
+  useEffect(() => {
+    if (route.kind === "tab" && route.tab === "reglages") loadImages();
+  }, [route, loadImages]);
 
   const agents = overview?.agents ?? [];
   // Table de noms **du rendu** : un nom arrivé après un événement s'y applique.
@@ -877,6 +902,19 @@ export const App = () => {
             Le contenu des conversations est lu dans les fichiers de session Pi, jamais depuis
             Herdr. Aucune action shell arbitraire n'est exposée.
           </p>
+          <h2>Images récentes</h2>
+          <p className="muted small">
+            Captures d'écran, bureau, téléchargements. Les plus récentes d'abord — toucher pour
+            agrandir.
+          </p>
+          <button type="button" className="row__action" onClick={onLoadImages}>
+            Actualiser
+          </button>
+          {imagesError !== null ? (
+            <p className="notice notice--error">{imagesError}</p>
+          ) : (
+            <Gallery paths={images.map((image) => image.path)} title="" />
+          )}
           {projectRoot.length > 0 ? <Gallery paths={screenshotPaths} /> : null}
         </section>
       ) : null}
