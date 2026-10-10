@@ -23,7 +23,15 @@ interface Props {
   readonly onOpen: (paneId: string) => void;
 }
 
+/** Dernier segment du dossier de travail — jamais un identifiant. */
+const folderNameOf = (path: string | null): string | null => {
+  if (path === null) return null;
+  const parts = path.split("/").filter((part) => part.length > 0);
+  return parts.length > 0 ? (parts[parts.length - 1] ?? null) : null;
+};
+
 export const AttentionCard = ({ agent, onOpen }: Props) => {
+  const folderName = folderNameOf(agent.cwd);
   const [question, setQuestion] = useState<string | null>(null);
   const [state, setState] = useState<"loading" | "ready" | "error">("loading");
   const [sending, setSending] = useState(false);
@@ -68,9 +76,10 @@ export const AttentionCard = ({ agent, onOpen }: Props) => {
     <article className="attention">
       <header className="attention__head">
         <button type="button" className="attention__open" onClick={() => onOpen(agent.paneId)}>
-          <strong>{agent.workspaceLabel ?? agent.paneId}</strong>
+          <strong>{agent.workspaceLabel ?? folderName}</strong>
           <span className="muted small">
-            {agent.agent ?? "agent"} · {agent.paneId}
+            {agent.agent ?? "agent"}
+            {folderName !== null && folderName !== agent.workspaceLabel ? ` · ${folderName}` : ""}
           </span>
         </button>
         <span className="sa__status sa__status--blocked">attend</span>

@@ -933,3 +933,20 @@ button:disabled {
   text-align: left;
   width: 100%;
 }
+
+/* Choix du type d'agent au lancement */
+.launch {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+.launch__kind {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 7px 4px;
+}

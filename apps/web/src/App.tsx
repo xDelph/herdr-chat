@@ -94,9 +94,10 @@ const describeEvent = (kind: string, data: unknown, names: ReadonlyMap<string, s
 
   if (decoded === undefined) return kind;
 
-  // Un identifiant de pane n'apprend rien : on affiche le nom du projet.
-  const raw = decoded.paneId ?? "?";
-  const label = names.get(raw) ?? raw;
+  // Un identifiant de pane n'apprend rien : on affiche le nom du projet quand
+  // on le connaît, et un libellé neutre sinon — **jamais** l'identifiant.
+  const raw = decoded.paneId ?? "";
+  const label = raw.length > 0 ? (names.get(raw) ?? "un agent") : "un agent";
 
   if (kind === "agent_status") {
     switch (decoded.kind) {
@@ -135,9 +136,34 @@ const statusLabel = (status: string): string => STATUS_LABEL[status] ?? status;
  * de l'agent. L'identifiant de pane reste visible, mais **en second**, pour le
  * diagnostic.
  */
-const agentName = (agent: AgentView): string =>
-  agent.workspaceLabel ?? agent.title ?? agent.agent ?? "agent";
+/** Dernier segment d'un chemin : `…/projets/pixel` → `pixel`. */
+const basename = (path: string | null): string | null => {
+  if (path === null) return null;
+  const parts = path.split("/").filter((part) => part.length > 0);
+  return parts.length > 0 ? (parts[parts.length - 1] ?? null) : null;
+};
 
+/**
+ * Nom lisible d'un agent.
+ *
+ * ⚠️ **Ne retombe jamais sur un identifiant de pane.** `w3:p1` ne dit rien à
+ * personne. La chaîne se termine sur le dossier de travail, qui est toujours
+ * parlant, puis sur un libellé générique.
+ */
+const agentName = (agent: AgentView): string =>
+  agent.workspaceLabel ??
+  basename(agent.cwd) ??
+  basename(agent.sessionCwd) ??
+  agent.title ??
+  agent.agent ??
+  "Agent sans nom";
+
+/**
+ * Contexte d'un agent : onglet, type, dossier.
+ *
+ * **Aucun identifiant interne.** Un identifiant de pane ou de projet n'a jamais
+ * aidé quelqu'un à comprendre ce qu'il regarde.
+ */
 const agentContext = (agent: AgentView): string => {
   const parts: string[] = [];
   if (agent.tabLabel !== null && agent.tabLabel !== undefined && agent.tabLabel.length > 0) {
@@ -146,7 +172,8 @@ const agentContext = (agent: AgentView): string => {
     parts.push(`onglet ${agent.tabNumber}`);
   }
   if (agent.agent !== null) parts.push(agent.agent);
-  parts.push(agent.paneId);
+  const folder = basename(agent.cwd);
+  if (folder !== null && folder !== agent.workspaceLabel) parts.push(folder);
   return parts.join(" · ");
 };
 
@@ -417,9 +444,9 @@ const AgentRow = ({ agent, onOpen }: { agent: AgentView; onOpen: (paneId: string
     <button type="button" className="row" data-pane={agent.paneId} onClick={handleClick}>
       <span className={statusClass(agent.status)} />
       <span className="row__main">
-        <strong>{agent.title ?? agent.paneId}</strong>
+        <strong>{agentName(agent)}</strong>
         <span className="muted small">
-          {agent.paneId} · {agent.agent ?? "?"} · {statusLabel(agent.status)}
+          {agentContext(agent)} · {statusLabel(agent.status)}
         </span>
       </span>
       <span className="row__side small muted">{shortPath(agent.cwd)}</span>

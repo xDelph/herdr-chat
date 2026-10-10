@@ -26,7 +26,7 @@ import {
   SnapshotPayload,
   TerminalResponse,
 } from "@herdr-remote/shared";
-import { buildOverview, toWorkspaceViews } from "../agents/AgentRegistry.ts";
+import { buildOverview, checkoutPathOf, toWorkspaceViews } from "../agents/AgentRegistry.ts";
 import type { ServerConfig } from "../config.ts";
 import type { WatchLoop } from "../events/AgentWatcher.ts";
 import type { EventHubApi } from "../events/EventHub.ts";
@@ -419,19 +419,26 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
           }
           const workspace = snapshot.workspaces.find((w) => w.workspace_id === workspaceId);
           if (workspace === undefined) {
-            return yield* Effect.fail({ message: `projet inconnu : ${workspaceId}` });
+            // Aucun identifiant brut dans un message destiné à l'écran.
+            return yield* Effect.fail({ message: "ce projet n'existe plus" });
           }
+
+          // Les noms affichés sont ceux que l'utilisateur reconnaît, jamais des
+          // identifiants internes.
+          const label = workspace.label ?? "ce projet";
+
           if (snapshot.agents.some((agent) => agent.workspace_id === workspaceId)) {
             return yield* Effect.fail({
-              message: "ce projet a déjà un agent — en lancer un second est un choix explicite",
+              message: `${label} a déjà un agent — en lancer un second est un choix explicite`,
             });
           }
 
           const name = body.name ?? workspace.label ?? "agent";
-          const checkout = workspace.worktree?.checkout_path ?? null;
+          // **Même** fonction que l'aperçu : une seule source pour le dossier.
+          const checkout = checkoutPathOf(workspace, snapshot.panes ?? []);
           if (checkout === null) {
             return yield* Effect.fail({
-              message: `aucun dossier de travail connu pour ${workspaceId}`,
+              message: `aucun dossier de travail connu pour ${label}`,
             });
           }
 

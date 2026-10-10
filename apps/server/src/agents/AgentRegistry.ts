@@ -76,6 +76,25 @@ const usefulLabel = (label: string | null): string | null => {
   return /^\d+$/.test(label.trim()) ? null : label;
 };
 
+/**
+ * Dossier de travail d'un projet — **source unique**.
+ *
+ * `worktree.checkout_path` est **souvent `null`** ; le `cwd` du premier pane du
+ * projet, lui, existe toujours. Deux chemins de calcul pour la même donnée
+ * avaient divergé : l'aperçu trouvait le dossier, le lancement non — d'où
+ * « aucun dossier de travail connu » sur un projet parfaitement valide.
+ */
+export const checkoutPathOf = (
+  workspace: WorkspaceInfo,
+  panes: ReadonlyArray<SnapshotPane>,
+): string | null =>
+  workspace.worktree?.checkout_path ??
+  panes.find(
+    (pane) =>
+      pane.workspace_id === workspace.workspace_id && pane.cwd !== null && pane.cwd !== undefined,
+  )?.cwd ??
+  null;
+
 /** Contexte de nommage : évite d'afficher des identifiants de pane à l'écran. */
 export interface NamingContext {
   readonly workspaces: ReadonlyMap<string, string | null>;
@@ -160,19 +179,12 @@ export const toWorkspaceViews = (
   panes: ReadonlyArray<SnapshotPane> = [],
 ): ReadonlyArray<WorkspaceView> =>
   workspaces.map((workspace) => {
-    // Dossier de travail : `worktree.checkout_path` quand il existe, sinon le
-    // `cwd` du premier pane du projet. `worktree` est souvent `null`, alors
-    // qu'un pane en porte toujours un.
-    const paneCwd = panes.find(
-      (pane) =>
-        pane.workspace_id === workspace.workspace_id && pane.cwd !== null && pane.cwd !== undefined,
-    )?.cwd;
     return {
       agentPanes: agents
         .filter((agent) => agent.workspaceId === workspace.workspace_id)
         .map((agent) => agent.paneId),
       agentStatus: workspace.agent_status ?? null,
-      checkoutPath: workspace.worktree?.checkout_path ?? paneCwd ?? null,
+      checkoutPath: checkoutPathOf(workspace, panes),
       focused: workspace.focused ?? false,
       label: workspace.label ?? null,
       paneCount: workspace.pane_count ?? 0,
