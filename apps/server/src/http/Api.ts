@@ -12,7 +12,6 @@
  * qui donne le rattrapage après coupure, qu'Herdr ne peut pas fournir.
  */
 import { Effect, Option, Result, Schema } from "effect";
-import type { Cause } from "effect";
 import {
   AGENT_KINDS,
   InstalledKindsResponse,
@@ -101,6 +100,13 @@ const ACCEPTED_KINDS = new Set([
   "muse",
 ]);
 
+/** Échec de lancement, qualifié par l'étape qui a échoué. */
+class LaunchFailed extends Schema.TaggedError<LaunchFailed>()("LaunchFailed", {
+  detail: Schema.String,
+  paneId: Schema.NullOr(Schema.String),
+  phase: Schema.String,
+}) {}
+
 const json = (body: unknown, status = 200): Response =>
   Response.json(body, { status, headers: { "cache-control": "no-store" } });
 
@@ -152,8 +158,17 @@ const describe = (error: unknown): string => {
   return String(error);
 };
 
-const describeCause = (cause: Cause.Cause<unknown>): string =>
-  cause.reasons.map((reason) => describe(reason)).join(" ; ");
+const describeCause = (cause: unknown): string => {
+  const decoded = Option.getOrUndefined(
+    Schema.decodeUnknownOption(
+      Schema.Struct({
+        detail: Schema.optional(Schema.String),
+        message: Schema.optional(Schema.String),
+      }),
+    )(cause),
+  );
+  return decoded?.detail ?? decoded?.message ?? String(cause);
+};
 
 /**
  * Extrait l'**échec** typé d'un `Result`.
@@ -467,7 +482,21 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
           // un nouvel onglet. Interdire obligeait à passer par Herdr à la main
           // pour la manœuvre la plus courante.
 
-          const name = body.name ?? workspace.label ?? "agent";
+          /*
+            ⚠️ Le nom d'un agent doit être **unique**. Utiliser le libellé du
+            projet faisait échouer le second lancement avec `agent_name_taken` —
+            et l'erreur n'était pas exploitable.
+          */
+          const taken = new Set(
+            snapshot.agents
+              .map((agent) => agent.name)
+              .filter((value): value is string => typeof value === "string"),
+          );
+          const base = body.name ?? workspace.label ?? "agent";
+          let name = base;
+          for (let suffix = 2; taken.has(name) && suffix < 100; suffix += 1) {
+            name = `${base}-${String(suffix)}`;
+          }
           // **Même** fonction que l'aperçu : une seule source pour le dossier.
           const checkout = checkoutPathOf(workspace, snapshot.panes ?? []);
           if (checkout === null) {
@@ -477,20 +506,35 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
           }
 
           // Étape 1 : un onglet dans le projet, ouvert dans son dossier.
-          const tab = yield* herdr.createTab({
-            cwd: checkout,
-            focus: false,
-            label: name,
-            workspace_id: workspaceId,
-          });
+          const tab = yield* herdr
+            .createTab({ cwd: checkout, focus: false, label: name, workspace_id: workspaceId })
+            .pipe(
+              // ⚠️ Une erreur non qualifiée n'est pas exploitable : on dit quelle
+              // étape a échoué, et où en est resté le projet.
+              Effect.mapError(
+                (cause) =>
+                  new LaunchFailed({
+                    detail: `l'onglet n'a pas pu être créé : ${describeCause(cause)}`,
+                    paneId: null,
+                    phase: "onglet",
+                  }),
+              ),
+            );
 
           // Étape 2 : l'agent, dans le pane à l'invite shell.
-          yield* herdr.startAgent({
-            kind: body.kind,
-            name,
-            pane_id: tab.paneId,
-            timeout_ms: 120_000,
-          });
+          yield* herdr
+            .startAgent({ kind: body.kind, name, pane_id: tab.paneId, timeout_ms: 120_000 })
+            .pipe(
+              Effect.mapError(
+                (cause) =>
+                  new LaunchFailed({
+                    // L'onglet existe : le dire évite de relancer pour rien.
+                    detail: `${body.kind} n'a pas démarré : ${describeCause(cause)}`,
+                    paneId: tab.paneId,
+                    phase: "agent",
+                  }),
+              ),
+            );
 
           return { kind: body.kind, name, paneId: tab.paneId, tabId: tab.tabId };
         }),

@@ -52,6 +52,8 @@ export const AgentInfo = Schema.Struct({
   cwd: Schema.optional(Schema.NullOr(Schema.String)),
   focused: Schema.Boolean,
   foreground_cwd: Schema.optional(Schema.NullOr(Schema.String)),
+  /** Nom de l'agent — **unique** entre agents. */
+  name: Schema.optional(Schema.NullOr(Schema.String)),
   pane_id: Schema.String,
   revision: Schema.Number,
   state_change_seq: Schema.optional(Schema.Number),

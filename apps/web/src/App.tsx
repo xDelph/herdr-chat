@@ -174,6 +174,8 @@ const agentContext = (agent: AgentView): string => {
   if (agent.tabLabel !== null && agent.tabLabel !== undefined && agent.tabLabel.length > 0) {
     parts.push(agent.tabLabel);
   } else if (agent.tabNumber !== null && agent.tabNumber !== undefined) {
+    // ⚠️ Plusieurs agents dans un même projet portent le même nom. Sans le
+    // numéro d'onglet, les lignes sont **indistinguables**.
     parts.push(`onglet ${agent.tabNumber}`);
   }
   if (agent.agent !== null) parts.push(agent.agent);
@@ -560,7 +562,14 @@ const AgentRow = ({ agent, onOpen }: { agent: AgentView; onOpen: (paneId: string
       <span className="row__main">
         <strong>{agentName(agent)}</strong>
         <span className="muted small">
-          {agentContext(agent)} · {statusLabel(agent.status)}
+          {/*
+            ⚠️ Un agent fraîchement lancé est détecté par Herdr au bout de
+            ~20 secondes. Pendant ce délai `agent` est nul : sans ce message, la
+            ligne ressemble à un agent cassé.
+          */}
+          {agent.agent === null
+            ? "démarrage en cours…"
+            : `${agentContext(agent)} · ${statusLabel(agent.status)}`}
         </span>
       </span>
     </button>
