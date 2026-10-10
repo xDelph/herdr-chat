@@ -513,9 +513,14 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
             return yield* Effect.fail(new FileUnavailable({ reason: "Herdr illisible" }));
           }
 
-          const roots = snapshot.workspaces
-            .map((workspace) => checkoutPathOf(workspace, snapshot.panes ?? []))
-            .filter((root): root is string => root !== null);
+          // Dossiers de projet + médias configurés. Les seconds sont bornés et
+          // explicites : captures d'écran, téléchargements, images.
+          const roots = [
+            ...snapshot.workspaces
+              .map((workspace) => checkoutPathOf(workspace, snapshot.panes ?? []))
+              .filter((root): root is string => root !== null),
+            ...config.extraFileRoots,
+          ];
 
           return yield* readAllowedFile(requested, roots);
         }),

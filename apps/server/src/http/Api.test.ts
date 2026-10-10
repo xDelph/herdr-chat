@@ -36,6 +36,7 @@ import { HerdrProtocolError } from "../herdr/HerdrClient.ts";
 
 const config: ServerConfig = {
   duplicateWindowMs: 60_000,
+  extraFileRoots: [],
   herdrSocketPath: "/tmp/fake.sock",
   hostname: "127.0.0.1",
   piSessionsRoot: "/tmp/sessions",

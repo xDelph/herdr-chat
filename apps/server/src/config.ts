@@ -10,6 +10,7 @@
  * On ne lit donc **que** `HERDR_SOCKET_PATH`, jamais l'autre.
  */
 import { Context, Effect, Layer, Schema } from "effect";
+import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 
 export class ConfigError extends Schema.TaggedError<ConfigError>()("ConfigError", {
@@ -35,6 +36,15 @@ export interface ServerConfig {
   readonly duplicateWindowMs: number;
   /** Répertoire des pièces jointes uploadées (D007.1). */
   readonly uploadDir: string;
+  /**
+   * Racines **supplémentaires** pour la lecture de fichiers.
+   *
+   * Les dossiers de travail des projets sont toujours autorisés. Ceux-ci
+   * s'ajoutent : captures d'écran, téléchargements, images. Sans eux, une
+   * capture prise avec CleanShot est refusée — ce qui rendait la vue fichiers
+   * inutilisable pour son usage le plus évident.
+   */
+  readonly extraFileRoots: ReadonlyArray<string>;
 }
 
 export class ServerConfigTag extends Context.Service<ServerConfigTag, ServerConfig>()(
@@ -71,6 +81,26 @@ export class ServerConfigTag extends Context.Service<ServerConfigTag, ServerConf
         );
       }
 
+      /**
+       * Dossiers de médias ajoutés par défaut, **s'ils existent**.
+       *
+       * Le service est local, lié à `127.0.0.1` ou à l'IP Tailscale, et sans
+       * en-tête CORS : aucun site web tiers ne peut le lire depuis un
+       * navigateur. La liste reste **explicite et bornée** — pas de `$HOME`.
+       */
+      const mediaDefaults = [
+        `${home}/Desktop`,
+        `${home}/Downloads`,
+        `${home}/Pictures`,
+        `${home}/Library/Application Support/CleanShot/media`,
+      ];
+      const configured = (env["HERDR_REMOTE_FILES_ROOTS"] ?? "")
+        .split(":")
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0);
+
+      const extraFileRoots = [...configured, ...mediaDefaults].filter((root) => existsSync(root));
+
       return ServerConfigTag.of({
         // `HERDR_SOCKET` (couche B) n'est délibérément jamais lu ici.
         herdrSocketPath: socketPath,
@@ -78,6 +108,7 @@ export class ServerConfigTag extends Context.Service<ServerConfigTag, ServerConf
         port,
         hostname: bind,
         duplicateWindowMs: 60_000,
+        extraFileRoots,
         uploadDir: env["HERDR_REMOTE_UPLOAD_DIR"] ?? `${home}/.herdr-remote/uploads`,
       });
     }),
