@@ -31,7 +31,8 @@ import type {
   SessionEntry,
   WorkspaceView,
 } from "./api.ts";
-import { toItems, toMessages } from "./blocks.ts";
+import { digestOf, toItems, toMessages } from "./blocks.ts";
+import { FilesPanel } from "./Files.tsx";
 import { AGENT_KINDS } from "./api.ts";
 import { AttentionCard } from "./Attention.tsx";
 import type { RenderedMessage } from "./blocks.ts";
@@ -176,12 +177,6 @@ const agentContext = (agent: AgentView): string => {
   const folder = basename(agent.cwd);
   if (folder !== null && folder !== agent.workspaceLabel) parts.push(folder);
   return parts.join(" · ");
-};
-
-const shortPath = (path: string | null): string => {
-  if (path === null) return "—";
-  const parts = path.split("/");
-  return parts.length <= 3 ? path : `…/${parts.slice(-2).join("/")}`;
 };
 
 /** Couleur sémantique : `unknown` est neutre, jamais vert ni rouge. */
@@ -341,6 +336,11 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
 
       <div className="messages" ref={scrollerRef} onScroll={onScroll}>
         <ItemsView items={toItems(messages)} />
+        {/*
+          Les fichiers APRÈS la conversation : on vient lire ce que l'agent a
+          dit, puis on ouvre ce qu'il a produit.
+        */}
+        <FilesPanel files={digestOf(messages).files} />
       </div>
 
       <div className="composer">
@@ -414,10 +414,11 @@ const WorkspaceRow = ({
       <span className="row__main">
         <strong>{workspace.label ?? "(projet sans nom)"}</strong>
         <span className="muted small">
-          {workspace.agentStatus === null
-            ? "aucun agent"
-            : `${statusLabel(workspace.agentStatus)} · ${String(agentPaneCount)} agent(s)`}
-          {workspace.checkoutPath !== null ? ` · ${shortPath(workspace.checkoutPath)}` : ""}
+          {agentPaneCount === 0
+            ? // « état inconnu » sur un projet sans agent est du bruit : il n'y a
+              // pas d'état à connaître.
+              "aucun agent"
+            : `${String(agentPaneCount)} agent${agentPaneCount > 1 ? "s" : ""} · ${statusLabel(workspace.agentStatus ?? "unknown")}`}
         </span>
       </span>
       {hasAgent ? (
@@ -462,7 +463,13 @@ const AgentRow = ({ agent, onOpen }: { agent: AgentView; onOpen: (paneId: string
   );
 
   return (
-    <button type="button" className="row" data-pane={agent.paneId} onClick={handleClick}>
+    <button
+      type="button"
+      className="row"
+      aria-label={`Ouvrir ${agentName(agent)}`}
+      data-pane={agent.paneId}
+      onClick={handleClick}
+    >
       <span className={statusClass(agent.status)} />
       <span className="row__main">
         <strong>{agentName(agent)}</strong>
@@ -470,7 +477,6 @@ const AgentRow = ({ agent, onOpen }: { agent: AgentView; onOpen: (paneId: string
           {agentContext(agent)} · {statusLabel(agent.status)}
         </span>
       </span>
-      <span className="row__side small muted">{shortPath(agent.cwd)}</span>
     </button>
   );
 };

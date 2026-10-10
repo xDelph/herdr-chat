@@ -89,6 +89,8 @@ export interface SubagentResult {
 
 /** Un message prêt à afficher. */
 export interface RenderedMessage {
+  /** Horodatage de l'entrée, quand la source en fournit un. */
+  readonly at: string | null;
   readonly blocks: ReadonlyArray<Block>;
   readonly id: string;
   /** `model`, `usage`, `stopReason`… quand la source les fournit. */
@@ -367,6 +369,7 @@ export const decodeRawLine = (raw: string): typeof SessionLine.Type | undefined 
 export const toRenderedMessage = (entry: {
   readonly id?: string | undefined;
   readonly raw: string;
+  readonly timestamp?: string | undefined;
   readonly type: string;
 }): RenderedMessage | undefined => {
   const line = decodeRawLine(entry.raw);
@@ -393,6 +396,7 @@ export const toRenderedMessage = (entry: {
       truncated: parsed.truncated === true,
     };
     return {
+      at: entry.timestamp ?? null,
       blocks: [block],
       id: entry.id ?? "bash",
       meta: {},
@@ -414,6 +418,7 @@ export const toRenderedMessage = (entry: {
     if (parsed === undefined) return undefined;
     const summary = parsed.summary ?? "";
     return {
+      at: entry.timestamp ?? null,
       blocks: [
         {
           firstKeptEntryId: parsed.firstKeptEntryId ?? null,
@@ -457,6 +462,7 @@ export const toRenderedMessage = (entry: {
   if (blocks.length === 0) return undefined;
 
   return {
+    at: entry.timestamp ?? null,
     blocks,
     id: entry.id ?? `${role}:${contentToText(body?.content).slice(0, 24)}`,
     meta: metaOf(body),
@@ -663,9 +669,16 @@ export const digestOf = (messages: ReadonlyArray<RenderedMessage>): SessionDiges
   return { compactions, files: [...files], subagents, toolCalls };
 };
 
-/** Chemins touchés par un appel d'outil donné. */
+/**
+ * Chemins touchés par un appel d'outil.
+ *
+ * On ne retient que les outils qui **écrivent** — `edit`, `write` — plus les
+ * **lectures d'image**, dont le contenu mérite d'être revu. Un `read` de code
+ * n'a pas à gonfler la liste des fichiers « touchés ».
+ */
 const entriesOf = (block: Extract<Block, { kind: "toolCall" }>): string[] => {
   const path = block.arguments["path"];
-  if (typeof path === "string") return [path];
+  if (typeof path !== "string") return [];
+  if (block.name === "edit" || block.name === "write") return [path];
   return [];
 };

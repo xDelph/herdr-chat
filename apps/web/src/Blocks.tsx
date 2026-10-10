@@ -417,13 +417,26 @@ BlockView.displayName = "BlockView";
 // Groupes d'appels d'outils
 // ---------------------------------------------------------------------------
 
+/** Heure courte d'un horodatage ISO. Toute valeur illisible donne une chaîne vide. */
+const timeOf = (iso: string | null): string => {
+  if (iso === null) return "";
+  const date = new Date(iso);
+  return Number.isNaN(date.getTime())
+    ? ""
+    : date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+};
+
 /** Une bulle : rôle, métadonnées, blocs. Mémoïsée. */
 export const MessageBubble = memo(({ message }: { message: RenderedMessage }) => (
   <article className={`bubble bubble--${message.role}`}>
+    {/*
+      Le rôle n'est écrit que pour les rôles **non évidents**. « USER » sur une
+      bulle alignée à droite, avec sa couleur, ne dit rien de plus.
+    */}
     <span className="bubble__role">
-      {message.role}
-      {message.meta["model"] !== undefined ? ` · ${message.meta["model"]}` : ""}
-      {message.meta["tokens"] !== undefined ? ` · ${message.meta["tokens"]} tok` : ""}
+      {message.role === "user"
+        ? timeOf(message.at)
+        : `${message.role}${message.meta["model"] !== undefined ? ` · ${message.meta["model"]}` : ""}${message.meta["tokens"] !== undefined ? ` · ${message.meta["tokens"]} tok` : ""}${message.at !== null ? ` · ${timeOf(message.at)}` : ""}`}
     </span>
     {message.blocks.map((block, index) => (
       <BlockView key={`${message.id}-${String(index)}`} block={block} />

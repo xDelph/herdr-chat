@@ -6,9 +6,24 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      // `prompt` plutôt que `autoUpdate` : sur iPhone, une mise à jour
-      // silencieuse pendant une session active est déroutante.
-      registerType: "prompt",
+      /**
+       * `autoUpdate` et non `prompt`.
+       *
+       * Avec `prompt`, le nouveau service worker **attend** une confirmation
+       * d'installation qui n'est jamais demandée explicitement : le navigateur
+       * sert indéfiniment l'ancien bundle. Vérifié à l'écran — deux captures
+       * identiques octet pour octet avant et après un correctif, alors que le
+       * serveur envoyait bien la nouvelle version.
+       *
+       * Le risque annoncé de `autoUpdate` (rechargement pendant une session) est
+       * traité par `skipWaiting` + `clientsClaim` : la mise à jour s'applique à
+       * la prochaine navigation, pas au milieu d'une frappe.
+       */
+      registerType: "autoUpdate",
+      workbox: {
+        clientsClaim: true,
+        skipWaiting: true,
+      },
       manifest: {
         background_color: "#0b1220",
         description: "Piloter Herdr et ses agents depuis l'iPhone",

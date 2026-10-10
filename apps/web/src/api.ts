@@ -271,3 +271,24 @@ export const openEventStream = (handlers: {
     source.close();
   };
 };
+
+/**
+ * URL de lecture d'un fichier du projet.
+ *
+ * Le serveur n'accepte que les chemins **sous les dossiers de travail des
+ * projets** : un chemin hors de là est refusé (403), pas servi.
+ */
+export const fileUrl = (path: string): string => `/api/file?path=${encodeURIComponent(path)}`;
+
+/** `true` si le chemin désigne une image que le navigateur sait rendre. */
+export const isImagePath = (path: string): boolean => /\.(png|jpe?g|gif|webp|avif)$/i.test(path);
+
+/** `true` si le chemin désigne un texte que l'on peut afficher en ligne. */
+export const isTextPath = (path: string): boolean =>
+  /\.(md|txt|log|json|jsonl|diff|patch|ya?ml|toml|tsv|csv)$/i.test(path);
+
+/** Dernier segment d'un chemin, sans identifiant interne. */
+export const baseName = (path: string): string => {
+  const parts = path.split("/").filter((part) => part.length > 0);
+  return parts[parts.length - 1] ?? path;
+};

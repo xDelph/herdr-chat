@@ -950,3 +950,75 @@ button:disabled {
   font-size: 12px;
   padding: 7px 4px;
 }
+
+/* ---------------------------------------------------------------------------
+   Fichiers touchés
+   --------------------------------------------------------------------------- */
+
+.files {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-top: 12px;
+}
+
+.files > summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 8px;
+  list-style: none;
+  padding: 10px 12px;
+}
+
+.files > summary::-webkit-details-marker {
+  display: none;
+}
+
+.files__list {
+  list-style: none;
+  margin: 0;
+  padding: 0 12px 12px;
+}
+
+.file {
+  border-top: 1px solid var(--border);
+  padding: 10px 0;
+}
+
+.file__head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.file__name {
+  font-weight: 600;
+}
+
+.file__path {
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+.file__image {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-top: 8px;
+  max-width: 100%;
+}
+
+.file__text {
+  background: #05080f;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  height: 40vh;
+  margin-top: 8px;
+  width: 100%;
+}
+
+.file__download {
+  color: var(--accent);
+  font-size: 13px;
+  margin-top: 6px;
+  display: inline-block;
+}
