@@ -27,12 +27,14 @@ import {
   TerminalResponse,
 } from "@herdr-remote/shared";
 import { buildOverview, checkoutPathOf, toWorkspaceViews } from "../agents/AgentRegistry.ts";
+import { FileDenied, FileUnavailable } from "../files/FileService.ts";
 import type { ServerConfig } from "../config.ts";
 import type { WatchLoop } from "../events/AgentWatcher.ts";
 import type { EventHubApi } from "../events/EventHub.ts";
 import type { HerdrApi } from "../herdr/HerdrClient.ts";
 import type { PromptSenderApi } from "../send/PromptSender.ts";
 import { readTail, tailFrom } from "../sessions/SessionReader.ts";
+import { isInline, readAllowedFile } from "../files/FileService.ts";
 
 export interface ApiDeps {
   readonly config: ServerConfig;
@@ -487,6 +489,70 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     return respond(decoderOf(LaunchAgentResponse), { ...started, status: "started" }, 201);
   };
 
+  /**
+   * Sert un fichier produit par un agent.
+   *
+   * **Racines autorisées** : les dossiers de travail des projets, résolus à
+   * chaud depuis le snapshot Herdr. Aucune racine globale, aucune variable
+   * d'environnement — un projet qui disparaît cesse immédiatement d'être
+   * lisible.
+   */
+  const file = async (request: RouteRequest): Promise<Response> => {
+    const result = await Effect.runPromise(
+      Effect.result(
+        Effect.gen(function* () {
+          const url = new URL(request.url);
+          const requested = url.searchParams.get("path");
+          if (requested === null || requested.length === 0) {
+            return yield* Effect.fail(new FileDenied({ reason: "paramètre `path` manquant" }));
+          }
+
+          const payload = yield* herdr.snapshot();
+          const snapshot = Option.getOrUndefined(decodeSnapshot(payload["snapshot"]));
+          if (snapshot === undefined) {
+            return yield* Effect.fail(new FileUnavailable({ reason: "Herdr illisible" }));
+          }
+
+          const roots = snapshot.workspaces
+            .map((workspace) => checkoutPathOf(workspace, snapshot.panes ?? []))
+            .filter((root): root is string => root !== null);
+
+          return yield* readAllowedFile(requested, roots);
+        }),
+      ),
+    );
+
+    if (Result.isFailure(result)) {
+      const failure = failureOf(result);
+      // Le typage ne garantit pas la forme : on vérifie avant de lire `reason`.
+      const known = Option.getOrUndefined(
+        Schema.decodeUnknownOption(Schema.Struct({ reason: Schema.String }))(failure),
+      );
+      return respond(
+        decoderOf(ApiErrorResponse),
+        { error: known?.reason ?? "fichier indisponible" },
+        403,
+      );
+    }
+
+    const value = Option.getOrUndefined(Result.getSuccess(result));
+    if (value === undefined) {
+      return respond(decoderOf(ApiErrorResponse), { error: "fichier illisible" }, 500);
+    }
+
+    // Ce qui n'est pas dans la liste blanche est **téléchargé**, jamais rendu.
+    return new Response(new Uint8Array(value.bytes), {
+      headers: {
+        "cache-control": "no-store",
+        "content-disposition": isInline(value.name)
+          ? `inline; filename="${value.name}"`
+          : `attachment; filename="${value.name}"`,
+        "content-length": String(value.size),
+        "content-type": value.contentType,
+      },
+    });
+  };
+
   const events = (request: RouteRequest): Response => {
     const header = request.headers.get("last-event-id");
     const parsed = header === null ? 0 : Number.parseInt(header, 10);
@@ -541,6 +607,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     "/api/agents/:paneId/session": session,
     "/api/agents/:paneId/terminal": terminal,
     "/api/events": events,
+    "/api/file": file,
     "/api/health": health,
     "/api/overview": overview,
   };
