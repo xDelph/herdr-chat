@@ -64,20 +64,33 @@ const FilePreview = ({ path }: { path: string }) => {
   );
 };
 
-export const FilesPanel = ({ files }: Props) => {
-  const [open, setOpen] = useState(false);
-
+/**
+ * Panneau des fichiers touchés — **feuille plein écran**, pas un bloc du chat.
+ *
+ * ⚠️ Il vivait auparavant **dans** la conversation, en permanence, et occupait
+ * les deux tiers de l'écran avec une centaine d'entrées. Il ne servait à rien
+ * là : on lit le chat pour ce que l'agent a **dit**, et on ouvre les fichiers
+ * quand on en a besoin.
+ *
+ * Il s'ouvre depuis l'en-tête, et se referme.
+ */
+export const FilesSheet = ({ files, onClose }: Props & { readonly onClose: () => void }) => {
   if (files.length === 0) return null;
 
   // Les images d'abord : ce sont elles qu'on ne pouvait pas voir.
   const sorted = [...files].toSorted((a, b) => Number(isImagePath(b)) - Number(isImagePath(a)));
 
   return (
-    <details className="files" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary>
-        <span className="blk__tag">fichiers</span>
-        <span className="blk__hint">{files.length} touché(s)</span>
-      </summary>
+    <div className="sheet">
+      <header className="sheet__head">
+        <strong>Fichiers touchés</strong>
+        <span className="muted small">
+          {files.length} fichier{files.length > 1 ? "s" : ""}
+        </span>
+        <button type="button" className="ghost" onClick={onClose}>
+          Fermer
+        </button>
+      </header>
       <ul className="files__list">
         {sorted.map((path) => (
           <li key={path} className="file">
@@ -89,6 +102,6 @@ export const FilesPanel = ({ files }: Props) => {
           </li>
         ))}
       </ul>
-    </details>
+    </div>
   );
 };

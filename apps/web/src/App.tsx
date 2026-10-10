@@ -32,7 +32,7 @@ import type {
   WorkspaceView,
 } from "./api.ts";
 import { digestOf, toItems, toMessages } from "./blocks.ts";
-import { FilesPanel } from "./Files.tsx";
+import { FilesSheet } from "./Files.tsx";
 import { AGENT_KINDS } from "./api.ts";
 import { AttentionCard } from "./Attention.tsx";
 import type { RenderedMessage } from "./blocks.ts";
@@ -211,6 +211,9 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
   const [sending, setSending] = useState(false);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const placeholder = `Message à ${agentName(agent)}…`;
+  const files = digestOf(messages).files;
+  const [showFiles, setShowFiles] = useState(false);
+  const onToggleFiles = useCallback(() => setShowFiles((value) => !value), []);
 
   /**
    * Chargement **incrémental** de la conversation.
@@ -317,12 +320,21 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
         <button type="button" className="ghost" onClick={onBack}>
           ‹ Retour
         </button>
-        <div>
+        <div className="screen__title">
           <strong>{agentName(agent)}</strong>
           <div className="muted small">
             {agentContext(agent)} · {statusLabel(agent.status)}
           </div>
         </div>
+        {/*
+          Les fichiers sont une **action**, pas une section permanente : un
+          bouton discret, avec le compte, uniquement s'il y en a.
+        */}
+        {files.length > 0 ? (
+          <button type="button" className="row__action" onClick={onToggleFiles}>
+            Fichiers · {files.length}
+          </button>
+        ) : null}
       </header>
 
       {agent.sessionPath === null ? (
@@ -336,12 +348,9 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
 
       <div className="messages" ref={scrollerRef} onScroll={onScroll}>
         <ItemsView items={toItems(messages)} />
-        {/*
-          Les fichiers APRÈS la conversation : on vient lire ce que l'agent a
-          dit, puis on ouvre ce qu'il a produit.
-        */}
-        <FilesPanel files={digestOf(messages).files} />
       </div>
+
+      {showFiles ? <FilesSheet files={files} onClose={onToggleFiles} /> : null}
 
       <div className="composer">
         <textarea value={draft} onChange={onDraftChange} placeholder={placeholder} rows={2} />
