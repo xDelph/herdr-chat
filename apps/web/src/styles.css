@@ -1269,3 +1269,29 @@ button:disabled {
   text-align: left;
   width: 100%;
 }
+
+/* Statistiques d'un diff : +12 −3 */
+.file__stats {
+  display: flex;
+  gap: 8px;
+}
+
+.stat {
+  font-family: ui-monospace, monospace;
+  font-size: 11px;
+}
+
+.stat--add {
+  color: var(--ok);
+}
+
+.stat--del {
+  color: var(--err);
+}
+
+.file__head {
+  align-items: baseline;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}

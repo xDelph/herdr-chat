@@ -20,6 +20,9 @@ import { fileUrl } from "./api.ts";
  * les composants intermédiaires.
  */
 export const FileOpenerContext = createContext<(path: string) => void>(() => undefined);
+
+/** Ouvrir une image distante dans la visionneuse. */
+export const UrlOpenerContext = createContext<(url: string) => void>(() => undefined);
 import type { Block, Item, RenderedMessage } from "./blocks.ts";
 
 const str = (value: unknown): string => (typeof value === "string" ? value : "");
@@ -421,6 +424,9 @@ const ImagePathBlock = ({ block }: { block: Extract<Block, { kind: "imagePath" }
  */
 const ImageUrlBlock = ({ block }: { block: Extract<Block, { kind: "imageUrl" }> }) => {
   const [failed, setFailed] = useState(false);
+  // Le contexte ouvre la visionneuse : une URL distante s'y affiche comme une
+  // image locale, sans quitter l'application.
+  const openUrl = useContext(UrlOpenerContext);
 
   if (failed) {
     return (
@@ -435,8 +441,10 @@ const ImageUrlBlock = ({ block }: { block: Extract<Block, { kind: "imageUrl" }> 
     );
   }
 
+  // ⚠️ Un `button`, pas un `<a>` : un lien ouvrait un **nouvel onglet**, donc on
+  // sortait de l'application pour regarder une image.
   return (
-    <a className="inline-image" href={block.url} rel="noreferrer" target="_blank">
+    <button type="button" className="inline-image" onClick={() => openUrl(block.url)}>
       <img
         className="inline-image__img"
         src={block.url}
@@ -445,7 +453,7 @@ const ImageUrlBlock = ({ block }: { block: Extract<Block, { kind: "imageUrl" }> 
         onError={() => setFailed(true)}
       />
       <span className="inline-image__path mono small">{block.url}</span>
-    </a>
+    </button>
   );
 };
 

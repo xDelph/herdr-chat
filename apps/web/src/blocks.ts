@@ -290,17 +290,25 @@ export interface ImageRefs {
  * échouait, et l'image ne s'affichait jamais.
  */
 export const imageRefsIn = (text: string): ImageRefs => {
-  const urls = [...new Set(text.match(IMAGE_URL_PATTERN) ?? [])];
+  // ⚠️ On retire d'abord le code inline. Un chemin entre accents graves est un
+  // **exemple de documentation**, pas un fichier à afficher : mes propres
+  // explications produisaient des « image indisponible : //hote/x.png ».
+  const prose = text.replace(/`[^`]*`/g, " ");
+
+  const urls = [...new Set(prose.match(IMAGE_URL_PATTERN) ?? [])];
 
   // On remplace chaque URL par des espaces de même longueur : les positions
   // restent valides et aucun chemin ne peut plus chevaucher une URL.
-  let masked = text;
+  let masked = prose;
   for (const url of urls) {
     masked = masked.split(url).join(" ".repeat(url.length));
   }
 
   return {
-    paths: [...new Set(masked.match(IMAGE_PATH_PATTERN) ?? [])],
+    // `//hote/x.png` n'est pas un chemin local valide : on l'écarte.
+    paths: [...new Set(masked.match(IMAGE_PATH_PATTERN) ?? [])].filter(
+      (path) => !path.startsWith("//"),
+    ),
     urls,
   };
 };
@@ -713,6 +721,77 @@ export const lastAssistantText = (messages: ReadonlyArray<RenderedMessage>): str
     if (text.length > 0) return text;
   }
   return undefined;
+};
+
+/** Un fichier touché, avec les modifications qui le concernent. */
+export interface TouchedFile {
+  /** Nombre de lignes ajoutées, toutes éditions confondues. */
+  readonly added: number;
+  /** Nombre de lignes retirées. */
+  readonly removed: number;
+  /** Éditions successives, dans l'ordre de la session. */
+  readonly edits: ReadonlyArray<{ readonly newText: string; readonly oldText: string }>;
+  readonly path: string;
+}
+
+/**
+ * Fichiers modifiés, **avec leurs diffs**.
+ *
+ * ⚠️ Afficher le fichier entier ne répond pas à la question. Une vue de
+ * « fichiers touchés » doit montrer **ce qui a changé** — sinon il faut relire
+ * tout le fichier pour trouver les trois lignes modifiées.
+ */
+export const touchedFilesOf = (
+  messages: ReadonlyArray<RenderedMessage>,
+): ReadonlyArray<TouchedFile> => {
+  const byPath = new Map<
+    string,
+    { added: number; edits: { newText: string; oldText: string }[]; removed: number }
+  >();
+
+  for (const message of messages) {
+    for (const block of message.blocks) {
+      if (block.kind !== "toolCall") continue;
+
+      const path = block.arguments["path"];
+      if (typeof path !== "string") continue;
+      if (block.name !== "edit" && block.name !== "write") continue;
+
+      const entry = byPath.get(path) ?? { added: 0, edits: [], removed: 0 };
+
+      if (block.name === "write") {
+        // Une écriture complète : tout le contenu est ajouté.
+        const content = block.arguments["content"];
+        entry.added += typeof content === "string" ? content.split("\n").length : 0;
+      }
+
+      const rawEdits = block.arguments["edits"];
+      if (Array.isArray(rawEdits)) {
+        for (const raw of rawEdits) {
+          const decoded = Option.getOrUndefined(
+            Schema.decodeUnknownOption(
+              Schema.Struct({
+                newText: Schema.optional(Schema.String),
+                oldText: Schema.optional(Schema.String),
+              }),
+            )(raw),
+          );
+          if (decoded === undefined) continue;
+          const oldText = decoded.oldText ?? "";
+          const newText = decoded.newText ?? "";
+          entry.edits.push({ newText, oldText });
+          entry.removed += oldText.length === 0 ? 0 : oldText.split("\n").length;
+          entry.added += newText.length === 0 ? 0 : newText.split("\n").length;
+        }
+      }
+
+      byPath.set(path, entry);
+    }
+  }
+
+  return [...byPath.entries()]
+    .map(([path, entry]) => ({ ...entry, path }))
+    .toSorted((a, b) => b.added + b.removed - (a.added + a.removed));
 };
 
 /** Résumé d'une session : ce qui demande une action, et ce qui a été fait. */

@@ -145,8 +145,12 @@ interface ViewerProps {
 /** Modal plein écran : image avec agrandissement, ou fichier colorisé. */
 export const FileViewer = ({ path, onClose, onBack }: ViewerProps) => {
   const [zoomed, setZoomed] = useState(false);
-  const name = baseName(path);
+  // La cible peut être un **chemin local** ou une **URL** : un agent cite les
+  // deux. Le rendu et l'agrandissement sont identiques.
+  const isRemote = /^https?:\/\//i.test(path);
+  const name = isRemote ? (path.split("/").pop() ?? path) : baseName(path);
   const isImage = /\.(png|jpe?g|gif|webp|avif)$/i.test(path);
+  const source = isRemote ? path : fileUrl(path);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -177,7 +181,7 @@ export const FileViewer = ({ path, onClose, onBack }: ViewerProps) => {
           className={zoomed ? "viewer viewer--zoomed" : "viewer"}
           onClick={() => setZoomed((value) => !value)}
         >
-          <img className="viewer__image" src={fileUrl(path)} alt={name} />
+          <img className="viewer__image" src={source} alt={name} />
         </button>
       ) : (
         <CodeView path={path} />

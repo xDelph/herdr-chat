@@ -10,11 +10,40 @@
  * vérifie qu'ils sont bien sous un dossier de projet — un chemin hors de là est
  * refusé, pas servi.
  */
-import { baseName, isImagePath } from "./api.ts";
+import { baseName } from "./api.ts";
+import type { TouchedFile } from "./blocks.ts";
 
 interface Props {
-  readonly files: ReadonlyArray<string>;
+  readonly files: ReadonlyArray<TouchedFile>;
 }
+
+/** Diff compact, tel qu'il a été appliqué. */
+const DiffView = ({ file }: { file: TouchedFile }) => (
+  <>
+    {file.edits.slice(0, 6).map((edit, index) => (
+      <div key={`${file.path}-${String(index)}`} className="diff">
+        {edit.oldText.split("\n").map((line, lineIndex) => (
+          <div key={`o${String(lineIndex)}`} className="diff__line diff__line--del">
+            <span className="diff__sign">−</span>
+            {line}
+          </div>
+        ))}
+        {edit.newText.split("\n").map((line, lineIndex) => (
+          <div key={`n${String(lineIndex)}`} className="diff__line diff__line--add">
+            <span className="diff__sign">+</span>
+            {line}
+          </div>
+        ))}
+      </div>
+    ))}
+    {file.edits.length > 6 ? (
+      <p className="blk__hint">{file.edits.length - 6} édition(s) supplémentaire(s)</p>
+    ) : null}
+    {file.edits.length === 0 ? (
+      <p className="blk__hint">écriture complète — ouvrir le fichier pour le contenu</p>
+    ) : null}
+  </>
+);
 
 export const FilesSheet = ({
   files,
@@ -23,8 +52,8 @@ export const FilesSheet = ({
 }: Props & { readonly onClose: () => void; readonly onOpenFile: (path: string) => void }) => {
   if (files.length === 0) return null;
 
-  // Les images d'abord : ce sont elles qu'on ne pouvait pas voir.
-  const sorted = [...files].toSorted((a, b) => Number(isImagePath(b)) - Number(isImagePath(a)));
+  // Les modifications les plus lourdes d'abord.
+  const sorted = [...files].toSorted((a, b) => b.added + b.removed - (a.added + a.removed));
 
   return (
     <div className="sheet">
@@ -38,12 +67,23 @@ export const FilesSheet = ({
         </button>
       </header>
       <ul className="files__list">
-        {sorted.map((path) => (
-          <li key={path} className="file">
-            {/* Ouvre la visionneuse **dans** l'application, jamais un onglet. */}
-            <button type="button" className="file__open" onClick={() => onOpenFile(path)}>
-              <span className="file__name">{baseName(path)}</span>
-              <span className="file__path mono small">{path}</span>
+        {sorted.map((file) => (
+          <li key={file.path} className="file">
+            {/*
+              Le **diff** d'abord : c'est ce qui a changé, et c'est la question
+              qu'on se pose devant une liste de fichiers modifiés. Le fichier
+              entier reste accessible, mais en second.
+            */}
+            <div className="file__head">
+              <span className="file__name">{baseName(file.path)}</span>
+              <span className="file__stats small">
+                <span className="stat stat--add">+{file.added}</span>
+                <span className="stat stat--del">−{file.removed}</span>
+              </span>
+            </div>
+            <DiffView file={file} />
+            <button type="button" className="blk__toggle" onClick={() => onOpenFile(file.path)}>
+              ouvrir le fichier entier
             </button>
           </li>
         ))}

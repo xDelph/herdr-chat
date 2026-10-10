@@ -31,14 +31,14 @@ import type {
   SessionEntry,
   WorkspaceView,
 } from "./api.ts";
-import { digestOf, toItems, toMessages } from "./blocks.ts";
+import { toItems, toMessages, touchedFilesOf } from "./blocks.ts";
 import { FilesSheet } from "./Files.tsx";
 import { Gallery } from "./Gallery.tsx";
 import { FileViewer } from "./Viewer.tsx";
 import { AGENT_KINDS } from "./api.ts";
 import { AttentionCard } from "./Attention.tsx";
 import type { RenderedMessage } from "./blocks.ts";
-import { FileOpenerContext, ItemsView } from "./Blocks.tsx";
+import { FileOpenerContext, ItemsView, UrlOpenerContext } from "./Blocks.tsx";
 import { parseRoute, routeToHash, TabSchema } from "./routing.ts";
 import type { Route, Tab } from "./routing.ts";
 
@@ -213,7 +213,7 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
   const [sending, setSending] = useState(false);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const placeholder = `Message à ${agentName(agent)}…`;
-  const files = digestOf(messages).files;
+  const files = touchedFilesOf(messages);
   const [showFiles, setShowFiles] = useState(false);
   /** Fichier ouvert dans la visionneuse plein écran. */
   const [openFile, setOpenFile] = useState<string | null>(null);
@@ -323,98 +323,108 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
   return (
     // La visionneuse est fournie au fond de l'arbre : un bloc qui cite une image
     // l'ouvre sans qu'aucun composant intermédiaire n'ait à la connaître.
-    <FileOpenerContext.Provider
-      value={(path) => {
+    <UrlOpenerContext.Provider
+      value={(url) => {
         setFromFiles(false);
-        setOpenFile(path);
+        setOpenFile(url);
       }}
     >
-      <section className="chat">
-        <header className="screen__head">
-          <button type="button" className="ghost" onClick={onBack}>
-            ‹ Retour
-          </button>
-          <div className="screen__title">
-            <strong>{agentName(agent)}</strong>
-            <div className="muted small">
-              {agentContext(agent)} · {statusLabel(agent.status)}
+      <FileOpenerContext.Provider
+        value={(path) => {
+          setFromFiles(false);
+          setOpenFile(path);
+        }}
+      >
+        <section className="chat">
+          <header className="screen__head">
+            <button type="button" className="ghost" onClick={onBack}>
+              ‹ Retour
+            </button>
+            <div className="screen__title">
+              <strong>{agentName(agent)}</strong>
+              <div className="muted small">
+                {agentContext(agent)} · {statusLabel(agent.status)}
+              </div>
             </div>
-          </div>
-          {/*
+            {/*
           Les fichiers sont une **action**, pas une section permanente : un
           bouton discret, avec le compte, uniquement s'il y en a.
         */}
-          {files.length > 0 ? (
-            <button type="button" className="row__action" onClick={onToggleFiles}>
-              Fichiers · {files.length}
-            </button>
+            {files.length > 0 ? (
+              <button type="button" className="row__action" onClick={onToggleFiles}>
+                Fichiers · {files.length}
+              </button>
+            ) : null}
+          </header>
+
+          {agent.sessionPath === null ? (
+            <p className="notice notice--warn">
+              Aucun chemin de session exposé par Herdr pour cet agent. Le contenu n'est pas
+              affichable — et il n'est pas reconstruit artificiellement.
+            </p>
           ) : null}
-        </header>
 
-        {agent.sessionPath === null ? (
-          <p className="notice notice--warn">
-            Aucun chemin de session exposé par Herdr pour cet agent. Le contenu n'est pas affichable
-            — et il n'est pas reconstruit artificiellement.
-          </p>
-        ) : null}
+          {error !== null ? <p className="notice notice--error">{error}</p> : null}
 
-        {error !== null ? <p className="notice notice--error">{error}</p> : null}
+          <div className="messages" ref={scrollerRef} onScroll={onScroll}>
+            <ItemsView items={toItems(messages)} />
+          </div>
 
-        <div className="messages" ref={scrollerRef} onScroll={onScroll}>
-          <ItemsView items={toItems(messages)} />
-        </div>
+          {openFile !== null ? (
+            // La visionneuse est **au-dessus** de tout : elle ne peut pas être
+            // recouverte par le composeur, contrairement à l'ancien panneau.
+            <FileViewer
+              path={openFile}
+              onClose={() => {
+                setOpenFile(null);
+                setFromFiles(false);
+              }}
+              onBack={
+                // Revenir d'un cran **seulement** si on vient de la liste.
+                fromFiles
+                  ? () => {
+                      setOpenFile(null);
+                      setShowFiles(true);
+                    }
+                  : undefined
+              }
+            />
+          ) : showFiles ? (
+            <FilesSheet
+              files={files}
+              onClose={onToggleFiles}
+              onOpenFile={(path) => {
+                setShowFiles(false);
+                // ⚠️ Sans ce drapeau, la visionneuse n'a pas de retour : « Fermer »
+                // ferme tout et on perd la liste qu'on parcourait.
+                setFromFiles(true);
+                setOpenFile(path);
+              }}
+            />
+          ) : null}
 
-        {openFile !== null ? (
-          // La visionneuse est **au-dessus** de tout : elle ne peut pas être
-          // recouverte par le composeur, contrairement à l'ancien panneau.
-          <FileViewer
-            path={openFile}
-            onClose={() => {
-              setOpenFile(null);
-              setFromFiles(false);
-            }}
-            onBack={
-              // Revenir d'un cran **seulement** si on vient de la liste.
-              fromFiles
-                ? () => {
-                    setOpenFile(null);
-                    setShowFiles(true);
-                  }
-                : undefined
-            }
-          />
-        ) : showFiles ? (
-          <FilesSheet
-            files={files}
-            onClose={onToggleFiles}
-            onOpenFile={(path) => {
-              setShowFiles(false);
-              setOpenFile(path);
-            }}
-          />
-        ) : null}
+          <div className="composer">
+            <textarea value={draft} onChange={onDraftChange} placeholder={placeholder} rows={2} />
+            <button type="button" onClick={onSubmit} disabled={sending}>
+              {sending ? "…" : "Envoyer"}
+            </button>
+          </div>
 
-        <div className="composer">
-          <textarea value={draft} onChange={onDraftChange} placeholder={placeholder} rows={2} />
-          <button type="button" onClick={onSubmit} disabled={sending}>
-            {sending ? "…" : "Envoyer"}
-          </button>
-        </div>
-
-        {lastSend !== null ? (
-          <p className="sendState">
-            {lastSend.kind === "sent" && lastSend.confirmation === "confirmed"
-              ? "envoyé (confirmé par Herdr)"
-              : null}
-            {lastSend.kind === "sent" && lastSend.confirmation === "unknown"
-              ? "envoi effectué, confirmation incertaine — état inconnu"
-              : null}
-            {lastSend.kind === "suppressed" ? `double envoi supprimé — ${lastSend.reason}` : null}
-            {lastSend.kind === "failed" ? `échec : ${lastSend.message}` : null}
-          </p>
-        ) : null}
-      </section>
-    </FileOpenerContext.Provider>
+          {lastSend !== null ? (
+            <p className="sendState">
+              {lastSend.kind === "sent" && lastSend.confirmation === "confirmed"
+                ? "envoyé (confirmé par Herdr)"
+                : null}
+              {lastSend.kind === "sent" && lastSend.confirmation === "unknown"
+                ? "envoi effectué, confirmation incertaine — état inconnu"
+                : null}
+              {lastSend.kind === "suppressed" ? `double envoi supprimé — ${lastSend.reason}` : null}
+              {lastSend.kind === "failed" ? `échec : ${lastSend.message}` : null}
+            </p>
+          ) : null}
+        </section>
+      </FileOpenerContext.Provider>
+    </UrlOpenerContext.Provider>
   );
 };
 
