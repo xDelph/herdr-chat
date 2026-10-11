@@ -48,6 +48,7 @@ import type { RouteRequest, Routes } from "./Reply.ts";
 import { makeSessionRoutes } from "./routes-sessions.ts";
 import { makeFileRoutes } from "./routes-files.ts";
 import { makeEventRoutes } from "./routes-events.ts";
+import { makeConversationRoutes } from "./routes-conversations.ts";
 import { describeGuardRejection, guardMutation, methodNotAllowed } from "./OriginGuard.ts";
 import { writeLog } from "../logging/LogFile.ts";
 
@@ -272,6 +273,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
   const sessionRoutes = makeSessionRoutes(config, herdr);
   const fileRoutes = makeFileRoutes(config, herdr);
   const eventRoutes = makeEventRoutes(hub);
+  const conversationRoutes = makeConversationRoutes(config, herdr);
 
   const health = (): Promise<Response> =>
     Effect.gen(function* () {
@@ -753,6 +755,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     "/api/file": fileRoutes.file,
     "/api/images": fileRoutes.images,
     "/api/health": health,
+    "/api/conversations": conversationRoutes.conversations,
     "/api/overview": overview,
   };
 };

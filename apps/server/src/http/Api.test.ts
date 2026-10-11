@@ -21,6 +21,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   ApiErrorResponse,
+  ConversationsResponse,
   DEFAULT_BACKEND_PORT,
   HealthResponse,
   OverviewResponse,
@@ -287,6 +288,7 @@ describe("identité des routes — A01", () => {
       "/api/agents/:paneId/terminal",
       "/api/agents/:paneId/trust",
       "/api/agents/kinds",
+      "/api/conversations",
       "/api/events",
       "/api/file",
       "/api/health",
@@ -626,5 +628,42 @@ describe("S02 — requêtes mutantes", () => {
       }),
     );
     expect(response.status).toBe(403);
+  });
+});
+
+/**
+ * B11 — `GET /api/conversations`.
+ *
+ * Deux propriétés que le contrat ne vérifie pas et que l'écran d'accueil
+ * dépend directement :
+ *
+ * 1. **un pane = une ligne**, même sans session — sinon un agent fraîchement
+ *    lancé disparaît de l'accueil, qui affiche « aucune conversation » ;
+ * 2. **une session illisible ne fait pas perdre les autres lignes** — sinon un
+ *    unique fichier corrompu vide tout l'écran.
+ */
+describe("contrat HTTP — /api/conversations", () => {
+  test("la réponse est valide contre le contrat partagé", async () => {
+    const routes = await build(true);
+    const response = await handler(routes, "/api/conversations")(request({}, undefined));
+    expect(response.status).toBe(200);
+    const body = await decodeBody(response, ConversationsResponse, "conversations");
+    expect(Array.isArray(body.conversations)).toBe(true);
+  });
+
+  test("Herdr injoignable : liste vide nommée, jamais une liste inventée", async () => {
+    const routes = await build(false);
+    const response = await handler(routes, "/api/conversations")(request({}, undefined));
+    expect(response.status).toBe(503);
+  });
+
+  test("aucune ligne ne porte de champ « non lu »", async () => {
+    const routes = await build(true);
+    const response = await handler(routes, "/api/conversations")(request({}, undefined));
+    const body = await decodeBody(response, ConversationsResponse, "conversations");
+    for (const ligne of body.conversations) {
+      expect("unread" in ligne).toBe(false);
+      expect("nonLu" in ligne).toBe(false);
+    }
   });
 });
