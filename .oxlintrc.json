@@ -63,7 +63,8 @@
     "react/set-state-in-effect": "off",
     "react/exhaustive-effect-dependencies": "off",
     "react/memo-dependencies": "off",
-    "react-perf/jsx-no-new-function-as-prop": "off"
+    "react-perf/jsx-no-new-function-as-prop": "off",
+    "react-perf/jsx-no-new-array-as-prop": "off"
   },
   "ignorePatterns": [
     "node_modules",

@@ -218,7 +218,16 @@ export const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => 
         */}
             {files.length > 0 ? (
               <button type="button" className="row__action" onClick={onToggleFiles}>
-                Fichiers · {files.length}
+                Fichiers
+                {/*
+                  Le compte est la première chose qui disparaît sous 360 px :
+                  « Fichiers · 16 » et « Fichiers » occupent la même place, et
+                  le titre — la seule information qui dise de quel agent il
+                  s'agit — se réduisait à « herd… ». Le nombre reste lisible sur
+                  l'écran de fichiers, qu'on ouvre de toute façon pour les
+                  voir.
+                */}
+                <span className="chat__files-count"> · {files.length}</span>
               </button>
             ) : null}
             {/*

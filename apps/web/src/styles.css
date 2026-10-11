@@ -79,6 +79,13 @@ body {
   display: flex;
   flex-direction: column;
   height: 100dvh;
+  /*
+    Aucun défilement extérieur. `100dvh` suit la fenêtre visuelle : quand le
+    clavier iOS s'ouvre, l'application rétrécit avec lui. Si le document
+    pouvait encore défiler, c'est la page entière qui remonterait au lieu du
+    composeur, et la zone de texte partait sous le clavier.
+  */
+  overflow: hidden;
 }
 
 .topbar {
@@ -853,6 +860,27 @@ button:disabled {
 
 .chat .sendState {
   flex: 0 0 auto;
+}
+
+/*
+  Notifications et état vide de la conversation : **jamais rétrécis**.
+
+  `flex-shrink` vaut 1 par défaut, donc ces blocs se font écraser par le fil
+  quand la place manque. À 320×568 avec le clavier ouvert, l'en-tête et le
+  composeur occupaient déjà une bonne part des 568 px : l'avertissement
+  « aucun chemin de session exposé par Herdr » se retrouvait coupé en deux,
+  texte tronqué, sans que rien ne le signale.
+
+  `max-height` + défilement interne : au-delà, le bloc défile lui-même plutôt
+  que de manger le fil. C'est le même contrat que celui du composeur — une
+  zone de défilement à elle, jamais une zone qui pousse les autres hors de
+  l'écran.
+*/
+.chat > .notice,
+.chat > .messages__empty {
+  flex-shrink: 0;
+  max-height: 45%;
+  overflow-y: auto;
 }
 
 /* ---------------------------------------------------------------------------
@@ -1754,4 +1782,44 @@ button:disabled {
   min-width: 0;
   padding: 0;
   text-align: left;
+}
+
+/* ---------------------------------------------------------------------------
+   Écran étroit — 320 px de large, le plancher du tableau
+   ---------------------------------------------------------------------------
+   À 320 px, l'en-tête de la conversation ne tenait plus. « ‹ Retour »,
+   « Fichiers · 16 » et « Modèle » totalisaient une bonne moitié de la largeur,
+   et le titre — la seule information qui dise **de quel agent** il s'agit —
+   se réduisait à quelques caractères.
+
+   Les trois actions restent à 44 px de haut : le minimum tactile ne se
+   négocie pas. C'est leur largeur qui se resserre, et le compte de fichiers
+   disparaît sous 360 px — « Fichiers » suffit, le nombre se lit sur l'écran
+   suivant, qu'on ouvre de toute façon pour les voir.
+--------------------------------------------------------------------------- */
+@media (max-width: 360px) {
+  .screen__head {
+    gap: 6px;
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+
+  .back {
+    font-size: 12px;
+    padding: 6px 8px;
+  }
+
+  .screen__head .row__action {
+    font-size: 11px;
+    padding: 6px 7px;
+  }
+
+  .chat__files-count {
+    display: none;
+  }
+
+  .composer {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
 }
