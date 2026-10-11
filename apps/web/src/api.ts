@@ -36,7 +36,10 @@ import {
  * partagée avec le serveur. C'est ce qui empêche la divergence qui a produit le
  * bug « Forme de réponse inattendue : health ».
  */
-export { AGENT_KINDS } from "@herdr-remote/shared";
+/**
+ * Les types d'agents viennent de `/api/agents/kinds` : ils sont mesurés sur
+ * la machine, pas écrits dans le contrat. Voir `fetchAgentKinds`.
+ */
 
 export type {
   AgentModel,

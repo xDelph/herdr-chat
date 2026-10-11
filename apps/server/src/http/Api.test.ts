@@ -68,12 +68,28 @@ const protocolError = () =>
 const fail = <A>(): Effect.Effect<A, HerdrError> => Effect.fail(protocolError());
 
 /** Client Herdr simulé : `health` décide si `ping` réussit ou non. */
-const fakeHerdr = (options: { healthy: boolean }): HerdrApi => {
+/**
+ * Compteurs d'effets chez Herdr.
+ *
+ * B07 exige que le refus d'un type non installé arrive **avant** la création
+ * d'un onglet. Sans compteur, on ne peut que vérifier le code HTTP — et
+ * l'ancien code renvoyait 400 lui aussi, après une liste fixe de 24 types.
+ */
+let createTabCalls = 0;
+let startCalls = 0;
+
+const fakeHerdr = (options: { healthy: boolean; listFails?: boolean }): HerdrApi => {
   return {
     closeTab: fail,
     sendKeys: fail,
-    createTab: () =>
-      options.healthy ? Effect.succeed({ paneId: "w1:p9", tabId: "w1:t9" }) : fail(),
+    createTab: () => {
+      createTabCalls += 1;
+      return options.healthy ? Effect.succeed({ paneId: "w1:p9", tabId: "w1:t9" }) : fail();
+    },
+    startAgent: () => {
+      startCalls += 1;
+      return options.healthy ? Effect.succeed({}) : fail();
+    },
     getAgent: () => (options.healthy ? Effect.succeed({}) : fail()),
     listAgents: () => (options.healthy ? Effect.succeed({ agents: [], skipped: 0 }) : fail()),
     ping: () =>
@@ -82,8 +98,40 @@ const fakeHerdr = (options: { healthy: boolean }): HerdrApi => {
         : Effect.fail(protocolError()),
     promptAgent: () => Effect.succeed({}),
     readAgent: () => Effect.succeed({ text: "sortie", truncated: false }),
-    request: () => (options.healthy ? Effect.succeed({}) : fail()),
-    startAgent: () => (options.healthy ? Effect.succeed({}) : fail()),
+    // `integration.list` : seuls `pi` et `codex` sont installés sur cette
+    // machine. C'est le **seul** endroit qui en décide désormais.
+    request: (method: string) => {
+      if (method === "integration.list") {
+        return options.listFails === true
+          ? fail()
+          : Effect.succeed({
+              integrations: [
+                {
+                  available: true,
+                  command: "pi",
+                  label: "Pi",
+                  state: "current",
+                  target: "pi",
+                },
+                {
+                  available: true,
+                  command: "codex",
+                  label: "Codex",
+                  state: "current",
+                  target: "codex",
+                },
+                {
+                  available: false,
+                  command: "claude",
+                  label: "Claude",
+                  state: "not_installed",
+                  target: "claude",
+                },
+              ],
+            });
+      }
+      return options.healthy ? Effect.succeed({}) : fail();
+    },
     snapshot: () =>
       options.healthy
         ? Effect.succeed({
@@ -105,8 +153,10 @@ const fakeWatch: WatchLoop = {
   lastAt: () => Effect.succeed(0),
 };
 
-const build = async (healthy: boolean) => {
-  const herdr = fakeHerdr({ healthy });
+const build = async (healthy: boolean, extra: { listFails?: boolean } = {}) => {
+  createTabCalls = 0;
+  startCalls = 0;
+  const herdr = fakeHerdr({ healthy, ...extra });
   const sender = await Effect.runPromise(PromptSender.make(herdr, 60_000));
   return makeRoutes({
     config,
@@ -334,7 +384,13 @@ describe("contrat HTTP — lancement d'agent", () => {
     expect(body.error.trim().length).toBeGreaterThan(0);
   });
 
-  test("type d'agent inconnu : 400 avec la liste des types valides", async () => {
+  /**
+   * B07 — la liste des types vient de `integration.list`, jamais d'une constante
+   * écrite à la main. L'ancien test ne vérifiait que le code 400 : il passait
+   * aussi bien avec une liste fixe de vingt-quatre types dont deux sont
+   * installés. Ici on vérifie **la source** de la décision.
+   */
+  test("type d'agent non installé : 400, et AUCUN onglet créé", async () => {
     const routes = await build(true);
     const response = await handler(
       routes,
@@ -344,7 +400,36 @@ describe("contrat HTTP — lancement d'agent", () => {
     expect(response.status).toBe(400);
     const body = await decodeBody(response, ApiErrorResponse, "launch/type-inconnu");
     expect(body.error).toContain("pasunagent");
-    expect(body.hint).toBeDefined();
+    // Le refus doit être **avant** toute création : c'est la garantie de B07.
+    expect(createTabCalls).toBe(0);
+    expect(startCalls).toBe(0);
+  });
+
+  test("un type présent dans la constante mais NON installé est refusé", async () => {
+    // `AGENT_KINDS` contenait vingt-quatre types. Si l'ancien code tournait
+    // encore, ce cas serait accepté puis échouerait plus tard — après avoir
+    // créé un onglet. C'est exactement le défaut que B07 supprime.
+    const routes = await build(true);
+    const response = await handler(
+      routes,
+      "/api/workspaces/:workspaceId/agents",
+    )(request({ workspaceId: "w1" }, { kind: "claude" }));
+
+    expect(response.status).toBe(400);
+    expect(createTabCalls).toBe(0);
+    expect(startCalls).toBe(0);
+  });
+
+  test("Herdr injoignable pour la liste : 503, pas un onglet créé à l'aveugle", async () => {
+    const routes = await build(true, { listFails: true });
+    const response = await handler(
+      routes,
+      "/api/workspaces/:workspaceId/agents",
+    )(request({ workspaceId: "w1" }, { kind: "pi" }));
+
+    expect(response.status).toBe(503);
+    // « Je ne sais pas » ne doit jamais se traduire par « je crée quand même ».
+    expect(createTabCalls).toBe(0);
   });
 
   test("corps invalide : 400, message non vide", async () => {

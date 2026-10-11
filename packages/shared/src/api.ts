@@ -173,21 +173,6 @@ export const InstalledKindsResponse = Schema.Struct({
 });
 export type InstalledKindsResponse = typeof InstalledKindsResponse.Type;
 
-/** Types d'agents que Herdr sait démarrer (liste `herdr agent start --kind`). */
-export const AGENT_KINDS = [
-  "pi",
-  "claude",
-  "codex",
-  "gemini",
-  "cursor",
-  "opencode",
-  "copilot",
-  "droid",
-  "amp",
-  "grok",
-  "hermes",
-] as const;
-
 /**
  * Un modèle, tel que l'agent le déclare lui-même.
  *

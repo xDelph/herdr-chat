@@ -13,7 +13,6 @@
  */
 import { Effect, Option, Result, Schedule, Schema } from "effect";
 import {
-  AGENT_KINDS,
   InstalledKindsResponse,
   ApiErrorResponse,
   HealthResponse,
@@ -136,6 +135,27 @@ const makeAnswerTrust =
  * Types acceptés par `agent.start`, relevés dans `herdr agent start --help`.
  * Sert à décider si l'on passe la commande ou la cible comme `kind`.
  */
+/**
+ * Forme de `integration.list`, le seul endroit qui dit quels agents existent.
+ *
+ * Partagé par le menu (`/api/agents/kinds`) et par le **lancement** : les deux
+ * doivent porter sur la même liste, sinon le menu peut proposer un agent que le
+ * lancement refuse — ou l'inverse, ce qui est pire (B07).
+ */
+const InstalledList = Schema.Struct({
+  integrations: Schema.Array(
+    Schema.Struct({
+      available: Schema.Boolean,
+      command: Schema.String,
+      label: Schema.String,
+      state: Schema.String,
+      target: Schema.String,
+    }),
+  ),
+});
+
+const decodeInstalledKinds = Schema.decodeUnknownOption(InstalledList);
+
 const ACCEPTED_KINDS = new Set([
   "pi",
   "claude",
@@ -385,12 +405,52 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
         400,
       );
     }
-    if (!(AGENT_KINDS as ReadonlyArray<string>).includes(body.kind)) {
-      // Liste blanche : on n'accepte que les types que Herdr sait démarrer.
+    // Liste **réellement installée**, pas une liste écrite à la main (B07).
+    //
+    // ⚠️ L'ancienne liste fixesait vingt-quatre types. Sur cette machine, deux
+    // seulement sont installés : le menu proposait de lancer des agents qui
+    // n'existaient pas, et le serveur aurait accepté la demande avant de
+    // l'échouer plus tard, après avoir créé un onglet.
+    //
+    // La vérification passe par `integration.list`, donc par Herdr : une capacité
+    // est exposée seulement après vérification de son fonctionnement.
+    const installed = await Effect.runPromise(Effect.result(herdr.request("integration.list")));
+    if (Result.isFailure(installed)) {
+      // Sans liste fiable, on refuse : mieux vaut « je ne sais pas » qu'un
+      // onglet créé pour un agent qui n'existe pas.
       return respond(
         config.logPath,
         decoderOf(ApiErrorResponse),
-        { error: `type d'agent inconnu : « ${body.kind} »`, hint: AGENT_KINDS.join(", ") },
+        { error: "types d'agents indisponibles : lancement refusé" },
+        503,
+      );
+    }
+    const listed = Option.getOrUndefined(
+      decodeInstalledKinds(Option.getOrUndefined(Result.getSuccess(installed))),
+    );
+    if (listed === undefined) {
+      // Forme inattendue : même refus, jamais une liste devinée.
+      return respond(
+        config.logPath,
+        decoderOf(ApiErrorResponse),
+        { error: "liste des types illisible : lancement refusé" },
+        503,
+      );
+    }
+    const kinds = listed.integrations.filter(
+      (integration) => integration.state !== "not_installed",
+    );
+    const known = kinds.some(
+      (integration) => integration.command === body.kind || integration.target === body.kind,
+    );
+    if (!known) {
+      return respond(
+        config.logPath,
+        decoderOf(ApiErrorResponse),
+        {
+          error: `type d'agent non installé : « ${body.kind} »`,
+          hint: kinds.map((integration) => integration.command).join(", "),
+        },
         400,
       );
     }
@@ -610,22 +670,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
         502,
       );
     }
-    const payload = Option.getOrUndefined(Result.getSuccess(result)) ?? {};
-    const decoded = Option.getOrUndefined(
-      Schema.decodeUnknownOption(
-        Schema.Struct({
-          integrations: Schema.Array(
-            Schema.Struct({
-              available: Schema.Boolean,
-              command: Schema.String,
-              label: Schema.String,
-              state: Schema.String,
-              target: Schema.String,
-            }),
-          ),
-        }),
-      )(payload),
-    );
+    const decoded = Option.getOrUndefined(decodeInstalledKinds(Result.getOrThrow(result)));
     if (decoded === undefined) {
       return respond(
         config.logPath,
