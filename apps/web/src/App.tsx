@@ -375,7 +375,9 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
         qu'aucune erreur ne s'affiche. La cause est montrée et journalisée.
       */
       const message = cause instanceof Error ? cause.message : String(cause);
-      setLastSend({ kind: "failed", message });
+      // Un `fetch` qui ne part pas est un état `inconnu` : rien ne prouve
+      // que le message n'a pas atteint le serveur (B05).
+      setLastSend({ kind: "failed", message, state: "inconnu" });
       reportError("échec de l'envoi du message", { message, paneId: agent.paneId });
     } finally {
       setSending(false);

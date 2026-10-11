@@ -22,6 +22,7 @@ import {
   OverviewResponse,
   TrustRequiredResponse,
   TrustResolvedResponse,
+  PromptFailedResponse,
   PromptSentResponse,
   PromptSuppressedResponse,
 } from "@herdr-remote/shared";
@@ -430,10 +431,20 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
         status: "suppressed",
       });
     }
+    // ⚠️ B05 : quatre états distincts, jamais « envoyé ».
+    //   - `attente`  : Herdr n'a pas tranché (timeout) → l'utilisateur ne sait
+    //     pas si son message est parti ; il doit pouvoir le renvoyer.
+    //   - `erreur`   : Herdr a refusé → l'envoi n'a **pas** eu lieu.
+    //   - `inconnu`  : transport seul, sans preuve d'acceptation.
+    // Aucun de ces trois ne s'affiche « envoyé ».
+    const state = promptFailureState(failure);
     return respond(
       config.logPath,
-      decoderOf(ApiErrorResponse),
-      { error: `envoi non confirmé : ${failure === undefined ? "inconnu" : describe(failure)}` },
+      decoderOf(PromptFailedResponse),
+      {
+        detail: failure === undefined ? "cause inconnue" : describe(failure),
+        state,
+      },
       502,
     );
   };
@@ -778,6 +789,25 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     "/api/conversations": conversationRoutes.conversations,
     "/api/overview": overview,
   };
+};
+
+/**
+ * État d'un envoi non confirmé (B05).
+ *
+ * Distinguer « Herdr n'a pas répondu » de « Herdr a refusé » change tout pour
+ * l'utilisateur : dans le premier cas le message est peut-être parti et il
+ * faut pouvoir le renvoyer ; dans le second il est perdu et il faut le
+ * retaper. Un message unique pour les deux oblige à choisir au hasard.
+ */
+const promptFailureState = (failure: unknown): "attente" | "erreur" | "inconnu" => {
+  if (failure === undefined) return "inconnu";
+  const texte = describe(failure).toLowerCase();
+  // Un délai dépassé ne prouve ni l'envoi ni le refus.
+  if (texte.includes("timeout") || texte.includes("timed out") || texte.includes("deadline"))
+    return "attente";
+  if (texte.includes("econnrefused") || texte.includes("unreachable") || texte.includes("socket"))
+    return "inconnu";
+  return "erreur";
 };
 
 /** Reconnaît le refus de double envoi sans dépendre du typage de l'union. */

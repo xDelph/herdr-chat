@@ -24,6 +24,7 @@ import {
   RecentImagesResponse,
   OverviewResponse,
   PromptSentResponse,
+  PromptFailedResponse,
   PromptSuppressedResponse,
   SessionResponse as SessionResponseSchema,
   TrustRequiredResponse,
@@ -51,6 +52,7 @@ export type {
   OverviewResponse as Overview,
   RecentImage,
   PromptSentResponse,
+  PromptFailedResponse,
   PromptSuppressedResponse,
   SessionEntry,
   SessionResponse,
@@ -171,14 +173,22 @@ export const fetchModelCatalog = (kind: string): Promise<ModelCatalogResponse> =
     "catalogue de modèles",
   );
 
+/**
+ * Résultat d'un envoi (B05).
+ *
+ * `state` distingue les trois échecs, parce qu'ils ne se corrigent pas de la
+ * même façon : en `attente` le message est **peut-être parti** et il faut
+ * pouvoir le renvoyer ; en `erreur` il est perdu et il faut le retaper.
+ */
 export type SendResult =
   | { kind: "sent"; confirmation: "confirmed" | "unknown"; fingerprint: string }
   | { kind: "suppressed"; reason: string }
-  | { kind: "failed"; message: string };
+  | { kind: "failed"; message: string; state: "attente" | "erreur" | "inconnu" };
 
 const ErrorPayload = ApiErrorResponse;
 const SuppressedPayload = PromptSuppressedResponse;
 const SentPayload = PromptSentResponse;
+const FailedPayload = PromptFailedResponse;
 
 /**
  * Construit un décodeur non-générique pour un schéma concret.
@@ -316,7 +326,11 @@ export const sendPrompt = async (paneId: string, text: string): Promise<SendResu
   try {
     payload = await readJson(response);
   } catch {
-    return { kind: "failed", message: `réponse illisible (${response.status})` };
+    return {
+      kind: "failed",
+      message: `réponse illisible (${response.status})`,
+      state: "inconnu",
+    };
   }
 
   // Un double envoi supprimé n'est pas un échec (D007.2).
@@ -337,8 +351,18 @@ export const sendPrompt = async (paneId: string, text: string): Promise<SendResu
     }
   }
 
+  // Un échec nommé par le serveur prime sur le message générique : `state`
+  // pilote l'action proposée à l'utilisateur.
+  const named = decoderOf(FailedPayload)(payload);
+  if (named !== undefined) {
+    return { kind: "failed", message: named.detail, state: named.state };
+  }
   const failure = decodeError(payload);
-  return { kind: "failed", message: failure?.error ?? `échec ${response.status}` };
+  return {
+    kind: "failed",
+    message: failure?.error ?? `échec ${response.status}`,
+    state: "inconnu",
+  };
 };
 
 /**

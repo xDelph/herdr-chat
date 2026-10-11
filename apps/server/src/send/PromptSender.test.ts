@@ -11,8 +11,10 @@ import { Effect, Layer, Result } from "effect";
 import { HerdrClient } from "../herdr/HerdrClient.ts";
 import { TransportError, TransportTag } from "../herdr/Transport.ts";
 import { PromptSender } from "./PromptSender.ts";
+import { DUPLICATE_WINDOW_MS } from "@herdr-remote/shared";
 
-const WINDOW = 60_000;
+/** La fenêtre vient du contrat partagé (S06), pas d’un littéral local. */
+const WINDOW = DUPLICATE_WINDOW_MS;
 
 /** Transport scripté : chaque appel consomme la réponse suivante. */
 const makeHerdr = (responses: ReadonlyArray<string | TransportError>) =>

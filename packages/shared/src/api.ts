@@ -199,6 +199,22 @@ export const PromptSentResponse = Schema.Struct({
 });
 export type PromptSentResponse = typeof PromptSentResponse.Type;
 
+/**
+ * Envoi **non confirmé** (B05).
+ *
+ * `attente` : Herdr n'a pas tranché dans le délai — le message est peut-être
+ * parti, donc l'interface doit permettre de le renvoyer.
+ * `erreur` : Herdr a refusé, l'envoi n'a pas eu lieu.
+ * `inconnu` : seul le transport a répondu, sans preuve d'acceptation.
+ *
+ * Aucun de ces états n'est jamais `sent`.
+ */
+export const PromptFailedResponse = Schema.Struct({
+  detail: Schema.String,
+  state: Schema.Literals(["attente", "erreur", "inconnu"]),
+});
+export type PromptFailedResponse = typeof PromptFailedResponse.Type;
+
 /** Double envoi supprimé — **un état normal, pas une erreur**. */
 export const PromptSuppressedResponse = Schema.Struct({
   reason: Schema.String,

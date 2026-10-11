@@ -128,7 +128,11 @@ export const ModelSheet = ({ agentName, kind, paneId, onClose }: Props) => {
       */
       setLastSend({
         command,
-        result: { kind: "failed", message: cause instanceof Error ? cause.message : String(cause) },
+        result: {
+          kind: "failed",
+          message: cause instanceof Error ? cause.message : String(cause),
+          state: "inconnu",
+        },
       });
     } finally {
       setBusy(false);

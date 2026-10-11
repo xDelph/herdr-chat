@@ -9,7 +9,7 @@
  *
  * On ne lit donc **que** `HERDR_SOCKET_PATH`, jamais l'autre.
  */
-import { DEFAULT_BACKEND_PORT } from "@herdr-remote/shared";
+import { DEFAULT_BACKEND_PORT, DUPLICATE_WINDOW_MS } from "@herdr-remote/shared";
 import { Context, Effect, Layer, Schema } from "effect";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
@@ -125,7 +125,7 @@ export class ServerConfigTag extends Context.Service<ServerConfigTag, ServerConf
         piSessionsRoot: env["PI_SESSIONS_ROOT"] ?? `${home}/.pi/agent/sessions`,
         port,
         hostname: bind,
-        duplicateWindowMs: 60_000,
+        duplicateWindowMs: DUPLICATE_WINDOW_MS,
         logPath: env["HERDR_REMOTE_LOG_PATH"] ?? defaultLogPath(),
         publicOrigin:
           env["HERDR_REMOTE_PUBLIC_ORIGIN"] ??
