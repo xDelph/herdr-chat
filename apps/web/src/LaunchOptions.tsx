@@ -39,6 +39,18 @@ export const levelLabel = (level: string): string => {
   }
 };
 
+/**
+ * Modèle et niveau de raisonnement choisis au lancement.
+ *
+ * Les deux propriétés sont **facultatives et sans valeur nulle** : une chaîne
+ * vide aurait un autre sens et briserait la distinction « non choisi » contre
+ * « choisi mais vide ».
+ */
+export interface LaunchChoice {
+  readonly model?: string;
+  readonly thinking?: string;
+}
+
 interface Props {
   readonly kind: string;
   readonly onChange: (choice: { readonly model?: string; readonly thinking?: string }) => void;

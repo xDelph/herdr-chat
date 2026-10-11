@@ -96,3 +96,41 @@ describe("routeToHash", () => {
     expect(roundTripped).toEqual(original);
   });
 });
+
+/**
+ * U05 — le détail d'un projet a sa propre route.
+ *
+ * Il doit survivre à un rechargement : sans cela, ouvrir un projet puis
+ * rafraîchir ramènerait à l'accueil, exactement le défaut que le routage par
+ * fragment corrigeait pour les agents.
+ */
+describe("routage — détail de projet", () => {
+  test("`#/projet/<id>` ouvre le détail", () => {
+    const route = parseRoute("#/projet/w1");
+    expect(route.kind).toBe("projet");
+    if (route.kind === "projet") expect(route.workspaceId).toBe("w1");
+  });
+
+  test("aller-retour : la route produit exactement le même fragment", () => {
+    const route = { kind: "projet", workspaceId: "w2:x/3" } as const;
+    expect(routeToHash(route)).toBe("#/projet/w2%3Ax%2F3");
+    expect(parseRoute(routeToHash(route))).toEqual(route);
+  });
+
+  test("`projet/` vide retombe sur l'onglet par défaut, sans casser", () => {
+    const route = parseRoute("#/projet/");
+    expect(route.kind).toBe("tab");
+    if (route.kind === "tab") expect(route.tab).toBe(DEFAULT_TAB);
+  });
+
+  test("un pourcentage invalide ne fait pas tomber le rendu", () => {
+    // `decodeURIComponent` lève : le fragment ne doit pas casser l'app.
+    const route = parseRoute("#/projet/%");
+    expect(route.kind).toBe("tab");
+  });
+
+  test("`projet/w1` n'est pas lu comme un onglet", () => {
+    const route = parseRoute("#/projet/w1");
+    expect(route.kind).not.toBe("tab");
+  });
+});

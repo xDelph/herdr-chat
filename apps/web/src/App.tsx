@@ -34,8 +34,10 @@ import type {
 import { AgentStatus } from "@herdr-remote/shared";
 import { ALL_STATUSES, agentContext, agentName, statusClass, statusLabel } from "./labels.tsx";
 import { ChatScreen } from "./ChatScreen.tsx";
+import { ProjectAgentsOf } from "./ProjectDetail.tsx";
 import { Gallery } from "./Gallery.tsx";
 import { LaunchOptions } from "./LaunchOptions.tsx";
+import type { LaunchChoice } from "./LaunchOptions.tsx";
 import { TrustCard } from "./TrustCard.tsx";
 import { AttentionCard } from "./Attention.tsx";
 import { DEFAULT_TAB, parseRoute, routeToHash, TabSchema, TABS, TAB_LABEL } from "./routing.ts";
@@ -47,11 +49,6 @@ import type { Route, Tab } from "./routing.ts";
  * Les champs **absents** signifient « je ne choisis pas » : l'agent garde alors
  * ses propres valeurs. Une chaîne vide aurait un autre sens et briserait ça.
  */
-export interface LaunchChoice {
-  readonly model?: string;
-  readonly thinking?: string;
-}
-
 /**
  * Lit le fragment courant et se resynchronise sur les navigations, y compris le
  * bouton retour. L'analyse vit dans `routing.ts`, où elle est testée.
@@ -403,7 +400,15 @@ export const App = () => {
     [refresh],
   );
 
-  const agents = overview?.agents ?? [];
+  /**
+   * Agents du parc, **stables tant que l'overview ne change pas**.
+   *
+   * `overview?.agents ?? []` créait un **nouveau tableau vide** à chaque rendu
+   * quand l'overview est absent, et une nouvelle référence à chaque rendu sinon
+   * dès que le parent se rend. Passé en prop, ce tableau redessinait les
+   * écrans — et faisait perdre le défilement au rafraîchissement du snapshot.
+   */
+  const agents = useMemo(() => overview?.agents ?? [], [overview]);
   // Table de noms **du rendu** : un nom arrivé après un événement s'y applique.
   const activityNames = nameByPane(agents);
 
@@ -445,6 +450,24 @@ export const App = () => {
       (statusFilter === "tous" || agent.status === statusFilter) &&
       (workspaceFilter === "tous" || agent.workspaceId === workspaceFilter),
   );
+
+  // Détail d'un projet (U05) : ses conversations, et rien d'autre. Le filtre de
+  // la liste globale ne s'applique pas ici — ce sont **toutes** les
+  // conversations du projet, sinon un agent masqué par un filtre resterait
+  // invisible dans le projet où il se trouve.
+  const projectWorkspaceId = route.kind === "projet" ? route.workspaceId : "";
+  /**
+   * Conversations du projet — **comparaison explicite**, pas `useMemo`.
+   *
+   * Les deux règles du lint se contredisent si on se contente de mémoïser :
+   * `exhaustive-deps` veut `agents` en dépendance (donc nouvelle référence à
+   * chaque rafraîchissement), et `jsx-no-new-array-as-prop` veut une prop
+   * stable. On les applique donc à la main, et c'est `useStable` qui décide.
+   */
+  const projectWorkspace = (overview?.workspaces ?? []).find(
+    (workspace) => workspace.workspaceId === projectWorkspaceId,
+  );
+  const onBackToProjects = useCallback(() => navigate({ kind: "tab", tab: "projets" }), [navigate]);
 
   // Handlers stables : évite de recréer une fonction à chaque rendu.
   const onTabClick = useCallback(
@@ -502,11 +525,16 @@ export const App = () => {
     [navigate],
   );
 
+  /**
+   * Ouvre le **détail** d'un projet (U05).
+   *
+   * Avant, toucher un projet filtrait la liste des agents et revenait à
+   * l'accueil. Le filtre se combinait mal avec la navigation : l'utilisateur
+   * perdait le contexte du projet, et « revenir » ne menait nulle part.
+   */
   const onOpenWorkspace = useCallback(
     (workspaceId: string) => {
-      setWorkspaceFilter(workspaceId);
-      setStatusFilter("tous");
-      navigate({ kind: "tab", tab: DEFAULT_TAB });
+      navigate({ kind: "projet", workspaceId });
     },
     [navigate],
   );
@@ -553,6 +581,19 @@ export const App = () => {
         <p className="notice notice--warn">
           {overview.withoutSession} agent(s) sans chemin de session exposé
         </p>
+      ) : null}
+
+      {route.kind === "projet" ? (
+        <ProjectAgentsOf
+          agents={agents}
+          back={onBackToProjects}
+          kinds={kinds}
+          launching={launching === route.workspaceId}
+          onLaunch={onLaunchAgent}
+          onOpenAgent={onOpenAgent}
+          workspaceId={projectWorkspaceId}
+          workspace={projectWorkspace}
+        />
       ) : null}
 
       {tab === "projets" ? (

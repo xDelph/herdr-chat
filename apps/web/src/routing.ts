@@ -42,7 +42,8 @@ export const DEFAULT_TAB: Tab = "conversations";
 
 export type Route =
   | { readonly kind: "tab"; readonly tab: Tab }
-  | { readonly kind: "agent"; readonly paneId: string };
+  | { readonly kind: "agent"; readonly paneId: string }
+  | { readonly kind: "projet"; readonly workspaceId: string };
 
 /**
  * Analyse un fragment d'URL.
@@ -58,13 +59,24 @@ export const parseRoute = (hash: string): Route => {
       return { kind: "agent", paneId };
     }
   }
+  // Le détail d'un projet vient **avant** les onglets : `projet/w1` serait
+  // sinon lu comme un onglet inconnu.
+  if (clean.startsWith("projet/")) {
+    const workspaceId = safeDecode(clean.slice("projet/".length));
+    if (workspaceId !== undefined && workspaceId.length > 0) {
+      return { kind: "projet", workspaceId };
+    }
+  }
   const tab = Option.getOrUndefined(Schema.decodeUnknownOption(TabSchema)(clean));
   return { kind: "tab", tab: tab ?? DEFAULT_TAB };
 };
 
 /** Sérialise une route en fragment. */
-export const routeToHash = (route: Route): string =>
-  route.kind === "agent" ? `#/agent/${encodeURIComponent(route.paneId)}` : `#/${route.tab}`;
+export const routeToHash = (route: Route): string => {
+  if (route.kind === "agent") return `#/agent/${encodeURIComponent(route.paneId)}`;
+  if (route.kind === "projet") return `#/projet/${encodeURIComponent(route.workspaceId)}`;
+  return `#/${route.tab}`;
+};
 
 /**
  * Décode un fragment d'URI, ou `undefined` s'il est malformé.
