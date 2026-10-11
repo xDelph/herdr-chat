@@ -10,16 +10,35 @@
  */
 import { Option, Schema } from "effect";
 
-export const TabSchema = Schema.Literals(["a-traiter", "projets", "agents", "reglages"]);
+/**
+ * Les trois destinations de la release.
+ *
+ * `Agents` a disparu au profit de `Conversations` : une liste d'agents et une
+ * liste de conversations sont la même chose vue de deux angles, et l'ancienne
+ * navigation obligeait à choisir entre « qui existe » et « de quoi s'occuper »
+ * (U04).
+ */
+export const TabSchema = Schema.Literals(["conversations", "projets", "reglages"]);
 export type Tab = typeof TabSchema.Type;
+
+/** Les destinations, dans l'ordre d'affichage — la navigation s'en sert. */
+export const TABS = ["conversations", "projets", "reglages"] as const satisfies ReadonlyArray<Tab>;
+
+/** Libellés exacts, dans l'ordre d'affichage. */
+export const TAB_LABEL: Record<Tab, string> = {
+  conversations: "Conversations",
+  projets: "Projets",
+  reglages: "Réglages",
+};
 
 /**
  * Onglet par défaut : **ce qui demande une action**.
  *
  * Ouvrir sur une liste de projets oblige à chercher ce qui attend. La question
- * utile en mobilité est « qu'est-ce qui m'attend ? ».
+ * utile en mobilité est « qu'est-ce qui m'attend ? » — et `À traiter` est la
+ * première section de Conversations, pas un onglet séparé.
  */
-export const DEFAULT_TAB: Tab = "a-traiter";
+export const DEFAULT_TAB: Tab = "conversations";
 
 export type Route =
   | { readonly kind: "tab"; readonly tab: Tab }

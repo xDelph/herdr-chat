@@ -38,7 +38,7 @@ import { Gallery } from "./Gallery.tsx";
 import { LaunchOptions } from "./LaunchOptions.tsx";
 import { TrustCard } from "./TrustCard.tsx";
 import { AttentionCard } from "./Attention.tsx";
-import { parseRoute, routeToHash, TabSchema } from "./routing.ts";
+import { DEFAULT_TAB, parseRoute, routeToHash, TabSchema, TABS, TAB_LABEL } from "./routing.ts";
 import type { Route, Tab } from "./routing.ts";
 
 /**
@@ -308,7 +308,7 @@ const AgentRow = ({ agent, onOpen }: { agent: AgentView; onOpen: (paneId: string
 
 export const App = () => {
   const [route, navigate] = useHashRoute();
-  const tab: Tab = route.kind === "tab" ? route.tab : "agents";
+  const tab: Tab = route.kind === "tab" ? route.tab : DEFAULT_TAB;
   const [overview, setOverview] = useState<Overview | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -491,7 +491,7 @@ export const App = () => {
     setStatusFilter(event.target.value);
   }, []);
 
-  const closeAgent = useCallback(() => navigate({ kind: "tab", tab: "agents" }), [navigate]);
+  const closeAgent = useCallback(() => navigate({ kind: "tab", tab: DEFAULT_TAB }), [navigate]);
 
   const openAgent = useCallback(
     (agent: AgentView) => {
@@ -506,7 +506,7 @@ export const App = () => {
     (workspaceId: string) => {
       setWorkspaceFilter(workspaceId);
       setStatusFilter("tous");
-      navigate({ kind: "tab", tab: "agents" });
+      navigate({ kind: "tab", tab: DEFAULT_TAB });
     },
     [navigate],
   );
@@ -586,9 +586,16 @@ export const App = () => {
         </section>
       ) : null}
 
-      {tab === "agents" ? (
+      {/*
+        Conversations — destination initiale (U04).
+
+        `À traiter` n’est plus un onglet : c’est la **première section** de
+        Conversations. Ouvrir sur « Agents » obligeait à choisir entre « qui
+        existe » et « de quoi s’occuper » — deux listes, une seule réponse.
+      */}
+      {tab === "conversations" ? (
         <section className="screen">
-          <h2>Agents</h2>
+          <h2>Conversations</h2>
           <div className="filters">
             <select value={workspaceFilter} onChange={onWorkspaceFilter}>
               <option value="tous">tous les projets</option>
@@ -615,16 +622,8 @@ export const App = () => {
             ))}
           </ul>
           {filtered.length === 0 ? <p className="muted">Aucun agent pour ce filtre.</p> : null}
-        </section>
-      ) : null}
 
-      {/*
-        « À traiter » : ce qui demande une intervention, puis ce qui a bougé.
-        Un simple journal est inutile — on commence par ce qui bloque, avec la
-        question de l'agent et de quoi y répondre sans changer d'écran.
-      */}
-      {tab === "a-traiter" ? (
-        <section className="screen">
+          {/* Première section de Conversations, plus un onglet séparé. */}
           <h2>À traiter</h2>
           {awaiting.length === 0 ? (
             waiting ? (
@@ -699,14 +698,7 @@ export const App = () => {
       ) : null}
 
       <nav className="tabs">
-        {(
-          [
-            ["projets", "Projets"],
-            ["agents", "Agents"],
-            ["a-traiter", "À traiter"],
-            ["reglages", "Réglages"],
-          ] as const
-        ).map(([key, label]) => (
+        {TABS.map((key) => (
           <button
             key={key}
             type="button"
@@ -714,7 +706,7 @@ export const App = () => {
             className={tab === key ? "tab tab--active" : "tab"}
             onClick={onTabClick}
           >
-            {label}
+            {TAB_LABEL[key]}
           </button>
         ))}
       </nav>

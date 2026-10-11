@@ -6,7 +6,7 @@
  * à l'accueil.
  */
 import { describe, expect, test } from "bun:test";
-import { DEFAULT_TAB, parseRoute, routeToHash } from "./routing.ts";
+import { DEFAULT_TAB, parseRoute, routeToHash, TAB_LABEL } from "./routing.ts";
 
 describe("parseRoute", () => {
   test("un agent est lu depuis le fragment — survit au rafraîchissement", () => {
@@ -25,12 +25,39 @@ describe("parseRoute", () => {
     if (route.kind === "agent") expect(route.paneId).toBe("w1:p1");
   });
 
-  test("les quatre onglets sont reconnus", () => {
-    for (const tab of ["a-traiter", "projets", "agents", "reglages"] as const) {
+  test("les trois destinations sont reconnues (U04)", () => {
+    for (const tab of ["conversations", "projets", "reglages"] as const) {
       const route = parseRoute(`#/${tab}`);
       expect(route.kind).toBe("tab");
       if (route.kind === "tab") expect(route.tab).toBe(tab);
     }
+  });
+
+  /**
+   * Les anciens onglets doivent retomber sur Conversations, **pas** produire
+   * un écran vide : une URL enregistrée sur l'ancien déploiement reste
+   * cliquable.
+   */
+  test("un ancien onglet retombe sur Conversations", () => {
+    for (const ancien of ["a-traiter", "agents"]) {
+      const route = parseRoute(`#/${ancien}`);
+      expect(route.kind).toBe("tab");
+      if (route.kind === "tab") expect(route.tab).toBe(DEFAULT_TAB);
+    }
+  });
+
+  test("Conversations est l'onglet par défaut", () => {
+    expect(DEFAULT_TAB).toBe("conversations");
+    for (const vide of ["", "#", "#/", "#/nimporte-quoi"]) {
+      const route = parseRoute(vide);
+      if (route.kind === "tab") expect(route.tab).toBe("conversations");
+    }
+  });
+
+  test("chaque destination a son libellé exact", () => {
+    expect(TAB_LABEL["conversations"]).toBe("Conversations");
+    expect(TAB_LABEL["projets"]).toBe("Projets");
+    expect(TAB_LABEL["reglages"]).toBe("Réglages");
   });
 
   test("fragment vide → onglet par défaut", () => {
