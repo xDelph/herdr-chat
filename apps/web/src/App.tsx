@@ -22,7 +22,6 @@ import {
   launchAgent,
   fetchOverview,
   fetchSession,
-  fetchTerminal,
   openEventStream,
   sendPrompt,
 } from "./api.ts";
@@ -94,10 +93,6 @@ const useHashRoute = (): [Route, (next: Route) => void] => {
  */
 const nameByPane = (agents: ReadonlyArray<AgentView>): ReadonlyMap<string, string> =>
   new Map(agents.map((agent) => [agent.paneId, agentName(agent)]));
-
-/** Premier pane de la liste, ou `undefined` s'il n'y a aucun agent. */
-const filteredFirstPane = (agents: ReadonlyArray<AgentView>): string | undefined =>
-  agents[0]?.paneId;
 
 /** Rend un événement du flux lisible, sans JSON brut à l'écran. */
 const describeEvent = (kind: string, data: unknown, names: ReadonlyMap<string, string>): string => {
@@ -754,9 +749,6 @@ export const App = () => {
     readonly { at: number; data: unknown; id: number; kind: string }[]
   >([]);
 
-  const [terminal, setTerminal] = useState<string>("");
-  const [terminalError, setTerminalError] = useState<string | null>(null);
-  const [terminalLoading, setTerminalLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>("tous");
   const [launching, setLaunching] = useState<string | null>(null);
   /** Types **réellement installés**, lus depuis Herdr — pas une liste codée. */
@@ -868,9 +860,6 @@ export const App = () => {
       ),
     [projectRoot],
   );
-  // Onglet Activité : le terminal est lu pour l'agent sélectionné s'il y en a un,
-  // sinon le premier de la liste. Jamais deviné au-delà.
-  const activePaneId = route.kind === "agent" ? route.paneId : (filteredFirstPane(agents) ?? "");
   const filtered = agents.filter(
     (agent) =>
       (statusFilter === "tous" || agent.status === statusFilter) &&
@@ -886,32 +875,7 @@ export const App = () => {
     },
     [navigate],
   );
-  /**
-   * Lecture du terminal — **uniquement sur demande explicite**.
-   *
-   * C'est le seul appel de l'application qui interroge le pane côté Herdr. Il
-   * n'a donc pas sa place dans l'ouverture d'un agent : le contenu de la
-   * conversation vient du fichier de session, pas du terminal.
-   */
-  const onLoadTerminal = useCallback(async () => {
-    if (terminalLoading) return;
-    setTerminalLoading(true);
-    setTerminalError(null);
-    try {
-      const read = await fetchTerminal(activePaneId);
-      setTerminal(read.text);
-    } catch (cause) {
-      setTerminalError(cause instanceof Error ? cause.message : String(cause));
-    } finally {
-      setTerminalLoading(false);
-    }
-  }, [activePaneId, terminalLoading]);
-
   // Wrapper synchrone : `onClick` attend un retour `void`.
-  const onLoadTerminalClick = useCallback(() => {
-    void onLoadTerminal();
-  }, [onLoadTerminal]);
-
   const onLaunchAgent = useCallback(
     (workspaceId: string, kind: string, choice: LaunchChoice) => {
       void (async () => {
@@ -1126,18 +1090,6 @@ export const App = () => {
               ))}
             </ul>
           )}
-
-          <h2>Sortie terminal</h2>
-          <button
-            type="button"
-            className="ghost"
-            onClick={onLoadTerminalClick}
-            disabled={terminalLoading}
-          >
-            {terminalLoading ? "Lecture…" : "Lire la sortie terminal"}
-          </button>
-          {terminalError !== null ? <p className="notice notice--error">{terminalError}</p> : null}
-          {terminal.length > 0 ? <pre className="terminal">{terminal.slice(-4000)}</pre> : null}
         </section>
       ) : null}
 

@@ -186,12 +186,6 @@ export const SessionResponse = Schema.Struct({
 });
 export type SessionResponse = typeof SessionResponse.Type;
 
-export const TerminalResponse = Schema.Struct({
-  text: Schema.String,
-  truncated: Schema.Boolean,
-});
-export type TerminalResponse = typeof TerminalResponse.Type;
-
 /** Envoi confirmé. `confirmation` vient du serveur, pas du client. */
 export const PromptSentResponse = Schema.Struct({
   confirmation: Schema.Literals(["confirmed", "unknown"]),

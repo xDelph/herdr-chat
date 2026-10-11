@@ -23,7 +23,6 @@ import {
   SESSION_TAIL_HARD_CAP,
   encodeCursor,
   SessionResponse,
-  TerminalResponse,
 } from "@herdr-remote/shared";
 import type { ServerConfig } from "../config.ts";
 import { classifyReadFailure, invalidSession, statusFor } from "../sessions/ReadCause.ts";
@@ -35,7 +34,7 @@ import {
   SessionPathRejected,
   tailFrom,
 } from "../sessions/SessionReader.ts";
-import { decoderOf, describe, failureOf, respond, run } from "./Reply.ts";
+import { decoderOf, describe, failureOf, respond } from "./Reply.ts";
 import type { RouteRequest } from "./Reply.ts";
 
 /** Emplacement `agent_session` d'un agent, tel que le renvoie Herdr. */
@@ -73,16 +72,6 @@ const isMissingFileEmpty = (path: string): boolean => {
 };
 
 export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
-  const terminal = (request: RouteRequest): Promise<Response> =>
-    run(
-      config.logPath,
-      Effect.gen(function* () {
-        const paneId = request.params["paneId"] ?? "";
-        return yield* herdr.readAgent(paneId);
-      }),
-      (body) => respond(config.logPath, decoderOf(TerminalResponse), body),
-    );
-
   /**
    * Contenu d'une session.
    *
@@ -293,5 +282,5 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
     }
   };
 
-  return { session, terminal };
+  return { session };
 };

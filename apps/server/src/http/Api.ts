@@ -791,7 +791,6 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     "/api/agents/:paneId/prompt": prompt,
     "/api/workspaces/:workspaceId/agents": launchAgent,
     "/api/agents/:paneId/session": sessionRoutes.session,
-    "/api/agents/:paneId/terminal": sessionRoutes.terminal,
     "/api/agents/kinds": agentKinds,
     "/api/agents/:kind/models": (request) => modelCatalog(config.logPath, request),
     "/api/agents/:paneId/trust": answerTrust,

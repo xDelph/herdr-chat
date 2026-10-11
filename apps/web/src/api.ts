@@ -29,7 +29,6 @@ import {
   SessionResponse as SessionResponseSchema,
   TrustRequiredResponse,
   TrustResolvedResponse,
-  TerminalResponse,
 } from "@herdr-remote/shared";
 
 /**
@@ -56,7 +55,6 @@ export type {
   PromptSuppressedResponse,
   SessionEntry,
   SessionResponse,
-  TerminalResponse as Terminal,
   TrustRequiredResponse as TrustRequired,
   TrustResolvedResponse as TrustResolved,
   WorkspaceView,
@@ -109,7 +107,6 @@ export class TrustRequiredError extends Error {
 
 const HealthSchema = HealthResponse;
 const OverviewSchema = OverviewResponse;
-const TerminalSchema = TerminalResponse;
 
 /**
  * Lance un agent dans un projet.
@@ -269,13 +266,6 @@ export const fetchSession = (
     "session",
   );
 };
-
-export const fetchTerminal = (paneId: string) =>
-  decoded(
-    `/api/agents/${encodeURIComponent(paneId)}/terminal`,
-    decoderOf(TerminalSchema),
-    "terminal",
-  );
 
 /** Types d'agents installés sur la machine, d'après Herdr. */
 export const fetchAgentKinds = async (): Promise<ReadonlyArray<InstalledKind>> => {

@@ -28,7 +28,6 @@ import {
   PromptSentResponse,
   PromptSuppressedResponse,
   SessionResponse,
-  TerminalResponse,
 } from "@herdr-remote/shared";
 import { makeRoutes } from "./Api.ts";
 import type { ServerConfig } from "../config.ts";
@@ -284,7 +283,6 @@ describe("identité des routes — A01", () => {
       "/api/agents/:kind/models",
       "/api/agents/:paneId/prompt",
       "/api/agents/:paneId/session",
-      "/api/agents/:paneId/terminal",
       "/api/agents/:paneId/trust",
       "/api/agents/kinds",
       "/api/conversations",
@@ -305,20 +303,6 @@ describe("identité des routes — A01", () => {
       // Une route sans params : évite un 400 de corps, on veut voir le type.
       expect(`${path}:${String(fn.length >= 0)}`).toBe(`${path}:true`);
     }
-  });
-});
-
-describe("contrat HTTP — /api/agents/:paneId/terminal", () => {
-  test("réponse conforme, avec texte et troncature", async () => {
-    const routes = await build(true);
-    const response = await handler(
-      routes,
-      "/api/agents/:paneId/terminal",
-    )(request({ paneId: "w1:p1" }));
-
-    const body = await decodeBody(response, TerminalResponse, "terminal");
-    expect(body.text).toBe("sortie");
-    expect(body.truncated).toBe(false);
   });
 });
 
@@ -709,5 +693,27 @@ describe("B08 — étapes de lancement", () => {
       "/api/workspaces/:workspaceId/agents",
     )(request({ workspaceId: "w1" }, { kind: "claude" }));
     expect(createTabCalls).toBe(0);
+  });
+});
+
+/**
+ * U13 — le terminal a **disparu** du produit.
+ *
+ * Ouvrir une conversation ne contacte plus Herdr du tout : le contenu vient
+ * du fichier de session. Lire le pane à l'ouverture était une sollicitation
+ * inutile d'une TUI attachée, et le lien automatique terminal ↔ ouverture
+ * n'avait aucune justification (D014.2).
+ */
+describe("U13 — plus aucune route terminal", () => {
+  test("aucune route ne mentionne le terminal", async () => {
+    const routes = await build(true);
+    for (const path of Object.keys(routes)) {
+      expect(path.includes("terminal")).toBe(false);
+    }
+  });
+
+  test("le contrat partagé n'exporte plus TerminalResponse", async () => {
+    const contrat = await import("@herdr-remote/shared");
+    expect("TerminalResponse" in contrat).toBe(false);
   });
 });
