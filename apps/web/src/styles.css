@@ -25,6 +25,38 @@
   --terminal-bg: #060b14;
   --code-line-no: #4a5b70;
   --overlay: rgb(0 0 0 / 88%);
+
+  /*
+    Espacements : une échelle de quatre pas. Chaque valeur écrite « en dur »
+    ajoutait une variante de plus — 6, 8, 10, 12, 14, 18, 20, 24px se sont
+    roles echanges sans raison : un espacement = un rôle.
+  */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+
+  /*
+    Zone tactile minimale. Le tableau des règles l'impose : 44×44 px, la
+    taille d'un doigt. Les éléments décoratifs en sont exclus — un point
+    d'état n'a pas à être touchable.
+  */
+  --tap-min: 44px;
+
+  /*
+    Contrastes **mesurés** par calcul de luminance relative (WCAG 2.1), pas
+    estimés à l'œil. Le tableau des règles impose 4,5:1 pour le texte normal ;
+    le plus bas couple réel est `err/surface` à 5,17:1.
+
+      text/bg 16,10 · muted/bg 7,14 · text/surface 14,64
+      muted/surface 6,49 · accent/surface-2 5,67 · err/surface 5,17
+
+    Ces nombres sont une **marge**, pas une décoration : si un token change,
+    il faut les recalculer. `apps/web/src/contrast.test.ts` le vérifie.
+  */
+  --contrast-min: 5.17;
+
   color-scheme: dark;
 }
 
@@ -263,7 +295,7 @@ button {
 }
 
 /*
-  Les contrôles de formulaire passent à 16 px et 44 px de haut.
+    rôles échangés sans raison. Un espacement = un rôle.
 
   Sous 16 px, Safari iOS zoome la page à la mise au point, et l'utilisateur
   doit redresser lui-même — sur un `<select>`, chaque ouverture de menu. 44 px
@@ -273,7 +305,7 @@ button {
 select,
 textarea {
   font-size: 16px;
-  min-height: 44px;
+  min-height: var(--tap-min);
 }
 
 button {
@@ -289,8 +321,9 @@ button:disabled {
   border: none;
   color: var(--accent);
   font-size: 15px;
-  /* 44 px : « Lire la sortie terminal » mesurait 26 px de haut. */
-  min-height: 44px;
+  /* Mesurait 26 px de haut : illisible au doigt. */
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
   padding: 4px 0;
   /* « ‹ Retour » ne doit pas se casser en deux lignes dans un en-tête étroit. */
   white-space: nowrap;
@@ -385,7 +418,7 @@ button:disabled {
   flex: 1;
   /* 16 px : en dessous, Safari iOS zoome à la mise au point. */
   font-size: 16px;
-  min-height: 44px;
+  min-height: var(--tap-min);
   resize: none;
 }
 
@@ -396,7 +429,7 @@ button:disabled {
 .composer .send {
   flex-shrink: 0;
   font-size: 13px;
-  min-height: 44px;
+  min-height: var(--tap-min);
   padding: 6px 12px;
 }
 
@@ -424,7 +457,7 @@ button:disabled {
   font-size: 13px;
   justify-content: center;
   /* 44 px : la barre mesurait 39 px, sous le minimum tactile iOS. */
-  min-height: 44px;
+  min-height: var(--tap-min);
   padding: 10px 4px;
 }
 
@@ -481,8 +514,9 @@ button:disabled {
   color: var(--text);
   flex-shrink: 0;
   font-size: 13px;
-  /* 44 px : minimum tactile iOS (Apple HIG). Mesuré à 32 px avant. */
-  min-height: 44px;
+  /* Minimum tactile iOS (Apple HIG). Mesuré à 32 px avant. */
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
   padding: 7px 12px;
 }
 
@@ -564,7 +598,7 @@ button:disabled {
   font-size: 13px;
   gap: 8px;
   /* 44 px : le texte seul mesurait 19 px de haut — hors d'atteinte au doigt. */
-  min-height: 44px;
+  min-height: var(--tap-min);
   padding: 10px 0;
   text-align: left;
 }
@@ -911,7 +945,7 @@ button:disabled {
   flex-wrap: wrap;
   gap: 8px;
   /* 44 px : ces lignes de regroupement mesuraient 37 px. */
-  min-height: 44px;
+  min-height: var(--tap-min);
   padding: 9px 12px;
   text-align: left;
   width: 100%;
@@ -1078,7 +1112,7 @@ button:disabled {
   flex-wrap: wrap;
   gap: 8px;
   /* 44 px : ces lignes de résumé d'appel mesuraient 25 px. */
-  min-height: 44px;
+  min-height: var(--tap-min);
   padding: 4px 0;
   text-align: left;
   width: 100%;
@@ -1106,7 +1140,7 @@ button:disabled {
   /* 16 px, pas 12 : sous ce seuil Safari iOS zoome à la mise au point d'un
      contrôle de formulaire, et l'utilisateur doit redresser à la main. */
   font-size: 16px;
-  min-height: 44px;
+  min-height: var(--tap-min);
   padding: 7px 4px;
 }
 
@@ -1263,7 +1297,7 @@ button:disabled {
 }
 
 /*
-  Les trois contrôles d'en-tête partagent **la même carrosserie**.
+    rôles échangés sans raison. Un espacement = un rôle.
 
   « ‹ Retour » était un lien texte sans fond ni bordure, à côté de deux
   boutons pleins : sur 375 px, l'en-tête présentait deux langages visuels et
@@ -1278,7 +1312,8 @@ button:disabled {
   color: var(--accent);
   flex-shrink: 0;
   font-size: 13px;
-  min-height: 44px;
+  min-height: var(--tap-min);
+  min-width: var(--tap-min);
   padding: 6px 10px;
   white-space: nowrap;
 }
@@ -1470,7 +1505,7 @@ button:disabled {
   color: var(--text);
   font-size: 16px;
   margin-bottom: 8px;
-  min-height: 44px;
+  min-height: var(--tap-min);
   padding: 8px 10px;
   width: 100%;
 }
@@ -1497,7 +1532,7 @@ button:disabled {
   flex-direction: column;
   gap: 2px;
   margin-bottom: 6px;
-  min-height: 44px;
+  min-height: var(--tap-min);
   padding: 8px 10px;
   text-align: left;
   width: 100%;
@@ -1715,7 +1750,7 @@ button:disabled {
   flex: 1 1 auto;
   gap: 12px;
   /* 44 px : la carte projet mesurait 35 px. */
-  min-height: 44px;
+  min-height: var(--tap-min);
   min-width: 0;
   padding: 0;
   text-align: left;
