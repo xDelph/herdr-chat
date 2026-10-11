@@ -1,4 +1,5 @@
 import react from "@vitejs/plugin-react";
+import { backendPort } from "@herdr-remote/shared";
 import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
@@ -40,8 +41,12 @@ export default defineConfig({
     proxy: {
       // En développement, l'API est servie par le backend Bun. `changeOrigin`
       // n'est pas nécessaire : tout est local.
+      // Le backend écoute sur `DEFAULT_BACKEND_PORT` (8791), source partagée avec
+      // `apps/server/src/config.ts`. Avant ce partage, la cible était figée sur
+      // 8765 — le service `print-cost-report` de l'utilisateur : en développement,
+      // `/api/*` répondait depuis un serveur sans rapport.
       "/api": {
-        target: "http://127.0.0.1:8765",
+        target: `http://127.0.0.1:${backendPort(process.env)}`,
         ws: false,
       },
     },

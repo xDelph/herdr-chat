@@ -9,6 +9,7 @@
  *
  * On ne lit donc **que** `HERDR_SOCKET_PATH`, jamais l'autre.
  */
+import { DEFAULT_BACKEND_PORT } from "@herdr-remote/shared";
 import { Context, Effect, Layer, Schema } from "effect";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
@@ -57,8 +58,11 @@ export class ServerConfigTag extends Context.Service<ServerConfigTag, ServerConf
       const home = yield* Effect.sync(() => homedir());
 
       const socketPath = env["HERDR_SOCKET_PATH"] ?? `${home}/.config/herdr/herdr.sock`;
-      // 8790 par défaut : 8765 est occupé par `print-cost-report`, et 3000 est pris.
-      const portRaw = env["HERDR_REMOTE_PORT"] ?? "8790";
+      // Port **local** : `tailscale serve` retransmet le port HTTPS 8790 vers
+      // 8791. 8765 reste interdit (occupé par `print-cost-report`), 3000 aussi
+      // (OrbStack). Défaut et validation vivent dans `packages/shared/src/port.ts`
+      // et le même défaut est relu par le proxy de développement.
+      const portRaw = env["HERDR_REMOTE_PORT"] ?? String(DEFAULT_BACKEND_PORT);
       const port = Number.parseInt(portRaw, 10);
 
       if (!Number.isInteger(port) || port < 1 || port > 65_535) {

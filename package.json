@@ -12,6 +12,9 @@
     "packages/*"
   ],
   "scripts": {
+    "start": "bun run apps/server/src/main.ts",
+    "dev": "cd apps/web && bun run dev",
+    "build": "cd apps/web && bun run build",
     "lint": "oxlint --type-aware --react-plugin --jsx-a11y-plugin --react-perf-plugin --promise-plugin -c .oxlintrc.json apps packages",
     "lint:fix": "oxlint --fix --type-aware --react-plugin --jsx-a11y-plugin --react-perf-plugin --promise-plugin -c .oxlintrc.json apps packages",
     "format": "oxfmt apps packages",
