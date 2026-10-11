@@ -344,6 +344,48 @@ export const ApiErrorResponse = Schema.Struct({
 });
 export type ApiErrorResponse = typeof ApiErrorResponse.Type;
 
+/**
+ * Un état de session tel que la conversation peut l'afficher (B10).
+ *
+ * `available` = lisible, `absent` = pas encore créée (le JSONL naît au premier
+ * message), `error` = présente mais illisible. Le troisième cas existe pour ne
+ * **jamais** laisser croire qu'une session est vide alors qu'elle n'a pas pu
+ * être lue.
+ */
+export const SessionState = Schema.Literals(["available", "absent", "error"]);
+export type SessionState = typeof SessionState.Type;
+
+/**
+ * Une ligne de la liste des conversations.
+ *
+ * ⚠️ **Aucun champ « non lu ».** Herdr ne fournit aucun compteur exploitable :
+ * son `revision` vaut 0 en permanence (E3). Un compteur de non-lus serait donc
+ * une **invention**, et c'est exactement ce que ce projet refuse d'exposer.
+ *
+ * `preview` et `timestamp` sont **facultatifs** : une session absente n'a ni
+ * aperçu ni date, et le champ reste absent plutôt que nul pour que l'absence
+ * soit visible plutôt que simulée.
+ */
+export const ConversationSummary = Schema.Struct({
+  /** Aperçu : dernier message texte de l'agent. Absent s'il n'y en a pas. */
+  preview: Schema.optional(Schema.String),
+  sessionState: SessionState,
+  /** Horodatage de la dernière activité connue. Jamais inventé. */
+  timestamp: Schema.optional(Schema.Number),
+  /** Titre = premier non vide : titre Herdr, onglet, projet, puis `paneId`. */
+  title: Schema.String,
+  /** Statut d'activité : `idle | working | blocked | done | unknown`. */
+  status: Schema.String,
+  workspaceId: Schema.String,
+  paneId: Schema.String,
+});
+export type ConversationSummary = typeof ConversationSummary.Type;
+
+export const ConversationsResponse = Schema.Struct({
+  conversations: Schema.Array(ConversationSummary),
+});
+export type ConversationsResponse = typeof ConversationsResponse.Type;
+
 /** Un onglet Herdr. `label` et `number` sont toujours présents côté Herdr. */
 export const TabInfo = Schema.Struct({
   agent_status: Schema.optional(Schema.NullOr(Schema.String)),
