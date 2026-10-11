@@ -14,10 +14,14 @@
  * Les deux branches de `/api/health` sont testées : Herdr joignable **et**
  * injoignable. C'est la branche non testée qui portait le bug.
  */
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 import { Effect, Option, Schema } from "effect";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   ApiErrorResponse,
+  DEFAULT_BACKEND_PORT,
   HealthResponse,
   OverviewResponse,
   PromptSentResponse,
@@ -34,15 +38,29 @@ import { PromptSender } from "../send/PromptSender.ts";
 import type { WatchLoop } from "../events/AgentWatcher.ts";
 import { HerdrProtocolError } from "../herdr/HerdrClient.ts";
 
+/**
+ * Journal **temporaire**, jamais celui de l'utilisateur (A03).
+ *
+ * Mesuré avant correction : chaque `bun test` écrivait des entrées `[server]`
+ * dans `~/.herdr-remote/herdr-remote.log`, à côté des vraies pannes. Un test
+ * qui pollue le journal de diagnostic détruit sa propre utilité.
+ */
+const TEST_TMP = mkdtempSync(join(tmpdir(), "herdr-remote-test-"));
+
 const config: ServerConfig = {
   duplicateWindowMs: 60_000,
   extraFileRoots: [],
-  herdrSocketPath: "/tmp/fake.sock",
+  herdrSocketPath: join(TEST_TMP, "fake.sock"),
   hostname: "127.0.0.1",
-  piSessionsRoot: "/tmp/sessions",
-  port: 8790,
-  uploadDir: "/tmp/uploads",
+  logPath: join(TEST_TMP, "herdr-remote.log"),
+  piSessionsRoot: join(TEST_TMP, "sessions"),
+  port: DEFAULT_BACKEND_PORT,
+  uploadDir: join(TEST_TMP, "uploads"),
 };
+
+afterAll(() => {
+  rmSync(TEST_TMP, { force: true, recursive: true });
+});
 
 const protocolError = () =>
   new HerdrProtocolError({ code: "x", message: "injoignable", method: "ping" });

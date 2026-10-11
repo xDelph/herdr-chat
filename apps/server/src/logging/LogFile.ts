@@ -19,7 +19,8 @@ import { appendFile, mkdir, rename, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
-export const LOG_PATH = join(homedir(), ".herdr-remote", "herdr-remote.log");
+/** Journal par défaut. Un test ne doit **jamais** y écrire (A03). */
+export const defaultLogPath = (): string => join(homedir(), ".herdr-remote", "herdr-remote.log");
 
 /** Au-delà, le fichier est renommé : on garde une génération précédente. */
 const MAX_BYTES = 4 * 1024 * 1024;
@@ -51,10 +52,10 @@ const safeJson = (value: unknown): string => {
 };
 
 /** Rotation : le fichier courant devient `.1`, et on repart de zéro. */
-const rotateIfNeeded = async (): Promise<void> => {
+const rotateIfNeeded = async (logPath: string): Promise<void> => {
   try {
-    const info = await stat(LOG_PATH);
-    if (info.size > MAX_BYTES) await rename(LOG_PATH, `${LOG_PATH}.1`);
+    const info = await stat(logPath);
+    if (info.size > MAX_BYTES) await rename(logPath, `${logPath}.1`);
   } catch {
     // Fichier absent : rien à faire.
   }
@@ -70,11 +71,12 @@ const rotateIfNeeded = async (): Promise<void> => {
  * On garde la **première** occurrence de chaque message, et on annonce le nombre
  * de répétitions quand il change.
  */
+/** Par chemin : deux tests parallèles ne doivent pas se masquer l'un l'autre. */
 const lastSeen = new Map<string, number>();
 const REPEAT_WINDOW_MS = 60_000;
 
-const shouldWrite = (entry: LogEntry): boolean => {
-  const key = `${entry.source}|${entry.level}|${entry.message}`;
+const shouldWrite = (logPath: string, entry: LogEntry): boolean => {
+  const key = `${logPath}|${entry.source}|${entry.level}|${entry.message}`;
   const now = Date.now();
   const previous = lastSeen.get(key);
   if (previous !== undefined && now - previous < REPEAT_WINDOW_MS) {
@@ -89,18 +91,26 @@ const shouldWrite = (entry: LogEntry): boolean => {
  * Écrit une entrée. **Ne peut pas échouer** : un journal qui casse le service
  * serait pire que pas de journal.
  */
-export const writeLog = (entry: LogEntry): Effect.Effect<void> =>
+/**
+ * Écrit une entrée. **Ne peut pas échouer** : un journal qui casse le service
+ * serait pire que pas de journal.
+ *
+ * `logPath` est un paramètre, pas une constante : sans cela le test écrivait
+ * dans le journal de l'utilisateur (mesuré — voir A03). Le déni de répétition
+ * est lui aussi par chemin, pour que deux tests ne se masquent pas.
+ */
+export const writeLog = (logPath: string, entry: LogEntry): Effect.Effect<void> =>
   Effect.promise(async () => {
     try {
-      if (!shouldWrite(entry)) return;
-      await mkdir(dirname(LOG_PATH), { recursive: true });
-      await rotateIfNeeded();
-      await appendFile(LOG_PATH, line(entry), "utf8");
+      if (!shouldWrite(logPath, entry)) return;
+      await mkdir(dirname(logPath), { recursive: true });
+      await rotateIfNeeded(logPath);
+      await appendFile(logPath, line(entry), "utf8");
     } catch {
       // Silencieux par construction.
     }
   });
 
 /** Écrit plusieurs entrées d'un coup. */
-export const writeLogs = (entries: ReadonlyArray<LogEntry>): Effect.Effect<void> =>
-  Effect.forEach(entries, writeLog, { discard: true });
+export const writeLogs = (logPath: string, entries: ReadonlyArray<LogEntry>): Effect.Effect<void> =>
+  Effect.forEach(entries, (entry) => writeLog(logPath, entry), { discard: true });

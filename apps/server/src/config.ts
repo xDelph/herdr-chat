@@ -13,6 +13,7 @@ import { DEFAULT_BACKEND_PORT } from "@herdr-remote/shared";
 import { Context, Effect, Layer, Schema } from "effect";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
+import { defaultLogPath } from "./logging/LogFile.ts";
 
 export class ConfigError extends Schema.TaggedError<ConfigError>()("ConfigError", {
   detail: Schema.String,
@@ -35,6 +36,15 @@ export interface ServerConfig {
   readonly hostname: string;
   /** Fenêtre de suppression des envois identiques consécutifs (D007.2). */
   readonly duplicateWindowMs: number;
+  /**
+   * Chemin du journal d'erreurs.
+   *
+   * Injecté plutôt que calculé : la constante `~/.herdr-remote/…` faisait que
+   * **chaque test écrivait dans le journal de l'utilisateur** (mesuré : les
+   * entrées `[server]` des tests atterrissent à côté des vraies pannes). Un
+   * test passe un répertoire temporaire.
+   */
+  readonly logPath: string;
   /** Répertoire des pièces jointes uploadées (D007.1). */
   readonly uploadDir: string;
   /**
@@ -108,6 +118,7 @@ export class ServerConfigTag extends Context.Service<ServerConfigTag, ServerConf
         port,
         hostname: bind,
         duplicateWindowMs: 60_000,
+        logPath: env["HERDR_REMOTE_LOG_PATH"] ?? defaultLogPath(),
         extraFileRoots,
         uploadDir: env["HERDR_REMOTE_UPLOAD_DIR"] ?? `${home}/.herdr-remote/uploads`,
       });

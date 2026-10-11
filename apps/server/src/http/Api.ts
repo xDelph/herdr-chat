@@ -42,7 +42,7 @@ import type { HerdrApi } from "../herdr/HerdrClient.ts";
 import type { PromptSenderApi } from "../send/PromptSender.ts";
 import { isMissingFile, readTail, tailFrom } from "../sessions/SessionReader.ts";
 import { isInline, readAllowedFile } from "../files/FileService.ts";
-import { LOG_PATH, writeLog } from "../logging/LogFile.ts";
+import { writeLog } from "../logging/LogFile.ts";
 import { listRecentImages } from "../files/RecentImages.ts";
 
 export interface ApiDeps {
@@ -119,15 +119,18 @@ class LaunchFailed extends Schema.TaggedError<LaunchFailed>()("LaunchFailed", {
  *
  * ⚠️ Un avertissement affiché dans l'application sans trace laissée nulle part
  * est indiagnosticable après coup. Toute réponse >= 400 part au journal.
+ *
+ * `logPath` vient de la configuration : c'est lui qui empêche les tests
+ * d'écrire dans le journal de l'utilisateur (A03).
  */
-const json = (body: unknown, status = 200): Response => {
+const json = (logPath: string, body: unknown, status = 200): Response => {
   if (status >= 400) {
     const described = describeCause(body);
     // Trace console **en plus** du fichier : `verify` capture stderr, le
     // journal seul ne se voit pas dans un test.
     console.error(`[http ${String(status)}] ${described}`);
     void Effect.runPromise(
-      writeLog({
+      writeLog(logPath, {
         level: status >= 500 ? "error" : "warn",
         message: `HTTP ${String(status)}`,
         source: "server",
@@ -159,6 +162,7 @@ const decoderOf =
     Option.getOrUndefined(Schema.decodeUnknownOption(schema)(payload));
 
 const respond = (
+  logPath: string,
   decodeBody: (payload: unknown) => unknown,
   body: unknown,
   status = 200,
@@ -166,6 +170,7 @@ const respond = (
   const value = decodeBody(body);
   if (value === undefined) {
     return json(
+      logPath,
       {
         error: "le serveur a produit une réponse hors contrat",
         hint: "voir packages/shared/src/api.ts — le contrat fait foi",
@@ -173,7 +178,7 @@ const respond = (
       500,
     );
   }
-  return json(value, status);
+  return json(logPath, value, status);
 };
 
 /** Rend lisible n'importe quelle erreur typée d'Effect. */
@@ -237,16 +242,19 @@ const failureOf = (result: Result.Result<unknown, unknown>): unknown =>
  * jamais un 200 sur une erreur.
  */
 const run = async <A, E>(
+  logPath: string,
   effect: Effect.Effect<A, E>,
   onSuccess: (value: A) => Response,
 ): Promise<Response> => {
   const result = await Effect.runPromise(Effect.result(effect));
   if (Result.isSuccess(result)) {
     const value = Option.getOrUndefined(Result.getSuccess(result));
-    return value === undefined ? json({ error: "résultat illisible" }, 500) : onSuccess(value);
+    return value === undefined
+      ? json(logPath, { error: "résultat illisible" }, 500)
+      : onSuccess(value);
   }
   const failure = failureOf(result);
-  return json({ error: failure === undefined ? "échec inconnu" : describe(failure) }, 500);
+  return json(logPath, { error: failure === undefined ? "échec inconnu" : describe(failure) }, 500);
 };
 
 /**
@@ -273,7 +281,7 @@ export interface Routes {
  * un décodage impossible. Sans ce canal, ces erreurs n'existaient que dans une
  * barre rouge, puis disparaissaient.
  */
-const clientLog = async (request: RouteRequest): Promise<Response> => {
+const clientLog = async (logPath: string, request: RouteRequest): Promise<Response> => {
   const raw: unknown = await request.json().catch(() => undefined);
   const entry = Option.getOrUndefined(
     Schema.decodeUnknownOption(
@@ -284,19 +292,19 @@ const clientLog = async (request: RouteRequest): Promise<Response> => {
       }),
     )(raw),
   );
-  if (entry === undefined) return json({ ok: false }, 400);
+  if (entry === undefined) return json(logPath, { ok: false }, 400);
 
   // Trace console en plus du fichier, comme au-dessus.
   console.error(`[client] ${entry.message}`);
   await Effect.runPromise(
-    writeLog({
+    writeLog(logPath, {
       level: entry.level,
       message: entry.message,
       source: "client",
       ...(entry.detail !== undefined ? { detail: entry.detail } : {}),
     }),
   );
-  return json({ ok: true });
+  return json(logPath, { ok: true });
 };
 
 /**
@@ -310,12 +318,12 @@ const clientLog = async (request: RouteRequest): Promise<Response> => {
  * une liste devinée. La réponse est toujours **200** : l'absence de catalogue
  * est une information valide, pas une panne du serveur.
  */
-const modelCatalog = (request: RouteRequest): Promise<Response> =>
+const modelCatalog = (logPath: string, request: RouteRequest): Promise<Response> =>
   Effect.runPromise(
     Effect.gen(function* () {
       const kind = request.params["kind"] ?? "";
       const catalog = yield* catalogOf(kind);
-      return respond(decoderOf(ModelCatalogResponse), { ...catalog, kind });
+      return respond(logPath, decoderOf(ModelCatalogResponse), { ...catalog, kind });
     }),
   );
 
@@ -333,12 +341,13 @@ const decodeTrustBody = Schema.decodeUnknownOption(TrustBody);
  * l'utilisateur à un autre dialogue serait pire que de ne rien faire.
  */
 const makeAnswerTrust =
-  (herdr: HerdrApi) =>
+  (logPath: string, herdr: HerdrApi) =>
   async (request: RouteRequest): Promise<Response> => {
     const raw: unknown = await request.json().catch(() => undefined);
     const body = Option.getOrUndefined(decodeTrustBody(raw));
     if (body === undefined) {
       return respond(
+        logPath,
         decoderOf(ApiErrorResponse),
         { error: "corps invalide : `accept` (booléen) requis" },
         400,
@@ -351,6 +360,7 @@ const makeAnswerTrust =
     if (Result.isFailure(result)) {
       const failure = failureOf(result);
       return respond(
+        logPath,
         decoderOf(ApiErrorResponse),
         { error: failure === undefined ? "échec inconnu" : describe(failure) },
         502,
@@ -358,9 +368,9 @@ const makeAnswerTrust =
     }
     const outcome = Option.getOrUndefined(Result.getSuccess(result));
     if (outcome === undefined) {
-      return respond(decoderOf(ApiErrorResponse), { error: "réponse illisible" }, 500);
+      return respond(logPath, decoderOf(ApiErrorResponse), { error: "réponse illisible" }, 500);
     }
-    return respond(decoderOf(TrustResolvedResponse), {
+    return respond(logPath, decoderOf(TrustResolvedResponse), {
       accepted: outcome.accepted,
       status: "trust-resolved",
     });
@@ -369,7 +379,7 @@ const makeAnswerTrust =
 export const makeRoutes = (deps: ApiDeps): Routes => {
   const { config, herdr, hub, sender, watch, startedAt } = deps;
 
-  const answerTrust = makeAnswerTrust(herdr);
+  const answerTrust = makeAnswerTrust(config.logPath, herdr);
 
   const health = (): Promise<Response> =>
     Effect.gen(function* () {
@@ -378,6 +388,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       // `reachable: false`, jamais une 200 qui laisserait croire que tout va bien.
       if (Result.isFailure(ping)) {
         return respond(
+          config.logPath,
           decoderOf(HealthResponse),
           {
             herdr: { reachable: false, socket: config.herdrSocketPath },
@@ -389,16 +400,21 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       }
       const value = Option.getOrUndefined(Result.getSuccess(ping));
       if (value === undefined) {
-        return respond(decoderOf(ApiErrorResponse), { error: "réponse `ping` illisible" }, 500);
+        return respond(
+          config.logPath,
+          decoderOf(ApiErrorResponse),
+          { error: "réponse `ping` illisible" },
+          500,
+        );
       }
-      return respond(decoderOf(HealthResponse), {
+      return respond(config.logPath, decoderOf(HealthResponse), {
         herdr: {
           protocol: value.protocol,
           reachable: true,
           socket: config.herdrSocketPath,
           version: value.version,
         },
-        log: LOG_PATH,
+        log: config.logPath,
         ok: true,
         uptimeMs: Date.now() - startedAt,
       });
@@ -413,6 +429,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
    */
   const overview = (): Promise<Response> =>
     run(
+      config.logPath,
       Effect.gen(function* () {
         const [cached, lastAt] = yield* Effect.all([watch.lastAgents(), watch.lastAt()]);
         // Le cache n'est utilisé que s'il est **frais ET non vide**. La condition
@@ -453,16 +470,17 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
           workspaces: snapshot.workspaces,
         });
       }),
-      (body) => respond(decoderOf(OverviewResponse), body),
+      (body) => respond(config.logPath, decoderOf(OverviewResponse), body),
     );
 
   const terminal = (request: RouteRequest): Promise<Response> =>
     run(
+      config.logPath,
       Effect.gen(function* () {
         const paneId = request.params["paneId"] ?? "";
         return yield* herdr.readAgent(paneId);
       }),
-      (body) => respond(decoderOf(TerminalResponse), body),
+      (body) => respond(config.logPath, decoderOf(TerminalResponse), body),
     );
 
   /**
@@ -544,6 +562,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       if (Result.isFailure(result)) {
         const failure = failureOf(result);
         return respond(
+          config.logPath,
           decoderOf(ApiErrorResponse),
           { error: failure === undefined ? "échec inconnu" : describe(failure) },
           502,
@@ -552,6 +571,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       const value = Option.getOrUndefined(Result.getSuccess(result));
       if (value === undefined) {
         return respond(
+          config.logPath,
           decoderOf(ApiErrorResponse),
           { error: "résultat de session illisible" },
           500,
@@ -559,12 +579,13 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       }
       if (value.kind === "no-session") {
         return respond(
+          config.logPath,
           decoderOf(ApiErrorResponse),
           { error: "aucun chemin de session exploitable pour cet agent" },
           404,
         );
       }
-      return respond(decoderOf(SessionResponse), {
+      return respond(config.logPath, decoderOf(SessionResponse), {
         entries: value.tailed.entries,
         incremental: since !== undefined,
         offset: value.tailed.offset,
@@ -579,6 +600,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     const body = Option.getOrUndefined(decodePromptBody(raw));
     if (body === undefined) {
       return respond(
+        config.logPath,
         decoderOf(ApiErrorResponse),
         { error: "corps invalide : `text` (chaîne) requis" },
         400,
@@ -591,10 +613,15 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     if (Result.isSuccess(result)) {
       const outcome = Option.getOrUndefined(Result.getSuccess(result));
       if (outcome === undefined) {
-        return respond(decoderOf(ApiErrorResponse), { error: "résultat d'envoi illisible" }, 500);
+        return respond(
+          config.logPath,
+          decoderOf(ApiErrorResponse),
+          { error: "résultat d'envoi illisible" },
+          500,
+        );
       }
       await Effect.runPromise(hub.publish("prompt", { paneId, ...outcome }));
-      return respond(decoderOf(PromptSentResponse), outcome);
+      return respond(config.logPath, decoderOf(PromptSentResponse), outcome);
     }
 
     const failure = failureOf(result);
@@ -603,12 +630,13 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       await Effect.runPromise(
         hub.publish("prompt-suppressed", { paneId, reason: "envoi identique consécutif" }),
       );
-      return respond(decoderOf(PromptSuppressedResponse), {
+      return respond(config.logPath, decoderOf(PromptSuppressedResponse), {
         reason: "envoi identique déjà confirmé dans la fenêtre",
         status: "suppressed",
       });
     }
     return respond(
+      config.logPath,
       decoderOf(ApiErrorResponse),
       { error: `envoi non confirmé : ${failure === undefined ? "inconnu" : describe(failure)}` },
       502,
@@ -640,11 +668,17 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     /** Libellé du projet, connu après lecture du snapshot. */
     let folderLabel = "ce projet";
     if (body === undefined) {
-      return respond(decoderOf(ApiErrorResponse), { error: "corps invalide : `kind` requis" }, 400);
+      return respond(
+        config.logPath,
+        decoderOf(ApiErrorResponse),
+        { error: "corps invalide : `kind` requis" },
+        400,
+      );
     }
     if (!(AGENT_KINDS as ReadonlyArray<string>).includes(body.kind)) {
       // Liste blanche : on n'accepte que les types que Herdr sait démarrer.
       return respond(
+        config.logPath,
         decoderOf(ApiErrorResponse),
         { error: `type d'agent inconnu : « ${body.kind} »`, hint: AGENT_KINDS.join(", ") },
         400,
@@ -806,6 +840,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
           : "";
         if (isTrustPrompt(screen)) {
           return respond(
+            config.logPath,
             decoderOf(TrustRequiredResponse),
             {
               folder: folderLabel,
@@ -820,6 +855,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       }
 
       return respond(
+        config.logPath,
         decoderOf(ApiErrorResponse),
         { error: failure === undefined ? "échec inconnu" : describe(failure) },
         502,
@@ -828,6 +864,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     const started = Option.getOrUndefined(Result.getSuccess(result));
     if (started === undefined) {
       return respond(
+        config.logPath,
         decoderOf(ApiErrorResponse),
         { error: "résultat de lancement illisible" },
         500,
@@ -838,7 +875,12 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       hub.publish("agent-launched", { kind: started.kind, paneId: started.paneId, workspaceId }),
     );
 
-    return respond(decoderOf(LaunchAgentResponse), { ...started, status: "started" }, 201);
+    return respond(
+      config.logPath,
+      decoderOf(LaunchAgentResponse),
+      { ...started, status: "started" },
+      201,
+    );
   };
 
   /**
@@ -886,6 +928,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
         Schema.decodeUnknownOption(Schema.Struct({ reason: Schema.String }))(failure),
       );
       return respond(
+        config.logPath,
         decoderOf(ApiErrorResponse),
         { error: known?.reason ?? "fichier indisponible" },
         403,
@@ -894,7 +937,12 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
 
     const value = Option.getOrUndefined(Result.getSuccess(result));
     if (value === undefined) {
-      return respond(decoderOf(ApiErrorResponse), { error: "fichier illisible" }, 500);
+      return respond(
+        config.logPath,
+        decoderOf(ApiErrorResponse),
+        { error: "fichier illisible" },
+        500,
+      );
     }
 
     // Ce qui n'est pas dans la liste blanche est **téléchargé**, jamais rendu.
@@ -937,10 +985,15 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     );
 
     if (Result.isFailure(result)) {
-      return respond(decoderOf(ApiErrorResponse), { error: "balayage impossible" }, 502);
+      return respond(
+        config.logPath,
+        decoderOf(ApiErrorResponse),
+        { error: "balayage impossible" },
+        502,
+      );
     }
     const found = Option.getOrUndefined(Result.getSuccess(result)) ?? [];
-    return respond(decoderOf(RecentImagesResponse), { images: found });
+    return respond(config.logPath, decoderOf(RecentImagesResponse), { images: found });
   };
 
   /**
@@ -953,7 +1006,12 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
   const agentKinds = async (): Promise<Response> => {
     const result = await Effect.runPromise(Effect.result(herdr.request("integration.list")));
     if (Result.isFailure(result)) {
-      return respond(decoderOf(ApiErrorResponse), { error: "types d'agents indisponibles" }, 502);
+      return respond(
+        config.logPath,
+        decoderOf(ApiErrorResponse),
+        { error: "types d'agents indisponibles" },
+        502,
+      );
     }
     const payload = Option.getOrUndefined(Result.getSuccess(result)) ?? {};
     const decoded = Option.getOrUndefined(
@@ -972,7 +1030,12 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       )(payload),
     );
     if (decoded === undefined) {
-      return respond(decoderOf(ApiErrorResponse), { error: "réponse Herdr illisible" }, 502);
+      return respond(
+        config.logPath,
+        decoderOf(ApiErrorResponse),
+        { error: "réponse Herdr illisible" },
+        502,
+      );
     }
 
     // `agent.start` attend un `kind`. Pour la plupart c'est la **commande** ;
@@ -986,7 +1049,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
         state: integration.state,
       }));
 
-    return respond(decoderOf(InstalledKindsResponse), { kinds });
+    return respond(config.logPath, decoderOf(InstalledKindsResponse), { kinds });
   };
 
   const events = (request: RouteRequest): Response => {
@@ -1043,9 +1106,9 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     "/api/agents/:paneId/session": session,
     "/api/agents/:paneId/terminal": terminal,
     "/api/agents/kinds": agentKinds,
-    "/api/agents/:kind/models": modelCatalog,
+    "/api/agents/:kind/models": (request) => modelCatalog(config.logPath, request),
     "/api/agents/:paneId/trust": answerTrust,
-    "/api/log": clientLog,
+    "/api/log": (request) => clientLog(config.logPath, request),
     "/api/events": events,
     "/api/file": file,
     "/api/images": images,
