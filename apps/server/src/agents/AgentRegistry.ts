@@ -13,7 +13,13 @@
  * `state_labels` étaient **absents** sur l'instance mesurée, pas vides.
  */
 import { Effect, Result, Schema } from "effect";
-import type { AgentInfo, SnapshotPane, TabInfo, WorkspaceInfo } from "@herdr-remote/shared";
+import type {
+  AgentInfo,
+  AgentStatus,
+  SnapshotPane,
+  TabInfo,
+  WorkspaceInfo,
+} from "@herdr-remote/shared";
 import { readHeader } from "../sessions/SessionReader.ts";
 
 /** Vue d'un agent exposée à l'interface. */
@@ -23,7 +29,8 @@ export interface AgentView {
   readonly workspaceId: string;
   readonly agent: string | null;
   readonly title: string | null;
-  readonly status: string;
+  /** État métier en union fermée (A04) : une string libre accepterait n'importe quoi. */
+  readonly status: AgentStatus;
   readonly cwd: string | null;
   readonly focused: boolean;
   /** Libellé humain de l'onglet. `null` = nom par défaut côté Herdr. */

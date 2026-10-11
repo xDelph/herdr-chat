@@ -12,7 +12,7 @@
  * - **Aucun « non lu »** : Herdr n'expose aucun compteur exploitable.
  */
 import { Effect, Option, Result } from "effect";
-import type { ConversationSummary } from "@herdr-remote/shared";
+import type { AgentStatus, ConversationSummary } from "@herdr-remote/shared";
 import { readTail, type TailedSession } from "../sessions/SessionReader.ts";
 
 /** Un agent tel que Herdr le décrit, sans ce que le serveur en sait. */
@@ -36,6 +36,33 @@ export interface RawPane {
  */
 const isDefaultLabel = (label: string | null | undefined): label is null =>
   label === undefined || label === null || /^\d+$/.test(label.trim());
+
+/**
+ * États connus de Herdr.
+ *
+ * Table plutôt que `Set` : la garde de type vérifie que chaque clé est bien un
+ * `AgentStatus`, donc ajouter un état au contrat **casse la compilation** ici
+ * tant qu'il n'est pas listé.
+ */
+const CONNUS: Record<string, AgentStatus> = {
+  blocked: "blocked",
+  done: "done",
+  idle: "idle",
+  unknown: "unknown",
+  working: "working",
+};
+
+/**
+ * Convertit l'état brut de Herdr en union fermée.
+ *
+ * Herdr n'ajoute pas d'état sans prévenir, mais un état inconnu ne doit pas
+ * fuiter tel quel dans l'interface : il devient `unknown`, qui est **affiché**
+ * comme tel. On n'invente pas de nouvel état.
+ */
+export const toStatus = (brut: string | null | undefined): AgentStatus => {
+  if (brut === undefined || brut === null) return "unknown";
+  return CONNUS[brut.trim().toLowerCase()] ?? "unknown";
+};
 
 /** Premier non vide, dans l'ordre du tableau de règles. */
 export const titleOf = (pane: RawPane): string => {
@@ -143,7 +170,7 @@ export const summaryOf = (
 ): Effect.Effect<ConversationSummary> =>
   Effect.gen(function* () {
     const base = {
-      status: pane.agentStatus ?? "unknown",
+      status: toStatus(pane.agentStatus),
       title: titleOf(pane),
       workspaceId: pane.workspaceId,
       paneId: pane.paneId,

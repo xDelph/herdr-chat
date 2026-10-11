@@ -36,6 +36,7 @@ import type {
   TrustRequired,
   WorkspaceView,
 } from "./api.ts";
+import { AgentStatus } from "@herdr-remote/shared";
 import { toItems, toMessages, touchedFilesOf } from "./blocks.ts";
 import { FilesSheet } from "./Files.tsx";
 import { Gallery } from "./Gallery.tsx";
@@ -103,13 +104,13 @@ const describeEvent = (kind: string, data: unknown, names: ReadonlyMap<string, s
   const decoded = Option.getOrUndefined(
     Schema.decodeUnknownOption(
       Schema.Struct({
-        from: Schema.optional(Schema.NullOr(Schema.String)),
+        from: Schema.optional(Schema.NullOr(AgentStatus)),
         kind: Schema.optional(Schema.String),
         paneId: Schema.optional(Schema.String),
         reason: Schema.optional(Schema.String),
         status: Schema.optional(Schema.String),
         text: Schema.optional(Schema.String),
-        to: Schema.optional(Schema.String),
+        to: Schema.optional(Schema.NullOr(AgentStatus)),
       }),
     )(data),
   );
@@ -128,7 +129,7 @@ const describeEvent = (kind: string, data: unknown, names: ReadonlyMap<string, s
       case "disappeared":
         return `${label} — agent arrêté`;
       default:
-        return `${label} — ${statusLabel(decoded.from ?? "?")} → ${statusLabel(decoded.to ?? "?")}`;
+        return `${label} — ${statusLabel(decoded.from ?? "unknown")} → ${statusLabel(decoded.to ?? "unknown")}`;
     }
   }
 
@@ -139,7 +140,13 @@ const describeEvent = (kind: string, data: unknown, names: ReadonlyMap<string, s
   return kind;
 };
 
-const STATUS_LABEL: Record<string, string> = {
+/**
+ * Libellés par état.
+ *
+ * La clé est **typée** : un état absent de cette table ne compile pas, donc
+ * impossible d'oublier un libellé en ajoutant un état à l'union (A04).
+ */
+const STATUS_LABEL: Record<AgentStatus, string> = {
   blocked: "attend une réponse",
   done: "terminé",
   idle: "disponible",
@@ -147,8 +154,12 @@ const STATUS_LABEL: Record<string, string> = {
   working: "en cours",
 };
 
+/** Tous les états, dans l’ordre d’affichage du filtre. */
+const ALL_STATUSES = ["working", "blocked", "idle", "done", "unknown"] as const;
+
 /** Aucun statut `error` n'existe côté Herdr : on ne le fabrique pas. */
-const statusLabel = (status: string): string => STATUS_LABEL[status] ?? status;
+/** L'état vient du contrat : pas de `?? status` qui laisserait fuire la valeur brute. */
+const statusLabel = (status: AgentStatus): string => STATUS_LABEL[status];
 
 /**
  * Nom lisible d'un agent.
@@ -215,7 +226,7 @@ const headerContext = (agent: AgentView): string => {
 };
 
 /** Couleur sémantique : `unknown` est neutre, jamais vert ni rouge. */
-const statusClass = (status: string): string => {
+const statusClass = (status: AgentStatus): string => {
   switch (status) {
     case "working":
       return "dot dot--working";
@@ -1045,7 +1056,7 @@ export const App = () => {
             </select>
             <select value={statusFilter} onChange={onStatusFilter}>
               <option value="tous">tous les états</option>
-              {["working", "blocked", "idle", "done", "unknown"].map((status) => (
+              {ALL_STATUSES.map((status) => (
                 <option key={status} value={status}>
                   {statusLabel(status)}
                 </option>

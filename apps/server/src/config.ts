@@ -53,8 +53,6 @@ export interface ServerConfig {
    * elle-même la PWA ; en production c'est le nom Tailscale.
    */
   readonly publicOrigin: string;
-  /** Répertoire des pièces jointes uploadées (D007.1). */
-  readonly uploadDir: string;
   /**
    * Racines **supplémentaires** pour la lecture de fichiers.
    *
@@ -131,7 +129,6 @@ export class ServerConfigTag extends Context.Service<ServerConfigTag, ServerConf
           env["HERDR_REMOTE_PUBLIC_ORIGIN"] ??
           `http://${bind === "127.0.0.1" ? "127.0.0.1" : bind}:${String(port)}`,
         extraFileRoots,
-        uploadDir: env["HERDR_REMOTE_UPLOAD_DIR"] ?? `${home}/.herdr-remote/uploads`,
       });
     }),
   );

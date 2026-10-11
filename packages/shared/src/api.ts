@@ -14,7 +14,7 @@
  * selon les mêmes, et un test de contrat échoue si l'un des deux s'en écarte.
  */
 import { Option, Schema } from "effect";
-import { AgentInfo, WorkspaceInfo } from "./protocol.ts";
+import { AgentInfo, AgentStatus, WorkspaceInfo } from "./protocol.ts";
 
 /** État du backend **et** joignabilité d'Herdr. */
 export const HealthResponse = Schema.Struct({
@@ -44,7 +44,8 @@ export const AgentViewSchema = Schema.Struct({
   sessionId: Schema.NullOr(Schema.String),
   sessionKind: Schema.NullOr(Schema.Literals(["id", "path"])),
   sessionPath: Schema.NullOr(Schema.String),
-  status: Schema.String,
+  /** Union fermée (A04) : pas de string libre pour un état métier. */
+  status: AgentStatus,
   /** Libellé humain de l'onglet, quand Herdr en fournit un. */
   tabLabel: Schema.NullOr(Schema.String),
   tabId: Schema.String,
@@ -59,7 +60,7 @@ export type AgentView = typeof AgentViewSchema.Type;
 export const WorkspaceViewSchema = Schema.Struct({
   /** Panes d'agents de ce projet, pour savoir s'il y en a déjà un. */
   agentPanes: Schema.Array(Schema.String),
-  agentStatus: Schema.NullOr(Schema.String),
+  agentStatus: Schema.NullOr(AgentStatus),
   /**
    * Chemin du projet. Vient du dossier de travail (`checkout_path`) : c'est
    * **là** qu'un nouvel agent doit démarrer. Sans lui, impossible de lancer
@@ -399,8 +400,8 @@ export const ConversationSummary = Schema.Struct({
   timestamp: Schema.optional(Schema.Number),
   /** Titre = premier non vide : titre Herdr, onglet, projet, puis `paneId`. */
   title: Schema.String,
-  /** Statut d'activité : `idle | working | blocked | done | unknown`. */
-  status: Schema.String,
+  /** État en union fermée (A04) : une string libre accepterait n'importe quoi. */
+  status: AgentStatus,
   workspaceId: Schema.String,
   paneId: Schema.String,
 });

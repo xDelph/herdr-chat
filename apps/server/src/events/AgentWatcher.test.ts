@@ -15,6 +15,7 @@
  */
 import { describe, expect, test } from "bun:test";
 import { Effect, Option, Schema } from "effect";
+import type { AgentStatus } from "@herdr-remote/shared";
 import { AgentWatcher, startWatchLoop } from "./AgentWatcher.ts";
 import type { EventHubApi, BusEvent } from "./EventHub.ts";
 import { HerdrProtocolError } from "../herdr/HerdrClient.ts";
@@ -23,7 +24,7 @@ import type { AgentView } from "../agents/AgentRegistry.ts";
 import type { AgentInfo } from "@herdr-remote/shared";
 
 /** Vue minimale, suffisante pour la détection de changement. */
-const view = (paneId: string, status: string): AgentView => ({
+const view = (paneId: string, status: AgentStatus): AgentView => ({
   agent: "pi",
   cwd: "/projet",
   focused: false,
