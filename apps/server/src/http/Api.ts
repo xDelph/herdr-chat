@@ -20,7 +20,10 @@ import {
   RecentImagesResponse,
   LaunchAgentRequest,
   LaunchAgentResponse,
+  ModelCatalogResponse,
   OverviewResponse,
+  TrustRequiredResponse,
+  TrustResolvedResponse,
   PromptSentResponse,
   PromptSuppressedResponse,
   SessionResponse,
@@ -28,6 +31,9 @@ import {
   TerminalResponse,
 } from "@herdr-remote/shared";
 import { buildOverview, checkoutPathOf, toWorkspaceViews } from "../agents/AgentRegistry.ts";
+import { buildModelArgs, checkThinkingSupported } from "../agents/ModelArgs.ts";
+import { catalogOf } from "../agents/ModelCatalog.ts";
+import { isTrustPrompt, respondToTrust } from "../agents/TrustPrompt.ts";
 import { FileDenied, FileUnavailable } from "../files/FileService.ts";
 import type { ServerConfig } from "../config.ts";
 import type { WatchLoop } from "../events/AgentWatcher.ts";
@@ -292,8 +298,77 @@ const clientLog = async (request: RouteRequest): Promise<Response> => {
   return json({ ok: true });
 };
 
+/**
+ * Catalogue de modèles d'un type d'agent.
+ *
+ * Chaque réponse porte **la commande qui l'a produit** (`source`) : un
+ * catalogue non traçable ne serait pas vérifiable, et ce projet refuse
+ * d'exposer un état qu'on ne peut pas contrôler.
+ *
+ * Un kind sans mesure renvoie `models: []` et la raison dans `error` — pas
+ * une liste devinée. La réponse est toujours **200** : l'absence de catalogue
+ * est une information valide, pas une panne du serveur.
+ */
+const modelCatalog = (request: RouteRequest): Promise<Response> =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const kind = request.params["kind"] ?? "";
+      const catalog = yield* catalogOf(kind);
+      return respond(decoderOf(ModelCatalogResponse), { ...catalog, kind });
+    }),
+  );
+
+/** Corps de la réponse à l'invite de confiance. */
+const TrustBody = Schema.Struct({ accept: Schema.Boolean });
+
+const decodeTrustBody = Schema.decodeUnknownOption(TrustBody);
+
+/**
+ * Répond à l'invite de confiance d'un agent.
+ *
+ * Le serveur **relit le pane** avant d'envoyer quoi que ce soit : si l'invite
+ * n'est plus là (l'utilisateur a déjà répondu au terminal), la réponse est
+ * refusée et **aucune touche n'est envoyée**. Répondre à la place de
+ * l'utilisateur à un autre dialogue serait pire que de ne rien faire.
+ */
+const makeAnswerTrust =
+  (herdr: HerdrApi) =>
+  async (request: RouteRequest): Promise<Response> => {
+    const raw: unknown = await request.json().catch(() => undefined);
+    const body = Option.getOrUndefined(decodeTrustBody(raw));
+    if (body === undefined) {
+      return respond(
+        decoderOf(ApiErrorResponse),
+        { error: "corps invalide : `accept` (booléen) requis" },
+        400,
+      );
+    }
+    const paneId = request.params["paneId"] ?? "";
+    const result = await Effect.runPromise(
+      Effect.result(respondToTrust(herdr, paneId, body.accept)),
+    );
+    if (Result.isFailure(result)) {
+      const failure = failureOf(result);
+      return respond(
+        decoderOf(ApiErrorResponse),
+        { error: failure === undefined ? "échec inconnu" : describe(failure) },
+        502,
+      );
+    }
+    const outcome = Option.getOrUndefined(Result.getSuccess(result));
+    if (outcome === undefined) {
+      return respond(decoderOf(ApiErrorResponse), { error: "réponse illisible" }, 500);
+    }
+    return respond(decoderOf(TrustResolvedResponse), {
+      accepted: outcome.accepted,
+      status: "trust-resolved",
+    });
+  };
+
 export const makeRoutes = (deps: ApiDeps): Routes => {
   const { config, herdr, hub, sender, watch, startedAt } = deps;
+
+  const answerTrust = makeAnswerTrust(herdr);
 
   const health = (): Promise<Response> =>
     Effect.gen(function* () {
@@ -561,6 +636,8 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     const workspaceId = request.params["workspaceId"] ?? "";
     const raw: unknown = await request.json().catch(() => undefined);
     const body = decoderOf(LaunchAgentRequest)(raw);
+    /** Libellé du projet, connu après lecture du snapshot. */
+    let folderLabel = "ce projet";
     if (body === undefined) {
       return respond(decoderOf(ApiErrorResponse), { error: "corps invalide : `kind` requis" }, 400);
     }
@@ -590,6 +667,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
           // Les noms affichés sont ceux que l'utilisateur reconnaît, jamais des
           // identifiants internes.
           const label = workspace.label ?? "ce projet";
+          folderLabel = label;
 
           // Lancer dans un projet qui a **déjà** un agent est permis : cela crée
           // un nouvel onglet. Interdire obligeait à passer par Herdr à la main
@@ -641,8 +719,32 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
           // interactif. Herdr répond alors `is not an available shell`.
           // Il n'expose pas cet état dans le snapshot, donc on **réessaie** —
           // attendre un temps fixe serait aussi faux qu'essayer tout de suite.
+          // Modèle et raisonnement sont des **args de lancement** : c'est le
+          // seul moment où ils peuvent être fixés sans commande dans le TUI.
+          // On construit les drapeaux **avant** d'ouvrir l'onglet pour ne pas
+          // laisser un onglet vide si la demande est refusée.
+          const requested = yield* buildModelArgs(body.kind, body.model, body.thinking);
+          if (requested.error !== undefined) {
+            yield* herdr.closeTab(tab.tabId).pipe(Effect.ignore);
+            return yield* Effect.fail({ message: requested.error });
+          }
+          const thinkingProblem =
+            body.model !== undefined && body.thinking !== undefined
+              ? yield* checkThinkingSupported(body.kind, body.model, body.thinking)
+              : null;
+          if (thinkingProblem !== null) {
+            yield* herdr.closeTab(tab.tabId).pipe(Effect.ignore);
+            return yield* Effect.fail({ message: thinkingProblem });
+          }
+
           yield* herdr
-            .startAgent({ kind: body.kind, name, pane_id: tab.paneId, timeout_ms: 120_000 })
+            .startAgent({
+              kind: body.kind,
+              name,
+              pane_id: tab.paneId,
+              timeout_ms: 120_000,
+              ...(requested.args.length > 0 ? { args: requested.args } : {}),
+            })
             .pipe(
               Effect.retry({
                 schedule: Schedule.spaced("3 seconds"),
@@ -669,6 +771,53 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
 
     if (Result.isFailure(result)) {
       const failure = failureOf(result);
+
+      /*
+        ⚠️ Un agent **bloqué au démarrage** n'est pas un échec : c'est une
+        question posée à l'utilisateur. Pour codex, cette question est
+        « Trust this folder? » — répondre autorise l'exécution de code dans le
+        dossier, de façon **persistante**.
+
+        On ne répond donc jamais ici : on vérifie que c'est bien cette invite,
+        et on la renvoie à l'application pour que la décision soit visible et
+        nommée. C'est aussi pourquoi l'onglet n'est pas refermé dans ce cas :
+        l'agent est là, il attend.
+      */
+      const decoded = Option.getOrUndefined(
+        Schema.decodeUnknownOption(
+          Schema.Struct({
+            detail: Schema.optional(Schema.String),
+            paneId: Schema.NullOr(Schema.String),
+            phase: Schema.String,
+          }),
+        )(failure),
+      );
+      if (
+        decoded !== undefined &&
+        decoded.phase === "agent" &&
+        decoded.paneId !== null &&
+        decoded.detail !== undefined &&
+        decoded.detail.includes("blocked")
+      ) {
+        const read = await Effect.runPromise(Effect.result(herdr.readAgent(decoded.paneId)));
+        const screen = Result.isSuccess(read)
+          ? (Option.getOrUndefined(Result.getSuccess(read))?.text ?? "")
+          : "";
+        if (isTrustPrompt(screen)) {
+          return respond(
+            decoderOf(TrustRequiredResponse),
+            {
+              folder: folderLabel,
+              kind: body.kind,
+              message: `${body.kind} demande la confiance de « ${folderLabel} ». Il pourra y lire, écrire et exécuter du code — y compris sans te demander. Cette réponse est enregistrée définitivement.`,
+              paneId: decoded.paneId,
+              status: "trust-required",
+            },
+            409,
+          );
+        }
+      }
+
       return respond(
         decoderOf(ApiErrorResponse),
         { error: failure === undefined ? "échec inconnu" : describe(failure) },
@@ -893,6 +1042,8 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     "/api/agents/:paneId/session": session,
     "/api/agents/:paneId/terminal": terminal,
     "/api/agents/kinds": agentKinds,
+    "/api/agents/:kind/models": modelCatalog,
+    "/api/agents/:paneId/trust": answerTrust,
     "/api/log": clientLog,
     "/api/events": events,
     "/api/file": file,

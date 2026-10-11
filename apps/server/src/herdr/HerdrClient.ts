@@ -125,6 +125,29 @@ export interface HerdrApi {
 
   /** Démarre un agent dans un pane existant. */
   readonly startAgent: (params: StartAgentParams) => Effect.Effect<ResultPayload, HerdrError>;
+
+  /**
+   * Ferme un onglet.
+   *
+   * Utilisé pour **ne rien laisser derrière soi** : si le lancement d'un agent
+   * est refusé après la création de l'onglet (modèle inconnu, niveau non
+   * supporté), l'onglet vide est refermé. Sans cela, un refus laisserait un
+   * onglet nu dans le projet de l'utilisateur.
+   */
+  readonly closeTab: (tabId: string) => Effect.Effect<ResultPayload, HerdrError>;
+
+  /**
+   * Envoie des touches à l'interface d'un agent.
+   *
+   * Seul chemin documenté pour répondre à une **boîte de dialogue** : un
+   * agent `blocked` refuse `agent.prompt` (`agent_blocked`) mais accepte des
+   * touches. C'est ce qui permet de répondre à l'invite de confiance de
+   * codex sans écrire dans le terminal à l'aveugle.
+   */
+  readonly sendKeys: (
+    target: string,
+    keys: ReadonlyArray<string>,
+  ) => Effect.Effect<ResultPayload, HerdrError>;
 }
 
 export class HerdrClient extends Context.Service<HerdrClient, HerdrApi>()(
@@ -277,7 +300,13 @@ export class HerdrClient extends Context.Service<HerdrClient, HerdrApi>()(
         }),
       );
 
+    const closeTab = (tabId: string) => request(Method.tabClose, { tab_id: tabId });
+
+    const sendKeys = (target: string, keys: ReadonlyArray<string>) =>
+      request(Method.agentSendKeys, { keys: [...keys], target });
+
     return HerdrClient.of({
+      closeTab,
       createTab,
       getAgent,
       listAgents,
@@ -285,6 +314,7 @@ export class HerdrClient extends Context.Service<HerdrClient, HerdrApi>()(
       promptAgent,
       readAgent,
       request,
+      sendKeys,
       snapshot,
       startAgent,
     });

@@ -28,13 +28,15 @@ bun run apps/server/src/main.ts           # http://127.0.0.1:8790
 tailscale serve --bg 8790
 ```
 
-**Repli (HTTP sur le tailnet)** — chiffré par WireGuard, mais PWA **non installable** sur iOS :
+**Repli de développement actuel (hors installation de release)** — HTTP sur le tailnet, chiffré par WireGuard, mais PWA **non installable** sur iOS :
 
 ```bash
 HERDR_REMOTE_BIND=$(tailscale ip -4 | head -1) bun run apps/server/src/main.ts
 ```
 
 `HERDR_REMOTE_BIND` accepte `127.0.0.1` ou une IP Tailscale. **`0.0.0.0` et toute IP publique sont refusés** au démarrage.
+
+La release prévue vise un **tap Homebrew personnel**, Tailscale Serve et **aucune authentification applicative**. Un appareil admis par les règles du tailnet peut utiliser toutes les fonctions ; voir le [modèle d'accès](docs/SECURITY_MODEL.md). La formule et les contrôles HTTP de release restent à implémenter.
 
 ## Configuration
 
@@ -76,6 +78,10 @@ Cette séparation n'est pas un choix esthétique : `revision` vaut `0` en perman
 | `docs/HERDR_REMOTE_SPEC.md` | Spécification produit de référence |
 | `docs/PROTOCOL.md` | Protocole Herdr et format des sessions Pi, **vérifiés par exécution** |
 | `docs/TASKS.md` | Plan déterministe, portes bloquantes, état d'avancement |
+| `docs/RELEASE_BACKLOG.md` | Backlog actif pour la refonte mobile et la publication du code source |
+| `docs/RELEASE_CHOICES.md` | Proposition de licence PolyForm, distribution et accès |
+| `docs/SECURITY_MODEL.md` | Périmètre d'accès personnel et contrôles prévus pour la release |
+| `docs/UX_MOBILE.md` | Parcours et maquettes mobiles à valider |
 | `docs/DECISIONS.md` | Décisions datées avec leurs alternatives écartées |
 | `docs/TOOLCHAIN.md` | Chaîne d'outils, règles de lint, pièges des outils |
 

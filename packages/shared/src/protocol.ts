@@ -185,11 +185,13 @@ export const Method = {
   agentList: "agent.list",
   agentPrompt: "agent.prompt",
   agentRead: "agent.read",
+  agentSendKeys: "agent.send_keys",
   agentStart: "agent.start",
   eventsSubscribe: "events.subscribe",
   eventsWait: "events.wait",
   ping: "ping",
   sessionSnapshot: "session.snapshot",
+  tabClose: "tab.close",
   tabCreate: "tab.create",
 } as const;
 export type Method = (typeof Method)[keyof typeof Method];

@@ -975,3 +975,21 @@ Chaque résultat se présente comme une ligne : nom de l'outil, aperçu, nombre 
 - **Le sélecteur de type d'agent** reste fixé à `pi` dans l'interface ; l'API accepte les 11 types de la liste blanche.
 - **La question en attente** est lue à la demande, pour les seuls agents bloqués. Aucun coût sur le rafraîchissement du parc.
 - `docs/IDEAS.md` §3.3 à §3.8 : non commencées.
+
+---
+
+## D018 — Publication personnelle : tap Homebrew et accès par tailnet
+
+**Date :** 2026-10-11 · Décision exprimée par le propriétaire après présentation des maquettes.
+
+### D018.1 — Distribution
+
+Herdr Remote sera distribué comme **service autonome dans un tap Homebrew personnel**. La PWA reste servie par ce service. Le plugin Herdr est une intégration facultative à étudier plus tard ; il ne devient pas nécessaire pour installer ou maintenir le serveur. Le nom du tap et sa formule ne sont pas encore créés. Backlog : D04, F06 et F07.
+
+### D018.2 — Accès
+
+Pour cette release, l'usage est **personnel** : Mac et appareils de la même personne dans son tailnet Tailscale. **Aucune authentification applicative** ni gestion d'équipe, de comptes ou de rôles. Tailscale Serve et les grants/ACL du tailnet définissent l'accès distant ; le serveur reste sur loopback. Un appareil admis par le tailnet a accès à toutes les routes de l'application, y compris les actions. Les processus du Mac ont également un accès local. Le modèle exact, ses limites et les contrôles contre les requêtes intersites sont dans [SECURITY_MODEL.md](SECURITY_MODEL.md). Backlog : D02, S01 et S02.
+
+### D018.3 — Direction visuelle
+
+Les quatre maquettes 390×844 de [UX_MOBILE.md](UX_MOBILE.md) sont jugées « pas mal » par le propriétaire et servent de direction. U02/D03 restent ouverts jusqu'aux variantes 320×568, aux états chargement/vide/erreur/hors ligne et à leur validation.

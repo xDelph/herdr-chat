@@ -2,6 +2,8 @@
 
 > **Statut :** cadrage initial · **Date :** 08/10/2026 · **Cible :** iPhone (PWA) + Mac (service local)
 
+> **Évolution UX du 11/10/2026 :** la navigation et le périmètre de release ci-dessous remplacent les choix initiaux correspondants. Plan d'exécution : [backlog de release](RELEASE_BACKLOG.md).
+
 ## 1. Objectif
 
 Une **messagerie mobile pour piloter Herdr et ses agents existants** (Pi en priorité, puis autres harnesses) : envoyer des instructions, suivre les réponses et les subagents, intervenir à distance et reprendre le travail sur Mac **sans perdre le contexte**.
@@ -12,7 +14,7 @@ Une **messagerie mobile pour piloter Herdr et ses agents existants** (Pi en prio
 
 ```text
 iPhone — Safari / PWA installée
-   │ HTTPS + WebSocket (tailnet privé)
+   │ HTTPS + SSE/HTTP (tailnet privé)
    ▼
 Tailscale Serve (Mac)
    ▼
@@ -27,7 +29,7 @@ Herdr → panes / agents / subagents existants
 
 - **Contrôle :** API Herdr pour lister, lire et envoyer vers les agents/panes existants.
 - **Affichage Pi :** exploiter le format structuré des sessions JSONL ; ne jamais écrire dedans directement.
-- **Temps réel :** abonnement aux événements Herdr + canal WebSocket vers l'iPhone. Enrichissement par extension Pi si nécessaire.
+- **Temps réel :** abonnement aux événements Herdr + flux SSE vers l'iPhone. Le contenu et le rattrapage proviennent des sessions Pi ; enrichissement par extension Pi seulement si sa capacité est vérifiée.
 - **Limite connue :** le mode RPC de Pi permet un contrôle bidirectionnel **des processus démarrés en RPC** ; il ne se rattache pas magiquement à une TUI Pi existante. Prévoir un adaptateur/une extension pour combler les écarts.
 - **Déploiement :** un backend en processus utilisateur (launchd macOS) + frontend statique ; pas de Docker ni base distante.
 
@@ -54,20 +56,19 @@ Herdr → panes / agents / subagents existants
 
 | Priorité | Fonctionnalité | Comportement attendu |
 |---|---|---|
-| **MVP** | **Accueil / état global** | Projets, workspaces, agents actifs/terminés/bloqués, dernière activité et nombre d'actions requises. |
-| **MVP** | **Liste multi-agents** | Chaque agent/pane identifié, filtrable par projet et statut, avec sélection instantanée. |
+| **MVP** | **Accueil Conversations** | Agents qui attendent une réponse, conversations en cours puis récentes ; chaque ligne identifie projet, agent/pane, état et dernière activité vérifiée. |
+| **MVP** | **Projets** | Chaque projet ouvre ses conversations et permet de lancer un nouvel agent dans ce contexte. |
 | **MVP** | **Chat type messagerie** | Historique lisible, Markdown/code, messages utilisateur/assistant, reprise de la session existante. |
 | **MVP** | **Envoyer des instructions** | Prompts transmis au bon agent via Herdr ; indication claire d'envoi, d'exécution et d'erreur. |
 | **MVP** | **Streaming & reconnexion** | Texte et états actualisés en direct ; reconnexion automatique et rattrapage après coupure iOS. |
 | **MVP** | **Historique Pi** | Lire les sessions JSONL, branches et tool calls sans modifier les fichiers de session. |
-| **MVP** | **Sécurité d'accès** | Service lié à `127.0.0.1`, accès via Tailscale Serve, politique tailnet restrictive, API sans commande shell arbitraire. |
+| **MVP** | **Sécurité d'accès** | Release personnelle : service lié à `127.0.0.1`, accès via Tailscale Serve et politique tailnet restrictive, sans authentification applicative ; API sans commande shell arbitraire. |
 | **V1** | **Subagents / arborescence** | Vue parent → enfants, profondeur, statut individuel, progression et coûts lorsque disponibles. |
 | **V1** | **Tool calls & activités** | Afficher outils lancés, arguments/résultats résumés, erreurs, durées ; détail à la demande. |
 | **V1** | **Approbations / interventions** | Remonter les demandes de confirmation et répondre depuis l'iPhone si l'intégration agent le permet. |
 | **V1** | **Git / code review** | Branche, fichiers modifiés, diffs, résumé des changements ; validation explicite des actions risquées. |
 | **V1** | **Notifications** | Agent terminé/bloqué, approbation attendue, échec ; Web Push iOS si PWA installée et permission accordée. |
 | **V1** | **Pièces jointes** | Envoyer images/captures et fichiers à une session compatible, avec taille et types limités. |
-| **V1** | **Terminal de secours** | Vue terminal/ANSI en lecture prioritaire ; interaction ciblée si le protocole Herdr l'autorise. |
 | **V2** | **Orchestration mobile** | Lancer/arrêter/relancer des agents et gérer des groupes de subagents selon les capacités Herdr. |
 | **V2** | **Recherche transverse** | Rechercher prompts, réponses, outils, sessions et agents dans plusieurs projets. |
 | **V2** | **Observabilité** | Durée, modèles, tokens/coûts lorsqu'exposés, erreurs, activité et métriques locales. |
@@ -76,16 +77,17 @@ Herdr → panes / agents / subagents existants
 
 ## 5. UX iPhone
 
-- **Navigation :** `Projets` · `Agents` · `Activité` · `Réglages` ; chat accessible en un geste.
-- **Écran chat :** bulles de messages, état de l'agent, cartes compactes pour tool calls/subagents, composeur fixe, pièces jointes.
-- **Lisibilité :** pas de terminal brut par défaut ; code/diffs repliables ; indicateurs *working / waiting / done / error*.
-- **Résilience :** historique consultable à la reconnexion ; actions idempotentes quand possible, pas d'envoi doublon.
+- **Navigation :** `Conversations` · `Projets` · `Réglages`. `À traiter` est une section ou un filtre de Conversations et n'affiche que les interventions réellement requises.
+- **Référence de conception :** hiérarchie mobile de T3 Code pour la liste et le chat, adaptée à Herdr et à son identité visuelle ; aucun écran de terminal.
+- **Écran chat :** titre et état vérifié dans l'en-tête, historique lisible, actions Fichiers/Modèle secondaires, composeur accessible avec le clavier ouvert.
+- **Lisibilité :** code/diffs repliables ; les états `working`, `blocked`, `done` et les erreurs d'action restent distincts.
+- **Résilience :** historique et brouillon conservés à la reconnexion ; aucun envoi non confirmé présenté comme réussi.
 
 ## 6. Sécurité & performance (non négociables)
 
-- **Tailscale uniquement :** `tailscale serve --bg 3000` vers le service local ; **jamais** `tailscale funnel`, jamais de port public.
-- Contrôle des utilisateurs/appareils via **Tailscale ACL/grants** ; authentification applicative additionnelle envisageable pour les opérations sensibles.
-- Vérifier l'origine, l'autorisation et les limites de débit des requêtes HTTP/WebSocket ; commandes autorisées par liste blanche.
+- **Tailscale uniquement :** Serve HTTPS vers le service local sur `127.0.0.1:8790` ; **jamais** `tailscale funnel`, jamais de port public.
+- Accès personnel défini par **Tailscale ACL/grants** ; pas d'identité ni d'autorisation applicative pour cette release. Toute connexion autorisée au service peut appeler les routes de lecture et d'action. Voir [SECURITY_MODEL.md](SECURITY_MODEL.md).
+- Vérifier l'hôte, l'origine des requêtes mutantes et les limites de ressources HTTP/SSE ; commandes autorisées par liste blanche.
 - Ne pas exposer les secrets, clés API, variables d'environnement ni le contenu complet des fichiers sans action explicite ; limiter les logs.
 - Streaming incrémental, pagination/virtualisation de l'historique, cache borné, nettoyage des abonnements ; mesurer CPU/RAM sur Mac.
 - Accès Mac ↔ iPhone seulement lorsque **Mac et Tailscale sont actifs** ; Web Push dépend aussi de l'infrastructure de notification du navigateur/OS.
@@ -94,7 +96,7 @@ Herdr → panes / agents / subagents existants
 
 1. **Spike protocole :** vérifier version/API Herdr locale, détecter agent Pi ↔ pane ↔ fichier de session ; valider l'envoi d'un prompt sans créer d'agent supplémentaire.
 2. **MVP utilisable :** backend Effect/Bun, PWA React, listing, chat, streaming, historique et Tailscale Serve.
-3. **V1 riche :** subagents, tool calls, approbations, Git, notifications, fichiers et terminal de secours.
+3. **V1 riche :** subagents, tool calls, approbations, Git, notifications et fichiers après preuve des capacités nécessaires.
 4. **V2 :** orchestration avancée, recherche et adaptateurs multi-harness.
 
 **Critère de succès MVP :** depuis l'iPhone en Wi-Fi **ou 5G**, ouvrir la PWA, retrouver un agent Pi déjà lancé par Herdr, lire sa session, lui envoyer un message, suivre sa réponse puis reprendre la même session sur Mac — **sans SSH ni modification des droits de `$HOME`**.

@@ -129,7 +129,21 @@ export type PromptSuppressedResponse = typeof PromptSuppressedResponse.Type;
 export const LaunchAgentRequest = Schema.Struct({
   /** Type d'agent, tel que Herdr le connaît (`pi`, `claude`, `codex`…). */
   kind: Schema.String,
+  /**
+   * Modèle demandé, **au lancement**.
+   *
+   * ⚠️ Pas de `default` : un modèle non choisi est un modèle laissé au choix
+   * de l'agent, pas un modèle « par défaut » choisi par cette application.
+   */
+  model: Schema.optional(Schema.String),
   name: Schema.optional(Schema.String),
+  /**
+   * Niveau de raisonnement, au lancement.
+   *
+   * Validé contre le `thinkingLevels` du catalogue du kind : un agent refuse
+   * un niveau qu'il ne connaît pas, et le serveur ne doit pas l'inventer.
+   */
+  thinking: Schema.optional(Schema.String),
 });
 export type LaunchAgentRequest = typeof LaunchAgentRequest.Type;
 
@@ -174,6 +188,46 @@ export const AGENT_KINDS = [
   "hermes",
 ] as const;
 
+/**
+ * Un modèle, tel que l'agent le déclare lui-même.
+ *
+ * `thinkingLevels` est **la** réponse à « quel raisonnement pour ce modèle » :
+ * il est mesuré par agent, et il est vide quand l'agent ne le déclare pas.
+ * On n'en déduit jamais un niveau par défaut.
+ */
+export const AgentModel = Schema.Struct({
+  /** Libellé lisible quand l'agent en fournit un. */
+  label: Schema.optional(Schema.String),
+  /** Identifiant à passer au flag `--model`. */
+  id: Schema.String,
+  /** Niveaux de raisonnement **supportés par ce modèle**. */
+  thinkingLevels: Schema.Array(Schema.String),
+});
+export type AgentModel = typeof AgentModel.Type;
+
+/**
+ * Catalogue d'un type d'agent.
+ *
+ * `models` est **mesuré**, jamais codé en dur. Un kind dont la liste n'a pas pu
+ * être obtenue est renvoyé avec `models: []` et une `source` qui l'explique :
+ * l'interface affiche l'absence, elle ne comble rien.
+ */
+export const ModelCatalogResponse = Schema.Struct({
+  /** `null` quand aucun mécanisme de listage n'est connu pour ce kind. */
+  error: Schema.NullOr(Schema.String),
+  /** Types d'agent dont le catalogue est **vérifié par exécution**. */
+  kind: Schema.String,
+  models: Schema.Array(AgentModel),
+  /**
+   * Niveaux de raisonnement **possibles** sur cet agent, tous modèles
+   * confondus. Vide si l'agent ne les déclare pas.
+   */
+  thinkingLevels: Schema.Array(Schema.String),
+  /** La commande qui a produit cette liste — traçable, donc vérifiable. */
+  source: Schema.String,
+});
+export type ModelCatalogResponse = typeof ModelCatalogResponse.Type;
+
 export const RecentImageSchema = Schema.Struct({
   modifiedAt: Schema.Number,
   path: Schema.String,
@@ -185,6 +239,35 @@ export const RecentImagesResponse = Schema.Struct({
   images: Schema.Array(RecentImageSchema),
 });
 export type RecentImagesResponse = typeof RecentImagesResponse.Type;
+
+/**
+ * Un agent a été lancé, mais il attend la **confiance** de l'utilisateur.
+ *
+ * ⚠️ Répondre « oui » autorise l'agent à **exécuter du code** dans ce dossier,
+ * et l'accepte durablement (`~/.codex/config.toml`). La décision est donc
+ * prise **dans l'application**, devant le nom du dossier — jamais
+ * automatiquement à la création d'un agent.
+ */
+export const TrustRequiredResponse = Schema.Struct({
+  /** Nom lisible du projet, jamais son chemin complet ni un identifiant. */
+  folder: Schema.String,
+  /** Type d'agent qui demande la confiance (`codex`…). */
+  kind: Schema.String,
+  /** Explication affichée, jamais une phrase générique. */
+  message: Schema.String,
+  /** Pane où se trouve l'invite. */
+  paneId: Schema.String,
+  status: Schema.Literal("trust-required"),
+});
+export type TrustRequiredResponse = typeof TrustRequiredResponse.Type;
+
+/** Réponse à l'invite de confiance. */
+export const TrustResolvedResponse = Schema.Struct({
+  /** `false` = le dossier a été refusé : rien n'est écrit, l'agent reste bloqué. */
+  accepted: Schema.Boolean,
+  status: Schema.Literal("trust-resolved"),
+});
+export type TrustResolvedResponse = typeof TrustResolvedResponse.Type;
 
 /** Erreur d'API. */
 export const ApiErrorResponse = Schema.Struct({

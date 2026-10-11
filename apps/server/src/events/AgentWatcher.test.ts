@@ -143,6 +143,8 @@ const failUnused = <A>(): Effect.Effect<A, HerdrError> =>
 
 /** Client Herdr simulé : seul `snapshot` est exercé. */
 const fakeHerdr = (payload: Readonly<Record<string, unknown>>): HerdrApi => ({
+  closeTab: failUnused,
+  sendKeys: failUnused,
   createTab: failUnused,
   startAgent: failUnused,
   getAgent: failUnused,

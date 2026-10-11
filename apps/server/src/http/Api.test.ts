@@ -52,6 +52,8 @@ const fail = <A>(): Effect.Effect<A, HerdrError> => Effect.fail(protocolError())
 /** Client Herdr simulé : `health` décide si `ping` réussit ou non. */
 const fakeHerdr = (options: { healthy: boolean }): HerdrApi => {
   return {
+    closeTab: fail,
+    sendKeys: fail,
     createTab: () =>
       options.healthy ? Effect.succeed({ paneId: "w1:p9", tabId: "w1:t9" }) : fail(),
     getAgent: () => (options.healthy ? Effect.succeed({}) : fail()),

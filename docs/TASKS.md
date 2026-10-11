@@ -1,5 +1,7 @@
 # Herdr Remote — Plan de tâches déterministe
 
+> **Historique du MVP.** Le [backlog de release actif](RELEASE_BACKLOG.md) consolide les tâches restantes, la préparation open source et la refonte mobile décidée le 11/10/2026. T7.7 (terminal) est retirée et la partie UX de T8.5 est replanifiée ; les statuts historiques ne prouvent pas qu'une porte de release est franchie.
+
 > Source normative : `docs/HERDR_REMOTE_SPEC.md`
 > Versions vérifiées sur npm/nodejs.org le **2026-10-09**.
 > Décisions prises : `docs/DECISIONS.md`.

@@ -17,6 +17,7 @@ import { Option, Schema } from "effect";
 import {
   fetchAgentKinds,
   reportError,
+  TrustRequiredError,
   fetchHealth,
   launchAgent,
   fetchOverview,
@@ -32,17 +33,32 @@ import type {
   Overview,
   SendResult,
   SessionEntry,
+  TrustRequired,
   WorkspaceView,
 } from "./api.ts";
 import { toItems, toMessages, touchedFilesOf } from "./blocks.ts";
 import { FilesSheet } from "./Files.tsx";
 import { Gallery } from "./Gallery.tsx";
+import { ModelSheet, describeSend } from "./ModelSheet.tsx";
+import { LaunchOptions } from "./LaunchOptions.tsx";
+import { TrustCard } from "./TrustCard.tsx";
 import { FileViewer } from "./Viewer.tsx";
 import { AttentionCard } from "./Attention.tsx";
 import type { RenderedMessage } from "./blocks.ts";
 import { FileOpenerContext, ItemsView, UrlOpenerContext } from "./Blocks.tsx";
 import { parseRoute, routeToHash, TabSchema } from "./routing.ts";
 import type { Route, Tab } from "./routing.ts";
+
+/**
+ * Modèle et niveau de raisonnement choisis au lancement.
+ *
+ * Les champs **absents** signifient « je ne choisis pas » : l'agent garde alors
+ * ses propres valeurs. Une chaîne vide aurait un autre sens et briserait ça.
+ */
+export interface LaunchChoice {
+  readonly model?: string;
+  readonly thinking?: string;
+}
 
 /**
  * Lit le fragment courant et se resynchronise sur les navigations, y compris le
@@ -185,6 +201,19 @@ const agentContext = (agent: AgentView): string => {
   return parts.join(" · ");
 };
 
+/**
+ * Ligne de contexte de l'en-tête de conversation.
+ *
+ * Le statut passe **devant** le détail : sur un iPhone, cette ligne est
+ * tronquée à l'ellipse, et le détail d'onglet ne vaut rien une fois coupé —
+ * contrairement à « en cours » ou « attend une réponse ».
+ */
+const headerContext = (agent: AgentView): string => {
+  const status = statusLabel(agent.status);
+  const detail = agentContext(agent);
+  return detail.length === 0 ? status : `${status} · ${detail}`;
+};
+
 /** Couleur sémantique : `unknown` est neutre, jamais vert ni rouge. */
 const statusClass = (status: string): string => {
   switch (status) {
@@ -212,6 +241,12 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
    */
   const [messages, setMessages] = useState<readonly RenderedMessage[]>([]);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * Phase du chargement — nécessaire pour distinguer « vide » de « pas encore
+   * chargé ». Un booléen `loading` ne le permet pas : les deux états ont la même
+   * liste de messages, et le premier affichage serait un faux vide.
+   */
+  const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading");
   const [draft, setDraft] = useState("");
   const [lastSend, setLastSend] = useState<SendResult | null>(null);
   const [sending, setSending] = useState(false);
@@ -219,11 +254,15 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
   const placeholder = `Message à ${agentName(agent)}…`;
   const files = touchedFilesOf(messages);
   const [showFiles, setShowFiles] = useState(false);
+  const [showModel, setShowModel] = useState(false);
   /** Fichier ouvert dans la visionneuse plein écran. */
   const [openFile, setOpenFile] = useState<string | null>(null);
   /** `true` quand la visionneuse a été ouverte depuis la liste des fichiers. */
   const [fromFiles, setFromFiles] = useState(false);
-  const onToggleFiles = useCallback(() => setShowFiles((value) => !value), []);
+  const onToggleFiles = useCallback(() => {
+    setShowFiles((value) => !value);
+    setShowModel(false);
+  }, []);
 
   /**
    * Chargement **incrémental** de la conversation.
@@ -241,6 +280,7 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
     async (mode: "initial" | "incremental") => {
       if (loading.current) return;
       loading.current = true;
+      if (mode === "initial") setPhase("loading");
       try {
         const known = cursor.current;
         const session =
@@ -262,10 +302,12 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
           setMessages(toMessages(session.entries));
         }
         setError(null);
+        setPhase("ready");
       } catch (cause) {
         // La cause réelle est affichée : pas de message générique qui masque.
         const message = cause instanceof Error ? cause.message : String(cause);
         setError(message);
+        setPhase("error");
         reportError("échec du chargement de session", { message, paneId: agent.paneId });
       } finally {
         loading.current = false;
@@ -317,6 +359,15 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
       const result = await sendPrompt(agent.paneId, text);
       setLastSend(result);
       if (result.kind === "sent") setDraft("");
+    } catch (cause) {
+      /*
+        ⚠️ `sendPrompt` ne capture que les réponses illisibles : un `fetch` qui
+        ne part pas lève, et le message resterait bloqué dans le composeur sans
+        qu'aucune erreur ne s'affiche. La cause est montrée et journalisée.
+      */
+      const message = cause instanceof Error ? cause.message : String(cause);
+      setLastSend({ kind: "failed", message });
+      reportError("échec de l'envoi du message", { message, paneId: agent.paneId });
     } finally {
       setSending(false);
     }
@@ -343,14 +394,18 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
       >
         <section className="chat">
           <header className="screen__head">
-            <button type="button" className="ghost" onClick={onBack}>
+            <button type="button" className="back" onClick={onBack}>
               ‹ Retour
             </button>
             <div className="screen__title">
               <strong>{agentName(agent)}</strong>
-              <div className="muted small">
-                {agentContext(agent)} · {statusLabel(agent.status)}
-              </div>
+              {/*
+                Le statut **en tete** : la ligne est tronquée à l'ellipse sur
+                un écran étroit, et « onglet 1 · pi · devcli-private » se coupe
+                avant d'arriver au statut — qui est la seule information encore
+                utile quand le reste a disparu.
+              */}
+              <div className="muted small">{headerContext(agent)}</div>
             </div>
             {/*
           Les fichiers sont une **action**, pas une section permanente : un
@@ -361,6 +416,22 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
                 Fichiers · {files.length}
               </button>
             ) : null}
+            {/*
+              Changer de modèle ou de pensée est une **action** : un bouton
+              discret dans l'en-tête, qui ouvre la feuille dédiée. La commande
+              envoyée est `/model …` ou `/thinking …`, transmise par le même
+              canal confirmé qu'un prompt (voir ModelSheet.tsx).
+            */}
+            <button
+              type="button"
+              className="row__action"
+              onClick={() => {
+                setShowFiles(false);
+                setShowModel((value) => !value);
+              }}
+            >
+              Modèle
+            </button>
           </header>
 
           {agent.sessionPath === null ? (
@@ -371,6 +442,37 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
           ) : null}
 
           {error !== null ? <p className="notice notice--error">{error}</p> : null}
+
+          {/*
+            Une session vide n'est **pas** une panne.
+
+            Herdr expose un `session_path` avant que Pi n'écrive le fichier : le
+            JSONL naît au premier message. Le serveur répond donc `200` +
+            `entries: []` — un succès, et traiter une session vide comme une erreur
+            produirait un message rouge en boucle sur un agent qui démarre.
+
+            Mais `ItemsView` rend `null` sur une liste vide : sans cet état,
+            l'écran restait muet entre l'en-tête et le composeur, et rien ne
+            distinguait « rien à afficher » d'un chargement bloqué.
+
+            Aucun diagnostic n'est inventé : les deux causes possibles sont
+            énoncées, et la charge utile reste utilisable.
+          */}
+          {phase === "ready" &&
+          error === null &&
+          agent.sessionPath !== null &&
+          messages.length === 0 ? (
+            <div className="messages__empty">
+              <strong>Aucun message</strong>
+              <p>
+                Rien à afficher pour cet agent. Une session est créée par Pi au premier
+                message&nbsp;: envoyez-en un pour la démarrer.
+              </p>
+              <p className="muted small">
+                Si cet agent a déjà travaillé, son fichier de session n'est plus exposé par Herdr.
+              </p>
+            </div>
+          ) : null}
 
           <div className="messages" ref={scrollerRef} onScroll={onScroll}>
             <ItemsView items={toItems(messages)} />
@@ -407,27 +509,23 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
                 setOpenFile(path);
               }}
             />
+          ) : showModel ? (
+            <ModelSheet
+              agentName={agentName(agent)}
+              kind={agent.agent ?? "pi"}
+              paneId={agent.paneId}
+              onClose={() => setShowModel(false)}
+            />
           ) : null}
 
           <div className="composer">
-            <textarea value={draft} onChange={onDraftChange} placeholder={placeholder} rows={2} />
-            <button type="button" onClick={onSubmit} disabled={sending}>
+            <textarea value={draft} onChange={onDraftChange} placeholder={placeholder} rows={1} />
+            <button type="button" className="send" onClick={onSubmit} disabled={sending}>
               {sending ? "…" : "Envoyer"}
             </button>
           </div>
 
-          {lastSend !== null ? (
-            <p className="sendState">
-              {lastSend.kind === "sent" && lastSend.confirmation === "confirmed"
-                ? "envoyé (confirmé par Herdr)"
-                : null}
-              {lastSend.kind === "sent" && lastSend.confirmation === "unknown"
-                ? "envoi effectué, confirmation incertaine — état inconnu"
-                : null}
-              {lastSend.kind === "suppressed" ? `double envoi supprimé — ${lastSend.reason}` : null}
-              {lastSend.kind === "failed" ? `échec : ${lastSend.message}` : null}
-            </p>
-          ) : null}
+          {lastSend !== null ? <p className="sendState">{describeSend(lastSend)}</p> : null}
         </section>
       </FileOpenerContext.Provider>
     </UrlOpenerContext.Provider>
@@ -459,20 +557,24 @@ const WorkspaceRow = ({
   agentPaneCount: number;
   launching: boolean;
   kinds: ReadonlyArray<InstalledKind>;
-  onLaunch: (workspaceId: string, kind: string) => void;
+  onLaunch: (workspaceId: string, kind: string, choice: LaunchChoice) => void;
   onOpen: (workspaceId: string) => void;
 }) => {
   const hasAgent = agentPaneCount > 0;
   // `pi` par défaut : c'est l'agent réellement utilisé, mais le choix reste
   // ouvert à tout ce que Herdr sait démarrer.
   const [kind, setKind] = useState<string>("pi");
+  const [showOptions, setShowOptions] = useState(false);
   const handleOpen = useCallback(
     () => onOpen(workspace.workspaceId),
     [onOpen, workspace.workspaceId],
   );
+  /** Modèle et raisonnement choisis — transmis à `agent.start`. */
+  const [choice, setChoice] = useState<LaunchChoice>({});
+  const onChoice = useCallback((next: LaunchChoice) => setChoice(next), []);
   const handleLaunch = useCallback(
-    () => onLaunch(workspace.workspaceId, kind),
-    [kind, onLaunch, workspace.workspaceId],
+    () => onLaunch(workspace.workspaceId, kind, choice),
+    [choice, kind, onLaunch, workspace.workspaceId],
   );
   const onKindChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
     setKind(event.target.value);
@@ -532,6 +634,14 @@ const WorkspaceRow = ({
           </select>
           <button
             type="button"
+            className="ghost launch__toggle"
+            aria-expanded={showOptions}
+            onClick={() => setShowOptions((value) => !value)}
+          >
+            {showOptions ? "Masquer" : "Modèle"}
+          </button>
+          <button
+            type="button"
             className="row__action row__action--primary"
             onClick={handleLaunch}
             disabled={launching || workspace.checkoutPath === null || kinds.length === 0}
@@ -542,6 +652,21 @@ const WorkspaceRow = ({
           </button>
         </span>
       }
+      {/*
+        Modèle et raisonnement sont **dépliants** : une ligne de projet doit
+        rester lisible d'un coup d'œil, et 439 modèles ne tiennent pas dans
+        une rangée.
+      */}
+      {showOptions ? (
+        <div
+          className="launch__panel"
+          role="presentation"
+          onClick={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+        >
+          <LaunchOptions kind={kind} onChange={onChoice} />
+        </div>
+      ) : null}
     </div>
   );
 };
@@ -612,6 +737,14 @@ export const App = () => {
   /** Types **réellement installés**, lus depuis Herdr — pas une liste codée. */
   const [kinds, setKinds] = useState<readonly InstalledKind[]>([]);
   const [launchError, setLaunchError] = useState<string | null>(null);
+  /**
+   * Invite de confiance en attente de décision.
+   *
+   * ⚠️ Volontairement **distincte** de `launchError` : un agent bloqué sur
+   * « Trust this folder? » n'a pas échoué, il attend. L'afficher comme une
+   * erreur rouge serait mentir sur ce qui se passe.
+   */
+  const [trustRequest, setTrustRequest] = useState<TrustRequired | null>(null);
   const [workspaceFilter, setWorkspaceFilter] = useState<string>("tous");
 
   const refresh = useCallback(async () => {
@@ -748,19 +881,25 @@ export const App = () => {
   }, [onLoadTerminal]);
 
   const onLaunchAgent = useCallback(
-    (workspaceId: string, kind: string) => {
+    (workspaceId: string, kind: string, choice: LaunchChoice) => {
       void (async () => {
         setLaunching(workspaceId);
         setLaunchError(null);
+        setTrustRequest(null);
         try {
-          const started = await launchAgent(workspaceId, kind);
+          const started = await launchAgent(workspaceId, kind, choice);
           // Le projet a maintenant un agent : on ouvre sa conversation.
           navigate({ kind: "agent", paneId: started.paneId });
           await refresh();
-        } catch (cause) {
-          const message = cause instanceof Error ? cause.message : String(cause);
-          setLaunchError(message);
-          reportError("échec du lancement d'agent", { message, workspaceId, kind });
+        } catch (cause: unknown) {
+          // L'invite de confiance a son propre affichage : elle n'est pas une erreur.
+          if (cause instanceof TrustRequiredError) {
+            setTrustRequest(cause.request);
+          } else {
+            const message = cause instanceof Error ? cause.message : String(cause);
+            setLaunchError(message);
+            reportError("échec du lancement d'agent", { message, workspaceId, kind });
+          }
         } finally {
           setLaunching(null);
         }
@@ -848,6 +987,9 @@ export const App = () => {
             projet vide, ou dans un nouvel onglet s'il en a déjà un.
           </p>
           {launchError !== null ? <p className="notice notice--error">{launchError}</p> : null}
+          {trustRequest !== null ? (
+            <TrustCard request={trustRequest} onDone={() => setTrustRequest(null)} />
+          ) : null}
           <ul className="list">
             {overview?.workspaces.map((workspace) => (
               <li key={workspace.workspaceId}>

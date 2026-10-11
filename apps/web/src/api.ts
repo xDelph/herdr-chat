@@ -20,11 +20,14 @@ import {
   HealthResponse,
   InstalledKindsResponse,
   LaunchAgentResponse,
+  ModelCatalogResponse,
   RecentImagesResponse,
   OverviewResponse,
   PromptSentResponse,
   PromptSuppressedResponse,
   SessionResponse as SessionResponseSchema,
+  TrustRequiredResponse,
+  TrustResolvedResponse,
   TerminalResponse,
 } from "@herdr-remote/shared";
 
@@ -36,10 +39,12 @@ import {
 export { AGENT_KINDS } from "@herdr-remote/shared";
 
 export type {
+  AgentModel,
   AgentView,
   HealthResponse as Health,
   InstalledKind,
   LaunchAgentResponse,
+  ModelCatalogResponse as ModelCatalog,
   OverviewResponse as Overview,
   RecentImage,
   PromptSentResponse,
@@ -47,8 +52,55 @@ export type {
   SessionEntry,
   SessionResponse,
   TerminalResponse as Terminal,
+  TrustRequiredResponse as TrustRequired,
+  TrustResolvedResponse as TrustResolved,
   WorkspaceView,
 } from "@herdr-remote/shared";
+
+/**
+ * Répond à une invite de confiance.
+ *
+ * `accepted: false` n'est pas une erreur réseau : le serveur a refusé d'envoyer
+ * quoi que ce soit, et `detail` dit pourquoi. Les deux cas sont distingués pour
+ * que l'interface n'affiche jamais « répondu » quand rien ne l'a été.
+ */
+export type TrustAnswer =
+  | { readonly accepted: true; readonly detail: string }
+  | { readonly accepted: false; readonly detail: string };
+
+export const answerTrust = async (paneId: string, accept: boolean): Promise<TrustAnswer> => {
+  const response = await fetch(`/api/agents/${encodeURIComponent(paneId)}/trust`, {
+    body: JSON.stringify({ accept }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const payload = await readJson(response);
+  if (!response.ok) {
+    const failure = decodeError(payload);
+    return { accepted: false, detail: failure?.error ?? `échec ${String(response.status)}` };
+  }
+  const decoded = decoderOf(TrustResolvedResponse)(payload);
+  if (decoded === undefined) {
+    return { accepted: false, detail: "réponse illisible" };
+  }
+  return { accepted: decoded.accepted, detail: decoded.accepted ? "ok" : "refusé" };
+};
+
+/**
+ * Invite de confiance rencontrée au lancement.
+ *
+ * Levée quand le serveur répond `409` avec `trust-required`. On la distingue
+ * d'une vraie erreur : l'agent n'a pas échoué, il attend une décision.
+ */
+export class TrustRequiredError extends Error {
+  readonly request: TrustRequiredResponse;
+
+  constructor(value: TrustRequiredResponse) {
+    super(value.message);
+    this.name = "TrustRequiredError";
+    this.request = value;
+  }
+}
 
 const HealthSchema = HealthResponse;
 const OverviewSchema = OverviewResponse;
@@ -64,18 +116,57 @@ const TerminalSchema = TerminalResponse;
 export const launchAgent = async (
   workspaceId: string,
   kind: string,
+  options: { readonly model?: string; readonly thinking?: string } = {},
 ): Promise<LaunchAgentResponse> => {
-  const payload = await request(`/api/workspaces/${encodeURIComponent(workspaceId)}/agents`, {
-    body: JSON.stringify({ kind }),
+  const body: Record<string, string> = { kind };
+  // ⚠️ On n'envoie que ce qui a été **choisi** : un champ absent laisse l'agent
+  // sur ses propres valeurs, alors qu'une chaîne vide lui ferait choisir « rien ».
+  if (options.model !== undefined && options.model.length > 0) body["model"] = options.model;
+  if (options.thinking !== undefined && options.thinking.length > 0) {
+    body["thinking"] = options.thinking;
+  }
+
+  /*
+    ⚠️ Le 409 `trust-required` **n'est pas** une erreur d'API : c'est une
+    question posée à l'utilisateur. On la remonte comme telle, sinon elle
+    s'afficherait comme un échec rouge et l'agent resterait bloqué sans issue.
+    On lit donc le corps **avant** de décider de l'échec.
+  */
+  const response = await fetch(`/api/workspaces/${encodeURIComponent(workspaceId)}/agents`, {
+    body: JSON.stringify(body),
     headers: { "content-type": "application/json" },
     method: "POST",
   });
+  const payload = await readJson(response);
+
+  if (response.status === 409) {
+    const trust = decoderOf(TrustRequiredResponse)(payload);
+    if (trust !== undefined) throw new TrustRequiredError(trust);
+  }
+  if (!response.ok) {
+    const failure = decodeError(payload);
+    throw new Error(failure?.error ?? `échec ${String(response.status)}`);
+  }
+
   const decoded = decoderOf(LaunchAgentResponse)(payload);
   if (decoded === undefined) {
     throw new Error("forme de réponse inattendue : lancement");
   }
   return decoded;
 };
+
+/**
+ * Catalogue de modèles d'un type d'agent.
+ *
+ * Renvoie **la mesure**, source comprise. Un kind non mesuré arrive avec
+ * `models: []` et une raison : l'interface affiche l'absence.
+ */
+export const fetchModelCatalog = (kind: string): Promise<ModelCatalogResponse> =>
+  decoded(
+    `/api/agents/${encodeURIComponent(kind)}/models`,
+    decoderOf(ModelCatalogResponse),
+    "catalogue de modèles",
+  );
 
 export type SendResult =
   | { kind: "sent"; confirmation: "confirmed" | "unknown"; fingerprint: string }

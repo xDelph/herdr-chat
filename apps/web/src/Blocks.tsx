@@ -28,6 +28,26 @@ import type { Block, Item, RenderedMessage } from "./blocks.ts";
 const str = (value: unknown): string => (typeof value === "string" ? value : "");
 
 /**
+ * Dernier segment d'un chemin.
+ *
+ * `…/apps/server/src/herdr/HerdrClient.ts` → `HerdrClient.ts`. Affiché tel
+ * quel sur 375 px, le chemin prenait cinq lignes et masquait le nom du fichier.
+ */
+const baseName = (path: string): string => {
+  const parts = path.split("/").filter((part) => part.length > 0);
+  const last = parts[parts.length - 1];
+  return last !== undefined && last.length > 0 ? last : path;
+};
+
+/**
+ * La cible est-elle un chemin ?
+ *
+ * `ToolHead` sert aussi aux commandes shell, qui passent `timeout 400 ms` en
+ * guise de cible : le réduire à son dernier segment donnerait « 400 ms ».
+ */
+const looksLikePath = (target: string): boolean => target.includes("/");
+
+/**
  * Décode les arguments d'un outil.
  *
  * Déclaration de fonction, et non flèche générique : en `.tsx`, `<A>(…)` est lu
@@ -105,11 +125,21 @@ const ReadArgs = Schema.Struct({
   path: Schema.optional(Schema.String),
 });
 
-/** Entête commun : nom de l'outil + cible. */
+/**
+ * En-tête commun : nom de l'outil + cible.
+ *
+ * La cible d'un fichier est réduite à **son nom**. Le chemin complet prenait
+ * cinq lignes dans un bloc de 148 px, coupé en plein milieu des mots
+ * (`/Users/thomas.delalonde/projects/pers` / `o/herdr-pwa/…`) : on ne lisait
+ * plus le nom du fichier, qui est la seule chose utile à cet endroit. Le
+ * chemin entier reste consultable dans la feuille « Fichiers ».
+ */
 const ToolHead = ({ name, target }: { name: string; target: string | null }) => (
   <div className="blk__head">
     <span className="blk__tag blk__tag--tool">{name}</span>
-    {target !== null && target.length > 0 ? <code className="blk__target">{target}</code> : null}
+    {target !== null && target.length > 0 ? (
+      <code className="blk__target">{looksLikePath(target) ? baseName(target) : target}</code>
+    ) : null}
   </div>
 );
 
@@ -137,34 +167,75 @@ const BashCall = ({ args }: { args: Readonly<Record<string, unknown>> }) => {
 const EditCall = ({ args }: { args: Readonly<Record<string, unknown>> }) => {
   const decoded = decodeArgs(EditArgs, args);
   const edits = decoded?.edits ?? [];
+  const [open, setOpen] = useState(false);
+
+  /*
+    Comptage des lignes ajoutées et retirées.
+
+    Sans elles, un en-tête replié ne dit rien : « edit » sur un chemin ne
+    donne pas d'indication de la taille du changement. C'est le même chiffre
+    que celui affiché dans la feuille « Fichiers ».
+  */
+  let added = 0;
+  let removed = 0;
+  for (const edit of edits) {
+    removed += str(edit.oldText).split("\n").length;
+    added += str(edit.newText).split("\n").length;
+  }
+
   return (
     <div className="blk blk--tool blk--edit">
       <ToolHead name="edit" target={decoded?.path ?? null} />
-      {edits.map((edit, index) => (
-        // Clé dérivée du contenu : deux éditions différentes ne partagent jamais
-        // la même clé, et une réédition du même bloc garde son état.
-        <div
-          key={`${str(edit.oldText).slice(0, 32)}->${str(edit.newText).slice(0, 32)}:${String(index)}`}
-          className="diff"
-        >
-          {str(edit.oldText)
-            .split("\n")
-            .map((line, lineIndex) => (
-              <div key={`o:${line}:${String(lineIndex)}`} className="diff__line diff__line--del">
-                <span className="diff__sign">−</span>
-                {line}
-              </div>
-            ))}
-          {str(edit.newText)
-            .split("\n")
-            .map((line, lineIndex) => (
-              <div key={`n:${line}:${String(lineIndex)}`} className="diff__line diff__line--add">
-                <span className="diff__sign">+</span>
-                {line}
-              </div>
-            ))}
-        </div>
-      ))}
+      {/*
+        Replié par défaut.
+
+        Un diff d'édition peut faire cinquante lignes : déplié, il pousse
+        hors de l'écran la réponse de l'agent, qui est ce qu'on vient lire.
+        Le chemin reste visible — c'est l'information utile — et la diff
+        s'ouvre au toucher.
+      */}
+      {edits.length > 0 ? (
+        <button type="button" className="blk__toggle" onClick={() => setOpen((v) => !v)}>
+          <span className="file__stats small">
+            <span className="stat stat--add">+{String(added)}</span>
+            <span className="stat stat--del">−{String(removed)}</span>
+          </span>
+          <span>{open ? "masquer la différence" : "voir la différence"}</span>
+        </button>
+      ) : null}
+      {open
+        ? edits.map((edit, index) => (
+            // Clé dérivée du contenu : deux éditions différentes ne partagent jamais
+            // la même clé, et une réédition du même bloc garde son état.
+            <div
+              key={`${str(edit.oldText).slice(0, 32)}->${str(edit.newText).slice(0, 32)}:${String(index)}`}
+              className="diff"
+            >
+              {str(edit.oldText)
+                .split("\n")
+                .map((line, lineIndex) => (
+                  <div
+                    key={`o:${line}:${String(lineIndex)}`}
+                    className="diff__line diff__line--del"
+                  >
+                    <span className="diff__sign">−</span>
+                    {line}
+                  </div>
+                ))}
+              {str(edit.newText)
+                .split("\n")
+                .map((line, lineIndex) => (
+                  <div
+                    key={`n:${line}:${String(lineIndex)}`}
+                    className="diff__line diff__line--add"
+                  >
+                    <span className="diff__sign">+</span>
+                    {line}
+                  </div>
+                ))}
+            </div>
+          ))
+        : null}
       {edits.length === 0 ? <p className="blk__hint">édition sans contenu lisible</p> : null}
     </div>
   );
