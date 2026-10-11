@@ -37,8 +37,16 @@ export const makeEventRoutes = (hub: EventHubApi) => {
           try {
             const catchUp = await Effect.runPromise(hub.since(cursor));
             let buffer = "";
+            // ⚠️ **Un seul** resync (B04). Le client trop en retard serait sinon
+            // bombardé toutes les 300 ms : la boucle interroge le même
+            // point de départ tant que le curseur n'a pas avancé. On avance une fois
+            // le curseur à l'ID courant, et le flux continue normalement.
             if (catchUp.resyncRequired) {
-              buffer += `event: resync\ndata: {"reason":"journal tronqué"}\n\n`;
+              buffer +=
+                `id: ${String(catchUp.resumeFrom)}\n` +
+                `event: resync\n` +
+                `data: ${JSON.stringify({ reason: "journal tronqué", resumeFrom: catchUp.resumeFrom })}\n\n`;
+              cursor = catchUp.resumeFrom;
             }
             for (const event of catchUp.events) {
               buffer += `id: ${event.id}\nevent: ${event.kind}\ndata: ${JSON.stringify(event.data)}\n\n`;

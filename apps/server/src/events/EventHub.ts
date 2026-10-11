@@ -25,6 +25,8 @@ export interface CatchUp {
   readonly events: ReadonlyArray<BusEvent>;
   /** `true` quand la continuité n'est pas garantie (client trop en retard). */
   readonly resyncRequired: boolean;
+  /** Dernier identifiant émis. À utiliser comme curseur après un `resync`. */
+  readonly resumeFrom: number;
 }
 
 export interface EventHubApi {
@@ -57,7 +59,7 @@ export class EventHub extends Context.Service<EventHub, EventHubApi>()("herdr-re
 
       const since = (sinceId: number) =>
         Ref.get(state).pipe(
-          Effect.map(({ events }) => {
+          Effect.map(({ events, nextId }) => {
             const oldest = events[0]?.id;
             // Le client demande un point plus ancien que ce qu'on conserve :
             // la continuité est rompue, il faut resynchroniser.
@@ -65,6 +67,10 @@ export class EventHub extends Context.Service<EventHub, EventHubApi>()("herdr-re
             return {
               events: events.filter((event) => event.id > sinceId),
               resyncRequired,
+              // **L'ID courant** accompagne le resync (B04) : le client doit
+              // repartir de là, sinon il redemande le même point et reçoit un
+              // second resync à la boucle suivante.
+              resumeFrom: nextId - 1,
             };
           }),
         );

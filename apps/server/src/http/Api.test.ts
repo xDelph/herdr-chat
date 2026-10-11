@@ -145,7 +145,7 @@ const fakeHerdr = (options: { healthy: boolean; listFails?: boolean }): HerdrApi
 const fakeHub: EventHubApi = {
   lastId: () => Effect.succeed(0),
   publish: (kind, data) => Effect.succeed({ at: Date.now(), data, id: 1, kind }),
-  since: () => Effect.succeed({ events: [], resyncRequired: false }),
+  since: () => Effect.succeed({ events: [], resyncRequired: false, resumeFrom: 0 }),
 };
 
 const fakeWatch: WatchLoop = {

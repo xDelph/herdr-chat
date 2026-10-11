@@ -55,7 +55,7 @@ const recordingHub = () => {
         published.push(event);
         return event;
       }),
-    since: () => Effect.succeed({ events: [], resyncRequired: false }),
+    since: () => Effect.succeed({ events: [], resyncRequired: false, resumeFrom: 0 }),
   };
   return { hub, published };
 };
