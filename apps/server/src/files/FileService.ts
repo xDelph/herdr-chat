@@ -23,7 +23,7 @@
  */
 import { Effect, Schema } from "effect";
 import { realpathSync } from "node:fs";
-import { open, realpath, stat } from "node:fs/promises";
+import { open, realpath } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 
 /** Taille maximale servie. Au-delà : refus explicite, jamais une troncature muette. */
@@ -89,6 +89,18 @@ export class FileUnavailable extends Schema.TaggedError<FileUnavailable>()("File
 }) {}
 
 /**
+ * Points d'observation, pour les tests.
+ *
+ * Existaient pas en production : sans une couture, on ne peut pas fabriquer la
+ * fenêtre entre l'ouverture et le `stat`. Un test qui ne peut pas déclencher la
+ * race ne prouve pas que la course est fermée.
+ */
+export interface FileServiceHooks {
+  /** Appelé après l'ouverture, **avant** le `stat`. */
+  readonly afterOpen?: () => Promise<void>;
+}
+
+/**
  * Lit un fichier sous une racine autorisée.
  *
  * `realpath` résout les liens symboliques : un lien pointant hors des racines
@@ -97,6 +109,7 @@ export class FileUnavailable extends Schema.TaggedError<FileUnavailable>()("File
 export const readAllowedFile = (
   requested: string,
   roots: ReadonlyArray<string>,
+  hooks: FileServiceHooks = {},
 ): Effect.Effect<FileResult, FileDenied | FileUnavailable> =>
   Effect.gen(function* () {
     if (roots.length === 0) {
@@ -135,17 +148,41 @@ export const readAllowedFile = (
       return yield* Effect.fail(new FileDenied({ reason: "lien sortant des dossiers de projet" }));
     }
 
-    // 3) Fichier régulier uniquement.
-    const info = yield* Effect.tryPromise({
-      try: () => stat(real),
-      catch: () => new FileUnavailable({ reason: "fichier introuvable" }),
+    // 3) Ouverture, puis `stat` et lecture sur **le même descripteur** (S04).
+    //
+    // ⚠️ Avec `stat(real)` puis `open(real)`, deux opérations séparées se
+    // succèdent sur le même *chemin*. Entre les deux, un agent peut remplacer
+    // le fichier : le `stat` décrit l'ancien, la lecture renvoie le nouveau. Le
+    // contrôle « est-ce un fichier régulier » et la borne de taille s'appliquent
+    // alors à un fichier qui n'est plus celui servi.
+    //
+    // En ouvrant d'abord et en interrogeant le descripteur, ces contrôles
+    // portent sur **exactement** l'objet qui sera lu.
+    const handle = yield* Effect.tryPromise({
+      try: () => open(real, "r"),
+      catch: () => new FileUnavailable({ reason: "fichier illisible" }),
     });
+
+    // La couture n'existe que pour les tests ; en production elle est absente et
+    // ce `if` est toujours faux.
+    if (hooks.afterOpen !== undefined) {
+      yield* Effect.promise(() => hooks.afterOpen?.() ?? Promise.resolve());
+    }
+
+    const info = yield* Effect.tryPromise({
+      try: () => handle.stat(),
+      catch: () => new FileUnavailable({ reason: "fichier illisible" }),
+    });
+
     if (!info.isFile()) {
+      // Fuite garantie : le descripteur a été ouvert, il faut le rendre.
+      yield* Effect.promise(() => handle.close());
       return yield* Effect.fail(new FileDenied({ reason: "ce n'est pas un fichier" }));
     }
 
     // 4) Taille bornée.
     if (info.size > MAX_FILE_BYTES) {
+      yield* Effect.promise(() => handle.close());
       return yield* Effect.fail(
         new FileDenied({
           reason: `fichier trop gros (${String(Math.round(info.size / 1024 / 1024))} Mo, maximum ${String(MAX_FILE_BYTES / 1024 / 1024)} Mo)`,
@@ -153,10 +190,6 @@ export const readAllowedFile = (
       );
     }
 
-    const handle = yield* Effect.tryPromise({
-      try: () => open(real, "r"),
-      catch: () => new FileUnavailable({ reason: "fichier illisible" }),
-    });
     const bytes = yield* Effect.tryPromise({
       try: async () => {
         try {

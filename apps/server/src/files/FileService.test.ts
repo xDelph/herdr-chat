@@ -7,7 +7,7 @@
  */
 import { afterAll, beforeAll, describe, expect, test } from "bun:test";
 import { Effect, Option, Result, Schema } from "effect";
-import { mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, rename, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
@@ -17,6 +17,7 @@ import {
   isInside,
   readAllowedFile,
 } from "./FileService.ts";
+import type { FileServiceHooks } from "./FileService.ts";
 
 let root: string;
 let outside: string;
@@ -38,8 +39,8 @@ afterAll(async () => {
   await rm(outside, { recursive: true, force: true });
 });
 
-const read = (path: string, roots: ReadonlyArray<string> = [root]) =>
-  Effect.runPromise(Effect.result(readAllowedFile(path, roots)));
+const read = (path: string, roots: ReadonlyArray<string> = [root], hooks: FileServiceHooks = {}) =>
+  Effect.runPromise(Effect.result(readAllowedFile(path, roots, hooks)));
 
 /**
  * Extrait la raison d'un échec.
@@ -151,6 +152,76 @@ describe("readAllowedFile — garde-fous", () => {
 
   test("la taille maximale est bornée et annoncée", () => {
     expect(MAX_FILE_BYTES).toBeLessThanOrEqual(64 * 1024 * 1024);
+  });
+});
+
+describe("descripteur unique — S04", () => {
+  /**
+   * **Ce que ce test protège.** Avant S04, le service faisait `stat(chemin)`
+   * puis `open(chemin)` : deux opérations distinctes. Entre les deux, un agent
+   * pouvait substituer le fichier — le contrôle « fichier régulier » et la
+   * borne de taille décrivaient alors un fichier qui n'était plus celui servi.
+   *
+   * Le test reproduit cette fenêtre : le chemin est remplacé **entre** l'ouverture
+   * et le `stat`. Avec un descripteur unique, la substitution n'a aucun effet.
+   */
+  test("remplacer le chemin APRÈS l'ouverture est sans effet", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "herdr-race-"));
+    const cible = join(dir, "cible.txt");
+    await writeFile(cible, "ORIGINAL");
+
+    // La substitution a lieu exactement entre l'ouverture et le `stat` — la
+    // fenêtre que S04 referme.
+    const result = await read(cible, [dir], {
+      afterOpen: async () => {
+        await rename(cible, join(dir, "ancien.txt"));
+        await writeFile(cible, "PIEGE");
+      },
+    });
+
+    expect(Result.isFailure(result)).toBe(false);
+    const file = Result.getOrThrow(result);
+    // C'est ORIGINAL qui est servi, pas PIEGE : le contrôle de taille et la
+    // lecture portent sur le descripteur, donc sur l'objet réellement ouvert.
+    expect(Buffer.from(file.bytes).toString("utf8")).toBe("ORIGINAL");
+    expect(file.size).toBe("ORIGINAL".length);
+
+    await rm(dir, { force: true, recursive: true });
+  });
+
+  test("la borne de taille suit le fichier réellement ouvert", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "herdr-race3-"));
+    const cible = join(dir, "cible.txt");
+    await writeFile(cible, "PETIT");
+
+    // Après l'ouverture, le chemin est remplacé par un fichier **énorme**.
+    // Avec un `stat` postérieur à la substitution, la lecture serait tentée sur
+    // ce gros fichier et le service servirait autre chose que ce qu'il a
+    // contrôlé. Ici le descripteur reste sur le petit fichier.
+    const result = await read(cible, [dir], {
+      afterOpen: async () => {
+        await rename(cible, join(dir, "ancien.txt"));
+        await writeFile(cible, "X".repeat(MAX_FILE_BYTES + 1));
+      },
+    });
+
+    expect(Result.isFailure(result)).toBe(false);
+    expect(Buffer.from(Result.getOrThrow(result).bytes).toString("utf8")).toBe("PETIT");
+
+    await rm(dir, { force: true, recursive: true });
+  });
+
+  test("un fichier remplacé entre stat et lecture reste borné par son propre taille", async () => {
+    // Un fichier qui grossit après le contrôle doit être lu selon la taille du
+    // descripteur, pas selon une taille devenue fausse.
+    const dir = await mkdtemp(join(tmpdir(), "herdr-race2-"));
+    const cible = join(dir, "grand.txt");
+    await writeFile(cible, "x".repeat(1024));
+    const result = await read(cible, [dir]);
+    expect(Result.isFailure(result)).toBe(false);
+    const file = Result.getOrThrow(result);
+    expect(file.bytes.length).toBe(1024);
+    await rm(dir, { recursive: true, force: true });
   });
 });
 
