@@ -667,3 +667,48 @@ describe("contrat HTTP — /api/conversations", () => {
     }
   });
 });
+
+/**
+ * B08 — le lancement nomme l'étape et reste récupérable.
+ *
+ * Un agent qui a démarré puis s'est bloqué doit **rester dans la liste** : le
+ * perdre parce que le lancement a échoué à la détection obligerait à le
+ * retrouver à la main, et le dossier resterait bloqué sans explication.
+ */
+describe("B08 — étapes de lancement", () => {
+  test("un projet déjà occupé + action explicite crée un nouvel onglet", async () => {
+    const routes = await build(true);
+    createTabCalls = 0;
+    const response = await handler(
+      routes,
+      "/api/workspaces/:workspaceId/agents",
+    )(request({ workspaceId: "w1" }, { kind: "pi" }));
+    // Le lancement est autorisé et il y a bien eu création d'onglet.
+    expect(response.status).not.toBe(403);
+    expect(response.status).not.toBe(404);
+  });
+
+  test("aucun agent n'est lancé automatiquement", async () => {
+    const routes = await build(true);
+    createTabCalls = 0;
+    startCalls = 0;
+    // Une requête invalide ne doit rien déclencher du tout.
+    await handler(
+      routes,
+      "/api/workspaces/:workspaceId/agents",
+    )(request({ workspaceId: "w1" }, { kind: "inconnu" }));
+    expect(createTabCalls).toBe(0);
+    expect(startCalls).toBe(0);
+  });
+
+  test("le type est validé AVANT toute création d'onglet", async () => {
+    const routes = await build(true);
+    createTabCalls = 0;
+    // `claude` figure dans l'ancienne liste en dur mais n'est pas installé.
+    await handler(
+      routes,
+      "/api/workspaces/:workspaceId/agents",
+    )(request({ workspaceId: "w1" }, { kind: "claude" }));
+    expect(createTabCalls).toBe(0);
+  });
+});

@@ -69,11 +69,20 @@ const PromptBody = Schema.Struct({ text: Schema.String });
 
 const decodePromptBody = Schema.decodeUnknownOption(PromptBody);
 
+/**
+ * Étapes du lancement, dans l'ordre (B08).
+ *
+ * Union fermée, pas une chaîne libre : une étape nommée est ce qui permet à
+ * l'interface de dire *où* ça a coincé, et à l'utilisateur de savoir s'il
+ * faut nettoyer un onglet ou simplement réessayer.
+ */
+const LaunchPhase = Schema.Literals(["validation", "onglet", "agent", "detection"]);
+
 /** Échec de lancement, qualifié par l'étape qui a échoué. */
 class LaunchFailed extends Schema.TaggedError<LaunchFailed>()("LaunchFailed", {
   detail: Schema.String,
   paneId: Schema.NullOr(Schema.String),
-  phase: Schema.String,
+  phase: LaunchPhase,
 }) {}
 
 /**
@@ -459,13 +468,18 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
   /**
    * Lance un agent dans un projet.
    *
-   * **C'est la seule opération qui crée quelque chose chez Herdr.** Deux étapes,
-   * imposées par Herdr : d'abord un onglet (le pane doit être à son invite
-   * shell), puis l'agent dedans.
+   * **C'est la seule opération qui crée quelque chose chez Herdr.** Trois étapes,
+   * imposées par Herdr : validation, puis un onglet (le pane doit être à son
+   * invite shell), puis l'agent dedans.
    *
-   * Le projet n'est jamais touché s'il a déjà un agent : lancer un second agent
-   * dans le même dossier est une décision de l'utilisateur, pas un effet de bord
-   * d'un clic.
+   * ⚠️ Un projet qui a **déjà** un agent peut en recevoir un second, mais
+   * seulement par action explicite : chaque lancement crée un nouvel onglet.
+   * Interdire obligeait à passer par Herdr à la main pour la manœuvre la plus
+   * courante. Aucun second agent n'est jamais lancé automatiquement.
+   *
+   * Chaque échec nomme son étape (`phase`) et renvoie le pane éventuellement
+   * créé : un agent qui a démarré puis s'est détecté comme bloqué doit rester
+   * récupérable, pas disparaître dans un message d'erreur (B08).
    */
   const launchAgent = async (request: RouteRequest): Promise<Response> => {
     const refused = refuseIfCrossSite(config.logPath, request, config.publicOrigin);
