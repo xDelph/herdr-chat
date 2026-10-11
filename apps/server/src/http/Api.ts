@@ -17,7 +17,6 @@ import {
   InstalledKindsResponse,
   ApiErrorResponse,
   HealthResponse,
-  RecentImagesResponse,
   LaunchAgentRequest,
   LaunchAgentResponse,
   ModelCatalogResponse,
@@ -26,24 +25,31 @@ import {
   TrustResolvedResponse,
   PromptSentResponse,
   PromptSuppressedResponse,
-  SnapshotPayload,
 } from "@herdr-remote/shared";
 import { buildOverview, checkoutPathOf, toWorkspaceViews } from "../agents/AgentRegistry.ts";
 import { buildModelArgs, checkThinkingSupported } from "../agents/ModelArgs.ts";
 import { catalogOf } from "../agents/ModelCatalog.ts";
 import { isTrustPrompt, respondToTrust } from "../agents/TrustPrompt.ts";
-import { FileDenied, FileUnavailable } from "../files/FileService.ts";
 import type { ServerConfig } from "../config.ts";
 import type { WatchLoop } from "../events/AgentWatcher.ts";
 import type { EventHubApi } from "../events/EventHub.ts";
 import type { HerdrApi } from "../herdr/HerdrClient.ts";
 import type { PromptSenderApi } from "../send/PromptSender.ts";
-import { isInline, readAllowedFile } from "../files/FileService.ts";
-import { writeLog } from "../logging/LogFile.ts";
-import { listRecentImages } from "../files/RecentImages.ts";
-import { decoderOf, describe, describeCause, failureOf, json, respond, run } from "./Reply.ts";
+import {
+  decodeSnapshot,
+  decoderOf,
+  json,
+  describe,
+  describeCause,
+  failureOf,
+  respond,
+  run,
+} from "./Reply.ts";
 import type { RouteRequest, Routes } from "./Reply.ts";
 import { makeSessionRoutes } from "./routes-sessions.ts";
+import { makeFileRoutes } from "./routes-files.ts";
+import { makeEventRoutes } from "./routes-events.ts";
+import { writeLog } from "../logging/LogFile.ts";
 
 export interface ApiDeps {
   readonly config: ServerConfig;
@@ -54,50 +60,10 @@ export interface ApiDeps {
   readonly startedAt: number;
 }
 
-/**
- * Décodeur du snapshot Herdr.
- *
- * ⚠️ `session.snapshot` renvoie `{ snapshot: {...} }`, pas l'objet direct. Lire
- * `payload["agents"]` comparait une liste vide à chaque tour, **en silence** :
- * le cache seemed alors toujours vide sans jamais le dire (D012.4).
- */
-const decodeSnapshot = Schema.decodeUnknownOption(SnapshotPayload);
-
 /** Corps de requête attendu pour l'envoi d'un prompt. */
 const PromptBody = Schema.Struct({ text: Schema.String });
 
 const decodePromptBody = Schema.decodeUnknownOption(PromptBody);
-
-/**
- * Types acceptés par `agent.start`, relevés dans `herdr agent start --help`.
- * Sert à décider si l'on passe la commande ou la cible comme `kind`.
- */
-const ACCEPTED_KINDS = new Set([
-  "pi",
-  "claude",
-  "codex",
-  "gemini",
-  "cursor",
-  "devin",
-  "agy",
-  "cline",
-  "omp",
-  "mastracode",
-  "opencode",
-  "copilot",
-  "kimi",
-  "kiro",
-  "droid",
-  "amp",
-  "grok",
-  "hermes",
-  "kilo",
-  "qodercli",
-  "qwen",
-  "letta",
-  "maki",
-  "muse",
-]);
 
 /** Échec de lancement, qualifié par l'étape qui a échoué. */
 class LaunchFailed extends Schema.TaggedError<LaunchFailed>()("LaunchFailed", {
@@ -105,39 +71,6 @@ class LaunchFailed extends Schema.TaggedError<LaunchFailed>()("LaunchFailed", {
   paneId: Schema.NullOr(Schema.String),
   phase: Schema.String,
 }) {}
-
-/**
- * Remontée d'erreur depuis le navigateur.
- *
- * La cause réelle d'un problème est souvent côté client — un appel qui échoue,
- * un décodage impossible. Sans ce canal, ces erreurs n'existaient que dans une
- * barre rouge, puis disparaissaient.
- */
-const clientLog = async (logPath: string, request: RouteRequest): Promise<Response> => {
-  const raw: unknown = await request.json().catch(() => undefined);
-  const entry = Option.getOrUndefined(
-    Schema.decodeUnknownOption(
-      Schema.Struct({
-        detail: Schema.optional(Schema.Unknown),
-        level: Schema.Literal("error"),
-        message: Schema.String,
-      }),
-    )(raw),
-  );
-  if (entry === undefined) return json(logPath, { ok: false }, 400);
-
-  // Trace console en plus du fichier, comme au-dessus.
-  console.error(`[client] ${entry.message}`);
-  await Effect.runPromise(
-    writeLog(logPath, {
-      level: entry.level,
-      message: entry.message,
-      source: "client",
-      ...(entry.detail !== undefined ? { detail: entry.detail } : {}),
-    }),
-  );
-  return json(logPath, { ok: true });
-};
 
 /**
  * Catalogue de modèles d'un type d'agent.
@@ -150,15 +83,6 @@ const clientLog = async (logPath: string, request: RouteRequest): Promise<Respon
  * une liste devinée. La réponse est toujours **200** : l'absence de catalogue
  * est une information valide, pas une panne du serveur.
  */
-const modelCatalog = (logPath: string, request: RouteRequest): Promise<Response> =>
-  Effect.runPromise(
-    Effect.gen(function* () {
-      const kind = request.params["kind"] ?? "";
-      const catalog = yield* catalogOf(kind);
-      return respond(logPath, decoderOf(ModelCatalogResponse), { ...catalog, kind });
-    }),
-  );
-
 /** Corps de la réponse à l'invite de confiance. */
 const TrustBody = Schema.Struct({ accept: Schema.Boolean });
 
@@ -208,11 +132,86 @@ const makeAnswerTrust =
     });
   };
 
+/**
+ * Types acceptés par `agent.start`, relevés dans `herdr agent start --help`.
+ * Sert à décider si l'on passe la commande ou la cible comme `kind`.
+ */
+const ACCEPTED_KINDS = new Set([
+  "pi",
+  "claude",
+  "codex",
+  "gemini",
+  "cursor",
+  "devin",
+  "agy",
+  "cline",
+  "omp",
+  "mastracode",
+  "opencode",
+  "copilot",
+  "kimi",
+  "kiro",
+  "droid",
+  "amp",
+  "grok",
+  "hermes",
+  "kilo",
+  "qodercli",
+  "qwen",
+  "letta",
+  "maki",
+  "muse",
+]);
+
+/**
+ * Remontée d'erreur depuis le navigateur.
+ *
+ * La cause réelle d'un problème est souvent côté client — un appel qui échoue,
+ * un décodage impossible. Sans ce canal, ces erreurs n'existaient que dans une
+ * barre rouge, puis disparaissaient.
+ */
+const clientLog = async (logPath: string, request: RouteRequest): Promise<Response> => {
+  const raw: unknown = await request.json().catch(() => undefined);
+  const entry = Option.getOrUndefined(
+    Schema.decodeUnknownOption(
+      Schema.Struct({
+        detail: Schema.optional(Schema.Unknown),
+        level: Schema.Literal("error"),
+        message: Schema.String,
+      }),
+    )(raw),
+  );
+  if (entry === undefined) return json(logPath, { ok: false }, 400);
+
+  // Trace console en plus du fichier, comme pour les réponses du serveur.
+  console.error(`[client] ${entry.message}`);
+  await Effect.runPromise(
+    writeLog(logPath, {
+      level: entry.level,
+      message: entry.message,
+      source: "client",
+      ...(entry.detail !== undefined ? { detail: entry.detail } : {}),
+    }),
+  );
+  return json(logPath, { ok: true });
+};
+
+const modelCatalog = (logPath: string, request: RouteRequest): Promise<Response> =>
+  Effect.runPromise(
+    Effect.gen(function* () {
+      const kind = request.params["kind"] ?? "";
+      const catalog = yield* catalogOf(kind);
+      return respond(logPath, decoderOf(ModelCatalogResponse), { ...catalog, kind });
+    }),
+  );
+
 export const makeRoutes = (deps: ApiDeps): Routes => {
   const { config, herdr, hub, sender, watch, startedAt } = deps;
 
   const answerTrust = makeAnswerTrust(config.logPath, herdr);
   const sessionRoutes = makeSessionRoutes(config, herdr);
+  const fileRoutes = makeFileRoutes(config, herdr);
+  const eventRoutes = makeEventRoutes(hub);
 
   const health = (): Promise<Response> =>
     Effect.gen(function* () {
@@ -595,119 +594,6 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
   };
 
   /**
-   * Sert un fichier produit par un agent.
-   *
-   * **Racines autorisées** : les dossiers de travail des projets, résolus à
-   * chaud depuis le snapshot Herdr. Aucune racine globale, aucune variable
-   * d'environnement — un projet qui disparaît cesse immédiatement d'être
-   * lisible.
-   */
-  const file = async (request: RouteRequest): Promise<Response> => {
-    const result = await Effect.runPromise(
-      Effect.result(
-        Effect.gen(function* () {
-          const url = new URL(request.url);
-          const requested = url.searchParams.get("path");
-          if (requested === null || requested.length === 0) {
-            return yield* Effect.fail(new FileDenied({ reason: "paramètre `path` manquant" }));
-          }
-
-          const payload = yield* herdr.snapshot();
-          const snapshot = Option.getOrUndefined(decodeSnapshot(payload["snapshot"]));
-          if (snapshot === undefined) {
-            return yield* Effect.fail(new FileUnavailable({ reason: "Herdr illisible" }));
-          }
-
-          // Dossiers de projet + médias configurés. Les seconds sont bornés et
-          // explicites : captures d'écran, téléchargements, images.
-          const roots = [
-            ...snapshot.workspaces
-              .map((workspace) => checkoutPathOf(workspace, snapshot.panes ?? []))
-              .filter((root): root is string => root !== null),
-            ...config.extraFileRoots,
-          ];
-
-          return yield* readAllowedFile(requested, roots);
-        }),
-      ),
-    );
-
-    if (Result.isFailure(result)) {
-      const failure = failureOf(result);
-      // Le typage ne garantit pas la forme : on vérifie avant de lire `reason`.
-      const known = Option.getOrUndefined(
-        Schema.decodeUnknownOption(Schema.Struct({ reason: Schema.String }))(failure),
-      );
-      return respond(
-        config.logPath,
-        decoderOf(ApiErrorResponse),
-        { error: known?.reason ?? "fichier indisponible" },
-        403,
-      );
-    }
-
-    const value = Option.getOrUndefined(Result.getSuccess(result));
-    if (value === undefined) {
-      return respond(
-        config.logPath,
-        decoderOf(ApiErrorResponse),
-        { error: "fichier illisible" },
-        500,
-      );
-    }
-
-    // Ce qui n'est pas dans la liste blanche est **téléchargé**, jamais rendu.
-    return new Response(new Uint8Array(value.bytes), {
-      headers: {
-        "cache-control": "no-store",
-        "content-disposition": isInline(value.name)
-          ? `inline; filename="${value.name}"`
-          : `attachment; filename="${value.name}"`,
-        "content-length": String(value.size),
-        "content-type": value.contentType,
-      },
-    });
-  };
-
-  /**
-   * Images récentes des dossiers autorisés.
-   *
-   * C'est ce qui remplace « connaître le chemin par cœur » : on ouvre l'app, on
-   * voit ses dernières captures.
-   */
-  const images = async (): Promise<Response> => {
-    const result = await Effect.runPromise(
-      Effect.result(
-        Effect.gen(function* () {
-          const payload = yield* herdr.snapshot();
-          const snapshot = Option.getOrUndefined(decodeSnapshot(payload["snapshot"]));
-          if (snapshot === undefined) {
-            return yield* Effect.fail({ message: "Herdr illisible" });
-          }
-          const roots = [
-            ...snapshot.workspaces
-              .map((workspace) => checkoutPathOf(workspace, snapshot.panes ?? []))
-              .filter((root): root is string => root !== null),
-            ...config.extraFileRoots,
-          ];
-          return yield* listRecentImages(roots);
-        }),
-      ),
-    );
-
-    if (Result.isFailure(result)) {
-      return respond(
-        config.logPath,
-        decoderOf(ApiErrorResponse),
-        { error: "balayage impossible" },
-        502,
-      );
-    }
-    const found = Option.getOrUndefined(Result.getSuccess(result)) ?? [];
-    return respond(config.logPath, decoderOf(RecentImagesResponse), { images: found });
-  };
-
-  /**
    * Types d'agents **installés sur cette machine**.
    *
    * ⚠️ J'avais codé une liste fixe de onze types. Neuf n'étaient pas installés :
@@ -763,54 +649,6 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     return respond(config.logPath, decoderOf(InstalledKindsResponse), { kinds });
   };
 
-  const events = (request: RouteRequest): Response => {
-    const header = request.headers.get("last-event-id");
-    const parsed = header === null ? 0 : Number.parseInt(header, 10);
-    let cursor = Number.isInteger(parsed) ? parsed : 0;
-
-    const encoder = new TextEncoder();
-    const stream = new ReadableStream<Uint8Array>({
-      async start(controller) {
-        // Signal de vie immédiat : le client sait que le flux est établi.
-        controller.enqueue(encoder.encode(`event: ready\ndata: ${JSON.stringify({ cursor })}\n\n`));
-        let closed = false;
-        // Séquence volontaire : on interroge le journal, on émet, PUIS on
-        // attend. Paralléliser n'aurait pas de sens ici — c'est une boucle de
-        // scrutation, pas une collecte de promesses indépendantes.
-        /* oxlint-disable no-await-in-loop */
-        while (!closed) {
-          try {
-            const catchUp = await Effect.runPromise(hub.since(cursor));
-            let buffer = "";
-            if (catchUp.resyncRequired) {
-              buffer += `event: resync\ndata: {"reason":"journal tronqué"}\n\n`;
-            }
-            for (const event of catchUp.events) {
-              buffer += `id: ${event.id}\nevent: ${event.kind}\ndata: ${JSON.stringify(event.data)}\n\n`;
-            }
-            if (catchUp.events.length > 0) {
-              cursor = catchUp.events[catchUp.events.length - 1]?.id ?? cursor;
-            }
-            if (buffer.length > 0) controller.enqueue(encoder.encode(buffer));
-            await Bun.sleep(300);
-          } catch (cause) {
-            closed = true;
-            controller.error(cause);
-          }
-        }
-        /* oxlint-enable no-await-in-loop */
-      },
-    });
-
-    return new Response(stream, {
-      headers: {
-        "cache-control": "no-cache",
-        connection: "keep-alive",
-        "content-type": "text/event-stream",
-      },
-    });
-  };
-
   return {
     "/api/agents/:paneId/prompt": prompt,
     "/api/workspaces/:workspaceId/agents": launchAgent,
@@ -820,9 +658,9 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     "/api/agents/:kind/models": (request) => modelCatalog(config.logPath, request),
     "/api/agents/:paneId/trust": answerTrust,
     "/api/log": (request) => clientLog(config.logPath, request),
-    "/api/events": events,
-    "/api/file": file,
-    "/api/images": images,
+    "/api/events": eventRoutes.events,
+    "/api/file": fileRoutes.file,
+    "/api/images": fileRoutes.images,
     "/api/health": health,
     "/api/overview": overview,
   };

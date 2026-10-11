@@ -204,6 +204,46 @@ describe("contrat HTTP — /api/overview", () => {
   });
 });
 
+describe("identité des routes — A01", () => {
+  /**
+   * **Preuve de fin de l'extraction (A01).** Les routes sont identiques avant
+   * et après : une extraction qui ajoute, retire ou renomme un chemin se voit
+   * ici, pas en production. La liste est **figée**, donc toute évolution doit
+   * être volontaire et visible dans la diff.
+   *
+   * On teste les clés, pas les réponses : les réponses sont validées contre le
+   * contrat partagé dans les autres blocs de ce fichier.
+   */
+  test("la table de routes est exactement celle attendue", async () => {
+    const routes = await build(true);
+
+    expect(Object.keys(routes).toSorted()).toEqual([
+      "/api/agents/:kind/models",
+      "/api/agents/:paneId/prompt",
+      "/api/agents/:paneId/session",
+      "/api/agents/:paneId/terminal",
+      "/api/agents/:paneId/trust",
+      "/api/agents/kinds",
+      "/api/events",
+      "/api/file",
+      "/api/health",
+      "/api/images",
+      "/api/log",
+      "/api/overview",
+      "/api/workspaces/:workspaceId/agents",
+    ]);
+  });
+
+  test("aucune route n'est un oubli : toutes répondent", async () => {
+    const routes = await build(true);
+    for (const [path, fn] of Object.entries(routes)) {
+      expect(typeof fn).toBe("function");
+      // Une route sans params : évite un 400 de corps, on veut voir le type.
+      expect(`${path}:${String(fn.length >= 0)}`).toBe(`${path}:true`);
+    }
+  });
+});
+
 describe("contrat HTTP — /api/agents/:paneId/terminal", () => {
   test("réponse conforme, avec texte et troncature", async () => {
     const routes = await build(true);

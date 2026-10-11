@@ -18,6 +18,7 @@
  *   l'écran : l'utilisateur voit « le nouvel onglet », pas `wB:p4`.
  */
 import { Effect, Option, Result, Schema } from "effect";
+import { SnapshotPayload } from "@herdr-remote/shared";
 import { writeLog } from "../logging/LogFile.ts";
 
 /**
@@ -162,3 +163,13 @@ export const decoderOf =
   <S extends Parameters<typeof Schema.decodeUnknownOption>[0]>(schema: S) =>
   (payload: unknown): S["Type"] | undefined =>
     Option.getOrUndefined(Schema.decodeUnknownOption(schema)(payload));
+/**
+ * Décodeur du snapshot Herdr.
+ *
+ * ⚠️ `session.snapshot` renvoie `{ snapshot: {...} }`, pas l'objet direct. Lire
+ * `payload["agents"]` comparait une liste **vide** à chaque tour, en silence : le
+ * cache semblait toujours vide sans jamais le dire (D012.4). Cette forme
+ * inattendue est donc signalée par un échec explicite, jamais convertie en liste
+ * vide.
+ */
+export const decodeSnapshot = Schema.decodeUnknownOption(SnapshotPayload);
