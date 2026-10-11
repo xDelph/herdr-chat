@@ -26,9 +26,7 @@ import {
   TrustResolvedResponse,
   PromptSentResponse,
   PromptSuppressedResponse,
-  SessionResponse,
   SnapshotPayload,
-  TerminalResponse,
 } from "@herdr-remote/shared";
 import { buildOverview, checkoutPathOf, toWorkspaceViews } from "../agents/AgentRegistry.ts";
 import { buildModelArgs, checkThinkingSupported } from "../agents/ModelArgs.ts";
@@ -40,10 +38,12 @@ import type { WatchLoop } from "../events/AgentWatcher.ts";
 import type { EventHubApi } from "../events/EventHub.ts";
 import type { HerdrApi } from "../herdr/HerdrClient.ts";
 import type { PromptSenderApi } from "../send/PromptSender.ts";
-import { isMissingFile, readTail, tailFrom } from "../sessions/SessionReader.ts";
 import { isInline, readAllowedFile } from "../files/FileService.ts";
 import { writeLog } from "../logging/LogFile.ts";
 import { listRecentImages } from "../files/RecentImages.ts";
+import { decoderOf, describe, describeCause, failureOf, json, respond, run } from "./Reply.ts";
+import type { RouteRequest, Routes } from "./Reply.ts";
+import { makeSessionRoutes } from "./routes-sessions.ts";
 
 export interface ApiDeps {
   readonly config: ServerConfig;
@@ -54,27 +54,19 @@ export interface ApiDeps {
   readonly startedAt: number;
 }
 
+/**
+ * Décodeur du snapshot Herdr.
+ *
+ * ⚠️ `session.snapshot` renvoie `{ snapshot: {...} }`, pas l'objet direct. Lire
+ * `payload["agents"]` comparait une liste vide à chaque tour, **en silence** :
+ * le cache seemed alors toujours vide sans jamais le dire (D012.4).
+ */
+const decodeSnapshot = Schema.decodeUnknownOption(SnapshotPayload);
+
 /** Corps de requête attendu pour l'envoi d'un prompt. */
 const PromptBody = Schema.Struct({ text: Schema.String });
 
-/** Emplacement `agent_session` d'un agent, tel que le renvoie Herdr. */
-const AgentSessionSlot = Schema.Struct({
-  agent_session: Schema.optional(
-    Schema.NullOr(Schema.Struct({ kind: Schema.String, value: Schema.String })),
-  ),
-});
-
-const decodeSnapshot = Schema.decodeUnknownOption(SnapshotPayload);
 const decodePromptBody = Schema.decodeUnknownOption(PromptBody);
-const decodeSessionSlot = Schema.decodeUnknownOption(AgentSessionSlot);
-
-export const sessionPathOf = (agent: unknown): string | undefined => {
-  const decoded = Option.getOrUndefined(decodeSessionSlot(agent));
-  if (decoded === undefined) return undefined;
-  const info = decoded.agent_session;
-  if (info === undefined || info === null || info.kind !== "path") return undefined;
-  return info.value;
-};
 
 /**
  * Types acceptés par `agent.start`, relevés dans `herdr agent start --help`.
@@ -113,166 +105,6 @@ class LaunchFailed extends Schema.TaggedError<LaunchFailed>()("LaunchFailed", {
   paneId: Schema.NullOr(Schema.String),
   phase: Schema.String,
 }) {}
-
-/**
- * Réponse JSON, **et journalisation automatique des erreurs**.
- *
- * ⚠️ Un avertissement affiché dans l'application sans trace laissée nulle part
- * est indiagnosticable après coup. Toute réponse >= 400 part au journal.
- *
- * `logPath` vient de la configuration : c'est lui qui empêche les tests
- * d'écrire dans le journal de l'utilisateur (A03).
- */
-const json = (logPath: string, body: unknown, status = 200): Response => {
-  if (status >= 400) {
-    const described = describeCause(body);
-    // Trace console **en plus** du fichier : `verify` capture stderr, le
-    // journal seul ne se voit pas dans un test.
-    console.error(`[http ${String(status)}] ${described}`);
-    void Effect.runPromise(
-      writeLog(logPath, {
-        level: status >= 500 ? "error" : "warn",
-        message: `HTTP ${String(status)}`,
-        source: "server",
-        detail: body,
-      }),
-    );
-  }
-  return Response.json(body, { status, headers: { "cache-control": "no-store" } });
-};
-
-/**
- * Sérialise une réponse **en la validant contre le contrat partagé**.
- *
- * C'est la garantie structurelle : le serveur ne peut plus émettre une réponse
- * que le client refusera de décoder. Le bug initial — `reachable` absent de la
- * branche succès de `/api/health` — aurait été attrapé ici, immédiatement, au
- * lieu de se manifester sur l'iPhone comme « Herdr injoignable ».
- */
-/**
- * Construit un décodeur pour un schéma concret.
- *
- * On ne peut pas écrire `respond<A>(schema: Schema.Schema<A>)` : la signature
- * réelle de `decodeUnknownOption` exige un `ConstraintDecoder`, et un
- * `Schema<A>` générique ne s'y conforme pas.
- */
-const decoderOf =
-  <S extends Parameters<typeof Schema.decodeUnknownOption>[0]>(schema: S) =>
-  (payload: unknown): S["Type"] | undefined =>
-    Option.getOrUndefined(Schema.decodeUnknownOption(schema)(payload));
-
-const respond = (
-  logPath: string,
-  decodeBody: (payload: unknown) => unknown,
-  body: unknown,
-  status = 200,
-): Response => {
-  const value = decodeBody(body);
-  if (value === undefined) {
-    return json(
-      logPath,
-      {
-        error: "le serveur a produit une réponse hors contrat",
-        hint: "voir packages/shared/src/api.ts — le contrat fait foi",
-      },
-      500,
-    );
-  }
-  return json(logPath, value, status);
-};
-
-/** Rend lisible n'importe quelle erreur typée d'Effect. */
-const describe = (error: unknown): string => {
-  const value = describeCause(error);
-  return value.trim().length > 0 ? value : "erreur sans message";
-};
-
-const describeCause = (cause: unknown): string => {
-  const decoded = Option.getOrUndefined(
-    Schema.decodeUnknownOption(
-      Schema.Struct({
-        detail: Schema.optional(Schema.String),
-        message: Schema.optional(Schema.String),
-      }),
-    )(cause),
-  );
-  const readable = decoded?.detail ?? decoded?.message;
-  if (readable !== undefined && readable.trim().length > 0) return stripIdentifiers(readable);
-
-  // Dernier recours : une sérialisation, ou le type, mais jamais rien.
-  try {
-    const serialized = JSON.stringify(cause);
-    if (serialized !== undefined && serialized !== "{}" && serialized.length > 2) {
-      return serialized.slice(0, 300);
-    }
-  } catch {
-    // Sérialisation impossible (référence circulaire) : on continue.
-  }
-  return `échec sans message (${cause === null ? "null" : typeof cause})`;
-};
-
-/**
- * Retire les identifiants internes d'un message destiné à l'écran.
- *
- * ⚠️ Herdr parle en `wB:p4` ; l'utilisateur, lui, voit « le nouvel onglet ». Un
- * identifiant dans une phrase d'erreur ne l'aide pas, et l'a mis en colère à
- * juste titre.
- */
-const stripIdentifiers = (message: string): string =>
-  message
-    .replace(/\bw[0-9A-Za-z]*:p[0-9A-Za-z]+\b/g, "le nouvel onglet")
-    .replace(/\bw[0-9A-Za-z]*:t[0-9A-Za-z]+\b/g, "son onglet")
-    .replace(/\b(?:pane|tab|workspace)_id=\S+/g, "");
-
-/**
- * Extrait l'**échec** typé d'un `Result`.
- *
- * ⚠️ Piège Effect 4 : `Result.getOrUndefined` renvoie la valeur de **succès**
- * (ou `undefined` sur un échec). Pour lire l'erreur il faut `Result.getFailure`,
- * qui renvoie un `Option<E>`. Utiliser `getOrUndefined` pour lire une erreur
- * produit silencieusement `undefined` et masque la cause réelle.
- */
-const failureOf = (result: Result.Result<unknown, unknown>): unknown =>
-  Option.getOrUndefined(Result.getFailure(result));
-
-/**
- * Exécute un effet et le convertit en `Response`.
- *
- * Un échec **non typé** (défaut) devient un 500 explicite : on ne renvoie
- * jamais un 200 sur une erreur.
- */
-const run = async <A, E>(
-  logPath: string,
-  effect: Effect.Effect<A, E>,
-  onSuccess: (value: A) => Response,
-): Promise<Response> => {
-  const result = await Effect.runPromise(Effect.result(effect));
-  if (Result.isSuccess(result)) {
-    const value = Option.getOrUndefined(Result.getSuccess(result));
-    return value === undefined
-      ? json(logPath, { error: "résultat illisible" }, 500)
-      : onSuccess(value);
-  }
-  const failure = failureOf(result);
-  return json(logPath, { error: failure === undefined ? "échec inconnu" : describe(failure) }, 500);
-};
-
-/**
- * Requête minimale dont un handler a besoin.
- *
- * Volontairement plus étroite que `Bun.BunRequest` : cela évite toute assertion
- * de type dans les tests, qui peuvent construire un objet littéral conforme.
- */
-export interface RouteRequest {
-  readonly params: Record<string, string | undefined>;
-  readonly headers: { get(name: string): string | null };
-  readonly url: string;
-  json(): Promise<unknown>;
-}
-
-export interface Routes {
-  readonly [path: string]: (request: RouteRequest) => Response | Promise<Response>;
-}
 
 /**
  * Remontée d'erreur depuis le navigateur.
@@ -380,6 +212,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
   const { config, herdr, hub, sender, watch, startedAt } = deps;
 
   const answerTrust = makeAnswerTrust(config.logPath, herdr);
+  const sessionRoutes = makeSessionRoutes(config, herdr);
 
   const health = (): Promise<Response> =>
     Effect.gen(function* () {
@@ -472,128 +305,6 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       }),
       (body) => respond(config.logPath, decoderOf(OverviewResponse), body),
     );
-
-  const terminal = (request: RouteRequest): Promise<Response> =>
-    run(
-      config.logPath,
-      Effect.gen(function* () {
-        const paneId = request.params["paneId"] ?? "";
-        return yield* herdr.readAgent(paneId);
-      }),
-      (body) => respond(config.logPath, decoderOf(TerminalResponse), body),
-    );
-
-  /**
-   * Contenu d'une session.
-   *
-   * Deux modes, et le second est indispensable :
-   * - **premier affichage** : `?tail=<octets>` lit la fin du fichier. Sur une
-   *   session de 1,8 Mo, tout renvoyer avant la première peinture rend l'écran
-   *   inutilisable.
-   * - **rafraîchissement** : `?since=<offset>` ne renvoie que le nouveau. Sans
-   *   cela, le chat re-téléchargeait 1,8 Mo toutes les 2,5 s.
-   */
-  const session = async (request: RouteRequest): Promise<Response> => {
-    const url = new URL(request.url);
-    const sinceParam = url.searchParams.get("since");
-    const tailParam = url.searchParams.get("tail");
-    const since = sinceParam === null ? undefined : Number.parseInt(sinceParam, 10);
-    const tailBytes = tailParam === null ? 262_144 : Number.parseInt(tailParam, 10);
-
-    const result = await Effect.runPromise(
-      Effect.result(
-        Effect.gen(function* () {
-          const paneId = request.params["paneId"] ?? "";
-          const payload = yield* herdr.getAgent(paneId);
-          const path = sessionPathOf(payload["agent"]);
-          if (path === undefined) {
-            return { kind: "no-session" as const };
-          }
-          // Contenu depuis le JSONL Pi — jamais depuis Herdr (D008.1).
-          /*
-            ⚠️ Un agent fraîchement lancé a un `agent_session` valide vers un
-            fichier que Pi **n'a pas encore créé** : le JSONL naît au premier
-            message. Ce n'est pas une panne, c'est une session vide. Le dire
-            évite une erreur rouge en boucle et un agent qui « ne donne rien ».
-          */
-          const empty = {
-            entries: [] as const,
-            offset: 0,
-            pending: "",
-          };
-
-          if (since !== undefined && Number.isInteger(since) && since >= 0) {
-            const tailed = yield* Effect.result(tailFrom(path, since, ""));
-            return {
-              kind: "ok" as const,
-              path,
-              tailed: Result.isFailure(tailed)
-                ? empty
-                : (Option.getOrUndefined(Result.getSuccess(tailed)) ?? empty),
-              truncated: false,
-            };
-          }
-
-          const finite =
-            Number.isInteger(tailBytes) && tailBytes > 0 ? Math.min(tailBytes, 4_194_304) : 262_144;
-          const tailed = yield* Effect.result(readTail(path, finite));
-          if (Result.isFailure(tailed)) {
-            const failure = failureOf(tailed);
-            // Absence de fichier → session vide. Autre erreur → vraie panne.
-            if (isMissingFile(failure)) {
-              return { kind: "ok" as const, path, tailed: empty, truncated: false };
-            }
-            return yield* Effect.fail(failure);
-          }
-          const value = Option.getOrUndefined(Result.getSuccess(tailed));
-          if (value === undefined) {
-            return { kind: "ok" as const, path, tailed: empty, truncated: false };
-          }
-          return {
-            kind: "ok" as const,
-            path,
-            tailed: { entries: value.entries, offset: value.offset, pending: value.pending },
-            truncated: value.truncated,
-          };
-        }),
-      ),
-    );
-    {
-      if (Result.isFailure(result)) {
-        const failure = failureOf(result);
-        return respond(
-          config.logPath,
-          decoderOf(ApiErrorResponse),
-          { error: failure === undefined ? "échec inconnu" : describe(failure) },
-          502,
-        );
-      }
-      const value = Option.getOrUndefined(Result.getSuccess(result));
-      if (value === undefined) {
-        return respond(
-          config.logPath,
-          decoderOf(ApiErrorResponse),
-          { error: "résultat de session illisible" },
-          500,
-        );
-      }
-      if (value.kind === "no-session") {
-        return respond(
-          config.logPath,
-          decoderOf(ApiErrorResponse),
-          { error: "aucun chemin de session exploitable pour cet agent" },
-          404,
-        );
-      }
-      return respond(config.logPath, decoderOf(SessionResponse), {
-        entries: value.tailed.entries,
-        incremental: since !== undefined,
-        offset: value.tailed.offset,
-        sessionPath: value.path,
-        truncated: value.truncated,
-      });
-    }
-  };
 
   const prompt = async (request: RouteRequest): Promise<Response> => {
     const raw: unknown = await request.json().catch(() => undefined);
@@ -1103,8 +814,8 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
   return {
     "/api/agents/:paneId/prompt": prompt,
     "/api/workspaces/:workspaceId/agents": launchAgent,
-    "/api/agents/:paneId/session": session,
-    "/api/agents/:paneId/terminal": terminal,
+    "/api/agents/:paneId/session": sessionRoutes.session,
+    "/api/agents/:paneId/terminal": sessionRoutes.terminal,
     "/api/agents/kinds": agentKinds,
     "/api/agents/:kind/models": (request) => modelCatalog(config.logPath, request),
     "/api/agents/:paneId/trust": answerTrust,

@@ -19,7 +19,7 @@ import { AgentWatcher, startWatchLoop } from "./events/AgentWatcher.ts";
 import { toAgentViews } from "./agents/AgentRegistry.ts";
 import { PromptSender } from "./send/PromptSender.ts";
 import { makeRoutes } from "./http/Api.ts";
-import type { Routes } from "./http/Api.ts";
+import type { Routes } from "./http/Reply.ts";
 
 const startedAt = Date.now();
 
