@@ -40,18 +40,34 @@ export const isTrustPrompt = (screen: string): boolean => {
 };
 
 /**
- * Répond à l'invite de confiance d'un agent.
+ * Répond à l'invite de confiance d'un agent — **sans jamais prétendre que la
+ * confiance a été accordée** (B06).
  *
- * Deux résultats, tous deux vérifiés :
- * - `accepted: true` — l'invite était bien là, la touche a été envoyée ;
- * - `accepted: false` — l'invite n'est plus à l'écran : **rien n'est envoyé**,
- *   et la raison est renvoyée pour être affichée.
+ * ⚠️ **Pourquoi relire après l'envoi.** `sendKeys` renvoie que la frappe est
+ * partie : c'est un succès de **transport**, pas d'acceptation. Herdr peut
+ * refuser la touche, l'agent peut redémarrer, l'invite peut ne pas être celle
+ * qu'on croyait. Dans tous ces cas, `accepted: true` aurait affiché
+ * « confiance accordée » alors que le dossier reste non approuvé — et le
+ * `codex` ne pourra toujours pas écrire dans ce dossier, sans que rien ne
+ * l'explique.
+ *
+ * Donc : lecture **avant** (l'invite est-elle là ?), frappe, relecture
+ * **après** (a-t-elle disparu ?). L'acceptation est déduite de la seconde
+ * lecture, pas de la volonté de l'utilisateur.
  */
 export const respondToTrust = (
   herdr: HerdrApi,
   paneId: string,
   accept: boolean,
-): Effect.Effect<{ readonly accepted: boolean; readonly detail: string }, HerdrError> =>
+): Effect.Effect<
+  {
+    readonly accepted: boolean;
+    /** `transmise` tant que l'acceptation n'est pas **prouvée**. */
+    readonly state: "transmise" | "acceptee" | "refusee" | "non-applicable";
+    readonly detail: string;
+  },
+  HerdrError
+> =>
   Effect.gen(function* () {
     // ⚠️ On **lit** avant d'envoyer. Un agent peut avoir été débloqué entre-temps
     // (l'utilisateur a répondu au terminal) : dans ce cas, on ne touche à rien.
@@ -61,6 +77,7 @@ export const respondToTrust = (
     if (!isTrustPrompt(screen)) {
       return {
         accepted: false,
+        state: "non-applicable" as const,
         detail: "l'invite de confiance n'est plus à l'écran — rien n'a été envoyé",
       };
     }
@@ -70,8 +87,25 @@ export const respondToTrust = (
     const keys = accept ? ["1", "enter"] : ["2"];
     yield* herdr.sendKeys(paneId, keys);
 
+    // Relecture : l'acceptation est un **fait observé**, pas une intention.
+    const apres = yield* herdr.readAgent(paneId);
+    const toujoursLa = isTrustPrompt(apres.text);
+
+    if (toujoursLa) {
+      // La touche est partie mais l'invite est toujours là : Herdr n'a pas
+      // accepté, ou l'agent a redémarré. On ne prétend rien.
+      return {
+        accepted: false,
+        state: "transmise" as const,
+        detail: accept
+          ? "décision transmise — l'invite est toujours à l'écran, l'acceptation n'est pas prouvée"
+          : "décision transmise — le refus n'est pas encore confirmé par l'écran",
+      };
+    }
+
     return {
       accepted: accept,
+      state: accept ? ("acceptee" as const) : ("refusee" as const),
       detail: accept
         ? "confiance accordée à ce dossier — codex pourra y exécuter du code"
         : "confiance refusée : le dossier reste non approuvé et l'agent reste bloqué",

@@ -345,8 +345,17 @@ export type TrustRequiredResponse = typeof TrustRequiredResponse.Type;
 
 /** Réponse à l'invite de confiance. */
 export const TrustResolvedResponse = Schema.Struct({
-  /** `false` = le dossier a été refusé : rien n'est écrit, l'agent reste bloqué. */
+  /** `false` = le dossier n'est **pas** approuvé. Prouvé par relecture (B06). */
   accepted: Schema.Boolean,
+  /**
+   * État réel de la décision.
+   *
+   * `transmise` — la frappe est partie, mais l'écran ne prouve rien encore.
+   * ⚠️ Ce n'est **pas** « confiance accordée » : Herdr peut refuser la touche,
+   * et l'agent peut redémarrer. L'interface doit rester sur ce mot tant que
+   * `acceptee` ou `refusee` n'est pas revenu.
+   */
+  state: Schema.Literals(["transmise", "acceptee", "refusee", "non-applicable"]),
   status: Schema.Literal("trust-resolved"),
 });
 export type TrustResolvedResponse = typeof TrustResolvedResponse.Type;
