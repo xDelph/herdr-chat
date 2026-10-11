@@ -112,13 +112,32 @@ export interface RawEntry {
   readonly raw: string;
 }
 
+/** Identité du fichier sous-jacent : c'est ce qui distingue un vrai curseur. */
+export interface FileIdentity {
+  readonly dev: number;
+  readonly ino: number;
+}
+
 export interface TailedSession {
   /** Entrées complètes lues depuis l'offset précédent. */
   readonly entries: ReadonlyArray<RawEntry>;
-  /** Nouvel offset à mémoriser pour le prochain appel. */
+  /**
+   * Position **après le dernier saut de ligne complet**.
+   *
+   * Une ligne partielle ne fait pas avancer l'offset : elle est conservée
+   * dans `pending` et recollée au prochain appel. Avancer ici tronquerait la
+   * ligne à jamais.
+   */
   readonly offset: number;
   /** Ligne incomplète conservée (sera recollée au prochain appel). */
   readonly pending: string;
+  /**
+   * `true` quand des entrées antérieures à la fenêtre n'ont pas été renvoyées.
+   * Le client sait qu'il ne voit pas toute la conversation.
+   */
+  readonly hasMore: boolean;
+  /** Identité du fichier, à reporter dans le curseur. */
+  readonly identity: FileIdentity;
 }
 
 /**
@@ -220,16 +239,26 @@ export const tailFrom = (path: string, offset: number, pending: string, root = "
       try {
         const stats = await handle.stat();
         if (stats.size <= offset) {
-          return { entries: [], offset, pending };
+          return {
+            entries: [],
+            hasMore: false,
+            identity: { dev: stats.dev, ino: stats.ino },
+            offset,
+            pending,
+          };
         }
         const length = stats.size - offset;
         const buffer = Buffer.alloc(length);
         const { bytesRead } = await handle.read(buffer, 0, length, offset);
         const text = pending + buffer.subarray(0, bytesRead).toString("utf8");
         const { lines, pending: rest } = splitCompleteLines(text);
+        const completeBytes = Buffer.byteLength(text, "utf8") - Buffer.byteLength(rest, "utf8");
         return {
           entries: lines.map(parseEntry),
-          offset: offset + bytesRead,
+          hasMore: false,
+          identity: { dev: stats.dev, ino: stats.ino },
+          // Idem : une ligne partielle ne fait **pas** avancer le curseur.
+          offset: offset + Math.max(0, completeBytes),
           pending: rest,
         };
       } finally {
@@ -282,11 +311,47 @@ export const readTail = (path: string, maxBytes: number, root = "") =>
         }
 
         const { lines, pending } = splitCompleteLines(text);
+        // ⚠️ L'offset doit désigner la fin du **dernier saut de ligne complet**,
+        // pas la fin du bloc lu. Si `pending` existe, le curseur revient en
+        // arrière : la ligne incomplète sera recollée au prochain appel.
+        const completeBytes = Buffer.byteLength(text, "utf8") - Buffer.byteLength(pending, "utf8");
         return {
           entries: lines.map(parseEntry),
-          offset: start + bytesRead,
+          hasMore: truncated,
+          identity: { dev: stats.dev, ino: stats.ino },
+          offset: start + Math.max(0, completeBytes),
           pending,
           truncated,
+        };
+      } finally {
+        await handle.close();
+      }
+    },
+    catch: (cause) =>
+      cause instanceof SessionPathRejected
+        ? cause
+        : new SessionReadError({
+            cause,
+            detail: cause instanceof Error ? cause.message : String(cause),
+            path,
+          }),
+  });
+
+/**
+ * Identité et taille du fichier, sans le lire.
+ *
+ * Sert à valider un curseur **avant** de l'utiliser : rotation et troncature
+ * se détectent sur `dev`/`ino` et sur la taille, sans transferer le contenu.
+ */
+export const fileSize = (path: string, root = "") =>
+  Effect.tryPromise({
+    try: async (): Promise<{ identity: FileIdentity; size: number }> => {
+      const handle = await openGuarded(root, path);
+      try {
+        const stats = await handle.stat();
+        return {
+          identity: { dev: stats.dev, ino: stats.ino },
+          size: stats.size,
         };
       } finally {
         await handle.close();

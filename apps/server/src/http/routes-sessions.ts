@@ -15,10 +15,17 @@
  * opaque : ce fichier est donc le point d'entrée de cette migration.
  */
 import { Effect, Option, Result, Schema } from "effect";
-import { ApiErrorResponse, SessionResponse, TerminalResponse } from "@herdr-remote/shared";
+import {
+  ApiErrorResponse,
+  decodeCursor,
+  encodeCursor,
+  SessionResponse,
+  TerminalResponse,
+} from "@herdr-remote/shared";
 import type { ServerConfig } from "../config.ts";
 import type { HerdrApi } from "../herdr/HerdrClient.ts";
 import {
+  fileSize,
   isMissingFile,
   readTail,
   SessionPathRejected,
@@ -75,9 +82,20 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
    */
   const session = async (request: RouteRequest): Promise<Response> => {
     const url = new URL(request.url);
-    const sinceParam = url.searchParams.get("since");
     const tailParam = url.searchParams.get("tail");
-    const since = sinceParam === null ? undefined : Number.parseInt(sinceParam, 10);
+    // B01 : le curseur est **opaque** et remplace `?since=`. Un offset nu ne
+    // dit pas quel fichier il désigne : après rotation, il pointerait ailleurs,
+    // sans erreur visible. Un curseur malformé est un 400, jamais un 0 deviné.
+    const cursorParam = url.searchParams.get("cursor");
+    const cursor = cursorParam === null ? undefined : decodeCursor(cursorParam);
+    if (cursorParam !== null && cursor === undefined) {
+      return respond(
+        config.logPath,
+        decoderOf(ApiErrorResponse),
+        { error: "curseur invalide" },
+        400,
+      );
+    }
     const tailBytes = tailParam === null ? 262_144 : Number.parseInt(tailParam, 10);
 
     const result = await Effect.runPromise(
@@ -98,15 +116,49 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
         */
           const empty = {
             entries: [] as const,
+            hasMore: false,
+            identity: { dev: 0, ino: 0 },
             offset: 0,
             pending: "",
           };
 
-          if (since !== undefined && Number.isInteger(since) && since >= 0) {
-            const tailed = yield* Effect.result(tailFrom(path, since, "", config.piSessionsRoot));
+          if (cursor !== undefined) {
+            // Rotation ou troncature : le curseur ne décrit plus ce fichier.
+            // Le client doit **remplacer** sa vue, pas y ajouter — sinon il
+            // afficherait des entrées qui ne sont plus dans le fichier.
+            const taille = yield* Effect.result(fileSize(path, config.piSessionsRoot));
+            if (Result.isFailure(taille)) {
+              const failure = Result.getFailure(taille);
+              if (isMissingFile(failure)) {
+                return { kind: "ok" as const, path, reset: true, tailed: empty, truncated: false };
+              }
+              return yield* Effect.fail(failure);
+            }
+            const current = taille.success;
+            const rejoueDepuis =
+              cursor.dev === current.identity.dev && cursor.ino === current.identity.ino;
+            const pasTronque = cursor.offset <= current.size;
+            if (!rejoueDepuis || !pasTronque) {
+              // Curseur invalide : on **relit la fin** et on l'annonce.
+              const rafraichit = yield* Effect.result(
+                readTail(path, 262_144, config.piSessionsRoot),
+              );
+              const valeur = Option.getOrUndefined(Result.getSuccess(rafraichit));
+              return {
+                kind: "ok" as const,
+                path,
+                reset: true,
+                tailed: valeur ?? empty,
+                truncated: valeur?.truncated ?? false,
+              };
+            }
+            const tailed = yield* Effect.result(
+              tailFrom(path, cursor.offset, "", config.piSessionsRoot),
+            );
             return {
               kind: "ok" as const,
               path,
+              reset: false,
               tailed: Result.isFailure(tailed)
                 ? empty
                 : (Option.getOrUndefined(Result.getSuccess(tailed)) ?? empty),
@@ -121,18 +173,25 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
             const failure = failureOf(tailed);
             // Absence de fichier → session vide. Autre erreur → vraie panne.
             if (isMissingFile(failure)) {
-              return { kind: "ok" as const, path, tailed: empty, truncated: false };
+              return { kind: "ok" as const, path, reset: false, tailed: empty, truncated: false };
             }
             return yield* Effect.fail(failure);
           }
           const value = Option.getOrUndefined(Result.getSuccess(tailed));
           if (value === undefined) {
-            return { kind: "ok" as const, path, tailed: empty, truncated: false };
+            return { kind: "ok" as const, path, reset: false, tailed: empty, truncated: false };
           }
           return {
             kind: "ok" as const,
             path,
-            tailed: { entries: value.entries, offset: value.offset, pending: value.pending },
+            reset: false,
+            tailed: {
+              entries: value.entries,
+              hasMore: value.hasMore,
+              identity: value.identity,
+              offset: value.offset,
+              pending: value.pending,
+            },
             truncated: value.truncated,
           };
         }),
@@ -175,12 +234,20 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
           404,
         );
       }
-      return respond(config.logPath, decoderOf(SessionResponse), {
-        entries: value.tailed.entries,
-        incremental: since !== undefined,
+      // Le curseur repart toujours de l'identité **lue**, pas de celle
+      // demandée : c'est la seule qui décrit le fichier réellement ouvert.
+      const cursorOut = encodeCursor({
+        dev: value.tailed.identity.dev,
+        ino: value.tailed.identity.ino,
         offset: value.tailed.offset,
+      });
+      return respond(config.logPath, decoderOf(SessionResponse), {
+        cursor: cursorOut,
+        entries: value.tailed.entries,
+        hasMore: value.tailed.hasMore || value.truncated,
+        incremental: cursor !== undefined,
+        reset: value.reset,
         sessionPath: value.path,
-        truncated: value.truncated,
       });
     }
   };

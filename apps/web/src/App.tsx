@@ -273,7 +273,7 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
    * Avant, chaque rafraîchissement re-téléchargeait la session entière — 1,8 Mo
    * sur une session réelle, toutes les 2,5 s — et l'écran ne s'affichait jamais.
    */
-  const cursor = useRef<{ offset: number; path: string } | null>(null);
+  const cursor = useRef<{ cursor: string | undefined; path: string } | null>(null);
   const loading = useRef(false);
 
   const load = useCallback(
@@ -284,11 +284,11 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
       try {
         const known = cursor.current;
         const session =
-          mode === "incremental" && known !== null
-            ? await fetchSession(agent.paneId, { since: known.offset })
+          mode === "incremental" && known !== null && known.cursor !== undefined
+            ? await fetchSession(agent.paneId, { cursor: known.cursor })
             : await fetchSession(agent.paneId, { tail: 524_288 });
 
-        cursor.current = { offset: session.offset, path: session.sessionPath };
+        cursor.current = { cursor: session.cursor, path: session.sessionPath };
 
         if (session.incremental) {
           if (session.entries.length > 0) {
@@ -300,6 +300,15 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
         } else {
           setEntries(session.entries);
           setMessages(toMessages(session.entries));
+        }
+        // `reset` signifie que le curseur ne décrivait plus ce fichier :
+        // rotation, troncature, ou session relue depuis la fin. Les entrées
+        // reçues **remplacent** la vue, sans quoi l'écran montrerait des
+        // messages qui ne sont plus dans le fichier.
+        if (session.reset) {
+          setEntries(session.entries);
+          setMessages(toMessages(session.entries));
+          setPhase("ready");
         }
         setError(null);
         setPhase("ready");

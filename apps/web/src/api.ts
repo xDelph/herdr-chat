@@ -239,15 +239,18 @@ export const fetchOverview = () => decoded("/api/overview", decoderOf(OverviewSc
  *
  * - **premier affichage** : `tail` lit la fin du fichier. Sans cela, une session
  *   de 1,8 Mo bloque la première peinture.
- * - **rafraîchissement** : `since` ne renvoie que le nouveau. Sans cela, le chat
+ * - **rafraîchissement** : `cursor` ne renvoie que le nouveau. Sans cela, le chat
  *   re-téléchargeait 1,8 Mo toutes les 2,5 s et ne s'affichait jamais.
+ *
+ * ⚠️ Le curseur est **opaque** (B01) : le client le ressort tel quel, sans le
+ * lire ni le construire. Un offset nu ne dit pas quel fichier il désigne.
  */
 export const fetchSession = (
   paneId: string,
-  options: { readonly since?: number; readonly tail?: number } = {},
+  options: { readonly cursor?: string; readonly tail?: number } = {},
 ) => {
   const query = new URLSearchParams();
-  if (options.since !== undefined) query.set("since", String(options.since));
+  if (options.cursor !== undefined) query.set("cursor", options.cursor);
   if (options.tail !== undefined) query.set("tail", String(options.tail));
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
   return decoded(

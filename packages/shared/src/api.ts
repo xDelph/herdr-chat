@@ -13,7 +13,7 @@
  * Désormais : le serveur **produit** selon ces schémas, le client **décode**
  * selon les mêmes, et un test de contrat échoue si l'un des deux s'en écarte.
  */
-import { Schema } from "effect";
+import { Option, Schema } from "effect";
 import { AgentInfo, WorkspaceInfo } from "./protocol.ts";
 
 /** État du backend **et** joignabilité d'Herdr. */
@@ -92,15 +92,88 @@ export const SessionEntrySchema = Schema.Struct({
 });
 export type SessionEntry = typeof SessionEntrySchema.Type;
 
+/**
+ * Curseur opaque de lecture d'une session.
+ *
+ * ⚠️ **Opaque** : le client ne doit jamais le construire ni l'interpréter. Un
+ * simple `offset` ne suffit pas, parce que le fichier peut avoir changé entre
+ * deux appels — un numéro d'octet désigne alors un **autre** endroit, sans
+ * erreur visible.
+ *
+ * Le triplet `dev`, `ino`, `offset` identifie le fichier **et** la position.
+ * Une rotation (nouvel `ino`) ou un changement de device invalide donc le
+ * curseur au lieu de renvoyer des entrées arbitraires.
+ *
+ * `offset` désigne toujours la position **après le dernier saut de ligne
+ * complet** : une ligne partielle est conservée côté serveur et n'avance pas le
+ * curseur.
+ */
+export const SessionCursor = Schema.Struct({
+  dev: Schema.Number,
+  ino: Schema.Number,
+  offset: Schema.Number,
+});
+export type SessionCursor = typeof SessionCursor.Type;
+
+/**
+ * Rend un curseur **opaque** sur le réseau.
+ *
+ * L'encodage est base64 d'un JSON : lisible par un humain qui débogue, mais le
+ * contrat n'impose pas ce format au client. Un jour de format pourra changer
+ * sans casser les versions déployées.
+ *
+ * `null` si le triplet est incomplet — alors le client est traité comme
+ * nouveau, ce qui vaut mieux qu'un curseur faux.
+ */
+export const encodeCursor = (cursor: SessionCursor): string => {
+  const raw = JSON.stringify(cursor);
+  return typeof btoa === "function"
+    ? btoa(raw)
+    : // Node sans `btoa` : mêmes alphabets, même résultat.
+      Buffer.from(raw, "utf8").toString("base64");
+};
+
+/**
+ * Décode un curseur. `undefined` si la chaîne est invalide — le caller doit
+ * alors répondre 400, jamais deviner.
+ */
+export const decodeCursor = (encoded: string): SessionCursor | undefined => {
+  let raw: string;
+  try {
+    raw =
+      typeof atob === "function" ? atob(encoded) : Buffer.from(encoded, "base64").toString("utf8");
+  } catch {
+    return undefined;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+  const decoded = Option.getOrUndefined(Schema.decodeUnknownOption(SessionCursor)(parsed));
+  if (decoded === undefined) return undefined;
+  // Un offset négatif ou un device absurde sont des casques : refusés ici,
+  // sinon ils produiraient une lecture au hasard.
+  if (!Number.isInteger(decoded.offset) || decoded.offset < 0) return undefined;
+  return decoded;
+};
+
 export const SessionResponse = Schema.Struct({
   entries: Schema.Array(SessionEntrySchema),
-  /** `true` quand seule la suite a été renvoyée (mode `?since=`). */
+  /** `true` quand seule la suite a été renvoyée (mode incrémental). */
   incremental: Schema.Boolean,
-  /** Offset à renvoyer au prochain appel pour ne recevoir que le nouveau. */
-  offset: Schema.Number,
+  /** Curseur à renvoyer au prochain appel. Absent quand la session est nouvelle. */
+  cursor: Schema.optional(Schema.String),
+  /** `true` quand des entrées précédentes existent mais n'ont pas été renvoyées. */
+  hasMore: Schema.Boolean,
+  /**
+   * `true` quand le curseur fourni ne vaut plus : le fichier a changé de
+   * `dev`/`ino`, ou il est plus court que le curseur. Le client doit alors
+   * **remplacer** sa vue, pas y ajouter.
+   */
+  reset: Schema.Boolean,
   sessionPath: Schema.String,
-  /** `true` quand les entrées précédentes existent mais n'ont pas été renvoyées. */
-  truncated: Schema.Boolean,
 });
 export type SessionResponse = typeof SessionResponse.Type;
 

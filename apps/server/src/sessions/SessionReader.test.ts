@@ -10,7 +10,14 @@ import { Effect } from "effect";
 import { mkdtemp, rm, writeFile, appendFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { readAll, readHeader, splitCompleteLines, tailFrom } from "./SessionReader.ts";
+import {
+  fileSize,
+  readAll,
+  readHeader,
+  readTail,
+  splitCompleteLines,
+  tailFrom,
+} from "./SessionReader.ts";
 
 let dir: string;
 
@@ -117,9 +124,47 @@ describe("tailFrom", () => {
     expect(first.pending).toBe('{"type":"tron');
 
     await appendFile(path, 'quee"}\n');
-    const second = await runOrThrow(tailFrom(path, first.offset, first.pending));
+    // Le curseur repart **avant** la ligne partielle (B02) : relire depuis
+    // cet offset relit la ligne entière, désormais complétée. On passe donc un
+    // `pending` vide, comme la route en production — l'offset fait le travail.
+    const second = await runOrThrow(tailFrom(path, first.offset, ""));
     expect(second.entries.map((e) => e.type)).toEqual(["tronquee"]);
     expect(second.pending).toBe("");
+  });
+
+  /**
+   * La propriété centrale de B02 : l'offset s'arrête au **dernier saut de ligne
+   * complet**. Une ligne partielle ne le fait pas avancer, sinon elle serait
+   * tronquée à jamais — c'est exactement ce qui rendait le message illisible.
+   */
+  test("l'offset n'avance pas sur une ligne partielle", async () => {
+    const path = join(dir, "offset.jsonl");
+    const complet = '{"type":"complete"}\n';
+    await writeFile(path, `${complet}{"type":"part`);
+    const result = await runOrThrow(tailFrom(path, 0, ""));
+    expect(result.offset).toBe(Buffer.byteLength(complet, "utf8"));
+  });
+
+  test("le curseur est invalidé si le fichier a été tronqué", async () => {
+    // Rotation ou troncature : le triplet `dev`/`ino`/`offset` ne décrit plus ce
+    // fichier, donc la route doit annoncer `reset` plutôt que lire au hasard.
+    const path = join(dir, "rotation.jsonl");
+    await writeFile(path, '{"type":"a"}\n{"type":"b"}\n{"type":"c"}\n');
+    const before = await runOrThrow(fileSize(path));
+    const cursor = { ...before.identity, offset: before.size };
+    await writeFile(path, '{"type":"a"}\n');
+    const after = await runOrThrow(fileSize(path));
+    // Le curseur pointe au-delà de la taille : troncature.
+    expect(cursor.offset > after.size).toBe(true);
+  });
+
+  test("une ligne unique plus grande que la fenêtre est une erreur explicite", async () => {
+    const path = join(dir, "geante.jsonl");
+    await writeFile(path, "x".repeat(600 * 1024));
+    const result = await runOrThrow(readTail(path, 512 * 1024));
+    // Une seule ligne, coupée : aucune entrée exploitable.
+    expect(result.entries).toEqual([]);
+    expect(result.truncated).toBe(true);
   });
 
   test("aucune nouvelle donnée → aucune entrée, offset inchangé", async () => {
