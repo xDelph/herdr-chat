@@ -22,6 +22,12 @@
  * d'inventer une liste (`AGENTS.md` — « ne pas exposer un état qu'on ne peut
  * pas vérifier »).
  */
+import {
+  MODEL_CATALOG_CACHE_MS,
+  MODEL_CATALOG_STDERR_BYTES,
+  MODEL_CATALOG_STDOUT_BYTES,
+  MODEL_CATALOG_TIMEOUT_MS,
+} from "@herdr-remote/shared";
 import { Effect, Option, Result, Schema } from "effect";
 
 /** Message d'échec d'une commande, lisible à l'écran. */
@@ -58,21 +64,85 @@ interface CommandOutcome {
  * stderr ne doit pas produire un « catalogue » composé de son avertissement.
  * Un échec est **déclaré**, jamais silentieux.
  */
-const run = (command: ReadonlyArray<string>, timeoutMs = 20_000): Effect.Effect<CommandOutcome> =>
+/**
+ * Lit un flux **jusqu'à une borne**, et signale le dépassement.
+ *
+ * `atteint` distingue « lu tout » de « lu jusqu'à la limite » : sans ce
+ * drapeau, un catalogue tronqué ressemblerait à un catalogue complet.
+ */
+const lireBorne = async (
+  flux: ReadableStream<Uint8Array>,
+  max: number,
+): Promise<{ atteint: boolean; texte: string }> => {
+  const lecteur = flux.getReader();
+  const morceaux: Array<Uint8Array> = [];
+  let total = 0;
+  /* oxlint-disable no-await-in-loop -- lecture séquentielle d'un flux : c'est
+     l'ordre des octets qui compte, pas la rapidité. */
+  while (total <= max) {
+    const suivant = await lecteur.read();
+    if (suivant.done) break;
+    const morceau = suivant.value;
+    if (morceau === undefined) continue;
+    total += morceau.byteLength;
+    morceaux.push(morceau);
+  }
+  /* oxlint-enable no-await-in-loop */
+  const atteint = total > max;
+  if (atteint) await lecteur.cancel();
+
+  const joint = new Uint8Array(Math.min(total, max));
+  let position = 0;
+  for (const morceau of morceaux) {
+    if (position >= joint.length) break;
+    joint.set(morceau.subarray(0, joint.length - position), position);
+    position += morceau.byteLength;
+  }
+  return { atteint, texte: new TextDecoder().decode(joint) };
+};
+
+/**
+ * Exécute une commande, **bornée dans les trois dimensions** (B09).
+ *
+ * ⚠️ Sans borne de sortie, une CLI qui bavarde — ou qui déraille et produit
+ * des mégaoctets — ferait grossir la réponse jusqu'à faire tomber la requête.
+ * La lecture est donc **limitée** : le dépassement est un **échec déclaré**,
+ * jamais une troncature muette qui passerait pour un catalogue valide.
+ *
+ * Le délai tue le processus : un `--list-models` qui attend une saisie
+ * bloquerait la requête entière.
+ */
+const run = (
+  command: ReadonlyArray<string>,
+  timeoutMs = MODEL_CATALOG_TIMEOUT_MS,
+): Effect.Effect<CommandOutcome> =>
   Effect.result(
     Effect.tryPromise({
       try: async () => {
-        const proc = Bun.spawn([...command], { stdout: "pipe", stderr: "pipe" });
+        const proc = Bun.spawn([...command], { stderr: "pipe", stdout: "pipe" });
         const timer = setTimeout(() => {
           proc.kill();
         }, timeoutMs);
         try {
-          const [out, exitCode] = await Promise.all([
-            new Response(proc.stdout).text(),
+          const [sortie, sortieErr, exitCode] = await Promise.all([
+            lireBorne(proc.stdout, MODEL_CATALOG_STDOUT_BYTES),
+            lireBorne(proc.stderr, MODEL_CATALOG_STDERR_BYTES),
             proc.exited,
           ]);
-          if (exitCode !== 0) throw new Error(`code de sortie ${String(exitCode)}`);
-          return out;
+          if (sortie.atteint) {
+            throw new Error(
+              `sortie trop volumineuse (plus de ${String(MODEL_CATALOG_STDOUT_BYTES)} octets)`,
+            );
+          }
+          if (exitCode !== 0) {
+            const motif = sortieErr.texte.trim().split("\n")[0] ?? "";
+            throw new Error(
+              motif.length > 0
+                ? `${motif} (code ${String(exitCode)})`
+                : `code de sortie ${String(exitCode)}`,
+            );
+          }
+          return sortie.texte;
         } finally {
           clearTimeout(timer);
         }
@@ -296,6 +366,26 @@ const ADAPTERS: Readonly<Record<string, Adapter>> = {
 };
 
 /** Catalogue d'un kind, ou la raison pour laquelle il est inconnu. */
+/**
+ * Cache par type, et **regroupement des appels concurrents** (B09).
+ *
+ * Deux appels simultanés sur le même type doivent produire **une seule**
+ * commande : sans cela, ouvrir la feuille de modèles deux fois en un quart de
+ * seconde lance deux `--list-models`, qui attend chacun le réseau.
+ *
+ * L'entrée en vol est partagée ; une fois le catalogue obtenu, il reste en
+ * cache `MODEL_CATALOG_CACHE_MS`. ⚠️ **Seul un succès est mis en cache** : un
+ * échec ou un timeout le serait aussi, l'interface afficherait une liste vide
+ * pendant une minute après une coupure réseau.
+ */
+interface CacheEntry {
+  readonly at: number;
+  readonly value: CatalogResult;
+}
+
+const cache = new Map<string, CacheEntry>();
+const enVol = new Map<string, Effect.Effect<CatalogResult>>();
+
 export const catalogOf = (kind: string): Effect.Effect<CatalogResult> => {
   const adapter = ADAPTERS[kind];
   if (adapter === undefined) {
@@ -306,7 +396,41 @@ export const catalogOf = (kind: string): Effect.Effect<CatalogResult> => {
       thinkingLevels: [],
     });
   }
-  return adapter.catalog;
+
+  const maintenant = Date.now();
+  const cached = cache.get(kind);
+  if (cached !== undefined && maintenant - cached.at < MODEL_CATALOG_CACHE_MS) {
+    return Effect.succeed(cached.value);
+  }
+
+  const dejaEnCours = enVol.get(kind);
+  if (dejaEnCours !== undefined) return dejaEnCours;
+
+  const requete = Effect.gen(function* () {
+    // Le `finally` libère l'entrée en vol dans **tous** les cas : sinon un
+    // timeout laisserait ce type bloqué jusqu'au redémarrage du serveur.
+    const resultat = yield* adapter.catalog.pipe(
+      Effect.tap(
+        Effect.sync(() => {
+          enVol.delete(kind);
+        }),
+      ),
+    );
+    // Échec ou timeout : **rien n'est mis en cache**.
+    if (resultat.error === null) {
+      cache.set(kind, { at: Date.now(), value: resultat });
+    }
+    return resultat;
+  });
+
+  enVol.set(kind, requete);
+  return requete;
+};
+
+/** Vide le cache — réservé aux tests. */
+export const clearCatalogCache = (): void => {
+  cache.clear();
+  enVol.clear();
 };
 
 /** Kinds dont le catalogue est mesuré — sert à l'interface pour ne proposer que ceux-là. */

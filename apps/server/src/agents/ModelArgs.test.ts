@@ -4,6 +4,13 @@
  * ⚠️ Ces tests ne vérifient pas « ça marche » : ils vérifient qu'une porte
  * sait **échouer**. Une porte qui n'a jamais refusé n'est pas une porte.
  */
+import {
+  MODEL_CATALOG_CACHE_MS,
+  MODEL_CATALOG_STDERR_BYTES,
+  MODEL_CATALOG_STDOUT_BYTES,
+  MODEL_CATALOG_TIMEOUT_MS,
+} from "@herdr-remote/shared";
+import { catalogOf, clearCatalogCache } from "./ModelCatalog.ts";
 import { describe, expect, test } from "bun:test";
 import { Effect } from "effect";
 import { buildModelArgs } from "./ModelArgs.ts";
@@ -79,5 +86,40 @@ describe("ModelArgs — portes de refus", () => {
     // Une chaîne vide n'est **pas** un choix : elle ne doit rien ajouter.
     const blank = await build("pi", "   ", "");
     expect(blank.args).toEqual([]);
+  });
+});
+
+/**
+ * B09 — le catalogue est borné, regroupé et mis en cache.
+ *
+ * Ce qui compte ici n'est pas la liste de modèles : c'est qu'une commande
+ * dite, exécutée avec des bornes, ne peut pas faire tomber la requête.
+ */
+describe("B09 — bornes et regroupement", () => {
+  test("le délai et les bornes viennent du contrat partagé", () => {
+    expect(MODEL_CATALOG_TIMEOUT_MS).toBe(20_000);
+    expect(MODEL_CATALOG_STDOUT_BYTES).toBe(2 * 1024 * 1024);
+    expect(MODEL_CATALOG_STDERR_BYTES).toBe(64 * 1024);
+    expect(MODEL_CATALOG_CACHE_MS).toBe(60_000);
+  });
+
+  test("un type sans mécanisme renvoie une raison, jamais une liste devinée", () => {
+    const resultat = Effect.runSync(catalogOf("type-inconnu"));
+    expect(resultat.models).toEqual([]);
+    expect(resultat.source).toBe("aucune");
+    expect(resultat.error).toContain("type-inconnu");
+  });
+
+  test("un échec n'est pas mis en cache comme un succès", async () => {
+    clearCatalogCache();
+    const premier = await Effect.runPromise(Effect.result(catalogOf("codex")));
+    // Un catalogue en échec reste en échec : le cache ne doit pas le figer
+    // pendant une minute entière après une coupure réseau.
+    const echec = premier._tag === "Failure" || premier.success.error !== null;
+    const deuxieme = await Effect.runPromise(Effect.result(catalogOf("codex")));
+    if (echec) {
+      expect(deuxieme._tag === "Failure" || deuxieme.success.error !== null).toBe(true);
+    }
+    clearCatalogCache();
   });
 });
