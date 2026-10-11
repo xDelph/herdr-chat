@@ -123,7 +123,8 @@ class LaunchFailed extends Schema.TaggedError<LaunchFailed>()("LaunchFailed", {
 const json = (body: unknown, status = 200): Response => {
   if (status >= 400) {
     const described = describeCause(body);
-    // eslint-disable-next-line no-console -- trace console en plus du fichier
+    // Trace console **en plus** du fichier : `verify` capture stderr, le
+    // journal seul ne se voit pas dans un test.
     console.error(`[http ${String(status)}] ${described}`);
     void Effect.runPromise(
       writeLog({
@@ -285,7 +286,7 @@ const clientLog = async (request: RouteRequest): Promise<Response> => {
   );
   if (entry === undefined) return json({ ok: false }, 400);
 
-  // eslint-disable-next-line no-console -- trace console en plus du fichier
+  // Trace console en plus du fichier, comme au-dessus.
   console.error(`[client] ${entry.message}`);
   await Effect.runPromise(
     writeLog({

@@ -7,7 +7,7 @@
  *
  * Ici : plein écran, au-dessus de tout, refermable.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Option, Schema } from "effect";
 import { ApiErrorResponse } from "@herdr-remote/shared";
 import { baseName, fileUrl } from "./api.ts";
@@ -110,16 +110,30 @@ const CodeView = ({ path }: { path: string }) => {
   if (error !== null) return <p className="notice notice--error">{error}</p>;
   if (text === null) return <p className="muted small">Lecture…</p>;
 
-  const lines = text.split("\n").slice(0, MAX_LINES);
+  // Le HTML est calculé **une fois par texte**, pas à chaque rendu : sans cela
+  // chaque ligne créait un objet `{ __html }` neuf, et React jetait puis
+  // réappliquait le HTML de toutes les lignes à chaque frappe dans le chat.
+  const rows = useMemo(
+    () =>
+      text
+        .split("\n")
+        .slice(0, MAX_LINES)
+        .map((line, index) => ({
+          // Balisage échappé dans `highlight`, donc sans injection possible.
+          html: { __html: highlight(line) },
+          key: `${String(index)}-${line.slice(0, 24)}`,
+          number: index + 1,
+        })),
+    [text],
+  );
 
   return (
     <div className="code">
       <div className="code__lang">{languageOf(path)}</div>
-      {lines.map((line, index) => (
-        <div key={`${String(index)}-${line.slice(0, 24)}`} className="code__row">
-          <span className="code__line-no">{index + 1}</span>
-          {/* Balisage échappé dans `highlight`, donc sans injection possible. */}
-          <span className="code__text" dangerouslySetInnerHTML={{ __html: highlight(line) }} />
+      {rows.map((row) => (
+        <div key={row.key} className="code__row">
+          <span className="code__line-no">{row.number}</span>
+          <span className="code__text" dangerouslySetInnerHTML={row.html} />
         </div>
       ))}
       {text.split("\n").length > MAX_LINES ? (

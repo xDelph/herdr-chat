@@ -67,9 +67,14 @@ describe("ModelArgs — portes de refus", () => {
   });
 
   test("aucun choix = aucun argument (les valeurs de l'agent restent les siennes)", async () => {
-    for (const kind of ["pi", "claude", "codex", "cursor"]) {
-      const r = await build(kind, undefined, undefined);
-      expect(r.args).toEqual([]);
+    // Les quatre agents sont indépendants : `Promise.all` les traite en parallèle
+    // et garde l'ordre, donc l'échec reste rattaché au **nom** de l'agent.
+    const kinds = ["pi", "claude", "codex", "cursor"] as const;
+    const built = await Promise.all(
+      kinds.map(async (kind) => ({ args: (await build(kind, undefined, undefined)).args, kind })),
+    );
+    for (const { args, kind } of built) {
+      expect(`${kind} → ${JSON.stringify(args)}`).toBe(`${kind} → []`);
     }
     // Une chaîne vide n'est **pas** un choix : elle ne doit rien ajouter.
     const blank = await build("pi", "   ", "");

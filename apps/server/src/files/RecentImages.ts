@@ -72,14 +72,25 @@ const walk = async (root: string, depth: number, collected: RecentImage[]): Prom
   }
 
   let perRoot = 0;
+  // **Séquence assumée, pas un oubli.** Le parcours est un arbre : chaque `stat`
+  // conditionne la descente dans le sous-dossier, et `collected` doit être
+  // rempli dans l'ordre du disque — un `Promise.all` renommerait l'ordre des
+  // images et pourrait dépasser `MAX_FILES` avant que le corte-circuit ne
+  // s'applique. De plus, un dossier photo peut contenir des milliers d'entrées :
+  // paralléliser ouvrirait autant de descripteurs qu'il y a de fichiers.
   for (const entry of entries) {
     if (collected.length >= MAX_FILES || perRoot >= MAX_PER_ROOT) return;
     if (entry.startsWith(".") || IGNORED_DIRECTORIES.has(entry)) continue;
 
     const full = join(root, entry);
     try {
+      // L'ordre de `collected` doit rester celui du disque, et le corte-circuit
+      // doit s'appliquer à chaque entrée : voir le commentaire avant la boucle.
+      // oxlint-disable-next-line no-await-in-loop
       const info = await stat(full);
       if (info.isDirectory()) {
+        // Descente récursive, conditionnée par le `stat` ci-dessus.
+        // oxlint-disable-next-line no-await-in-loop
         await walk(full, depth + 1, collected);
         continue;
       }

@@ -312,16 +312,17 @@ describe("contrat HTTP — lancement d'agent", () => {
       [{ workspaceId: "" }, { kind: "pi" }],
     ];
 
-    const responses: Response[] = [];
-    for (const [params, body] of cases) {
-      // Séquentiel : le handler est synchrone côté routeur, et la boucle garde
-      // l'ordre des cas lisible en cas d'échec.
-      responses.push(await handlerFn(request(params, body)));
-    }
+    // `Promise.all` garde l'ordre : le tableau de réponses est dans l'ordre de
+    // `cases`, donc un échec reste rattaché au cas qu'il nomme.
+    const responses: Response[] = await Promise.all(
+      cases.map(([params, body]) => Promise.resolve(handlerFn(request(params, body)))),
+    );
 
-    for (const response of responses) {
+    const payloads = await Promise.all(
       // Décodage, pas d'assertion : une forme inattendue échoue le test.
-      const payload = await decodeBody(response, ApiErrorResponse, "launch/non-vide");
+      responses.map((response) => decodeBody(response, ApiErrorResponse, "launch/non-vide")),
+    );
+    for (const payload of payloads) {
       expect(payload.error.trim().length).toBeGreaterThan(0);
     }
   });

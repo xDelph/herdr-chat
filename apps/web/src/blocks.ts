@@ -535,11 +535,12 @@ export const toRenderedMessage = (entry: {
   const withImages: ReadonlyArray<Block> = blocks.flatMap((block) => {
     if (block.kind !== "text") return [block];
     const refs = imageRefsIn(block.text);
-    return [
-      block,
-      ...refs.paths.map((path): Block => ({ kind: "imagePath", path })),
-      ...refs.urls.map((url): Block => ({ kind: "imageUrl", url })),
-    ];
+    // `push` plutôt que l'étalement : sur une session réelle, un texte peut
+    // citer plusieurs images, et l'étalement recopiait le tableau à chaque bloc.
+    const expanded: Array<Block> = [block];
+    for (const path of refs.paths) expanded.push({ kind: "imagePath", path });
+    for (const url of refs.urls) expanded.push({ kind: "imageUrl", url });
+    return expanded;
   });
 
   return {
@@ -789,9 +790,13 @@ export const touchedFilesOf = (
     }
   }
 
-  return [...byPath.entries()]
-    .map(([path, entry]) => ({ ...entry, path }))
-    .toSorted((a, b) => b.added + b.removed - (a.added + a.removed));
+  return (
+    [...byPath.entries()]
+      // `path` est réécrit explicitement plutôt qu'étalé : la clé de la Map est
+      // la seule chose que l'entrée ne contient pas encore.
+      .map(([path, entry]) => Object.assign({ path }, entry))
+      .toSorted((a, b) => b.added + b.removed - (a.added + a.removed))
+  );
 };
 
 /** Résumé d'une session : ce qui demande une action, et ce qui a été fait. */

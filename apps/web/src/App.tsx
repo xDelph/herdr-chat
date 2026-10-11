@@ -12,7 +12,7 @@
  * - Ce qui n'est pas exposé par la source est affiché comme absent, jamais
  *   remplacé par un substitut inventé.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Option, Schema } from "effect";
 import {
   fetchAgentKinds,
@@ -377,21 +377,24 @@ const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void })
     void submit();
   }, [submit]);
 
+  // Mémoïsés : sans cela, le `value` du Context est une **nouvelle fonction à
+  // chaque rendu**, ce qui redessine tout l'arbre sous le provider — donc toute
+  // la conversation — même quand seul le composeur change. C'est la famille du
+  // défaut D016 (travail inutile sur le fil principal à chaque frappe).
+  const openUrlFromBlock = useCallback((url: string) => {
+    setFromFiles(false);
+    setOpenFile(url);
+  }, []);
+  const openPathFromBlock = useCallback((path: string) => {
+    setFromFiles(false);
+    setOpenFile(path);
+  }, []);
+
   return (
     // La visionneuse est fournie au fond de l'arbre : un bloc qui cite une image
     // l'ouvre sans qu'aucun composant intermédiaire n'ait à la connaître.
-    <UrlOpenerContext.Provider
-      value={(url) => {
-        setFromFiles(false);
-        setOpenFile(url);
-      }}
-    >
-      <FileOpenerContext.Provider
-        value={(path) => {
-          setFromFiles(false);
-          setOpenFile(path);
-        }}
-      >
+    <UrlOpenerContext.Provider value={openUrlFromBlock}>
+      <FileOpenerContext.Provider value={openPathFromBlock}>
         <section className="chat">
           <header className="screen__head">
             <button type="button" className="back" onClick={onBack}>
@@ -833,8 +836,15 @@ export const App = () => {
    * projet : le service de fichiers les accepte comme n'importe quel fichier de
    * projet, sans route dédiée.
    */
-  const screenshotPaths = ["00-a-traiter", "01-projets", "02-agents", "03-conversation"].map(
-    (name) => `${projectRoot}/apps/web/public/screenshots/${name}.png`,
+  // Hors du corps du composant : le tableau ne dépend que de `projectRoot`, donc
+  // il est identique à chaque rendu. Le reconstruire ici en créait une nouvelle
+  // référence et redessinait la galerie entière (react-perf).
+  const screenshotPaths = useMemo(
+    () =>
+      ["00-a-traiter", "01-projets", "02-agents", "03-conversation"].map(
+        (name) => `${projectRoot}/apps/web/public/screenshots/${name}.png`,
+      ),
+    [projectRoot],
   );
   // Onglet Activité : le terminal est lu pour l'agent sélectionné s'il y en a un,
   // sinon le premier de la liste. Jamais deviné au-delà.
