@@ -993,3 +993,43 @@ Pour cette release, l'usage est **personnel** : Mac et appareils de la même per
 ### D018.3 — Direction visuelle
 
 Les quatre maquettes 390×844 de [UX_MOBILE.md](UX_MOBILE.md) sont jugées « pas mal » par le propriétaire et servent de direction. U02/D03 restent ouverts jusqu'aux variantes 320×568, aux états chargement/vide/erreur/hors ligne et à leur validation.
+
+---
+
+## D019 — Audit du backlog : Serve actif et second agent explicite
+
+**Date :** 2026-10-11 · Relecture du backlog après retour d'un autre agent.
+
+### D019.1 — Le blocage Serve de D010 est historique
+
+`tailscale serve status` indique maintenant deux accès **tailnet only** : HTTPS `:8765` → `127.0.0.1:8765` et HTTPS `:8790` → `127.0.0.1:8791`. Cela prouve que Serve est configuré aujourd'hui ; cela ne prouve pas encore l'installation PWA sur iPhone ni le bon port du futur paquet Homebrew. D010 et l'ancien statut T5.2 restent l'historique du blocage constaté le 09/10. F01/S01/U12 doivent vérifier la cible du service au moment de la release, sans modifier la configuration Tailscale existante pendant cette relecture.
+
+### D019.2 — La règle de D015.3 a changé dans le code
+
+D015.3 décrit le refus d'un second agent dans un projet. Le code actuel de `launchAgent` autorise explicitement un second lancement dans un **nouvel onglet** ; l'interface présente un contrôle de lancement distinct même si le projet a déjà un agent. La règle de release est donc : **aucun lancement automatique, mais « Nouvel agent » reste disponible dans un projet occupé**. Le nom du nouvel agent doit être unique. L'ancien commentaire de la route et la ligne historique de D015.3 ne font plus foi pour la release ; B08/U05 doivent vérifier la règle actuelle.
+
+### D019.3 — Pièces jointes différées
+
+D007.1 a fixé le mécanisme d'un futur upload vers fichier temporaire, pas une date de release. Aucune route d'upload n'existe aujourd'hui et `uploadDir` est inutilisé hors configuration/tests. Les pièces jointes sont différées après cette release ; A04 retirera la configuration morte avant qu'un futur contrat d'upload ne la réintroduise.
+
+---
+
+## D020 — Maquettes validées, U12 différé
+
+**Date :** 2026-10-12 · Décision du propriétaire après présentation de `docs/ux/`.
+
+### D020.1 — D03 est close : les maquettes servent de direction
+
+Le propriétaire valide les quatre maquettes 390×844 de [UX_MOBILE.md](UX_MOBILE.md) comme direction visuelle. U02 est close, et la chaîne `U03 → A02 → U04…U11` n'est plus bloquée par une décision.
+
+**Ce que la validation ne couvre pas**, et qui reste à produire avant R02 :
+- les variantes **320×568** ;
+- les cinq états (bloqué, chargement, vide, hors ligne, erreur).
+
+Ces éléments ne sont pas des maquettes à refaire : ce sont des **états** à implémenter sur une direction désormais fixée. U03 (tokens et composants) les couvre, et U11 vérifie la matrice.
+
+### D020.2 — U12 n'est plus bloquant
+
+L'installation PWA et la vérification sur iPhone physique restent exigées par la release, mais **U12 est différé en fin de chaîne** : il suppose un iPhone et une installation Safari, donc un contexte que l'agent n'a pas. Le porter bloquant chaque tâche rendrait la chaîne inutilisable pour une raison étrangère au code.
+
+U12 reste donc une exigence de release (R02 en dépend), mais **ne bloque plus aucune tâche** : elle se traite une fois la refonte et la CI vertes.
