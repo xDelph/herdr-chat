@@ -12,6 +12,7 @@ import { Effect, Layer, Option, Schema } from "effect";
 import { BunRuntime } from "@effect/platform-bun";
 import { existsSync } from "node:fs";
 import { join } from "node:path";
+import { resolveAsset } from "./http/AssetGuard.ts";
 import { ServerConfigTag } from "./config.ts";
 import { HerdrClient } from "./herdr/HerdrClient.ts";
 import { EventHub } from "./events/EventHub.ts";
@@ -42,11 +43,16 @@ export const makeStaticHandler = (distDir: string) => {
     }
 
     const url = new URL(request.url);
-    const candidate = join(distDir, url.pathname);
-    // Empêche toute sortie du répertoire statique.
-    if (candidate.startsWith(distDir) && !url.pathname.endsWith("/")) {
-      const file = Bun.file(candidate);
-      if (await file.exists()) return new Response(file);
+    // ⚠️ Le repli sur `index.html` est nécessaire aux routes SPA, mais il rend
+    // la fuite facile : tout chemin absent doit donc tomber sur `index.html`,
+    // **jamais** sur le disque. `resolveAsset` confine par segments et résout
+    // les liens — `startsWith(distDir)` acceptait `/build-evil` (S05).
+    if (!url.pathname.endsWith("/")) {
+      const asset = await resolveAsset(distDir, url.pathname);
+      if (asset !== undefined) {
+        const file = Bun.file(asset);
+        if (await file.exists()) return new Response(file);
+      }
     }
     return new Response(Bun.file(indexPath), {
       headers: { "content-type": "text/html; charset=utf-8" },
