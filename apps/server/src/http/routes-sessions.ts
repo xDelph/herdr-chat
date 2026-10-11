@@ -15,6 +15,7 @@
  * opaque : ce fichier est donc le point d'entrée de cette migration.
  */
 import { Effect, Option, Result, Schema } from "effect";
+import { existsSync } from "node:fs";
 import {
   ApiErrorResponse,
   decodeCursor,
@@ -23,6 +24,7 @@ import {
   TerminalResponse,
 } from "@herdr-remote/shared";
 import type { ServerConfig } from "../config.ts";
+import { classifyReadFailure, invalidSession, statusFor } from "../sessions/ReadCause.ts";
 import type { HerdrApi } from "../herdr/HerdrClient.ts";
 import {
   fileSize,
@@ -59,6 +61,15 @@ export const sessionPathOf = (agent: unknown): string | undefined => {
 };
 
 /** Fabrique les deux routes. `config` n'est lu que pour son `logPath`. */
+/** `true` quand le fichier de session n'existe pas encore sur le disque. */
+const isMissingFileEmpty = (path: string): boolean => {
+  try {
+    return !existsSync(path);
+  } catch {
+    return false;
+  }
+};
+
 export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
   const terminal = (request: RouteRequest): Promise<Response> =>
     run(
@@ -130,6 +141,8 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
             if (Result.isFailure(taille)) {
               const failure = Result.getFailure(taille);
               if (isMissingFile(failure)) {
+                // Absente : le JSONL naît au premier message. Ce n'est pas une
+                // panne, et l'annoncer comme telle fit crier tout nouvel agent.
                 return { kind: "ok" as const, path, reset: true, tailed: empty, truncated: false };
               }
               return yield* Effect.fail(failure);
@@ -210,11 +223,18 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
             403,
           );
         }
+        // B03 : la cause est nommée. Un 502 indifférencié ferait croire à une
+        // panne réseau là où c'est une permission refusée, et l'utilisateur
+        // relancerait pour rien.
+        const classified = classifyReadFailure(failure);
         return respond(
           config.logPath,
           decoderOf(ApiErrorResponse),
-          { error: failure === undefined ? "échec inconnu" : describe(failure) },
-          502,
+          {
+            cause: classified.cause,
+            error: classified.cause === "io" ? describe(failure) : classified.message,
+          },
+          statusFor(classified.cause),
         );
       }
       const value = Option.getOrUndefined(Result.getSuccess(result));
@@ -222,8 +242,8 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
         return respond(
           config.logPath,
           decoderOf(ApiErrorResponse),
-          { error: "résultat de session illisible" },
-          500,
+          { cause: "invalide", error: invalidSession("résultat illisible").message },
+          422,
         );
       }
       if (value.kind === "no-session") {
@@ -241,7 +261,23 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
         ino: value.tailed.identity.ino,
         offset: value.tailed.offset,
       });
+      // Une session sans aucune entrée se distingue d'une session absente :
+      // les deux sont benignes, mais seule la seconde mérite d'être rejouée
+      // sans alarme et sans bannière d'erreur.
+      if (value.tailed.entries.length === 0 && !value.truncated) {
+        const cause = isMissingFileEmpty(value.path) ? "absente" : "vide";
+        return respond(config.logPath, decoderOf(SessionResponse), {
+          cause,
+          cursor: cursorOut,
+          entries: [],
+          hasMore: false,
+          incremental: cursor !== undefined,
+          reset: value.reset,
+          sessionPath: value.path,
+        });
+      }
       return respond(config.logPath, decoderOf(SessionResponse), {
+        cause: "vide",
         cursor: cursorOut,
         entries: value.tailed.entries,
         hasMore: value.tailed.hasMore || value.truncated,

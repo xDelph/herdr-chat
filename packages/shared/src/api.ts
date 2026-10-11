@@ -160,6 +160,14 @@ export const decodeCursor = (encoded: string): SessionCursor | undefined => {
 };
 
 export const SessionResponse = Schema.Struct({
+  /**
+   * Cause de la réponse, **explicite**.
+   *
+   * `absente` et `vide` ne sont pas des pannes : le client ne doit ni les
+   * colorer en rouge, ni réessayer en boucle. Les distinguer évite
+   * l'erreur répétée toutes les 2 s sur un agent fraîchement lancé.
+   */
+  cause: Schema.Literals(["absente", "vide", "invalide", "io"]),
   entries: Schema.Array(SessionEntrySchema),
   /** `true` quand seule la suite a été renvoyée (mode incrémental). */
   incremental: Schema.Boolean,
@@ -329,6 +337,8 @@ export type TrustResolvedResponse = typeof TrustResolvedResponse.Type;
 
 /** Erreur d'API. */
 export const ApiErrorResponse = Schema.Struct({
+  /** Cause nommée quand elle est connue (B03). Absente = cause non qualifiée. */
+  cause: Schema.optional(Schema.Literals(["absente", "vide", "invalide", "io"])),
   error: Schema.String,
   hint: Schema.optional(Schema.String),
 });
