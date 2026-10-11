@@ -17,16 +17,38 @@
  * Ce qu'il ne fait **pas**, et qu'aucune règle HTTP ne peut faire : distinguer
  * deux appareils légitimes du même tailnet. Cela reste hors périmètre (D02).
  */
+import { MAX_JSON_BYTES } from "@herdr-remote/shared";
 import type { RouteRequest } from "./Reply.ts";
 
 /** Cause du refus, chacune avec son code HTTP propre. */
-export type GuardRejection = "origin-absente" | "origin-etrangere" | "methode" | "content-type";
+export type GuardRejection =
+  | "origin-absente"
+  | "origin-etrangere"
+  | "methode"
+  | "content-type"
+  | "corps-trop-grand";
 
 export interface GuardVerdict {
   readonly ok: boolean;
   readonly reason?: GuardRejection;
   readonly status?: number;
 }
+
+/** Cherche un en-tête sans se fier à sa casse. */
+const readHeaderInsensible = (
+  headers: { get(name: string): string | null },
+  nom: string,
+): string | null => {
+  // Les noms d'en-tête HTTP sont insensibles à la casse ; un `Headers` réel
+  // l'est déjà, mais un adaptateur peut ne pas l'être. On essaie les trois
+  // écritures usuelles pour ne jamais laisser filer une limite.
+  const variantes = [nom, nom.toLowerCase(), nom.toUpperCase()];
+  for (const variante of variantes) {
+    const trouve = headers.get(variante);
+    if (trouve !== null) return trouve;
+  }
+  return null;
+};
 
 /** Origines autorisées, comparées **exactement**. */
 export const isAllowedOrigin = (origin: string | null, expected: string): boolean => {
@@ -64,6 +86,19 @@ export const guardMutation = (
     return { ok: false, reason: "content-type", status: 415 };
   }
 
+  // 3. Taille déclarée. Un corps énorme est refusé **avant** d'être lu : le
+  //    lire pour le refuser ensuite consommerait la mémoire pour rien.
+  //
+  // ⚠️ Les noms d'en-tête HTTP sont **insensibles à la casse**. Un client qui
+  // envoie `Content-Length` verrait sa limite ignorée — donc contournée.
+  const longueur = Number.parseInt(
+    readHeaderInsensible(request.headers, "content-length") ?? "",
+    10,
+  );
+  if (Number.isInteger(longueur) && longueur > MAX_JSON_BYTES) {
+    return { ok: false, reason: "corps-trop-grand", status: 413 };
+  }
+
   return { ok: true };
 };
 
@@ -78,6 +113,8 @@ export const describeGuardRejection = (reason: GuardRejection): string => {
       return "méthode non autorisée sur cette route";
     case "content-type":
       return "Content-Type attendu : application/json";
+    case "corps-trop-grand":
+      return `corps trop grand (maximum ${String(MAX_JSON_BYTES)} octets)`;
     default:
       return "requête refusée";
   }

@@ -125,8 +125,10 @@ const extractText = (raw: string): string | undefined => {
   return undefined;
 };
 
-/** Octets lus par conversation au premier affichage. */
-export const PREVIEW_BYTES = 64 * 1024;
+/** Réexporté depuis le contrat partagé (S06). */
+export { PREVIEW_BYTES } from "@herdr-remote/shared";
+
+import { PREVIEW_BYTES as PREVIEW } from "@herdr-remote/shared";
 
 /**
  * Construit la ligne d'un pane.
@@ -183,4 +185,4 @@ export const summaryOf = (
 export const defaultRead =
   (root: string) =>
   (path: string): Effect.Effect<TailedSession, unknown> =>
-    readTail(path, PREVIEW_BYTES, root);
+    readTail(path, PREVIEW, root);

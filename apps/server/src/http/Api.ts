@@ -34,16 +34,18 @@ import type { WatchLoop } from "../events/AgentWatcher.ts";
 import type { EventHubApi } from "../events/EventHub.ts";
 import type { HerdrApi } from "../herdr/HerdrClient.ts";
 import type { PromptSenderApi } from "../send/PromptSender.ts";
+import { MAX_PROMPT_BYTES } from "@herdr-remote/shared";
 import {
   decodeSnapshot,
   decoderOf,
-  json,
   describe,
   describeCause,
   failureOf,
+  json,
   respond,
   run,
 } from "./Reply.ts";
+import { byteLengthUtf8 } from "./Reply.ts";
 import type { RouteRequest, Routes } from "./Reply.ts";
 import { makeSessionRoutes } from "./routes-sessions.ts";
 import { makeFileRoutes } from "./routes-files.ts";
@@ -379,6 +381,24 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
         decoderOf(ApiErrorResponse),
         { error: "corps invalide : `text` (chaîne) requis" },
         400,
+      );
+    }
+
+    // ⚠️ La taille est mesurée en **octets UTF-8** (S06), pas en caractères :
+    // un prompt de 32 000 emojis ferait 128 000 octets et saturerait Herdr
+    // sans jamais approcher la limite annoncée à l'utilisateur.
+    const promptBytes = byteLengthUtf8(body.text);
+    if (promptBytes > MAX_PROMPT_BYTES) {
+      // Refusé **avant** toute action Herdr : un prompt tronqué ou refusé
+      // après coup laisserait l'agent dans un état incompréhensible.
+      return respond(
+        config.logPath,
+        decoderOf(ApiErrorResponse),
+        {
+          cause: "io",
+          error: `prompt trop long (${String(promptBytes)} octets, maximum ${String(MAX_PROMPT_BYTES)})`,
+        },
+        413,
       );
     }
     const paneId = request.params["paneId"] ?? "";

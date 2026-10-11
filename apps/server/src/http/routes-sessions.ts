@@ -19,6 +19,8 @@ import { existsSync } from "node:fs";
 import {
   ApiErrorResponse,
   decodeCursor,
+  SESSION_TAIL_BYTES,
+  SESSION_TAIL_HARD_CAP,
   encodeCursor,
   SessionResponse,
   TerminalResponse,
@@ -107,7 +109,8 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
         400,
       );
     }
-    const tailBytes = tailParam === null ? 262_144 : Number.parseInt(tailParam, 10);
+    // 512 Kio, pas 256 : la fenêtre du contrat partagé (D013.3).
+    const tailBytes = tailParam === null ? SESSION_TAIL_BYTES : Number.parseInt(tailParam, 10);
 
     const result = await Effect.runPromise(
       Effect.result(
@@ -154,7 +157,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
             if (!rejoueDepuis || !pasTronque) {
               // Curseur invalide : on **relit la fin** et on l'annonce.
               const rafraichit = yield* Effect.result(
-                readTail(path, 262_144, config.piSessionsRoot),
+                readTail(path, SESSION_TAIL_BYTES, config.piSessionsRoot),
               );
               const valeur = Option.getOrUndefined(Result.getSuccess(rafraichit));
               return {
@@ -180,7 +183,9 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
           }
 
           const finite =
-            Number.isInteger(tailBytes) && tailBytes > 0 ? Math.min(tailBytes, 4_194_304) : 262_144;
+            Number.isInteger(tailBytes) && tailBytes > 0
+              ? Math.min(tailBytes, SESSION_TAIL_HARD_CAP)
+              : SESSION_TAIL_BYTES;
           const tailed = yield* Effect.result(readTail(path, finite, config.piSessionsRoot));
           if (Result.isFailure(tailed)) {
             const failure = failureOf(tailed);

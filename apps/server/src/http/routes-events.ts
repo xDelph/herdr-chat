@@ -16,12 +16,38 @@
 import { Effect } from "effect";
 import type { EventHubApi } from "../events/EventHub.ts";
 import type { RouteRequest } from "./Reply.ts";
+import { MAX_SSE_STREAMS } from "@herdr-remote/shared";
 
 export const makeEventRoutes = (hub: EventHubApi) => {
+  /**
+   * Flux ouverts, tous clients confondus (S06).
+   *
+   * Chaque connexion SSE est un `Bun.sleep(300)` en boucle : sans plafond, un
+   * onglet resté en arrière-plan continue de sonner et le Mac sature. Le
+   * compteur est libéré à la fermeture **et** sur erreur — une fuite ici
+   * condamnerait l'application après quelques heures.
+   */
+  let ouverts = 0;
+
   const events = (request: RouteRequest): Response => {
+    if (ouverts >= MAX_SSE_STREAMS) {
+      return new Response(
+        JSON.stringify({ error: `trop de flux ouverts (maximum ${String(MAX_SSE_STREAMS)})` }),
+        { status: 503, headers: { "content-type": "application/json" } },
+      );
+    }
+    ouverts += 1;
     const header = request.headers.get("last-event-id");
     const parsed = header === null ? 0 : Number.parseInt(header, 10);
     let cursor = Number.isInteger(parsed) ? parsed : 0;
+
+    let libere = false;
+    /** Idempotent : `cancel` et la fin du flux peuvent tous deux appeler. */
+    const controllerClosed = () => {
+      if (libere) return;
+      libere = true;
+      ouverts -= 1;
+    };
 
     const encoder = new TextEncoder();
     const stream = new ReadableStream<Uint8Array>({
@@ -62,6 +88,13 @@ export const makeEventRoutes = (hub: EventHubApi) => {
           }
         }
         /* oxlint-enable no-await-in-loop */
+        // Libération dans tous les cas : `cancel` couvre la fermeture par le
+        // client, `catch` la panne. Sans les deux, le compteur ne redescend
+        // jamais et le refus devient définitif.
+        controllerClosed();
+      },
+      cancel() {
+        controllerClosed();
       },
     });
 

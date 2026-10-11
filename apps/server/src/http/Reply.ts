@@ -18,7 +18,9 @@
  *   l'écran : l'utilisateur voit « le nouvel onglet », pas `wB:p4`.
  */
 import { Effect, Option, Result, Schema } from "effect";
-import { SnapshotPayload } from "@herdr-remote/shared";
+import { byteLengthUtf8, SnapshotPayload } from "@herdr-remote/shared";
+
+export { byteLengthUtf8 };
 import { writeLog } from "../logging/LogFile.ts";
 
 /**

@@ -27,7 +27,10 @@ import { open, realpath } from "node:fs/promises";
 import { extname, resolve, sep } from "node:path";
 
 /** Taille maximale servie. Au-delà : refus explicite, jamais une troncature muette. */
-export const MAX_FILE_BYTES = 12 * 1024 * 1024;
+/** Réexporté depuis le contrat partagé (S06) — une seule valeur, deux côtés. */
+export { MAX_FILE_BYTES } from "@herdr-remote/shared";
+
+import { MAX_FILE_BYTES as MAX_FILE } from "@herdr-remote/shared";
 
 /**
  * Types servis **avec** rendu navigateur.
@@ -181,11 +184,11 @@ export const readAllowedFile = (
     }
 
     // 4) Taille bornée.
-    if (info.size > MAX_FILE_BYTES) {
+    if (info.size > MAX_FILE) {
       yield* Effect.promise(() => handle.close());
       return yield* Effect.fail(
         new FileDenied({
-          reason: `fichier trop gros (${String(Math.round(info.size / 1024 / 1024))} Mo, maximum ${String(MAX_FILE_BYTES / 1024 / 1024)} Mo)`,
+          reason: `fichier trop gros (${String(Math.round(info.size / 1024 / 1024))} Mo, maximum ${String(MAX_FILE / 1024 / 1024)} Mo)`,
         }),
       );
     }

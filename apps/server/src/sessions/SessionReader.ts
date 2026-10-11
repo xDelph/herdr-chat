@@ -15,6 +15,7 @@
 import { Effect, Option, Schema } from "effect";
 import { open } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
+import { SESSION_HEADER_BYTES } from "@herdr-remote/shared";
 import { describeRejection, resolveWithin } from "./PathGuard.ts";
 
 /** En-tête de session, tel qu'écrit en première ligne. */
@@ -202,7 +203,7 @@ export const readHeader = (path: string, root = "") =>
     try: async () => {
       const handle = await openGuarded(root, path);
       try {
-        const buffer = Buffer.alloc(64 * 1024);
+        const buffer = Buffer.alloc(SESSION_HEADER_BYTES);
         const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
         const firstLine = buffer.subarray(0, bytesRead).toString("utf8").split("\n")[0] ?? "";
         const decoded = Option.getOrUndefined(decodeUnknown(JSON.parse(firstLine)));

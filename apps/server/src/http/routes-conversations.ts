@@ -30,8 +30,10 @@ import { ConversationsResponse } from "@herdr-remote/shared";
 import type { HerdrApi } from "../herdr/HerdrClient.ts";
 import type { ServerConfig } from "../config.ts";
 
-/** Lectures de session simultanées. Au-delà, la file sature. */
-export const MAX_CONCURRENT_READS = 4;
+/** La limite vient du contrat partagé (S06). */
+export { MAX_SESSION_READS as MAX_CONCURRENT_READS } from "@herdr-remote/shared";
+
+import { MAX_SESSION_READS } from "@herdr-remote/shared";
 
 /**
  * Exécute `travail` sur `entrees` avec au plus `limite` en vol.
@@ -139,22 +141,18 @@ export const makeConversationRoutes = (config: ServerConfig, herdr: HerdrApi) =>
     const read = defaultRead(config.piSessionsRoot);
     const lire = (path: string): Effect.Effect<TailedSession, unknown> => read(path);
 
-    const lignes = await withConcurrency(
-      decoded.panes ?? [],
-      MAX_CONCURRENT_READS,
-      async (pane) => {
-        // Le chemin de session vient de `agent_session`, fourni par Herdr dans
-        // la vue agent ; un pane sans agent n'a pas de session.
-        const agent = decoded.agents.find((candidat) => candidat.pane_id === pane.pane_id);
-        const paneBrut = toRawPane(
-          pane,
-          { tabs, workspaces },
-          agent === undefined ? null : (sessionPathOf(agent) ?? null),
-          agent?.agent_status ?? null,
-        );
-        return Effect.runPromise(summaryOf(paneBrut, lire));
-      },
-    );
+    const lignes = await withConcurrency(decoded.panes ?? [], MAX_SESSION_READS, async (pane) => {
+      // Le chemin de session vient de `agent_session`, fourni par Herdr dans
+      // la vue agent ; un pane sans agent n'a pas de session.
+      const agent = decoded.agents.find((candidat) => candidat.pane_id === pane.pane_id);
+      const paneBrut = toRawPane(
+        pane,
+        { tabs, workspaces },
+        agent === undefined ? null : (sessionPathOf(agent) ?? null),
+        agent?.agent_status ?? null,
+      );
+      return Effect.runPromise(summaryOf(paneBrut, lire));
+    });
 
     return respond(config.logPath, decoderOf(ConversationsResponse), {
       conversations: lignes,
