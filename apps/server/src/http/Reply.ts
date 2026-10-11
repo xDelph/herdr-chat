@@ -29,6 +29,8 @@ import { writeLog } from "../logging/LogFile.ts";
  */
 export interface RouteRequest {
   readonly params: Record<string, string | undefined>;
+  /** Méthode HTTP. Le 405 l'exige : sans elle, un client ne peut pas se corriger. */
+  readonly method?: string;
   readonly headers: { get(name: string): string | null };
   readonly url: string;
   json(): Promise<unknown>;

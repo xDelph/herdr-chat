@@ -54,6 +54,7 @@ const config: ServerConfig = {
   hostname: "127.0.0.1",
   logPath: join(TEST_TMP, "herdr-remote.log"),
   piSessionsRoot: join(TEST_TMP, "sessions"),
+  publicOrigin: "http://127.0.0.1:8791",
   port: DEFAULT_BACKEND_PORT,
   uploadDir: join(TEST_TMP, "uploads"),
 };
@@ -179,13 +180,25 @@ const handler = (routes: ReturnType<typeof makeRoutes>, path: string) => {
 };
 
 /** Requête minimale conforme à `RouteRequest` — aucune assertion nécessaire. */
+const ORIGINE = "http://127.0.0.1:8791";
+
+/**
+ * Requête de test.
+ *
+ * `entetes` est paramétrable parce que S02 dépend **entièrement** des
+ * en-têtes : `origin`, `content-type`. Un `get: () => null` par défaut ferait
+ * échouer toutes les routes mutantes — c'est voulu, il faut les poser.
+ */
 const request = (
   params: Record<string, string | undefined> = {},
   body?: unknown,
   url = "http://127.0.0.1/api/test",
+  entetes: Record<string, string> = { "content-type": "application/json", origin: ORIGINE },
+  methode = "POST",
 ) => ({
-  headers: { get: () => null },
+  headers: { get: (name: string): string | null => entetes[name.toLowerCase()] ?? null },
   json: async () => body,
+  method: methode,
   params,
   url,
 });
@@ -496,3 +509,122 @@ describe("garde-fou : aucune branche de /api/health n'omet un champ requis", () 
 });
 
 export { decodeBody, SessionResponse };
+
+/**
+ * S02 — contrôle des requêtes mutantes.
+ *
+ * Le service n'a pas d'authentification (D02) : il écoute sur `127.0.0.1` et
+ * Tailscale l'expose. Sans ce contrôle, un site tiers peut tenter un POST
+ * vers le backend depuis le navigateur de l'utilisateur.
+ *
+ * Ce que ces tests prouvent, c'est que le refus arrive **avant** tout effet :
+ * aucun prompt envoyé, aucun onglet créé, aucun `sendKeys`.
+ */
+/**
+ * Applique un jeu d'en-têtes à **toutes** les routes mutantes et renvoie le
+ * statut obtenu pour chacune, plus les compteurs d'effets Herdr.
+ *
+ * Les cas sont traités en parallèle : ils sont indépendants, et une boucle
+ * d'`await` ici serait du travail séquentiel sans raison.
+ */
+const refuserToutesLesMutations = async (entetes: Record<string, string>, attendu: number) => {
+  const cas = [
+    { body: { text: "coucou" }, path: "/api/agents/:paneId/prompt" },
+    { body: { kind: "pi" }, path: "/api/workspaces/:workspaceId/agents" },
+    { body: { accept: true }, path: "/api/agents/:paneId/trust" },
+  ];
+  const routes = await build(true);
+  createTabCalls = 0;
+  startCalls = 0;
+  // `handler(...)` renvoie une `Response` (ou une promesse selon la route) :
+  // `Promise.all` attend un itérable de promesses, d'où l、包装.
+  const reponses = await Promise.all(
+    cas.map((cas_) =>
+      Promise.resolve(
+        handler(
+          routes,
+          cas_.path,
+        )(request({ paneId: "w1:p1", workspaceId: "w1" }, cas_.body, undefined, entetes)),
+      ),
+    ),
+  );
+  return {
+    createTab: createTabCalls,
+    start: startCalls,
+    verdict: reponses.map((reponse) => {
+      expect(reponse.status).toBe(attendu);
+      return String(reponse.status);
+    }),
+  };
+};
+
+describe("S02 — requêtes mutantes", () => {
+  test("origine absente → 403, aucun effet Herdr", async () => {
+    const { verdict, createTab, start } = await refuserToutesLesMutations({}, 403);
+    expect(verdict).toEqual(["403", "403", "403"]);
+    expect(createTab).toBe(0);
+    expect(start).toBe(0);
+  });
+
+  test("origine étrangère → 403, aucun effet Herdr", async () => {
+    const { verdict, createTab } = await refuserToutesLesMutations(
+      { "content-type": "application/json", origin: "https://attaquant.example" },
+      403,
+    );
+    expect(verdict).toEqual(["403", "403", "403"]);
+    expect(createTab).toBe(0);
+  });
+
+  test("type de contenu inadéquat → 415", async () => {
+    const routes = await build(true);
+    const response = await handler(
+      routes,
+      "/api/agents/:paneId/prompt",
+    )(
+      request({ paneId: "w1:p1" }, { text: "coucou" }, undefined, {
+        "content-type": "text/plain",
+        origin: ORIGINE,
+      }),
+    );
+    expect(response.status).toBe(415);
+  });
+
+  test("méthode non-POST → 405 avec Allow", async () => {
+    const routes = await build(true);
+    const response = await handler(
+      routes,
+      "/api/agents/:paneId/prompt",
+    )(request({ paneId: "w1:p1" }, undefined, undefined, {}, "GET"));
+    expect(response.status).toBe(405);
+    // Sans `Allow`, le client ne sait pas s'il doit changer de méthode ou
+    // abandonner le chemin : le 405 serait alors inexploitable.
+    expect(response.headers.get("allow")).toBe("POST");
+  });
+
+  test("origine valide et JSON → la requête passe", async () => {
+    const routes = await build(true);
+    const response = await handler(
+      routes,
+      "/api/agents/:paneId/prompt",
+    )(request({ paneId: "w1:p1" }, { text: "coucou" }));
+    // Le garde laisse passer ; l'échec éventuel vient de Herdr simulé, pas
+    // du contrôle d'origine.
+    expect(response.status).not.toBe(403);
+    expect(response.status).not.toBe(415);
+    expect(response.status).not.toBe(405);
+  });
+
+  test("une origine suffixée ne passe pas", async () => {
+    const routes = await build(true);
+    const response = await handler(
+      routes,
+      "/api/agents/:paneId/prompt",
+    )(
+      request({ paneId: "w1:p1" }, { text: "coucou" }, undefined, {
+        "content-type": "application/json",
+        origin: `${ORIGINE}.attaquant.example`,
+      }),
+    );
+    expect(response.status).toBe(403);
+  });
+});

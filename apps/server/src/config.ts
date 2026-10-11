@@ -45,6 +45,14 @@ export interface ServerConfig {
    * test passe un répertoire temporaire.
    */
   readonly logPath: string;
+  /**
+   * Origine **exacte** de la PWA, pour le contrôle CSRF (S02).
+   *
+   * Comparée caractère par caractère : un motif laxiste laisserait passer
+   * `https://macbook.ts.net.evil.com`. Par défaut, l'origine locale qui sert
+   * elle-même la PWA ; en production c'est le nom Tailscale.
+   */
+  readonly publicOrigin: string;
   /** Répertoire des pièces jointes uploadées (D007.1). */
   readonly uploadDir: string;
   /**
@@ -119,6 +127,9 @@ export class ServerConfigTag extends Context.Service<ServerConfigTag, ServerConf
         hostname: bind,
         duplicateWindowMs: 60_000,
         logPath: env["HERDR_REMOTE_LOG_PATH"] ?? defaultLogPath(),
+        publicOrigin:
+          env["HERDR_REMOTE_PUBLIC_ORIGIN"] ??
+          `http://${bind === "127.0.0.1" ? "127.0.0.1" : bind}:${String(port)}`,
         extraFileRoots,
         uploadDir: env["HERDR_REMOTE_UPLOAD_DIR"] ?? `${home}/.herdr-remote/uploads`,
       });

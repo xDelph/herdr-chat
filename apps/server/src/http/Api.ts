@@ -48,6 +48,7 @@ import type { RouteRequest, Routes } from "./Reply.ts";
 import { makeSessionRoutes } from "./routes-sessions.ts";
 import { makeFileRoutes } from "./routes-files.ts";
 import { makeEventRoutes } from "./routes-events.ts";
+import { describeGuardRejection, guardMutation, methodNotAllowed } from "./OriginGuard.ts";
 import { writeLog } from "../logging/LogFile.ts";
 
 export interface ApiDeps {
@@ -96,8 +97,11 @@ const decodeTrustBody = Schema.decodeUnknownOption(TrustBody);
  * l'utilisateur à un autre dialogue serait pire que de ne rien faire.
  */
 const makeAnswerTrust =
-  (logPath: string, herdr: HerdrApi) =>
+  (logPath: string, publicOrigin: string, herdr: HerdrApi) =>
   async (request: RouteRequest): Promise<Response> => {
+    const refused = refuseIfCrossSite(logPath, request, publicOrigin);
+    if (refused !== undefined) return refused;
+
     const raw: unknown = await request.json().catch(() => undefined);
     const body = Option.getOrUndefined(decodeTrustBody(raw));
     if (body === undefined) {
@@ -190,7 +194,14 @@ const ACCEPTED_KINDS = new Set([
  * un décodage impossible. Sans ce canal, ces erreurs n'existaient que dans une
  * barre rouge, puis disparaissaient.
  */
-const clientLog = async (logPath: string, request: RouteRequest): Promise<Response> => {
+const clientLog = async (
+  logPath: string,
+  publicOrigin: string,
+  request: RouteRequest,
+): Promise<Response> => {
+  const refused = refuseIfCrossSite(logPath, request, publicOrigin);
+  if (refused !== undefined) return refused;
+
   const raw: unknown = await request.json().catch(() => undefined);
   const entry = Option.getOrUndefined(
     Schema.decodeUnknownOption(
@@ -225,10 +236,39 @@ const modelCatalog = (logPath: string, request: RouteRequest): Promise<Response>
     }),
   );
 
+/**
+ * Refus d'une requête mutante, ou `undefined` si elle est acceptable (S02).
+ *
+ * Le refus rend la **cause** : 403 pour une origine absente ou étrangère,
+ * 415 pour un type de contenu inadéquat. Un refus muet serait impossible à
+ * diagnostiquer depuis le téléphone. Il part aussi au journal : un 403 sans
+ * trace ne se comprend pas après coup.
+ */
+const refuseIfCrossSite = (
+  logPath: string,
+  request: RouteRequest,
+  publicOrigin: string,
+): Response | undefined => {
+  // 1. Méthode. Une route mutante n'accepte que POST ; `Allow` est renvoyé avec
+  //    le 405, sinon le client ignore la route au lieu de se corriger.
+  const method = request.method ?? "POST";
+  if (method !== "POST") return methodNotAllowed();
+
+  const verdict = guardMutation(request, publicOrigin);
+  if (verdict.ok) return undefined;
+  const reason = verdict.reason ?? "origin-etrangere";
+  return respond(
+    logPath,
+    decoderOf(ApiErrorResponse),
+    { error: describeGuardRejection(reason) },
+    verdict.status ?? 403,
+  );
+};
+
 export const makeRoutes = (deps: ApiDeps): Routes => {
   const { config, herdr, hub, sender, watch, startedAt } = deps;
 
-  const answerTrust = makeAnswerTrust(config.logPath, herdr);
+  const answerTrust = makeAnswerTrust(config.logPath, config.publicOrigin, herdr);
   const sessionRoutes = makeSessionRoutes(config, herdr);
   const fileRoutes = makeFileRoutes(config, herdr);
   const eventRoutes = makeEventRoutes(hub);
@@ -326,6 +366,9 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     );
 
   const prompt = async (request: RouteRequest): Promise<Response> => {
+    const refused = refuseIfCrossSite(config.logPath, request, config.publicOrigin);
+    if (refused !== undefined) return refused;
+
     const raw: unknown = await request.json().catch(() => undefined);
     const body = Option.getOrUndefined(decodePromptBody(raw));
     if (body === undefined) {
@@ -392,6 +435,9 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
    * d'un clic.
    */
   const launchAgent = async (request: RouteRequest): Promise<Response> => {
+    const refused = refuseIfCrossSite(config.logPath, request, config.publicOrigin);
+    if (refused !== undefined) return refused;
+
     const workspaceId = request.params["workspaceId"] ?? "";
     const raw: unknown = await request.json().catch(() => undefined);
     const body = decoderOf(LaunchAgentRequest)(raw);
@@ -702,7 +748,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     "/api/agents/kinds": agentKinds,
     "/api/agents/:kind/models": (request) => modelCatalog(config.logPath, request),
     "/api/agents/:paneId/trust": answerTrust,
-    "/api/log": (request) => clientLog(config.logPath, request),
+    "/api/log": (request) => clientLog(config.logPath, config.publicOrigin, request),
     "/api/events": eventRoutes.events,
     "/api/file": fileRoutes.file,
     "/api/images": fileRoutes.images,

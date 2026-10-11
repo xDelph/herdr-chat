@@ -20,7 +20,7 @@ import { AgentWatcher, startWatchLoop } from "./events/AgentWatcher.ts";
 import { toAgentViews } from "./agents/AgentRegistry.ts";
 import { PromptSender } from "./send/PromptSender.ts";
 import { makeRoutes } from "./http/Api.ts";
-import type { Routes } from "./http/Reply.ts";
+import type { RouteRequest, Routes } from "./http/Reply.ts";
 
 const startedAt = Date.now();
 
@@ -82,6 +82,14 @@ export const program = Effect.gen(function* () {
   const watch = yield* startWatchLoop(herdr, watcher, toAgentViews);
 
   const routes: Routes = makeRoutes({ config, herdr, hub, sender, startedAt, watch });
+  // `Bun.serve` donne un handler par chemin : la méthode n'y figure pas. On
+  // l'attache donc ici, sans quoi un 405 serait impossible (S02).
+  const withMethod: Routes = Object.fromEntries(
+    Object.entries(routes).map(([path, fn]) => [
+      path,
+      (request: RouteRequest) => fn({ ...request, method: request.method ?? "GET" }),
+    ]),
+  );
   const staticHandler = makeStaticHandler(join(import.meta.dir, "..", "..", "web", "dist"));
 
   const server = Bun.serve({
@@ -89,7 +97,7 @@ export const program = Effect.gen(function* () {
     // Jamais `0.0.0.0` : l'accès distant passe exclusivement par Tailscale (T5.2).
     hostname: config.hostname,
     port: config.port,
-    routes,
+    routes: withMethod,
     fetch: staticHandler,
   });
 
