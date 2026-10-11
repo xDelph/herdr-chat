@@ -18,7 +18,12 @@ import { Effect, Option, Result, Schema } from "effect";
 import { ApiErrorResponse, SessionResponse, TerminalResponse } from "@herdr-remote/shared";
 import type { ServerConfig } from "../config.ts";
 import type { HerdrApi } from "../herdr/HerdrClient.ts";
-import { isMissingFile, readTail, tailFrom } from "../sessions/SessionReader.ts";
+import {
+  isMissingFile,
+  readTail,
+  SessionPathRejected,
+  tailFrom,
+} from "../sessions/SessionReader.ts";
 import { decoderOf, describe, failureOf, respond, run } from "./Reply.ts";
 import type { RouteRequest } from "./Reply.ts";
 
@@ -98,7 +103,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
           };
 
           if (since !== undefined && Number.isInteger(since) && since >= 0) {
-            const tailed = yield* Effect.result(tailFrom(path, since, ""));
+            const tailed = yield* Effect.result(tailFrom(path, since, "", config.piSessionsRoot));
             return {
               kind: "ok" as const,
               path,
@@ -111,7 +116,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
 
           const finite =
             Number.isInteger(tailBytes) && tailBytes > 0 ? Math.min(tailBytes, 4_194_304) : 262_144;
-          const tailed = yield* Effect.result(readTail(path, finite));
+          const tailed = yield* Effect.result(readTail(path, finite, config.piSessionsRoot));
           if (Result.isFailure(tailed)) {
             const failure = failureOf(tailed);
             // Absence de fichier → session vide. Autre erreur → vraie panne.
@@ -136,6 +141,16 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
     {
       if (Result.isFailure(result)) {
         const failure = failureOf(result);
+        // Un chemin refusé (S03) est une **décision**, pas une panne : 403 et la
+        // cause exacte, là où tout le reste reste un 502.
+        if (failure instanceof SessionPathRejected) {
+          return respond(
+            config.logPath,
+            decoderOf(ApiErrorResponse),
+            { error: failure.detail },
+            403,
+          );
+        }
         return respond(
           config.logPath,
           decoderOf(ApiErrorResponse),

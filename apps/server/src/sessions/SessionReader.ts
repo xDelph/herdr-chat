@@ -15,6 +15,7 @@
 import { Effect, Option, Schema } from "effect";
 import { open } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
+import { describeRejection, resolveWithin } from "./PathGuard.ts";
 
 /** En-tête de session, tel qu'écrit en première ligne. */
 const HeaderLine = Schema.Struct({
@@ -32,6 +33,45 @@ export class SessionReadError extends Schema.TaggedError<SessionReadError>()("Se
   detail: Schema.String,
   path: Schema.String,
 }) {}
+
+/**
+ * Session **refusée** : le chemin est hors de la racine autorisée (S03).
+ *
+ * Volontairement distinct de `SessionReadError` : ici le fichier n'a pas été
+ * ouvert, donc il n'y a pas d'erreur d'E/S à rapporter — seulement une décision
+ * de politique. La cause est conservée telle quelle, jamais remplacée par un
+ * message général : « ne pas masquer une erreur » vaut aussi pour un refus.
+ */
+export class SessionPathRejected extends Schema.TaggedError<SessionPathRejected>()(
+  "SessionPathRejected",
+  { detail: Schema.String, path: Schema.String, reason: Schema.String },
+) {}
+
+/**
+ * Ouvre un fichier de session **après** avoir vérifié qu'il est sous `root`.
+ *
+ * ⚠️ L'ordre n'est pas négociable : `realpath` d'abord, comparaison **par
+ * segments** ensuite, ouverture du chemin **résolu** en dernier. Valider la
+ * chaîne puis ouvrir l'original laisserait une fenêtre entre les deux, pendant
+ * laquelle un lien symbolique pouvait être substitué.
+ *
+ * `root` vide = aucun confinement. Utile aux tests sur fichiers temporaires
+ * isolés ; le chemin de production fournit toujours sa racine (S03).
+ */
+const openGuarded = async (root: string, path: string): Promise<FileHandle> => {
+  if (root === "") return open(path, "r");
+
+  const verdict = await resolveWithin(root, path);
+  if (!verdict.ok || verdict.resolved === undefined) {
+    const reason = verdict.reason ?? "hors-racine";
+    throw new SessionPathRejected({
+      detail: describeRejection(reason),
+      path,
+      reason,
+    });
+  }
+  return open(verdict.resolved, "r");
+};
 
 /**
  * `true` si l'erreur signifie « le fichier n'existe pas ».
@@ -138,10 +178,10 @@ const parseEntry = (line: string): RawEntry => {
  * filiation réel entre sessions, à ne pas confondre avec `parentId`, qui est
  * intra-session (`docs/PROTOCOL.md` §4.1).
  */
-export const readHeader = (path: string) =>
+export const readHeader = (path: string, root = "") =>
   Effect.tryPromise({
     try: async () => {
-      const handle = await open(path, "r");
+      const handle = await openGuarded(root, path);
       try {
         const buffer = Buffer.alloc(64 * 1024);
         const { bytesRead } = await handle.read(buffer, 0, buffer.length, 0);
@@ -158,11 +198,13 @@ export const readHeader = (path: string) =>
       }
     },
     catch: (cause) =>
-      new SessionReadError({
-        cause,
-        detail: cause instanceof Error ? cause.message : String(cause),
-        path,
-      }),
+      cause instanceof SessionPathRejected
+        ? cause
+        : new SessionReadError({
+            cause,
+            detail: cause instanceof Error ? cause.message : String(cause),
+            path,
+          }),
   });
 
 /**
@@ -171,10 +213,10 @@ export const readHeader = (path: string) =>
  * `pending` est recollé au début de la lecture : une ligne incomplète vue au
  * tour précédent redevient complète dès que la suite arrive.
  */
-export const tailFrom = (path: string, offset: number, pending: string) =>
+export const tailFrom = (path: string, offset: number, pending: string, root = "") =>
   Effect.tryPromise({
     try: async (): Promise<TailedSession> => {
-      const handle: FileHandle = await open(path, "r");
+      const handle: FileHandle = await openGuarded(root, path);
       try {
         const stats = await handle.stat();
         if (stats.size <= offset) {
@@ -195,17 +237,19 @@ export const tailFrom = (path: string, offset: number, pending: string) =>
       }
     },
     catch: (cause) =>
-      new SessionReadError({
-        cause,
-        detail: cause instanceof Error ? cause.message : String(cause),
-        path,
-      }),
+      cause instanceof SessionPathRejected
+        ? cause
+        : new SessionReadError({
+            cause,
+            detail: cause instanceof Error ? cause.message : String(cause),
+            path,
+          }),
   });
 
 export { tailFrom as tailFromRaw };
 
 /** Lit tout le fichier. Réservé au premier chargement d'une session courte. */
-export const readAll = (path: string) => tailFrom(path, 0, "");
+export const readAll = (path: string, root = "") => tailFrom(path, 0, "", root);
 
 /**
  * Lit **la fin** d'un fichier sans le charger entièrement.
@@ -217,10 +261,10 @@ export const readAll = (path: string) => tailFrom(path, 0, "");
  *
  * Le résultat porte `offset` : le client reprend ensuite en incrémental.
  */
-export const readTail = (path: string, maxBytes: number) =>
+export const readTail = (path: string, maxBytes: number, root = "") =>
   Effect.tryPromise({
     try: async (): Promise<TailedSession & { readonly truncated: boolean }> => {
-      const handle: FileHandle = await open(path, "r");
+      const handle: FileHandle = await openGuarded(root, path);
       try {
         const stats = await handle.stat();
         const start = Math.max(0, stats.size - maxBytes);
@@ -249,9 +293,11 @@ export const readTail = (path: string, maxBytes: number) =>
       }
     },
     catch: (cause) =>
-      new SessionReadError({
-        cause,
-        detail: cause instanceof Error ? cause.message : String(cause),
-        path,
-      }),
+      cause instanceof SessionPathRejected
+        ? cause
+        : new SessionReadError({
+            cause,
+            detail: cause instanceof Error ? cause.message : String(cause),
+            path,
+          }),
   });
