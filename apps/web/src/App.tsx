@@ -476,9 +476,15 @@ export const App = () => {
         }
         onReessayer={reessayer}
       />
+      {/*
+        Les agents masqués sont **comptés**, pas oubliés (U14) : leur contenu
+        n'est pas lisible depuis le téléphone, et le silence ferait croire qu'ils
+        n'existent pas.
+      */}
       {overview !== null && overview.withoutSession > 0 ? (
         <Notice ton="avertissement">
-          {overview.withoutSession} agent(s) sans chemin de session exposé
+          {overview.withoutSession} agent(s) masqué(s) : Herdr n'expose pas de session lisible pour
+          eux. Ils tournent, on ne peut pas les lire d'ici.
         </Notice>
       ) : null}
 

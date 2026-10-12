@@ -26,7 +26,7 @@ import {
   PromptSentResponse,
   PromptSuppressedResponse,
 } from "@herdr-remote/shared";
-import { buildOverview, checkoutPathOf, toWorkspaceViews } from "../agents/AgentRegistry.ts";
+import { buildOverview, checkoutPathOf, composerOverview } from "../agents/AgentRegistry.ts";
 import { buildModelArgs, checkThinkingSupported } from "../agents/ModelArgs.ts";
 import { catalogOf } from "../agents/ModelCatalog.ts";
 import { isTrustPrompt, respondToTrust } from "../agents/TrustPrompt.ts";
@@ -52,6 +52,7 @@ import { makeSessionRoutes } from "./routes-sessions.ts";
 import { makeFileRoutes } from "./routes-files.ts";
 import { makeEventRoutes } from "./routes-events.ts";
 import { makeConversationRoutes } from "./routes-conversations.ts";
+import { typeLisible } from "../agents/Lisibilite.ts";
 import { describeGuardRejection, guardMutation, methodNotAllowed } from "./OriginGuard.ts";
 import { writeLog } from "../logging/LogFile.ts";
 
@@ -347,16 +348,25 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
           const payload = yield* herdr.snapshot();
           const snapshot = Option.getOrUndefined(decodeSnapshot(payload["snapshot"]));
           if (snapshot !== undefined) {
-            return {
-              agents: cached,
+            /*
+              ⚠️ Même composition que le chemin lent (U14). Le cache servait
+              ici les agents **non filtrés** : les agents muets réapparaissaient
+              toutes les 15 s, et quelqu'un pouvait les ouvrir entre deux
+              relances du snapshot.
+
+              Le cache servait aussi des vues de projet sans agents ni panes :
+              `agentPanes` était donc toujours vide, et l'interface croyait que
+              chaque projet était vide.
+            */
+            return composerOverview({
               herdrProtocol: snapshot.protocol,
               herdrVersion: snapshot.version,
-              withoutSession: cached.filter((agent) => agent.sessionPath === null).length,
-              // ⚠️ Le cache servait des vues de projet SANS agents ni panes :
-              // `agentPanes` était donc toujours vide, et l'interface croyait
-              // que chaque projet était vide.
-              workspaces: toWorkspaceViews(snapshot.workspaces, cached, snapshot.panes ?? []),
-            };
+              // `panes` vient du snapshot, jamais du cache : le cache ne les
+              // contient pas.
+              panes: snapshot.panes,
+              tous: cached,
+              workspaces: snapshot.workspaces,
+            });
           }
         }
 
@@ -530,8 +540,22 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
         503,
       );
     }
+    /*
+      ⚠️ **Installé ne veut pas dire lisible** (U14).
+
+      `state !== "not_installed"` veut dire : le greffon de suivi est en place.
+      Rien ne garantit qu'Herdr expose un chemin de session. Pour opencode il
+      n'en expose aucun — son contenu est dans une base — et l'agent qu'on
+      lancerait serait alors hors du produit : présent, mais muet.
+
+      On filtre donc sur la capacité **vérifiée**, pas sur la présence.
+    */
     const kinds = listed.integrations.filter(
-      (integration) => integration.state !== "not_installed",
+      (integration) =>
+        integration.state !== "not_installed" &&
+        typeLisible(
+          ACCEPTED_KINDS.has(integration.command) ? integration.command : integration.target,
+        ),
     );
     const known = kinds.some(
       (integration) => integration.command === body.kind || integration.target === body.kind,
@@ -776,8 +800,17 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     // `agent.start` attend un `kind`. Pour la plupart c'est la **commande** ;
     // pour quelques-uns c'est la **cible** (Cursor : commande `cursor-agent`,
     // kind `cursor`). On prend la commande quand Herdr la connaît.
+    /*
+      Même filtre que le lancement (U14) : le menu et le refus doivent porter
+      sur **la même** liste, sinon le menu propose ce que le lancement refuse —
+      ou l'inverse, ce qui est pire (B07).
+    */
     const kinds = decoded.integrations
-      .filter((integration) => integration.state !== "not_installed")
+      .filter((integration) =>
+        typeLisible(
+          ACCEPTED_KINDS.has(integration.command) ? integration.command : integration.target,
+        ),
+      )
       .map((integration) => ({
         kind: ACCEPTED_KINDS.has(integration.command) ? integration.command : integration.target,
         label: integration.label,

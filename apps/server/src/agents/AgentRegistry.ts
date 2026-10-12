@@ -21,6 +21,7 @@ import type {
   WorkspaceInfo,
 } from "@herdr-remote/shared";
 import { readHeader } from "../sessions/SessionReader.ts";
+import { sessionLisible } from "./Lisibilite.ts";
 
 /** Vue d'un agent exposée à l'interface. */
 export interface AgentView {
@@ -201,11 +202,57 @@ export const toWorkspaceViews = (
   });
 
 /**
- * Construit la vue d'accueil.
+ * Répartit les agents : ceux qu'on sait lire, et le nombre de ceux qu'on ne peut pas.
  *
- * ⚠️ On lit `workspaces` **depuis le snapshot** plutôt que de le reconstruire
- * en regroupant les agents : Herdr porte déjà `agent_status`, `pane_count` et
- * `tab_count` par workspace, et une reconstruction divergerait.
+ * ⚠️ **Un seul endroit applique cette règle**, parce qu'il y a deux chemins pour
+ * `/api/overview` : un rapide qui sert le cache du veilleur, et un lent qui relit
+ * le snapshot. Le filtre n'était appliqué qu'au lent — le chemin **rapide**, donc
+ * celui qui sert la plupart du temps, exposait encore les agents muets. C'est
+ * exactement ce que « deux endroits pour la même règle » produit : le second
+ * finit par ne plus être à jour.
+ */
+export const repartirAgents = (
+  tous: ReadonlyArray<AgentView>,
+): { readonly agents: ReadonlyArray<AgentView>; readonly masquees: number } => ({
+  agents: tous.filter((agent) => sessionLisible(agent.sessionPath)),
+  masquees: tous.filter((agent) => !sessionLisible(agent.sessionPath)).length,
+});
+
+/**
+ * Compose la vue d'accueil à partir d'agents **déjà convertis**.
+ *
+ * Les deux chemins de `/api/overview` passent par ici : le cache du veilleur et
+ * le snapshot relu ne peuvent donc pas diverger sur ce qui est visible.
+ */
+export const composerOverview = ({
+  herdrProtocol,
+  herdrVersion,
+  panes,
+  tous,
+  workspaces,
+}: {
+  readonly herdrProtocol: number;
+  readonly herdrVersion: string;
+  readonly panes: ReadonlyArray<SnapshotPane> | undefined;
+  readonly tous: ReadonlyArray<AgentView>;
+  readonly workspaces: ReadonlyArray<WorkspaceInfo>;
+}) => {
+  const { agents, masquees } = repartirAgents(tous);
+  return {
+    agents,
+    herdrProtocol,
+    herdrVersion,
+    withoutSession: masquees,
+    workspaces: toWorkspaceViews(workspaces, agents, panes ?? []),
+  };
+};
+
+/**
+ * Construit la vue d'accueil depuis le snapshot brut.
+ *
+ * ⚠️ On lit `workspaces` **depuis le snapshot** plutôt que de le reconstruire en
+ * regroupant les agents : Herdr porte déjà `agent_status`, `pane_count` et
+ * `tab_count` par projet, et une reconstruction divergerait.
  */
 export const buildOverview = (snapshot: {
   readonly agents: ReadonlyArray<AgentInfo>;
@@ -222,12 +269,12 @@ export const buildOverview = (snapshot: {
 }): Effect.Effect<OverviewView> =>
   Effect.gen(function* () {
     const naming = namingFrom(snapshot.workspaces, snapshot.tabs ?? []);
-    const agents = yield* toAgentViews(snapshot.agents, naming);
-    return {
-      agents,
+    const tous = yield* toAgentViews(snapshot.agents, naming);
+    return composerOverview({
       herdrProtocol: snapshot.protocol,
       herdrVersion: snapshot.version,
-      withoutSession: agents.filter((agent) => agent.sessionPath === null).length,
-      workspaces: toWorkspaceViews(snapshot.workspaces, agents, snapshot.panes ?? []),
-    };
+      panes: snapshot.panes,
+      tous,
+      workspaces: snapshot.workspaces,
+    });
   });
