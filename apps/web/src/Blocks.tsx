@@ -650,11 +650,20 @@ export const MessageBubble = memo(({ message }: { message: RenderedMessage }) =>
       de la référence.
     */}
     {/*
-      ⚠️ **Ni modèle ni jetons ici.** Le modèle ne dit rien de ce qu'on lit, et
-      les jetons appartiennent au **travail** — ils vivent dans l'en-tête du
-      groupe, sommés sur ce qui a été fait. Ici il ne reste que l'heure.
+      ⚠️ **Pas d'heure sur un message qui n'a que du travail.**
+
+      Un message composé uniquement de réflexion, d'appels et de résultats
+      n'affiche pas de prose : l'heure qui suivait occupait donc une ligne
+      entière pour rien, sous chaque sous-bloc. Elle reste sur les messages qui
+      portent du texte, où elle situe quelque chose qu'on vient de lire.
+
+      Ni modèle ni jetons ici non plus : le modèle ne dit rien de ce qu'on lit,
+      et les jetons appartiennent au **travail** — ils vivent dans l'en-tête du
+      groupe, sommés sur ce qui a été fait.
     */}
-    <span className="bubble__role">{timeOf(message.at)}</span>
+    {message.blocks.every((block) => estBlocDeTravail(block)) ? null : (
+      <span className="bubble__role">{timeOf(message.at)}</span>
+    )}
   </article>
 ));
 MessageBubble.displayName = "MessageBubble";

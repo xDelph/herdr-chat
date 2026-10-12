@@ -431,11 +431,18 @@ button:disabled {
   padding: 2px 0;
 }
 
-/* Métadonnées sous le message : discrètes, jamais au-dessus du contenu. */
+/*
+  Métadonnées sous le message : discrètes, jamais au-dessus du contenu.
+
+  ⚠️ **Pas de `display: block`.** Elles prenaient une ligne entière à elles
+  seules sous chaque message et sous chaque sous-bloc, ce qui allongeait le fil
+  d'autant. Elles se posent à la suite du contenu, sur la même ligne quand il y a
+  la place.
+*/
 .bubble__role {
-  display: block;
+  display: inline-block;
   margin-top: 4px;
-  opacity: 0.75;
+  opacity: 0.7;
   color: var(--muted);
   display: block;
   font-size: 12px;
@@ -708,6 +715,15 @@ button:disabled {
 
 /* Terminal / sorties */
 
+/* Une boîte de code défile **chez elle** au lieu d'élargir le fil. */
+.term,
+.blk pre,
+.bubble pre,
+.bubble code {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
 .term {
   background: var(--code-bg);
   border-radius: var(--radius-sm);
@@ -903,6 +919,13 @@ button:disabled {
 .chat .messages {
   flex: 1 1 auto;
   min-height: 0;
+  /*
+    ⚠️ **`overflow-x: hidden` n'est pas un détail.** Sans lui, un seul enfant
+    trop large — une URL longue dans un bloc de code — élargissait le conteneur,
+    et **tout** le fil se retrouvait coupé au bord droit de l'écran. Ce n'est pas
+    le bloc qui débordait : c'était la colonne entière.
+  */
+  overflow-x: hidden;
   overflow-y: auto;
   overscroll-behavior: contain;
   padding: 4px 16px 12px;
