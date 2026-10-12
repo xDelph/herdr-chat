@@ -11,8 +11,10 @@ import { Schema } from "effect";
 import { Option } from "effect";
 import { Markdown } from "./Markdown.tsx";
 import {
+  actionDeBloc,
   coutDuGroupe,
   dureeEnMots,
+  estBlocDeTravail,
   jetonsCourts,
   lignesDeTravail,
   resumeDuGroupe,
@@ -549,7 +551,48 @@ const ImageContentBlock = ({ block }: { block: Extract<Block, { kind: "image" }>
  * Un bloc ne se redessine que si **son contenu** change. Sans cela, taper dans
  * le composeur redessinait chaque bloc de chaque message.
  */
+/**
+ * Rendu **riche** d'un bloc : le détail d'une ligne.
+ *
+ * ⚠️ Nommé à part de `BlockView` pour une raison précise : la ligne compacte
+ * affiche son détail en l'appelant. Si le détail repassait par `BlockView`, il
+ * redeviendrait une ligne, qui redemanderait son détail — une boucle infinie.
+ */
+/**
+ * Un bloc, dans un tableau stable.
+ *
+ * ⚠️ Le tableau est mémorisé **par bloc** : en créer un neuf à chaque rendu
+ * ferait redessiner la ligne à chaque frappe dans le composeur.
+ */
+const unSeulCache = new WeakMap<Block, ReadonlyArray<Block>>();
+const UN_SEUL_BLOC = (block: Block): ReadonlyArray<Block> => {
+  const connu = unSeulCache.get(block);
+  if (connu !== undefined) return connu;
+  const neuf = [block];
+  unSeulCache.set(block, neuf);
+  return neuf;
+};
+
 export const BlockView = memo(({ block }: { block: Block }) => {
+  /*
+    ⚠️ **Par bloc, pas par message.** Une ligne compacte se décidait jusqu'ici au
+    niveau du message entier — donc jamais pour `text + thinking + toolCall`, la
+    forme la plus courante d'une session réelle (565 messages sur 1080 mesurés).
+    La réflexion et les éditions y gardaient leur ancien bloc encadré.
+
+    Une ligne se décide donc **bloc par bloc**, et le détail passe par
+    `VueDetail` : sans cette séparation, la ligne afficherait son détail en
+    repassant par elle-même.
+  */
+  if (estBlocDeTravail(block)) {
+    return <LigneDeTravail action={actionDeBloc(block)} details={UN_SEUL_BLOC(block)} />;
+  }
+
+  return <VueDetail block={block} />;
+});
+BlockView.displayName = "BlockView";
+
+const VueDetail = memo(({ block }: { block: Block }) => {
   switch (block.kind) {
     case "text":
       // Le texte du modèle est du markdown : il est rendu comme tel.
@@ -577,7 +620,7 @@ export const BlockView = memo(({ block }: { block: Block }) => {
       return null;
   }
 });
-BlockView.displayName = "BlockView";
+VueDetail.displayName = "VueDetail";
 
 // ---------------------------------------------------------------------------
 // Groupes d'appels d'outils
@@ -633,9 +676,9 @@ MessageBubble.displayName = "MessageBubble";
  * édition et une sortie dépliées d'office noient la ligne de résumé ; elles
  * s'ouvrent à la demande, une par une.
  */
-const LigneDeTravail = ({ ligne }: { ligne: LigneTravail }) => {
+const LigneDeTravail = ({ action, details }: Pick<LigneTravail, "action" | "details">) => {
   const [open, setOpen] = useState(false);
-  const cible = ligne.action.cible;
+  const cible = action.cible;
 
   return (
     <div className="ligne">
@@ -644,13 +687,13 @@ const LigneDeTravail = ({ ligne }: { ligne: LigneTravail }) => {
         className="ligne__head"
         aria-expanded={open}
         onClick={() => setOpen((valeur) => !valeur)}
-        disabled={ligne.details.length === 0}
+        disabled={details.length === 0}
       >
         <span className="ligne__icone" aria-hidden="true">
-          {ligne.action.icone}
+          {action.icone}
         </span>
-        <span className="ligne__verbe">{ligne.action.singulier}</span>
-        {cible === null ? null : ligne.action.estFichier ? (
+        <span className="ligne__verbe">{action.singulier}</span>
+        {cible === null ? null : action.estFichier ? (
           // Un chemin de fichier se souligne : il mène à quelque chose. Un
           // argument qui n'est pas un fichier ne promet pas d'ouverture.
           <span className="ligne__cible ligne__cible--lien">{cible}</span>
@@ -661,17 +704,17 @@ const LigneDeTravail = ({ ligne }: { ligne: LigneTravail }) => {
           ⚠️ Le delta se tait quand il n'y a rien à mesurer : `+0 −0` sur une
           lecture laisserait croire à un changement constaté.
         */}
-        {ligne.action.delta === null ? null : (
+        {action.delta === null ? null : (
           <span className="ligne__delta">
-            <span className="ligne__delta--plus">+{ligne.action.delta.added}</span>
-            <span className="ligne__delta--moins">−{ligne.action.delta.removed}</span>
+            <span className="ligne__delta--plus">+{action.delta.added}</span>
+            <span className="ligne__delta--moins">−{action.delta.removed}</span>
           </span>
         )}
       </button>
-      {open && ligne.details.length > 0 ? (
+      {open && details.length > 0 ? (
         <div className="ligne__body">
-          {ligne.details.map((block, index) => (
-            <BlockView key={`${String(index)}-${block.kind}`} block={block} />
+          {details.map((block, index) => (
+            <VueDetail key={`${String(index)}-${block.kind}`} block={block} />
           ))}
         </div>
       ) : null}
@@ -736,7 +779,11 @@ const ToolGroup = ({
       {open ? (
         <div className="group__body">
           {lignes.map((ligne, index) => (
-            <LigneDeTravail key={`${String(index)}-${ligne.action.icone}`} ligne={ligne} />
+            <LigneDeTravail
+              action={ligne.action}
+              details={ligne.details}
+              key={`${String(index)}-${ligne.action.icone}`}
+            />
           ))}
           {lignes.length === 0 ? <p className="blk__hint">aucun appel enregistré</p> : null}
         </div>

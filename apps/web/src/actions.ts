@@ -395,3 +395,60 @@ export const lignesDeTravail = (
 
   return lignes;
 };
+
+/**
+ * Action d'un bloc, quel qu'il soit.
+ *
+ * ⚠️ **Pourquoi cette fonction existe.** `BlockView` ne voyait les lignes
+ * compactes que dans un groupe — c'est-à-dire quand **tous** les blocs d'un
+ * message étaient des appels d'outil. Or la forme la plus courante d'une
+ * session réelle est `text + thinking + toolCall` (565 messages sur 1080
+ * mesurés) : ces messages n'étaient donc **jamais** groupés, et la réflexion
+ * comme les éditions gardaient leur ancien bloc encadré.
+ *
+ * Une ligne compacte doit se décider **par bloc**, pas par message.
+ */
+export const actionDeBloc = (block: Block): Action => {
+  switch (block.kind) {
+    case "thinking":
+      return ACTION_REFLEXION;
+    case "toolCall":
+      return actionDe(block.name, block.arguments);
+    case "bashExecution":
+      return {
+        cible: block.command.split("\n")[0] ?? null,
+        delta: null,
+        estFichier: false,
+        icone: "🖥",
+        pluriel: "Commandes lancées",
+        singulier: "Commande lancée",
+      };
+    case "toolResult":
+      return {
+        cible: block.toolName.length > 0 ? block.toolName : null,
+        delta: null,
+        estFichier: false,
+        icone: "▤",
+        pluriel: "Résultats",
+        singulier: "Résultat",
+      };
+    default:
+      // Les blocs qui ne sont pas du travail — texte, image, compaction — ne
+      // passent pas par une ligne : ils ont leur propre rendu.
+      return {
+        cible: null,
+        delta: null,
+        estFichier: false,
+        icone: "•",
+        pluriel: "Actions",
+        singulier: "Action",
+      };
+  }
+};
+
+/** `true` quand un bloc se raconte en une ligne de travail. */
+export const estBlocDeTravail = (block: Block): boolean =>
+  block.kind === "thinking" ||
+  block.kind === "toolCall" ||
+  block.kind === "toolResult" ||
+  block.kind === "bashExecution";

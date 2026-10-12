@@ -435,13 +435,13 @@ describe("U22 — le changement se mesure sur la ligne", () => {
 
   test("les lignes `+` et `−` sont affichées", () => {
     expect(blocs2).toContain('className="ligne__delta"');
-    expect(blocs2).toContain("+{ligne.action.delta.added}");
-    expect(blocs2).toContain("−{ligne.action.delta.removed}");
+    expect(blocs2).toContain("+{action.delta.added}");
+    expect(blocs2).toContain("−{action.delta.removed}");
   });
 
   test("elles se taisent quand il n'y a rien à mesurer", () => {
     // ⚠️ `+0 −0` sur une commande laisserait croire à un changement constaté.
-    expect(blocs2).toContain("ligne.action.delta === null ? null :");
+    expect(blocs2).toContain("action.delta === null ? null :");
   });
 
   test("les couleurs sont celles du diff lui-même", () => {
@@ -455,6 +455,48 @@ describe("U22 — le changement se mesure sur la ligne", () => {
     // appel d'édition laissait « Fichier modifié » sans rien à déplier.
     const actions = readFileSync(join(import.meta.dir, "actions.ts"), "utf8");
     expect(actions).toContain("details: [block]");
-    expect(blocs2).toContain("ligne.details.length === 0");
+    expect(blocs2).toContain("details.length === 0");
+  });
+});
+
+describe("U23 — la ligne compacte s'applique PAR BLOC, pas par message", () => {
+  const blocs3 = readFileSync(join(import.meta.dir, "Blocks.tsx"), "utf8");
+
+  test("un bloc de travail devient une ligne, quel que soit son message", () => {
+    /*
+      ⚠️ **Le défaut que ce test ferme.** Une ligne compacte se décidait au
+      niveau du message entier : `isToolOnly` exigeait que **tous** les blocs
+      soient des appels d'outil. Or la forme la plus courante d'une session
+      réelle est `text + thinking + toolCall` — 565 messages sur 1080 mesurés.
+      Ces messages n'étaient donc **jamais** groupés, et la réflexion comme les
+      éditions gardaient leur ancien bloc encadré.
+
+      La décision doit se prendre **bloc par bloc**.
+    */
+    expect(blocs3).toContain("if (estBlocDeTravail(block)) {");
+    expect(blocs3).toContain("return <VueDetail block={block} />;");
+  });
+
+  test("le détail ne repasse jamais par la ligne", () => {
+    // Sinon : la ligne affiche son détail, qui redevient une ligne, qui
+    // redemande son détail — une boucle infinie.
+    expect(blocs3).toContain("const VueDetail = memo(");
+    const corps = blocs3.slice(blocs3.indexOf('<div className="ligne__body">'));
+    expect(corps.slice(0, 300)).toContain("<VueDetail");
+    expect(corps.slice(0, 300)).not.toContain("<BlockView");
+  });
+
+  test("les quatre sortes de travail passent par la ligne", () => {
+    const actions = readFileSync(join(import.meta.dir, "actions.ts"), "utf8");
+    const garde = actions.slice(actions.indexOf("export const estBlocDeTravail"));
+    for (const sorte of ["thinking", "toolCall", "toolResult", "bashExecution"]) {
+      expect(garde).toContain(`block.kind === "${sorte}"`);
+    }
+  });
+
+  test("la réflexion garde son icône et son verbe", () => {
+    const actions = readFileSync(join(import.meta.dir, "actions.ts"), "utf8");
+    expect(actions).toContain('icone: "✻"');
+    expect(actions).toContain('singulier: "Réflexion"');
   });
 });
