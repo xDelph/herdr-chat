@@ -20,6 +20,7 @@ import {
   HealthResponse,
   InstalledKindsResponse,
   LaunchAgentResponse,
+  ConversationsResponse,
   ModelCatalogResponse,
   RecentImagesResponse,
   OverviewResponse,
@@ -262,6 +263,17 @@ const decoded = async <A>(
 };
 
 export const fetchHealth = () => decoded("/api/health", decoderOf(HealthSchema), "health");
+
+/**
+ * Lignes de la liste des conversations (U17).
+ *
+ * ⚠️ **Une seule requête pour tout ce qu'affiche une ligne** : la demande de
+ * l'utilisateur, le modèle, la branche, l'horodatage. Les prendre sur
+ * `/api/overview` aurait laissé chaque ligne chercher sa session, donc N
+ * lectures de fichiers par rafraîchissement.
+ */
+export const fetchConversations = () =>
+  decoded("/api/conversations", decoderOf(ConversationsResponse), "conversations");
 export const fetchOverview = () => decoded("/api/overview", decoderOf(OverviewSchema), "overview");
 
 /**

@@ -23,6 +23,8 @@
 import { Effect, Option, Result } from "effect";
 import { decoderOf, respond } from "./Reply.ts";
 import { defaultRead, summaryOf, type RawPane } from "../conversations/Summary.ts";
+import { brancheDe as branchOf } from "../git/Branche.ts";
+import { sessionLisible } from "../agents/Lisibilite.ts";
 import { sessionPathOf } from "./routes-sessions.ts";
 import type { TailedSession } from "../sessions/SessionReader.ts";
 import { decodeSnapshot } from "./Reply.ts";
@@ -76,8 +78,8 @@ export const withConcurrency = async <A, R>(
 /**
  * Transforme un pane Herdr en entrée de ligne.
  *
- * `paneId` et `workspaceId` sont tirés du snapshot ; un pane sans agent
- * 알려n.
+ * `paneId` et `workspaceId` sont tirés du snapshot ; un pane sans agent n'a
+ * pas de session, et c'est un état normal, pas une erreur.
  */
 const toRawPane = (
   pane: {
@@ -91,11 +93,13 @@ const toRawPane = (
   },
   sessionPath: string | null,
   agentStatus: string | null,
+  branch: string | undefined,
 ): RawPane => {
   const tabId = pane.tab_id ?? "";
   const workspaceId = pane.workspace_id ?? "";
   return {
     agentStatus,
+    branch,
     paneId: pane.pane_id,
     sessionPath,
     tabLabel: labels.tabs.get(tabId) ?? null,
@@ -141,7 +145,23 @@ export const makeConversationRoutes = (config: ServerConfig, herdr: HerdrApi) =>
     const read = defaultRead(config.piSessionsRoot);
     const lire = (path: string): Effect.Effect<TailedSession, unknown> => read(path);
 
-    const lignes = await withConcurrency(decoded.panes ?? [], MAX_SESSION_READS, async (pane) => {
+    /*
+      ⚠️ **Seuls les panes dont la session est lisible** (U14, U17).
+
+      Cette route ne servait auparavant que l'onglet Projets ; elle alimente
+      maintenant la liste elle-même. Sans ce filtre, elle réaffichait des
+      agents sans session — un écran plein de lignes vides, exactement ce que le
+      filtre de lisibilité existe pour éviter.
+
+      C'est la **même** règle que `/api/overview` : une seconde définition
+      divergerait, et c'est ce qui vient de se produire.
+    */
+    const panes = (decoded.panes ?? []).filter((pane) => {
+      const agent = decoded.agents.find((candidat) => candidat.pane_id === pane.pane_id);
+      return agent !== undefined && sessionLisible(sessionPathOf(agent) ?? null);
+    });
+
+    const lignes = await withConcurrency(panes, MAX_SESSION_READS, async (pane) => {
       // Le chemin de session vient de `agent_session`, fourni par Herdr dans
       // la vue agent ; un pane sans agent n'a pas de session.
       const agent = decoded.agents.find((candidat) => candidat.pane_id === pane.pane_id);
@@ -150,6 +170,11 @@ export const makeConversationRoutes = (config: ServerConfig, herdr: HerdrApi) =>
         { tabs, workspaces },
         agent === undefined ? null : (sessionPathOf(agent) ?? null),
         agent?.agent_status ?? null,
+        // La branche vient du **dossier du pane** : c'est le dépôt dans lequel
+        // l'agent travaille réellement, pas celui du projet en général.
+        pane.cwd === null || pane.cwd === undefined
+          ? undefined
+          : await Effect.runPromise(branchOf(pane.cwd)),
       );
       return Effect.runPromise(summaryOf(paneBrut, lire));
     });

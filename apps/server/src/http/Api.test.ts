@@ -522,7 +522,7 @@ const refuserToutesLesMutations = async (entetes: Record<string, string>, attend
   createTabCalls = 0;
   startCalls = 0;
   // `handler(...)` renvoie une `Response` (ou une promesse selon la route) :
-  // `Promise.all` attend un itérable de promesses, d'où l、包装.
+  // `Promise.all` attend un itérable de promesses, d'où l'emballage.
   const reponses = await Promise.all(
     cas.map((cas_) =>
       Promise.resolve(

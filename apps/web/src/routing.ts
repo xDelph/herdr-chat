@@ -7,75 +7,62 @@
  *
  * Le routage est ici, hors du composant, donc **testable**. Un routeur encastré
  * dans un composant ne peut être vérifié qu'en ouvrant l'application.
- */
-import { Option, Schema } from "effect";
-
-/**
- * Les trois destinations de la release.
  *
- * `Agents` a disparu au profit de `Conversations` : une liste d'agents et une
- * liste de conversations sont la même chose vue de deux angles, et l'ancienne
- * navigation obligeait à choisir entre « qui existe » et « de quoi s'occuper »
- * (U04).
+ * ⚠️ **La barre d'onglets a disparu (U17).** Trois onglets pour deux écrans
+ * réels — une liste et des réglages — coûtaient un geste à chaque ouverture, et
+ * l'onglet Projets n'était qu'un détour vers le détail d'un projet, atteignable
+ * depuis la liste. Les réglages sont passés dans une feuille derrière un
+ * engrenage ; les adresses d'onglet restent reconnues et retombent sur la liste,
+ * pour qu'un lien enregistré ne casse pas.
  */
-export const TabSchema = Schema.Literals(["conversations", "projets", "reglages"]);
-export type Tab = typeof TabSchema.Type;
-
-/** Les destinations, dans l'ordre d'affichage — la navigation s'en sert. */
-export const TABS = ["conversations", "projets", "reglages"] as const satisfies ReadonlyArray<Tab>;
-
-/** Libellés exacts, dans l'ordre d'affichage. */
-export const TAB_LABEL: Record<Tab, string> = {
-  conversations: "Conversations",
-  projets: "Projets",
-  reglages: "Réglages",
-};
-
-/**
- * Onglet par défaut : **ce qui demande une action**.
- *
- * Ouvrir sur une liste de projets oblige à chercher ce qui attend. La question
- * utile en mobilité est « qu'est-ce qui m'attend ? » — et `À traiter` est la
- * première section de Conversations, pas un onglet séparé.
- */
-export const DEFAULT_TAB: Tab = "conversations";
+export const HOME = "#/liste";
 
 export type Route =
-  | { readonly kind: "tab"; readonly tab: Tab }
+  | { readonly kind: "liste" }
   | { readonly kind: "agent"; readonly paneId: string }
   | { readonly kind: "projet"; readonly workspaceId: string };
 
 /**
+ * Environnements d'URL encore acceptés, et où ils mènent.
+ *
+ * ⚠️ Ils ne sont pas supprimés : un raccourci enregistré sur l'écran d'accueil
+ * d'un téléphone pointe une adresse précise, et une adresse morte donnerait un
+ * écran blanc.
+ */
+const LEGACY: ReadonlySet<string> = new Set(["conversations", "projets", "agents", "reglages"]);
+
+/**
  * Analyse un fragment d'URL.
  *
- * **Tout fragment inconnu retombe sur l'onglet par défaut** plutôt que de
- * produire un écran vide : une URL erronée ne doit pas casser l'application.
+ * **Tout fragment inconnu retombe sur la liste** plutôt que de produire un écran
+ * vide : une URL erronée ne doit pas casser l'application.
  */
 export const parseRoute = (hash: string): Route => {
-  const clean = hash.replace(/^#\/?/, "");
+  const clean = hash.replace(/^#\/?/, "").trim();
   if (clean.startsWith("agent/")) {
     const paneId = safeDecode(clean.slice("agent/".length));
     if (paneId !== undefined && paneId.length > 0) {
       return { kind: "agent", paneId };
     }
   }
-  // Le détail d'un projet vient **avant** les onglets : `projet/w1` serait
-  // sinon lu comme un onglet inconnu.
   if (clean.startsWith("projet/")) {
     const workspaceId = safeDecode(clean.slice("projet/".length));
     if (workspaceId !== undefined && workspaceId.length > 0) {
       return { kind: "projet", workspaceId };
     }
   }
-  const tab = Option.getOrUndefined(Schema.decodeUnknownOption(TabSchema)(clean));
-  return { kind: "tab", tab: tab ?? DEFAULT_TAB };
+  return { kind: "liste" };
 };
+
+/** `true` si le fragment est une adresse d'onglet d'avant U17. */
+export const estAdresseDOnglet = (hash: string): boolean =>
+  LEGACY.has(hash.replace(/^#\/?/, "").trim());
 
 /** Sérialise une route en fragment. */
 export const routeToHash = (route: Route): string => {
   if (route.kind === "agent") return `#/agent/${encodeURIComponent(route.paneId)}`;
   if (route.kind === "projet") return `#/projet/${encodeURIComponent(route.workspaceId)}`;
-  return `#/${route.tab}`;
+  return HOME;
 };
 
 /**

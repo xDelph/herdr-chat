@@ -387,8 +387,34 @@ export type SessionState = typeof SessionState.Type;
  * soit visible plutôt que simulée.
  */
 export const ConversationSummary = Schema.Struct({
+  /**
+   * Branche git du dossier de travail, quand il y en a une.
+   *
+   * ⚠️ Herdr n'expose **aucune** information de branche : ni le snapshot, ni
+   * `worktree` n'en portent. Elle vient donc de `git rev-parse` dans le dossier
+   * de travail du projet — la seule source réelle, et un dépôt sans git donne
+   * `undefined` plutôt qu'une valeur inventée.
+   */
+  branch: Schema.optional(Schema.String),
+  /**
+   * Dernière **demande de l'utilisateur**.
+   *
+   * Distincte de `preview` : une liste montre ce qu'on a demandé, pas ce que
+   * l'agent a répondu — l'un se reconnaît d'un coup d'œil, l'autre oblige à
+   * relire.
+   */
+  lastPrompt: Schema.optional(Schema.String),
+  /**
+   * Modèle en vigueur, tel que la session l'a enregistré (`model_change`).
+   *
+   * Absent quand la session n'en déclare aucun : on ne complète pas avec un
+   * modèle supposé.
+   */
+  model: Schema.optional(Schema.String),
   /** Aperçu : dernier message texte de l'agent. Absent s'il n'y en a pas. */
   preview: Schema.optional(Schema.String),
+  /** Niveau de raisonnement en vigueur (`thinking_level_change`). */
+  thinking: Schema.optional(Schema.String),
   sessionState: SessionState,
   /** Horodatage de la dernière activité connue. Jamais inventé. */
   timestamp: Schema.optional(Schema.Number),

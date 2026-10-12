@@ -24,6 +24,8 @@ export interface RawPane {
   readonly tabLabel?: string | null;
   readonly workspaceLabel?: string | null;
   readonly agentStatus?: string | null;
+  /** Branche git du dossier de travail, résolue par l'appelant. */
+  readonly branch?: string | null | undefined;
   /** Chemin du fichier de session, ou `null` si l'agent n'en a pas. */
   readonly sessionPath?: string | null;
 }
@@ -90,22 +92,94 @@ export const titleOf = (pane: RawPane): string => {
  * On ne **résume** rien et on ne **fabrique** pas de question : si l'agent
  * n'a rien dit, on renvoie `undefined`, pas une phrase plausible (D017.1).
  */
-export const previewOf = (tailed: TailedSession): string | undefined => {
+export const previewOf = (tailed: TailedSession): string | undefined =>
+  texteDeRole(tailed, "assistant");
+
+/**
+ * Dernier **message de l'utilisateur**, pour la ligne de la liste.
+ *
+ * ⚠️ C'est la demande, pas la réponse : c'est ce que l'utilisateur a écrit et
+ * qu'il reconnaît. Une liste qui montrerait la réponse de l'agent obligerait à
+ * la relire pour se rappeler ce qu'on avait demandé.
+ */
+export const lastPromptOf = (tailed: TailedSession): string | undefined =>
+  texteDeRole(tailed, "user");
+
+/** Dernier texte d'un rôle donné, en remontant le fil. */
+const texteDeRole = (tailed: TailedSession, role: string): string | undefined => {
   for (let index = tailed.entries.length - 1; index >= 0; index -= 1) {
     const entry = tailed.entries[index];
-    if (entry === undefined || entry.type !== "assistant") continue;
+    if (entry === undefined) continue;
+    if (roleDeLigne(entry.raw) !== role) continue;
     const texte = extractText(entry.raw);
     if (texte !== undefined && texte.length > 0) return texte;
   }
   return undefined;
 };
 
+/**
+ * Modèle et niveau de raisonnement **en vigueur**.
+ *
+ * ⚠️ La session les porte comme des **changements** (`model_change`,
+ * `thinking_level_change`), pas comme un état courant. On remonte donc le fil
+ * jusqu'au dernier de chaque, et on ne déduit rien : sans changement, le champ
+ * reste absent — l'agent n'a pas forcément déclaré son modèle.
+ */
+export const reglagesOf = (
+  tailed: TailedSession,
+): {
+  readonly model?: string;
+  readonly thinking?: string;
+} => {
+  let model: string | undefined;
+  let thinking: string | undefined;
+  for (let index = tailed.entries.length - 1; index >= 0; index -= 1) {
+    const entry = tailed.entries[index];
+    if (entry === undefined) continue;
+    // Les deux peuvent être trouvés dans la même passe : on ne s'arrête que
+    // lorsque les deux sont connus, pour ne pas relire la session deux fois.
+    if (model === undefined && entry.type === "model_change") {
+      const lu = lireChamp(entry.raw, "modelId");
+      if (lu !== undefined) model = lu;
+    }
+    if (thinking === undefined && entry.type === "thinking_level_change") {
+      const lu = lireChamp(entry.raw, "thinkingLevel");
+      if (lu !== undefined) thinking = lu;
+    }
+    if (model !== undefined && thinking !== undefined) break;
+  }
+  return {
+    ...(model === undefined ? {} : { model }),
+    ...(thinking === undefined ? {} : { thinking }),
+  };
+};
+
+/** Champ texte de premier niveau d'une ligne, ou `undefined`. */
+const lireChamp = (raw: string, cle: string): string | undefined => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+  if (!isRecord(parsed)) return undefined;
+  const valeur = lire(parsed, cle);
+  return typeof valeur === "string" && valeur.trim().length > 0 ? valeur.trim() : undefined;
+};
+
 /** Dernier horodatage connu. Jamais remplacé par la date du jour. */
 export const timestampOf = (tailed: TailedSession): number | undefined => {
   for (let index = tailed.entries.length - 1; index >= 0; index -= 1) {
     const at = tailed.entries[index]?.timestamp;
-    const value = Number(at);
-    if (at !== undefined && Number.isFinite(value)) return value;
+    if (at === undefined) continue;
+    /*
+      ⚠️ Les horodatages Pi sont des **chaînes ISO**, pas des nombres. `Number()`
+      sur `"2026-10-09T15:08:21.784Z"` donne `NaN`, donc l'horodatage était
+      silencieusement perdu — la liste n'affichait aucune date, et rien ne le
+      signalait.
+    */
+    const valeur = Date.parse(at);
+    if (Number.isFinite(valeur)) return valeur;
   }
   return undefined;
 };
@@ -123,7 +197,15 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 /** Lit une clé d'un objet JSON sans assertion de type. */
 const lire = (source: Record<string, unknown>, cle: string): unknown => source[cle];
 
-const extractText = (raw: string): string | undefined => {
+/**
+ * Corps `message` d'une ligne de session.
+ *
+ * ⚠️ Une ligne Pi a la forme `{ type: "message", message: { role, content } }`.
+ * Les champs utiles sont **un niveau plus bas** que la ligne : lire `content` à
+ * la racine ne trouve rien, et c'est exactement le défaut qui faisait que
+ * l'aperçu n'apparaissait **jamais** dans la liste.
+ */
+const corpsDeLigne = (raw: string): Record<string, unknown> | undefined => {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -131,6 +213,27 @@ const extractText = (raw: string): string | undefined => {
     return undefined;
   }
   if (!isRecord(parsed)) return undefined;
+  const corps = lire(parsed, "message");
+  return isRecord(corps) ? corps : undefined;
+};
+
+/** Rôle déclaré par une ligne, ou `undefined`. */
+const roleDeLigne = (raw: string): string | undefined => {
+  const corps = corpsDeLigne(raw);
+  if (corps === undefined) return undefined;
+  const role = lire(corps, "role");
+  return typeof role === "string" ? role : undefined;
+};
+
+/**
+ * Texte d'un **corps de message**.
+ *
+ * Une ligne illisible donne `undefined` : mieux vaut un aperçu absent qu'un
+ * aperçu composé de balises JSON.
+ */
+const extractText = (raw: string): string | undefined => {
+  const parsed = corpsDeLigne(raw);
+  if (parsed === undefined) return undefined;
 
   const direct = lire(parsed, "text");
   if (typeof direct === "string" && direct.trim().length > 0) return direct.trim();
@@ -174,6 +277,7 @@ export const summaryOf = (
       title: titleOf(pane),
       workspaceId: pane.workspaceId,
       paneId: pane.paneId,
+      ...(pane.branch === undefined || pane.branch === null ? {} : { branch: pane.branch }),
     };
 
     const path = pane.sessionPath ?? null;
@@ -199,10 +303,13 @@ export const summaryOf = (
     }
 
     const preview = previewOf(value);
+    const lastPrompt = lastPromptOf(value);
     const timestamp = timestampOf(value);
     return {
       ...base,
       ...(preview === undefined ? {} : { preview }),
+      ...(lastPrompt === undefined ? {} : { lastPrompt }),
+      ...reglagesOf(value),
       sessionState: "available" as const,
       ...(timestamp === undefined ? {} : { timestamp }),
     };

@@ -1922,11 +1922,11 @@ button:disabled {
   cursor: pointer;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 2px;
   /* Toute la largeur, avec un minimum de 44 px de haut : la cible tactile est
      la ligne entière, pas le titre. */
   min-height: var(--tap-min);
-  padding: 10px 16px 12px;
+  padding: 12px 16px 14px;
   text-align: left;
   width: 100%;
 }
@@ -1943,12 +1943,26 @@ button:disabled {
   min-width: 0;
 }
 
-.conv__source {
+/* Ligne 1 : projet – onglet, et l'état qui flotte à droite. */
+.conv__origine {
+  align-items: baseline;
+  display: flex;
+  gap: 6px;
+  min-width: 0;
+}
+
+.conv__projet {
   color: var(--muted);
   font-size: 13px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.conv__onglet {
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 13px;
 }
 
 .conv__temps {
@@ -1957,11 +1971,17 @@ button:disabled {
   font-size: 12px;
 }
 
-.conv__titre {
-  font-size: 16px;
-  font-weight: 600;
-  /* Titre à deux lignes au maximum : au-delà, la ligne mange l'écran. */
+/*
+  Ligne 2 : la dernière demande.
+
+  ⚠️ **Deux lignes au plus.** Une demande peut être un paragraphe entier ; sans
+  plafond, une seule ligne prendrait la moitié de l'écran et la liste cesserait
+  d'être parcourable d'un coup d'œil.
+*/
+.conv__demande {
+  color: var(--text);
   display: -webkit-box;
+  font-size: 15px;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 2;
   line-clamp: 2;
@@ -1969,7 +1989,8 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
-.conv__meta {
+/* Ligne 3 : branche · modèle · raisonnement — ce qui reste se dit tel quel. */
+.conv__details {
   color: var(--muted);
   font-size: 12px;
   overflow: hidden;
@@ -2002,12 +2023,6 @@ button:disabled {
 
 .etat--fait {
   color: var(--ok);
-}
-
-.liste--activite li {
-  color: var(--muted);
-  font-size: 12px;
-  padding: 5px 16px;
 }
 
 /* --- Choix du projet ------------------------------------------------------ */
@@ -2081,4 +2096,71 @@ button:disabled {
 
 .fab:disabled {
   opacity: 0.5;
+}
+
+/* ---------------------------------------------------------------------------
+   En-tête : point de connexion et engrenage (U17)
+   --------------------------------------------------------------------------- */
+
+.topbar__droite {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+}
+
+/*
+  Un **point**, pas un mot.
+
+  « temps réel » était un libellé gris qu'il fallait lire à chaque ouverture
+  pour apprendre une information binaire. La couleur se lit d'un regard. Le
+  texte reste, mais réservé aux lecteurs d'écran.
+
+  ⚠️ Trois couleurs, pas deux : une reconnexion n'est pas une panne. Le flux
+  peut se taire quelques secondes pendant que la lecture fonctionne encore, et
+  l'annoncer en rouge ferait croire à une coupure qui n'existe pas.
+*/
+.point {
+  background: var(--muted);
+  border-radius: var(--radius-pill);
+  display: inline-block;
+  height: 10px;
+  width: 10px;
+}
+
+.point--live {
+  background: var(--ok);
+}
+
+.point--reconnexion {
+  background: var(--warn);
+}
+
+.point--hors-ligne {
+  background: var(--err);
+}
+
+.point--inconnu {
+  background: var(--muted);
+}
+
+.topbar__engrenage {
+  font-size: 20px;
+  line-height: 1;
+}
+
+/*
+  Lu par les lecteurs d'écran, absent à l'œil.
+
+  Sert au libellé de connexion : le point porte la couleur, ce texte porte le
+  sens. Sans lui, l'information n'existerait que pour qui voit bien.
+*/
+.sr-only {
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  padding: 0;
+  position: absolute;
+  width: 1px;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }

@@ -13,54 +13,36 @@
  *   remplacé par un substitut inventé.
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Option, Schema } from "effect";
 import {
   fetchAgentKinds,
   reportError,
   TrustRequiredError,
   fetchHealth,
   launchAgent,
+  fetchConversations,
   fetchOverview,
   openEventStream,
 } from "./api.ts";
 import type { AgentView, InstalledKind, Health, Overview, TrustRequired } from "./api.ts";
-import { ALL_STATUSES, statusLabel } from "./labels.tsx";
 import { ChatScreen } from "./ChatScreen.tsx";
-import { describeEvent, nameByPane } from "./activite.ts";
-import { WorkspaceRowMemo } from "./ProjectRow.tsx";
 import { BandeauEtat } from "./EtatLecture.tsx";
+import { SettingsSheet } from "./SettingsSheet.tsx";
+import type { ConversationSummary } from "@herdr-remote/shared";
 import { etatLecture } from "./etats.ts";
 import { ProjectAgentsOf } from "./ProjectDetail.tsx";
-import { Gallery } from "./Gallery.tsx";
 import type { LaunchChoice } from "./launch.ts";
 import { TrustCard } from "./TrustCard.tsx";
-import { DEFAULT_TAB, parseRoute, routeToHash, TabSchema, TABS, TAB_LABEL } from "./routing.ts";
+import { parseRoute, routeToHash } from "./routing.ts";
 import { SECTIONS, SECTION_LABEL, sectionOf } from "./sections.ts";
 import { ConversationRow } from "./ConversationRow.tsx";
 import { SectionTitle } from "./SectionTitle.tsx";
 import { ProjectPicker } from "./ProjectPicker.tsx";
-import type { Route, Tab } from "./routing.ts";
+import type { Route } from "./routing.ts";
 import { Notice } from "./Notice.tsx";
-
-/**
- * Modèle et niveau de raisonnement choisis au lancement.
- *
- * Les champs **absents** signifient « je ne choisis pas » : l'agent garde alors
- * ses propres valeurs. Une chaîne vide aurait un autre sens et briserait ça.
- */
 /**
  * Lit le fragment courant et se resynchronise sur les navigations, y compris le
  * bouton retour. L'analyse vit dans `routing.ts`, où elle est testée.
  */
-/**
- * Extrait le `paneId` d'un événement du flux.
- *
- * Déclaré hors du composant : un schéma construit dans le corps recrée le
- * décodeur à chaque rendu, et se lit comme un composant React.
- */
-const lireEvenementPane = (data: unknown) =>
-  Option.getOrUndefined(Schema.decodeUnknownOption(Schema.Struct({ paneId: Schema.String }))(data));
-
 const useHashRoute = (): [Route, (next: Route) => void] => {
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
 
@@ -82,30 +64,42 @@ const useHashRoute = (): [Route, (next: Route) => void] => {
   return [route, navigate];
 };
 
+/**
+ * État de connexion, en trois couleurs.
+ *
+ * ⚠️ Trois, pas deux : une reconnexion n'est pas une panne. Le flux peut se
+ * taire quelques secondes pendant que la lecture fonctionne encore ; l'annoncer
+ * en rouge ferait croire à une coupure qui n'existe pas.
+ *
+ * Le libellé accompagne la couleur, mais **hors de l'écran** : la couleur seule
+ * ne dit rien à un lecteur d'écran, et un mot gris qu'il faut lire à chaque
+ * ouverture n'apporte rien à l'œil.
+ */
+export type Connexion = "live" | "reconnexion" | "hors-ligne" | "inconnu";
+
+export const LIBELLE_CONNEXION: Record<Connexion, string> = {
+  live: "connecté",
+  reconnexion: "en reconnexion",
+  "hors-ligne": "hors ligne",
+  inconnu: "état inconnu",
+};
+
 export const App = () => {
   const [route, navigate] = useHashRoute();
-  const tab: Tab = route.kind === "tab" ? route.tab : DEFAULT_TAB;
   const [overview, setOverview] = useState<Overview | null>(null);
   const [health, setHealth] = useState<Health | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState<"live" | "down">("down");
-  const activitySeq = useRef(0);
-  /**
-   * Activité brute : on stocke `(kind, data)`, pas le texte.
-   *
-   * ⚠️ Résoudre le nom **à la réception** produisait « un agent » pour tout
-   * l'historique rejoué : le journal du serveur renvoie les événements passés
-   * dès la connexion, **avant** que la liste des agents ne soit chargée. Le nom
-   * n'existe pas encore à cet instant.
-   *
-   * En résolvant au **rendu**, un nom arrivé plus tard s'applique aussi aux
-   * événements passés.
-   */
-  const [activity, setActivity] = useState<
-    readonly { at: number; data: unknown; id: number; kind: string }[]
-  >([]);
 
-  const [statusFilter, setStatusFilter] = useState<string>("tous");
+  /**
+   * Lignes de la liste, servies par `/api/conversations`.
+   *
+   * ⚠️ **Une seule requête pour tout ce qu'affiche une ligne** : demande,
+   * modèle, branche, horodatage. Les prendre sur `overview` aurait laissé chaque
+   * ligne chercher sa session — donc N lectures de fichiers par rafraîchissement.
+   */
+  const [conversations, setConversations] = useState<ReadonlyArray<ConversationSummary>>([]);
+  const [reglagesOuverts, setReglagesOuverts] = useState(false);
   const [launching, setLaunching] = useState<string | null>(null);
   /** Types **réellement installés**, lus depuis Herdr — pas une liste codée. */
   const [kinds, setKinds] = useState<readonly InstalledKind[]>([]);
@@ -118,7 +112,6 @@ export const App = () => {
    * erreur rouge serait mentir sur ce qui se passe.
    */
   const [trustRequest, setTrustRequest] = useState<TrustRequired | null>(null);
-  const [workspaceFilter, setWorkspaceFilter] = useState<string>("tous");
   /** Une lecture est-elle en cours ? Prévoir le premier rendu, qui n'en est pas. */
   const [chargement, setChargement] = useState(true);
   /** Horodatage de la dernière lecture **réussie**, ou `null` si jamais. */
@@ -160,9 +153,14 @@ export const App = () => {
     enCours.current += 1;
     setChargement(true);
     try {
-      const [nextOverview, nextHealth] = await Promise.all([fetchOverview(), fetchHealth()]);
+      const [nextOverview, nextHealth, nextConversations] = await Promise.all([
+        fetchOverview(),
+        fetchHealth(),
+        fetchConversations(),
+      ]);
       setOverview(nextOverview);
       setHealth(nextHealth);
+      setConversations(nextConversations.conversations);
       setError(null);
       // Horodatage de la **dernière** lecture réussie : c'est ce qui permet de
       // dire l'âge de ce qui est affiché au lieu de supposer qu'il est frais.
@@ -205,20 +203,14 @@ export const App = () => {
   useEffect(
     () =>
       openEventStream({
-        onEvent: (kind, data) => {
-          activitySeq.current += 1;
-          const entry = { at: Date.now(), data, id: activitySeq.current, kind };
-          setActivity((current) => [entry, ...current].slice(0, 80));
-          // Un changement d'état d'agent est le signal du **direct** : on
-          // rafraîchit la vue, servie depuis le cache du veilleur.
+        // Un changement d'état d'agent est le signal du **direct** : on
+        // rafraîchit la liste, servie depuis le cache du veilleur.
+        onEvent: (kind: string) => {
           if (kind === "agent_status") void refresh();
         },
+        // Continuité rompue côté serveur : on recharge au lieu de croire à un
+        // flux continu.
         onResync: () => {
-          // Continuité rompue côté serveur : on recharge au lieu de croire
-          // à un flux continu.
-          activitySeq.current += 1;
-          const entry = { at: Date.now(), data: {}, id: activitySeq.current, kind: "resync" };
-          setActivity((current) => [entry, ...current]);
           void refresh();
         },
         onStatus: setLive,
@@ -235,8 +227,6 @@ export const App = () => {
    * écrans — et faisait perdre le défilement au rafraîchissement du snapshot.
    */
   const agents = useMemo(() => overview?.agents ?? [], [overview]);
-  // Table de noms **du rendu** : un nom arrivé après un événement s'y applique.
-  const activityNames = nameByPane(agents);
 
   /**
    * Mémoire des observations.
@@ -269,8 +259,7 @@ export const App = () => {
    * d'agents : l'onglet Projets affiche des projets, et trois projets sans
    * agent ne sont pas une liste vide.
    */
-  const total =
-    tab === "projets" ? (overview?.workspaces.length ?? 0) : (overview?.agents.length ?? 0);
+  const total = conversations.length;
 
   /**
    * Un seul état d'affichage, jamais deux.
@@ -291,19 +280,6 @@ export const App = () => {
   }, [refresh]);
 
   /**
-   * Racine du projet courant, déduite d'un agent qui tourne dedans.
-   *
-   * On ne code pas le chemin en dur : il vient de Herdr, comme tout le reste.
-   * En l'absence d'agent dans ce projet, on retombe sur le dossier de travail
-   * du premier agent disponible — la galerie est un outil de développement, et
-   * elle disparaît d'elle-même si aucun chemin n'est connu.
-   */
-  const projectRoot =
-    agents.find((agent) => agent.workspaceLabel === "herdr-pwa")?.cwd ?? agents[0]?.cwd ?? "";
-  /** `true` si au moins un agent tourne — sert à ne jamais afficher un vide. */
-  const waiting = agents.length > 0;
-
-  /**
    * Captures servies par le backend.
    *
    * Elles vivent dans `apps/web/public/screenshots`, donc sous le dossier du
@@ -313,64 +289,60 @@ export const App = () => {
   // Hors du corps du composant : le tableau ne dépend que de `projectRoot`, donc
   // il est identique à chaque rendu. Le reconstruire ici en créait une nouvelle
   // référence et redessinait la galerie entière (react-perf).
-  const screenshotPaths = useMemo(
+  /**
+   * Liste par sections, dans l'ordre du tableau de règles.
+   *
+   * Les sections sont celles de la référence, et elles répondent à la seule
+   * question qu'on se pose en ouvrant l'application : **qu'est-ce qui m'attend ?**
+   */
+  const sections = useMemo(
     () =>
-      ["00-a-traiter", "01-projets", "02-agents", "03-conversation"].map(
-        (name) => `${projectRoot}/apps/web/public/screenshots/${name}.png`,
-      ),
-    [projectRoot],
+      SECTIONS.map((section) => ({
+        lignes: conversations.filter((conversation) => sectionOf(conversation.status) === section),
+        section,
+      })),
+    [conversations],
   );
-  /**
-   * Liste **par sections**, filtrée.
-   *
-   * ⚠️ Le filtre porte sur la liste entière, pas sur une section : un agent
-   * filtré disparaît aussi de « À traiter ». Le contraire donnerait l'impression
-   * qu'il a été traité.
-   */
-  const filtreActif = statusFilter !== "tous" || workspaceFilter !== "tous";
-  const liste = useMemo(() => {
-    const retenus = agents.filter(
-      (agent) =>
-        (statusFilter === "tous" || agent.status === statusFilter) &&
-        (workspaceFilter === "tous" || agent.workspaceId === workspaceFilter),
-    );
-    // On groupe les **agents** eux-mêmes, pas des résumés : la ligne affiche le
-    // contexte complet (onglet, type, projet) et un résumé ne le porte pas.
-    return SECTIONS.map((section) => ({
-      conversations: retenus.filter((agent) => sectionOf(agent.status) === section),
-      section,
-    }));
-  }, [agents, statusFilter, workspaceFilter]);
-  const totalVisible = liste.reduce((cumul, une) => cumul + une.conversations.length, 0);
+
+  /** Nom du projet et libellé d'onglet — absents de `ConversationSummary`. */
+  const projetDe = useCallback(
+    (workspaceId: string): string =>
+      overview?.workspaces.find((workspace) => workspace.workspaceId === workspaceId)?.label ??
+      "projet",
+    [overview],
+  );
+  const ongletDe = useCallback(
+    (paneId: string): string => {
+      const agent = agents.find((candidat) => candidat.paneId === paneId);
+      const label = agent?.tabLabel ?? null;
+      // Un libellé d'onglet purement numérique est le nom par défaut de Herdr :
+      // « – 3 » n'apprend rien, donc on n'affiche rien.
+      return label === null || /^\d+$/.test(label.trim()) ? "" : label;
+    },
+    [agents],
+  );
 
   /**
-   * Dernier événement connu, par agent.
+   * État de la connexion, en trois couleurs.
    *
-   * ⚠️ Herdr ne donne **aucun** horodatage par agent. Le journal d'événements
-   * est la seule source réelle ; il est donc incomplet par nature — un agent
-   * lancé avant le dernier rechargement n'a pas d'instant, et la colonne reste
-   * vide. Une heure inventée serait pire qu'une cellule muette.
+   * ⚠️ Trois états réels, pas deux : `live` (le flux parle), `reconnexion` (le
+   * flux s'est tu mais la lecture marche encore), `hors-ligne` (la dernière
+   * lecture a échoué). Un jaune pour la reconnexion évite de crier au rouge
+   * pendant une coupure de quelques secondes.
    */
-  const instantsParPane = useMemo(() => {
-    const table = new Map<string, number>();
-    for (const item of activity) {
-      // La charge utile est décodée, pas devinée : un événement sans `paneId`
-      // n'a pas de ligne, et le dire vaut mieux qu'un `undefined` qui
-      // ramènerait toutes les lignes au même instant.
-      const lu = lireEvenementPane(item.data);
-      if (lu === undefined) continue;
-      const pane = lu.paneId;
-      const precedent = table.get(pane);
-      // Le journal est trié du plus récent au plus ancien : le premier vue
-      // gagne, et un `max` évite de dépendre de cet ordre.
-      if (precedent === undefined || item.at > precedent) table.set(pane, item.at);
-    }
-    return table;
-  }, [activity]);
+  const connexion: Connexion =
+    etat.phase === "erreur" || etat.phase === "hors-ligne"
+      ? "hors-ligne"
+      : etat.phase === "reconnexion"
+        ? "reconnexion"
+        : live === "live"
+          ? "live"
+          : "inconnu";
 
-  const [filtresOuverts, setFiltresOuverts] = useState(false);
+  const ouvrirReglages = useCallback(() => setReglagesOuverts(true), []);
+  const fermerReglages = useCallback(() => setReglagesOuverts(false), []);
+
   const [projetChoisi, setProjetChoisi] = useState(false);
-  const ouvrirFiltres = useCallback(() => setFiltresOuverts((ouvert) => !ouvert), []);
   const choisirProjet = useCallback(
     (workspaceId: string) => {
       setProjetChoisi(false);
@@ -395,17 +367,8 @@ export const App = () => {
   const projectWorkspace = (overview?.workspaces ?? []).find(
     (workspace) => workspace.workspaceId === projectWorkspaceId,
   );
-  const onBackToProjects = useCallback(() => navigate({ kind: "tab", tab: "projets" }), [navigate]);
+  const onBackToProjects = useCallback(() => navigate({ kind: "liste" }), [navigate]);
 
-  // Handlers stables : évite de recréer une fonction à chaque rendu.
-  const onTabClick = useCallback(
-    (event: React.MouseEvent<HTMLButtonElement>) => {
-      const next = event.currentTarget.dataset["tab"];
-      const valid = Option.getOrUndefined(Schema.decodeUnknownOption(TabSchema)(next));
-      if (valid !== undefined) navigate({ kind: "tab", tab: valid });
-    },
-    [navigate],
-  );
   // Wrapper synchrone : `onClick` attend un retour `void`.
   const onLaunchAgent = useCallback(
     (workspaceId: string, kind: string, choice: LaunchChoice) => {
@@ -435,34 +398,13 @@ export const App = () => {
     [navigate, refresh],
   );
 
-  const onWorkspaceFilter = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
-    setWorkspaceFilter(event.target.value);
-  }, []);
-  const onStatusFilter = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
-    setStatusFilter(event.target.value);
-  }, []);
-
-  const closeAgent = useCallback(() => navigate({ kind: "tab", tab: DEFAULT_TAB }), [navigate]);
+  const closeAgent = useCallback(() => navigate({ kind: "liste" }), [navigate]);
 
   const openAgent = useCallback(
     (agent: AgentView) => {
       // ⚠️ Naviguer **est** l'ouverture : le rendu se fonde sur la route. Mettre
       // à jour un état local sans toucher à la route ne faisait rien du tout.
       navigate({ kind: "agent", paneId: agent.paneId });
-    },
-    [navigate],
-  );
-
-  /**
-   * Ouvre le **détail** d'un projet (U05).
-   *
-   * Avant, toucher un projet filtrait la liste des agents et revenait à
-   * l'accueil. Le filtre se combinait mal avec la navigation : l'utilisateur
-   * perdait le contexte du projet, et « revenir » ne menait nulle part.
-   */
-  const onOpenWorkspace = useCallback(
-    (workspaceId: string) => {
-      navigate({ kind: "projet", workspaceId });
     },
     [navigate],
   );
@@ -528,39 +470,58 @@ export const App = () => {
 
   return (
     <div className="app">
+      {/*
+        En-tête : le titre, puis l'état de connexion et les réglages.
+
+        ⚠️ Le libellé « temps réel » a disparu au profit d'un **point** (U17).
+        Un mot gris qu'il faut lire à chaque fois n'apprend rien ; la couleur
+        seule se lit d'un regard, et le libellé reste accessible aux lecteurs
+        d'écran par `aria-label`.
+      */}
       <header className="topbar">
-        <div>
-          <h1>Herdr Remote</h1>
-          <span className="muted small">
-            {health?.herdr.version !== undefined
-              ? `Herdr ${health.herdr.version} · protocole ${health.herdr.protocol}`
-              : "Herdr injoignable"}
-          </span>
+        <h1>Herdr Remote</h1>
+        <div className="topbar__droite">
+          {/*
+            ⚠️ Le point est **décoratif** : la couleur ne dit rien à un lecteur
+            d'écran. Le texte accessible est donc à côté, masqué visuellement
+            mais lu — c'est aussi ce qui rend l'information disponible au clavier
+            et au survol.
+          */}
+          <span className={`point point--${connexion}`} aria-hidden="true" />
+          <span className="sr-only">Herdr {LIBELLE_CONNEXION[connexion]}</span>
+          <button
+            type="button"
+            className="ghost topbar__engrenage"
+            aria-label="Réglages"
+            onClick={ouvrirReglages}
+          >
+            ⚙
+          </button>
         </div>
-        <span className={live === "live" ? "pill pill--live" : "pill pill--down"}>
-          {live === "live" ? "temps réel" : "hors ligne"}
-        </span>
       </header>
 
       <BandeauEtat
         etat={etat}
-        libelleVide={
-          tab === "projets" ? "Aucun projet dans Herdr." : "Aucune conversation ouverte dans Herdr."
-        }
+        libelleVide="Aucune conversation dans Herdr pour l'instant."
         onReessayer={reessayer}
       />
-      {/*
-        Les agents masqués sont **comptés**, pas oubliés (U14) : leur contenu
-        n'est pas lisible depuis le téléphone, et le silence ferait croire qu'ils
-        n'existent pas.
-      */}
-      {overview !== null && overview.withoutSession > 0 ? (
-        <Notice ton="avertissement">
-          {overview.withoutSession} agent(s) masqué(s) : Herdr n'expose pas de session lisible pour
-          eux. Ils tournent, on ne peut pas les lire d'ici.
-        </Notice>
-      ) : null}
 
+      {/*
+        Invite de confiance : **globale**, au-dessus de tout.
+        Elle peut naître d'un lancement fait depuis n'importe quel écran, et un
+        agent bloqué sur une question doit la poser où qu'on soit. La renvoyer
+        dans un onglet la rendrait invisible depuis le détail d'un projet.
+      */}
+      {trustRequest !== null ? (
+        <TrustCard request={trustRequest} onDone={() => setTrustRequest(null)} />
+      ) : null}
+      {launchError !== null ? <Notice ton="erreur">{launchError}</Notice> : null}
+
+      {/*
+        Détail d'un projet : la seule destination hors liste. Il porte
+        « Nouvel agent », donc c'est le chemin de lancement — le bouton flottant
+        y mène par le choix du projet.
+      */}
       {route.kind === "projet" ? (
         <ProjectAgentsOf
           agents={agents}
@@ -569,177 +530,48 @@ export const App = () => {
           launching={launching === route.workspaceId}
           onLaunch={onLaunchAgent}
           onOpenAgent={onOpenAgent}
-          workspaceId={projectWorkspaceId}
           workspace={projectWorkspace}
+          workspaceId={projectWorkspaceId}
         />
       ) : null}
 
-      {tab === "projets" ? (
-        <section className="screen">
-          <h2>Projets</h2>
-          <p className="muted small">
-            Toucher un projet ouvre son agent. Le <strong>+</strong> ajoute un agent — dans un
-            projet vide, ou dans un nouvel onglet s'il en a déjà un.
-          </p>
-          {launchError !== null ? <Notice ton="erreur">{launchError}</Notice> : null}
-          {trustRequest !== null ? (
-            <TrustCard request={trustRequest} onDone={() => setTrustRequest(null)} />
-          ) : null}
-          <ul className="list">
-            {overview?.workspaces.map((workspace) => (
-              <li key={workspace.workspaceId}>
-                <WorkspaceRowMemo
-                  agentPaneCount={workspace.agentPanes.length}
-                  kinds={kinds}
-                  launching={launching === workspace.workspaceId}
-                  onLaunch={onLaunchAgent}
-                  onOpen={onOpenWorkspace}
-                  workspace={workspace}
-                />
-              </li>
+      {/*
+        La liste, sans onglets ni filtres.
+
+        ⚠️ Les onglets sont partis : « Projets » n'était qu'un détour vers le
+        détail d'un projet, atteignable depuis le bouton flottant, et
+        « Réglages » est passé derrière l'engrenage. Trois onglets pour deux
+        écrans réels coûtaient un geste à chaque ouverture.
+      */}
+      <section className="screen screen--liste">
+        {sections.map(({ lignes, section }) => (
+          <section key={section}>
+            <SectionTitle count={lignes.length}>{SECTION_LABEL[section]}</SectionTitle>
+            {lignes.map((conversation) => (
+              <ConversationRow
+                conversation={conversation}
+                key={conversation.paneId}
+                maintenant={maintenant}
+                onglet={ongletDe(conversation.paneId)}
+                onOpen={onOpenAgent}
+                projet={projetDe(conversation.workspaceId)}
+              />
             ))}
-          </ul>
-          {overview !== null && overview.workspaces.length === 0 ? (
-            <p className="muted">Aucun workspace.</p>
-          ) : null}
-        </section>
-      ) : null}
+          </section>
+        ))}
+        {conversations.length === 0 && etat.phase === "pret" ? (
+          <p className="muted liste__rien">Aucun agent dans Herdr pour l'instant.</p>
+        ) : null}
+      </section>
 
-      {/*
-        Conversations — destination initiale (U04).
-
-        `À traiter` n’est plus un onglet : c’est la **première section** de
-        Conversations. Ouvrir sur « Agents » obligeait à choisir entre « qui
-        existe » et « de quoi s’occuper » — deux listes, une seule réponse.
-      */}
-      {tab === "conversations" ? (
-        <section className="screen screen--liste">
-          <header className="liste__head">
-            <h2>Conversations</h2>
-            {/*
-              Les filtres sont **cachés** par défaut : deux listes déroulantes
-              au-dessus de la liste occupaient le premier écran et n'aidaient à
-              personne à lire. Ils n'apparaissent que si on les demande — et le
-              bouton dit alors qu'ils sont actifs.
-            */}
-            <button
-              type="button"
-              className="ghost liste__filtres"
-              aria-expanded={filtresOuverts}
-              onClick={ouvrirFiltres}
-            >
-              {filtreActif ? "Filtres actifs" : "Filtres"}
-            </button>
-          </header>
-
-          {filtresOuverts || filtreActif ? (
-            <div className="filters">
-              <select
-                value={workspaceFilter}
-                aria-label="Filtrer par projet"
-                onChange={onWorkspaceFilter}
-              >
-                <option value="tous">tous les projets</option>
-                {overview?.workspaces.map((workspace) => (
-                  <option key={workspace.workspaceId} value={workspace.workspaceId}>
-                    {workspace.label ?? workspace.workspaceId}
-                  </option>
-                ))}
-              </select>
-              <select value={statusFilter} aria-label="Filtrer par état" onChange={onStatusFilter}>
-                <option value="tous">tous les états</option>
-                {ALL_STATUSES.map((status) => (
-                  <option key={status} value={status}>
-                    {statusLabel(status)}
-                  </option>
-                ))}
-              </select>
-            </div>
-          ) : null}
-
-          {liste.map(({ conversations, section }) => (
-            <section key={section} className="liste__section">
-              <SectionTitle count={conversations.length}>{SECTION_LABEL[section]}</SectionTitle>
-              {conversations.length === 0 ? (
-                /*
-                  Une section vide **reste visible**, avec son compte à zéro. La
-                  retirer ferait disparaître la structure : l'utilisateur ne
-                  saurait plus s'il a tout vu, ou si une section lui a été
-                  cachée.
-                */
-                <p className="liste__vide">rien ici</p>
-              ) : (
-                <ul className="liste">
-                  {conversations.map((conversation) => (
-                    <li key={conversation.paneId}>
-                      <ConversationRow
-                        agent={conversation}
-                        instant={instantsParPane.get(conversation.paneId) ?? null}
-                        maintenant={maintenant}
-                        onOpen={onOpenAgent}
-                      />
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </section>
-          ))}
-
-          {totalVisible === 0 && filtreActif ? (
-            <p className="muted">Aucun agent pour ce filtre.</p>
-          ) : null}
-
-          {/*
-            Le parc quand il n'y a rien du tout à montrer. Un écran d'accueil ne
-            doit pas être vide : quand rien ne tourne, on le dit, et le bouton
-            flottant reste là pour lancer.
-          */}
-          {agents.length === 0 && !waiting ? (
-            <p className="muted liste__rien">Aucun agent dans Herdr pour l'instant.</p>
-          ) : null}
-
-          <SectionTitle count={activity.length}>Activité</SectionTitle>
-          {activity.length === 0 ? (
-            <p className="muted small">
-              Rien reçu pour l'instant. Les lancements, messages et changements d'état apparaissent
-              ici.
-            </p>
-          ) : (
-            <ul className="liste liste--activite">
-              {activity.map((item) => (
-                <li key={item.id} className="conv__ligne--bas">
-                  <span className="conv__meta">
-                    {describeEvent(item.kind, item.data, activityNames)}
-                  </span>
-                  <span className="conv__temps">
-                    {new Date(item.at).toLocaleTimeString("fr-FR", {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      ) : null}
-
-      {/*
-        Bouton flottant : l'action principale doit être atteignable **sans**
-        remonter la liste. Il reste au-dessus du bas d'écran grâce à
-        `position: fixed`, et son nom dit ce qu'il fait — il demande le projet,
-        il ne lance pas dans le vide.
-      */}
-      {tab === "conversations" ? (
-        <button
-          type="button"
-          className="fab"
-          onClick={() => setProjetChoisi(true)}
-          disabled={agents.length === 0}
-        >
-          + Nouvel agent
-        </button>
-      ) : null}
+      <button
+        type="button"
+        className="fab"
+        disabled={conversations.length === 0}
+        onClick={() => setProjetChoisi(true)}
+      >
+        + Nouvel agent
+      </button>
 
       {projetChoisi ? (
         <ProjectPicker
@@ -749,44 +581,13 @@ export const App = () => {
         />
       ) : null}
 
-      {tab === "reglages" ? (
-        <section className="screen">
-          <h2>Réglages</h2>
-          <dl className="kv">
-            <dt>Socket Herdr</dt>
-            <dd className="mono small">{health?.herdr.socket ?? "—"}</dd>
-            <dt>Herdr joignable</dt>
-            <dd>{health?.herdr.reachable === true ? "oui" : "non"}</dd>
-            <dt>Chemin de session</dt>
-            <dd>
-              {agents.every((agent) => agent.sessionCwdMatches !== false)
-                ? "cohérent pour tous les agents"
-                : "divergence détectée"}
-            </dd>
-            <dt>Écoute</dt>
-            <dd className="mono small">127.0.0.1 — accès via Tailscale uniquement</dd>
-          </dl>
-          <p className="muted small">
-            Le contenu des conversations est lu dans les fichiers de session Pi, jamais depuis
-            Herdr. Aucune action shell arbitraire n'est exposée.
-          </p>
-          {projectRoot.length > 0 ? <Gallery paths={screenshotPaths} /> : null}
-        </section>
+      {reglagesOuverts ? (
+        <SettingsSheet
+          health={health}
+          onClose={fermerReglages}
+          sansSession={overview?.withoutSession ?? 0}
+        />
       ) : null}
-
-      <nav className="tabs">
-        {TABS.map((key) => (
-          <button
-            key={key}
-            type="button"
-            data-tab={key}
-            className={tab === key ? "tab tab--active" : "tab"}
-            onClick={onTabClick}
-          >
-            {TAB_LABEL[key]}
-          </button>
-        ))}
-      </nav>
     </div>
   );
 };

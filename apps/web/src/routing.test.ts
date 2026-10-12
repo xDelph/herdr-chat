@@ -1,136 +1,82 @@
 /**
- * Tests du routage.
+ * Routage par fragment — testé seul (U05, U17).
  *
- * Le cas central : **un agent doit survivre au rafraîchissement**. C'est le
- * retour utilisateur qui a motivé ce module — rafraîchir sur un agent ramenait
- * à l'accueil.
+ * ⚠️ La barre d'onglets a disparu en U17 : les trois destinations d'avant
+ * retombent sur la liste. Ces tests gardent donc deux choses à la fois — les
+ * routes réelles, et le fait qu'une adresse enregistrée d'avant ne casse pas.
  */
 import { describe, expect, test } from "bun:test";
-import { DEFAULT_TAB, parseRoute, routeToHash, TAB_LABEL } from "./routing.ts";
+import { estAdresseDOnglet, HOME, parseRoute, routeToHash } from "./routing.ts";
 
-describe("parseRoute", () => {
-  test("un agent est lu depuis le fragment — survit au rafraîchissement", () => {
-    const route = parseRoute("#/agent/wB:p1");
-    expect(route.kind).toBe("agent");
-    if (route.kind === "agent") expect(route.paneId).toBe("wB:p1");
-  });
-
-  test("les identifiants de pane avec deux-points sont préservés", () => {
-    const route = parseRoute("#/agent/w12:p3");
-    if (route.kind === "agent") expect(route.paneId).toBe("w12:p3");
-  });
-
-  test("un identifiant encodé est décodé", () => {
+describe("routage — les deux destinations réelles", () => {
+  test("un agent se rouvre après rafraîchissement", () => {
     const route = parseRoute("#/agent/w1%3Ap1");
-    if (route.kind === "agent") expect(route.paneId).toBe("w1:p1");
+    expect(route).toEqual({ kind: "agent", paneId: "w1:p1" });
   });
 
-  test("les trois destinations sont reconnues (U04)", () => {
-    for (const tab of ["conversations", "projets", "reglages"] as const) {
-      const route = parseRoute(`#/${tab}`);
-      expect(route.kind).toBe("tab");
-      if (route.kind === "tab") expect(route.tab).toBe(tab);
-    }
+  test("un project se rouvre aussi", () => {
+    expect(parseRoute("#/projet/w1")).toEqual({ kind: "projet", workspaceId: "w1" });
   });
 
-  /**
-   * Les anciens onglets doivent retomber sur Conversations, **pas** produire
-   * un écran vide : une URL enregistrée sur l'ancien déploiement reste
-   * cliquable.
-   */
-  test("un ancien onglet retombe sur Conversations", () => {
-    for (const ancien of ["a-traiter", "agents"]) {
-      const route = parseRoute(`#/${ancien}`);
-      expect(route.kind).toBe("tab");
-      if (route.kind === "tab") expect(route.tab).toBe(DEFAULT_TAB);
-    }
-  });
-
-  test("Conversations est l'onglet par défaut", () => {
-    expect(DEFAULT_TAB).toBe("conversations");
-    for (const vide of ["", "#", "#/", "#/nimporte-quoi"]) {
-      const route = parseRoute(vide);
-      if (route.kind === "tab") expect(route.tab).toBe("conversations");
-    }
-  });
-
-  test("chaque destination a son libellé exact", () => {
-    expect(TAB_LABEL["conversations"]).toBe("Conversations");
-    expect(TAB_LABEL["projets"]).toBe("Projets");
-    expect(TAB_LABEL["reglages"]).toBe("Réglages");
-  });
-
-  test("fragment vide → onglet par défaut", () => {
-    const route = parseRoute("");
-    if (route.kind === "tab") expect(route.tab).toBe(DEFAULT_TAB);
-  });
-
-  test("fragment inconnu → onglet par défaut, jamais un écran vide", () => {
-    for (const hash of ["#/nimportequoi", "#/", "#", "#/agent/", "#/agents/w1:p1/x"]) {
-      const route = parseRoute(hash);
-      expect(route.kind === "tab" || route.kind === "agent").toBe(true);
-      if (route.kind === "tab") expect(route.tab).toBe(DEFAULT_TAB);
-    }
-  });
-
-  test("un encodage invalide ne fait pas planter l'analyse", () => {
-    // `decodeURIComponent` lève sur un pourcentage malformé.
-    expect(() => parseRoute("#/agent/%")).not.toThrow();
-    const route = parseRoute("#/agent/%");
-    if (route.kind === "tab") expect(route.tab).toBe(DEFAULT_TAB);
-  });
-});
-
-describe("routeToHash", () => {
-  test("aller-retour stable pour un onglet", () => {
-    expect(routeToHash(parseRoute("#/projets"))).toBe("#/projets");
-  });
-
-  test("aller-retour stable pour un agent", () => {
-    expect(routeToHash(parseRoute("#/agent/wB:p1"))).toBe("#/agent/wB%3Ap1");
-  });
-
-  test("le résultat se ré-analyse à l'identique", () => {
-    const original = parseRoute("#/agent/wB:p1");
-    const roundTripped = parseRoute(routeToHash(original));
-    expect(roundTripped).toEqual(original);
-  });
-});
-
-/**
- * U05 — le détail d'un projet a sa propre route.
- *
- * Il doit survivre à un rechargement : sans cela, ouvrir un projet puis
- * rafraîchir ramènerait à l'accueil, exactement le défaut que le routage par
- * fragment corrigeait pour les agents.
- */
-describe("routage — détail de projet", () => {
-  test("`#/projet/<id>` ouvre le détail", () => {
-    const route = parseRoute("#/projet/w1");
-    expect(route.kind).toBe("projet");
-    if (route.kind === "projet") expect(route.workspaceId).toBe("w1");
+  test("l'accueil est la liste", () => {
+    expect(parseRoute("#/")).toEqual({ kind: "liste" });
+    expect(parseRoute("")).toEqual({ kind: "liste" });
   });
 
   test("aller-retour : la route produit exactement le même fragment", () => {
-    const route = { kind: "projet", workspaceId: "w2:x/3" } as const;
-    expect(routeToHash(route)).toBe("#/projet/w2%3Ax%2F3");
-    expect(parseRoute(routeToHash(route))).toEqual(route);
+    for (const route of [
+      { kind: "liste" } as const,
+      { kind: "agent", paneId: "w1:p1" } as const,
+      { kind: "projet", workspaceId: "w2:x/3" } as const,
+    ]) {
+      expect(parseRoute(routeToHash(route))).toEqual(route);
+    }
   });
 
-  test("`projet/` vide retombe sur l'onglet par défaut, sans casser", () => {
-    const route = parseRoute("#/projet/");
-    expect(route.kind).toBe("tab");
-    if (route.kind === "tab") expect(route.tab).toBe(DEFAULT_TAB);
+  test("un identifiant qui contient `/` et `:` survit à l'aller-retour", () => {
+    const route = { kind: "agent", paneId: "w2:x/3" } as const;
+    expect(routeToHash(route)).toBe("#/agent/w2%3Ax%2F3");
   });
 
-  test("un pourcentage invalide ne fait pas tomber le rendu", () => {
-    // `decodeURIComponent` lève : le fragment ne doit pas casser l'app.
-    const route = parseRoute("#/projet/%");
-    expect(route.kind).toBe("tab");
+  test("l'accueil a une adresse stable", () => {
+    expect(routeToHash({ kind: "liste" })).toBe(HOME);
+  });
+});
+
+describe("routage — rien ne casse le rendu", () => {
+  test("un agent sans identifiant retombe sur la liste", () => {
+    expect(parseRoute("#/agent/")).toEqual({ kind: "liste" });
   });
 
-  test("`projet/w1` n'est pas lu comme un onglet", () => {
-    const route = parseRoute("#/projet/w1");
-    expect(route.kind).not.toBe("tab");
+  test("un pourcentage invalide ne lève pas", () => {
+    // `decodeURIComponent` lève : une URL tapée à la main ne doit pas casser
+    // toute l'application.
+    expect(parseRoute("#/agent/%")).toEqual({ kind: "liste" });
+    expect(parseRoute("#/projet/%")).toEqual({ kind: "liste" });
+  });
+
+  test("un fragment inconnu retombe sur la liste, jamais sur un écran vide", () => {
+    expect(parseRoute("#/nimporte-quoi")).toEqual({ kind: "liste" });
+  });
+
+  test("`projet/w1` n'est pas lu comme un agent", () => {
+    expect(parseRoute("#/projet/w1").kind).toBe("projet");
+  });
+});
+
+describe("U17 — les adresses d'onglet d'avant sont encore reconnues", () => {
+  test("elles retombent sur la liste au lieu d'un écran blanc", () => {
+    // ⚠️ Un raccourci enregistré sur l'écran d'accueil d'un iPhone pointe une
+    // adresse précise. Une adresse morte donnerait un écran vide, sans
+    // explication.
+    for (const ancienne of ["conversations", "projets", "reglages", "agents"]) {
+      expect(parseRoute(`#/${ancienne}`)).toEqual({ kind: "liste" });
+      expect(estAdresseDOnglet(`#/${ancienne}`)).toBe(true);
+    }
+  });
+
+  test("une route réelle n'est pas prise pour une adresse d'onglet", () => {
+    expect(estAdresseDOnglet("#/agent/w1%3Ap1")).toBe(false);
+    expect(estAdresseDOnglet("#/projet/w1")).toBe(false);
   });
 });

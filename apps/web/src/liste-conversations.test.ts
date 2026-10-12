@@ -60,8 +60,10 @@ describe("U16 — le mot d'état se lit, et il se distingue", () => {
     expect(ligne).toContain('unknown: "etat"');
   });
 
-  test("le mot est bien le texte de l'état, pas une pastille", () => {
-    expect(ligne).toContain("statusLabel(agent.status)");
+  test("le mot est bien un texte, jamais une pastille", () => {
+    // U17 : le mot est calculé localement, parce que « terminé **il y a 2 min** »
+    // porte plus d'information que le seul état.
+    expect(ligne).toContain("motDEtat(conversation, maintenant)");
     expect(ligne).not.toContain("statusClass(");
   });
 });
@@ -99,36 +101,63 @@ describe("U16 — la ligne se lit à 320 px", () => {
     expect(conv.width).toBe("100%");
   });
 
-  test("source et temps ne se chevauchent pas", () => {
-    // La source porte `min-width: 0` pour pouvoir rétrécir ; sans elle, elle
-    // pousserait le temps hors de l'écran à 320 px.
-    expect(bloc(".conv__ligne")["min-width"]).toBe("0");
-    expect(bloc(".conv__source").overflow).toBe("hidden");
-    expect(bloc(".conv__temps")["flex"]).toBe("0 0 auto");
+  test("projet et onglet ne poussent pas l'état hors de l'écran", () => {
+    // Le projet porte `min-width: 0` et le tronquage : sans eux, un nom long
+    // pousserait l'état à droite hors de l'écran à 320 px.
+    expect(bloc(".conv__origine")["min-width"]).toBe("0");
+    expect(bloc(".conv__projet").overflow).toBe("hidden");
+    expect(bloc(".conv__onglet")["flex"]).toBe("0 0 auto");
   });
 
-  test("le titre est tronqué à deux lignes, jamais empilé", () => {
-    // Un titre de conversation peut être une phrase entière : sans plafond, il
-    // pousse la ligne et mange l'écran.
-    expect(bloc(".conv__titre")["-webkit-line-clamp"]).toBe("2");
-    expect(bloc(".conv__titre").overflow).toBe("hidden");
+  test("la demande est tronquée à deux lignes, jamais empilée", () => {
+    // Une demande peut être un paragraphe entier : sans plafond, une ligne
+    // prendrait la moitié de l'écran et la liste cesserait d'être parcourable.
+    expect(bloc(".conv__demande")["-webkit-line-clamp"]).toBe("2");
+    expect(bloc(".conv__demande").overflow).toBe("hidden");
+  });
+
+  test("la troisième ligne se tronque au lieu de passer à la ligne", () => {
+    // Branche, modèle et raisonnement peuvent être longs : une ligne, un
+    // ellipsis. Un retour à la ligne ferait varier la hauteur d'une ligne à
+    // l'autre et casserait le rythme de la liste.
+    expect(bloc(".conv__details")["white-space"]).toBe("nowrap");
+    expect(bloc(".conv__details")["text-overflow"]).toBe("ellipsis");
   });
 });
 
 describe("U16 — la liste garde sa structure", () => {
-  test("chaque section a un titre et un compte", () => {
-    expect(app).toContain("<SectionTitle count={conversations.length}>");
+  test("chaque section a un titre et son compte", () => {
+    expect(app).toContain("<SectionTitle count={lignes.length}>");
     expect(app).toContain("SECTION_LABEL[section]");
   });
 
-  test("une section vide reste visible avec son compte", () => {
-    // La retirer ferait croire qu'elle a été filtrée.
-    expect(app).toContain('className="liste__vide"');
+  test("les filtres, l'activité et la barre d'onglets ont disparu", () => {
+    /*
+      ⚠️ Vérifié **par absence**. Ces trois blocs occupaient le premier écran
+      sans aider à lire : deux listes déroulantes, un journal d'événements et
+      trois onglets pour deux écrans réels. Un retour discret les ramènerait.
+    */
+    expect(app).not.toContain("Filtres actifs");
+    expect(app).not.toContain("Activité récente");
+    expect(app).not.toContain('className="tabs"');
+    expect(app).not.toContain("statusFilter");
   });
 
-  test("le filtre est caché par défaut, et dit quand il est actif", () => {
-    expect(app).toContain("filtreActif");
-    expect(app).toContain("Filtres actifs");
+  test("le point de connexion a trois couleurs, pas deux", () => {
+    // Une reconnexion n'est pas une panne : le flux peut se taire quelques
+    // secondes pendant que la lecture fonctionne encore.
+    for (const etat of ["live", "reconnexion", "hors-ligne"]) {
+      expect(bloc(`.point--${etat}`).background).toMatch(/var\(--(ok|warn|err)\)/);
+    }
+    // Et la couleur seule ne suffit pas : le libellé existe pour les lecteurs
+    // d'écran.
+    expect(app).toContain('className="sr-only"');
+    expect(bloc(".sr-only")["clip-path"]).toBe("inset(50%)");
+  });
+
+  test("les réglages sont derrière un engrenage, plus dans un onglet", () => {
+    expect(app).toContain('aria-label="Réglages"');
+    expect(app).toContain("SettingsSheet");
   });
 
   test("le bouton flottant est fixe, pas dans le flux", () => {

@@ -59,7 +59,7 @@ export const classifyReadFailure = (error: unknown): ReadVerdict => {
   if (code !== undefined && MISSING_CODES.has(code)) {
     return verdictOf("absente");
   }
-  // Permission ou boucle de liens : l也存在 fichier, on ne peut pas le lire.
+  // Permission ou boucle de liens : le fichier existe, on ne peut pas le lire.
   if (code !== undefined && DENIED_CODES.has(code)) {
     return verdictOf("io");
   }

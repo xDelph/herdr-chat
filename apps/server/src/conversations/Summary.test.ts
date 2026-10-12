@@ -28,6 +28,17 @@ const pane = (over: Partial<RawPane> = {}): RawPane => ({
   ...over,
 });
 
+/**
+ * Une ligne de session **telle qu'elle existe**, avec un horodatage ISO :
+ * `Number("2026-…")` vaut `NaN`, et c'est ce que l'ancien code calculait.
+ */
+const ligne = (role: string, content: unknown, at = "2026-10-09T15:08:21.784Z"): string =>
+  JSON.stringify({ message: { content, role }, timestamp: at, type: "message" });
+
+/** Une ligne de **changement** de réglage, telle que la session l'écrit. */
+const changement = (type: string, cle: string, valeur: string): string =>
+  JSON.stringify({ [cle]: valeur, timestamp: "2026-10-09T16:17:28.362Z", type });
+
 beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), "herdr-summary-"));
 });
@@ -94,13 +105,20 @@ describe("aperçu et horodatage — jamais inventés", () => {
   });
 
   test("le dernier message texte devient l'aperçu", async () => {
+    /*
+      ⚠️ **La forme réelle d'une ligne Pi**, relevée sur une session de la
+      machine : `{ type: "message", message: { role, content } }`. Les fixtures
+      de test utilisaient `{ type: "assistant", content }` — une forme qui
+      n'existe nulle part. C'est pour ça que le défaut est passé : le test
+      validait le code contre un format imaginaire.
+    */
     const path = join(dir, "a.jsonl");
     await writeFile(
       path,
       [
-        JSON.stringify({ type: "user", content: "question" }),
-        JSON.stringify({ type: "assistant", content: [{ text: "première réponse" }] }),
-        JSON.stringify({ type: "assistant", content: [{ text: "dernière réponse" }] }),
+        ligne("user", "question"),
+        ligne("assistant", [{ text: "première réponse" }]),
+        ligne("assistant", [{ text: "dernière réponse" }]),
         "",
       ].join("\n"),
     );
@@ -110,12 +128,7 @@ describe("aperçu et horodatage — jamais inventés", () => {
 
   test("un assistant qui n'a écrit que des outils n'invente pas d'aperçu", async () => {
     const path = join(dir, "outils.jsonl");
-    await writeFile(
-      path,
-      [JSON.stringify({ type: "assistant", content: [{ toolCall: { name: "bash" } }] }), ""].join(
-        "\n",
-      ),
-    );
+    await writeFile(path, [ligne("assistant", [{ toolCall: { name: "bash" } }]), ""].join("\n"));
     const line = await Effect.runPromise(summaryOf(pane({ sessionPath: path }), defaultRead(dir)));
     // Un aperçu composé de JSON d'outils n'apprendrait rien dans une liste.
     expect("preview" in line).toBe(false);
@@ -157,4 +170,79 @@ const neverRead = () => ({
   identity: { dev: 1, ino: 1 },
   offset: 0,
   pending: "",
+});
+
+describe("U16 — la ligne de liste montre ce qu'on a demandé", () => {
+  test("la dernière demande de l'utilisateur, pas la réponse de l'agent", async () => {
+    const path = join(dir, "demande.jsonl");
+    await writeFile(
+      path,
+      [
+        ligne("user", [{ text: "ancienne demande" }]),
+        ligne("assistant", [{ text: "réponse" }]),
+        ligne("user", [{ text: "corrige le curseur opaque" }]),
+        "",
+      ].join("\n"),
+    );
+    const line = await Effect.runPromise(summaryOf(pane({ sessionPath: path }), defaultRead(dir)));
+    // ⚠️ La réponse et la demande sont deux choses différentes : une liste
+    // montre ce qu'on a demandé, qu'on reconnaît d'un coup d'œil.
+    expect(line.lastPrompt).toBe("corrige le curseur opaque");
+    expect(line.preview).toBe("réponse");
+  });
+
+  test("sans demande de l'utilisateur, le champ est ABSENT", async () => {
+    const path = join(dir, "sans-demande.jsonl");
+    await writeFile(path, [ligne("assistant", [{ text: "rien demandé" }]), ""].join("\n"));
+    const line = await Effect.runPromise(summaryOf(pane({ sessionPath: path }), defaultRead(dir)));
+    expect("lastPrompt" in line).toBe(false);
+  });
+});
+
+describe("U16 — modèle et raisonnement en vigueur", () => {
+  test("le dernier `model_change` et le dernier `thinking_level_change`", async () => {
+    const path = join(dir, "reglages.jsonl");
+    await writeFile(
+      path,
+      [
+        changement("model_change", "modelId", "ancien-modele"),
+        changement("thinking_level_change", "thinkingLevel", "low"),
+        changement("model_change", "modelId", "deepseek-v4.1-flash"),
+        changement("thinking_level_change", "thinkingLevel", "high"),
+        "",
+      ].join("\n"),
+    );
+    const line = await Effect.runPromise(summaryOf(pane({ sessionPath: path }), defaultRead(dir)));
+    // Ce sont des **changements**, pas un état : on remonte au dernier de chaque.
+    expect(line.model).toBe("deepseek-v4.1-flash");
+    expect(line.thinking).toBe("high");
+  });
+
+  test("sans changement déclaré, les champs sont ABSENTS", async () => {
+    const path = join(dir, "sans-reglages.jsonl");
+    await writeFile(path, [ligne("user", [{ text: "bonjour" }]), ""].join("\n"));
+    const line = await Effect.runPromise(summaryOf(pane({ sessionPath: path }), defaultRead(dir)));
+    expect("model" in line).toBe(false);
+    expect("thinking" in line).toBe(false);
+  });
+});
+
+describe("U16 — l'horodatage est une chaîne ISO", () => {
+  test("un ISO se convertit en millisecondes", async () => {
+    // ⚠️ `Number("2026-10-09T15:08:21.784Z")` vaut `NaN` : l'ancien code perdait
+    // donc l'horodatage en silence, et la liste n'affichait aucune date.
+    const path = join(dir, "iso.jsonl");
+    await writeFile(path, [ligne("user", [{ text: "x" }]), ""].join("\n"));
+    const line = await Effect.runPromise(summaryOf(pane({ sessionPath: path }), defaultRead(dir)));
+    expect(line.timestamp).toBe(Date.parse("2026-10-09T15:08:21.784Z"));
+    expect(Number.isFinite(line.timestamp)).toBe(true);
+  });
+
+  test("un horodatage illisible est absent, jamais NaN", async () => {
+    const path = join(dir, "iso-casse.jsonl");
+    await writeFile(path, [ligne("user", [{ text: "x" }], "pas-une-date"), ""].join("\n"));
+    const line = await Effect.runPromise(summaryOf(pane({ sessionPath: path }), defaultRead(dir)));
+    // `NaN` passerait le décodage du contrat et s'afficherait « Invalid Date ».
+    expect("timestamp" in line).toBe(false);
+  });
 });
