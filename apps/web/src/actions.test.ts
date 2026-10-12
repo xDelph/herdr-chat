@@ -258,8 +258,12 @@ describe("U22 — l'appel lui-même est son détail", () => {
       { at: null, blocks: [appel], id: "m1", meta: {}, role: "assistant", text: "" },
     ]);
     expect(lignes).toHaveLength(1);
-    expect(lignes[0]?.details).toHaveLength(1);
-    expect(lignes[0]?.details[0]?.kind).toBe("toolCall");
+    const premiere = lignes[0];
+    expect(premiere?.kind).toBe("action");
+    if (premiere?.kind === "action") {
+      expect(premiere.details).toHaveLength(1);
+      expect(premiere.details[0]?.kind).toBe("toolCall");
+    }
   });
 
   test("la sortie se rattache à l'appel qui la précède", () => {
@@ -298,6 +302,10 @@ describe("U22 — l'appel lui-même est son détail", () => {
       },
     ]);
     expect(lignes).toHaveLength(1);
-    expect(lignes[0]?.details.map((bloc) => bloc.kind)).toEqual(["toolCall", "toolResult"]);
+    const seule = lignes[0];
+    expect(seule?.kind).toBe("action");
+    if (seule?.kind === "action") {
+      expect(seule.details.map((bloc) => bloc.kind)).toEqual(["toolCall", "toolResult"]);
+    }
   });
 });

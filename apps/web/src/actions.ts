@@ -307,18 +307,36 @@ export const coutDuGroupe = (messages: ReadonlyArray<RenderedMessage>): Cout => 
   return { dureeMs, jetons: avecJetons ? jetons : null };
 };
 
-/** Une ligne du travail : un appel, et ce qu'il a produit. */
-export interface LigneTravail {
-  readonly action: Action;
-  /**
-   * Blocs montrés au dépliage : la sortie de l'appel, ou le texte de réflexion.
-   *
-   * ⚠️ La sortie est **rattachée à son appel**, pas affichée en ligne séparée :
-   * une session réelle produit un appel et son résultat, et deux lignes par
-   * appel doubleraient la longueur du groupe pour la même information.
-   */
-  readonly details: ReadonlyArray<Block>;
-}
+/**
+ * Une ligne du travail : soit un appel, soit de la prose.
+ *
+ * ⚠️ **La prose fait partie du travail.** Entre deux appels, l'agent explique où
+ * il en est ; c'est le contenu de référence d'un bloc « A travaillé » déplié. La
+ * laisser de côté la ferait disparaître de l'écran, puisque la réponse affichée
+ * hors du bloc n'est que la **dernière** prose du tour.
+ */
+export type LigneTravail =
+  | {
+      /**
+       * Clé stable de la ligne : identifiant du message et rang du bloc.
+       *
+       * ⚠️ Pas l'index du tableau : React s'en sert pour décider quels éléments
+       * garder, et un index réutilisé d'un rendu à l'autre fait sauter le focus
+       * et l'état déplié.
+       */
+      readonly cle: string;
+      readonly kind: "action";
+      readonly action: Action;
+      /**
+       * Blocs montrés au dépliage : la sortie de l'appel, ou la réflexion.
+       *
+       * ⚠️ La sortie est **rattachée à son appel**, pas affichée en ligne
+       * séparée : une session réelle produit un appel et son résultat, et deux
+       * lignes par appel doubleraient le groupe pour la même information.
+       */
+      readonly details: ReadonlyArray<Block>;
+    }
+  | { readonly cle: string; readonly kind: "texte"; readonly texte: Block };
 
 /** Action d'une ligne de réflexion — elle n'est pas un outil. */
 const ACTION_REFLEXION: Action = {
@@ -340,15 +358,37 @@ const ACTION_REFLEXION: Action = {
 export const lignesDeTravail = (
   messages: ReadonlyArray<RenderedMessage>,
 ): ReadonlyArray<LigneTravail> => {
-  const lignes: Array<{ action: Action; details: Array<Block> }> = [];
+  /** Forme interne : les détails d'une action sont remplis au fil des blocs. */
+  type LigneEnCours =
+    | {
+        readonly cle: string;
+        readonly kind: "action";
+        readonly action: Action;
+        readonly details: Array<Block>;
+      }
+    | { readonly cle: string; readonly kind: "texte"; readonly texte: Block };
+  const lignes: Array<LigneEnCours> = [];
 
   for (const message of messages) {
-    for (const block of message.blocks) {
+    for (const [rang, block] of message.blocks.entries()) {
+      // Clé stable : identifiant du message et rang du bloc dedans.
+      const cle = `${message.id}:${String(rang)}`;
+      // La prose et les images du travail gardent leur rendu : ce ne sont pas
+      // des lignes de résumé.
+      if (block.kind === "text" || block.kind === "image") {
+        lignes.push({ cle, kind: "texte", texte: block });
+        continue;
+      }
       if (block.kind === "toolCall") {
         // ⚠️ L'appel **est** son propre détail : le diff d'une édition vit dans
         // ses arguments, pas dans son résultat. Sans lui, « Fichier modifié »
         // n'avait rien à déplier.
-        lignes.push({ action: actionDe(block.name, block.arguments), details: [block] });
+        lignes.push({
+          action: actionDe(block.name, block.arguments),
+          cle,
+          details: [block],
+          kind: "action",
+        });
         continue;
       }
       if (block.kind === "bashExecution") {
@@ -361,12 +401,14 @@ export const lignesDeTravail = (
             pluriel: "Commandes lancées",
             singulier: "Commande lancée",
           },
+          cle,
           details: [block],
+          kind: "action",
         });
         continue;
       }
       if (block.kind === "thinking") {
-        lignes.push({ action: ACTION_REFLEXION, details: [block] });
+        lignes.push({ action: ACTION_REFLEXION, cle, details: [block], kind: "action" });
         continue;
       }
       if (block.kind === "toolResult") {
@@ -374,20 +416,22 @@ export const lignesDeTravail = (
         // lui, il devient sa propre ligne : ne rien afficher perdrait la
         // sortie.
         const derniere = lignes.at(-1);
-        if (derniere !== undefined && derniere.action.icone !== "✻") {
+        if (derniere !== undefined && derniere.kind === "action" && derniere.action.icone !== "✻") {
           derniere.details.push(block);
           continue;
         }
         lignes.push({
           action: {
-            cible: block.toolName ?? null,
+            cible: block.toolName.length > 0 ? block.toolName : null,
             delta: null,
             estFichier: false,
             icone: "▤",
             pluriel: "Résultats",
             singulier: "Résultat",
           },
+          cle,
           details: [block],
+          kind: "action",
         });
       }
     }

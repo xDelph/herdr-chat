@@ -374,22 +374,50 @@ describe("toItems — regroupement des appels d'outils", () => {
     }
   });
 
-  test("un texte d'assistant coupe le groupe", () => {
+  test("tout le travail d'un tour est UN seul groupe, la réponse reste dehors", () => {
+    /*
+      ⚠️ **L'ancienne règle groupait les messages « tout-outils » consécutifs.**
+      Un tour réel est `text + thinking + toolCall` (565 messages sur 1080
+      mesurés) : il n'était donc presque jamais groupé, et le travail d'un tour
+      se retrouvait éparpillé en lignes isolées, avec un en-tête « A travaillé »
+      après son propre contenu et un ou deux sous-blocs.
+
+      Ici : trois messages de travail, puis une réponse. Le groupe vient
+      **d'abord**, la réponse ensuite, hors du bloc.
+    */
     const items = toItems(
       messages([
         { raw: toolCall("1", "bash") },
         { raw: toolResult("2", "bash") },
-        { raw: assistantText("3", "J'ai fini.") },
         { raw: toolCall("4", "bash") },
         { raw: toolResult("5", "bash") },
+        { raw: assistantText("6", "J'ai fini.") },
+      ]),
+    );
+
+    expect(items.map((item) => item.kind)).toEqual(["tools", "single"]);
+    if (items[0]?.kind === "tools") expect(items[0].messages).toHaveLength(4);
+    if (items[1]?.kind === "single") expect(items[1].message.text).toContain("J'ai fini");
+  });
+
+  test("un message d'utilisateur ferme le tour", () => {
+    // C'est la frontière du travail : ce qui suit est un autre tour, donc un
+    // autre bloc.
+    const items = toItems(
+      messages([
+        { raw: toolCall("1", "bash") },
+        { raw: line({ content: [{ text: "fais ceci", type: "text" }], role: "user" }) },
+        { raw: toolCall("2", "bash") },
       ]),
     );
 
     expect(items.map((item) => item.kind)).toEqual(["tools", "single", "tools"]);
   });
 
-  test("un groupe de UN seul message n'est pas créé", () => {
-    expect(toItems(messages([{ raw: toolResult("1", "bash") }]))[0]?.kind).toBe("single");
+  test("une suite d'outils seule forme bien un groupe", () => {
+    // Elle n'a pas de prose : il n'y a donc pas de réponse à sortir du bloc.
+    const items = toItems(messages([{ raw: toolResult("1", "bash") }]));
+    expect(items[0]?.kind).toBe("tools");
   });
 
   test("une erreur dans le groupe est signalée", () => {

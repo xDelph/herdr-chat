@@ -564,13 +564,18 @@ const ImageContentBlock = ({ block }: { block: Extract<Block, { kind: "image" }>
  * ⚠️ Le tableau est mémorisé **par bloc** : en créer un neuf à chaque rendu
  * ferait redessiner la ligne à chaque frappe dans le composeur.
  */
-const unSeulCache = new WeakMap<Block, ReadonlyArray<Block>>();
-const UN_SEUL_BLOC = (block: Block): ReadonlyArray<Block> => {
-  const connu = unSeulCache.get(block);
+const ligneDuBlocCache = new WeakMap<Block, LigneTravail>();
+const LIGNE_DU_BLOC = (block: Block): LigneTravail => {
+  const connu = ligneDuBlocCache.get(block);
   if (connu !== undefined) return connu;
-  const neuf = [block];
-  unSeulCache.set(block, neuf);
-  return neuf;
+  const neuve: LigneTravail = {
+    action: actionDeBloc(block),
+    cle: `bloc:${block.kind}`,
+    details: [block],
+    kind: "action",
+  };
+  ligneDuBlocCache.set(block, neuve);
+  return neuve;
 };
 
 export const BlockView = memo(({ block }: { block: Block }) => {
@@ -585,7 +590,7 @@ export const BlockView = memo(({ block }: { block: Block }) => {
     repassant par elle-même.
   */
   if (estBlocDeTravail(block)) {
-    return <LigneDeTravail action={actionDeBloc(block)} details={UN_SEUL_BLOC(block)} />;
+    return <LigneDeTravail ligne={LIGNE_DU_BLOC(block)} />;
   }
 
   return <VueDetail block={block} />;
@@ -685,8 +690,18 @@ MessageBubble.displayName = "MessageBubble";
  * édition et une sortie dépliées d'office noient la ligne de résumé ; elles
  * s'ouvrent à la demande, une par une.
  */
-const LigneDeTravail = ({ action, details }: Pick<LigneTravail, "action" | "details">) => {
+const LigneDeTravail = ({ ligne }: { ligne: LigneTravail }) => {
   const [open, setOpen] = useState(false);
+
+  /*
+    La prose du travail n'est pas une ligne de résumé : elle se lit telle quelle,
+    comme le texte de la réponse. La réduire à un résumé perdrait ce que l'agent
+    a écrit — et la réponse affichée hors du bloc n'est que la **dernière** prose
+    du tour, pas celle-ci.
+  */
+  if (ligne.kind === "texte") return <VueDetail block={ligne.texte} />;
+
+  const { action, details } = ligne;
   const cible = action.cible;
 
   return (
@@ -787,12 +802,8 @@ const ToolGroup = ({
 
       {open ? (
         <div className="group__body">
-          {lignes.map((ligne, index) => (
-            <LigneDeTravail
-              action={ligne.action}
-              details={ligne.details}
-              key={`${String(index)}-${ligne.action.icone}`}
-            />
+          {lignes.map((ligne) => (
+            <LigneDeTravail key={ligne.cle} ligne={ligne} />
           ))}
           {lignes.length === 0 ? <p className="blk__hint">aucun appel enregistré</p> : null}
         </div>

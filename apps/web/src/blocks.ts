@@ -615,13 +615,6 @@ export type Item =
       readonly callCount: number;
     };
 
-/** `true` si tous les blocs d'un message sont des appels ou des résultats d'outil. */
-const isToolOnly = (message: RenderedMessage): boolean =>
-  message.role === "toolResult" ||
-  (message.role === "assistant" &&
-    message.blocks.length > 0 &&
-    message.blocks.every((block) => block.kind === "toolCall"));
-
 const toolNamesOf = (
   messages: ReadonlyArray<RenderedMessage>,
 ): { name: string; count: number }[] => {
@@ -662,39 +655,81 @@ const hasErrorIn = (messages: ReadonlyArray<RenderedMessage>): boolean =>
  *
  * Un groupe de **un seul** message n'est pas créé : cela n'apporterait rien.
  */
+/**
+ * Découpe la conversation en éléments affichables.
+ *
+ * ⚠️ **Le regroupement se fait par période de travail**, pas par suite de
+ * messages « tout-outils ». L'ancienne règle ne groupait que des messages dont
+ * **tous** les blocs étaient des appels : or un tour réel est
+ * `text + thinking + toolCall` (565 messages sur 1080 mesurés), donc presque
+ * jamais groupé. Résultat : le travail d'un tour se retrouvait éparpillé en
+ * lignes isolées, et un en-tête « A travaillé » pouvait se retrouver **après**
+ * son propre contenu, avec un ou deux sous-blocs seulement.
+ *
+ * Un tour commence à un message de l'utilisateur. Tout ce que l'agent produit
+ * ensuite est **un seul** travail, sauf sa **dernière prose**, qui est la
+ * réponse : elle se lit hors du bloc, sinon il faudrait déplier pour lire ce
+ * qu'on est venu chercher.
+ */
 export const toItems = (messages: ReadonlyArray<RenderedMessage>): ReadonlyArray<Item> => {
   const items: Item[] = [];
-  let run: RenderedMessage[] = [];
+  let tour: RenderedMessage[] = [];
 
   const flush = () => {
-    if (run.length === 0) return;
-    if (run.length === 1 && run[0] !== undefined) {
-      items.push({ kind: "single", message: run[0] });
-    } else {
+    if (tour.length === 0) return;
+
+    /*
+      La réponse = la **dernière** prose du tour. Les prosences précédentes font
+      partie du travail : l'agent dit où il en est, puis continue.
+    */
+    let indexReponse = -1;
+    for (let index = tour.length - 1; index >= 0; index -= 1) {
+      const message = tour[index];
+      if (message !== undefined && aDeLaProse(message)) {
+        indexReponse = index;
+        break;
+      }
+    }
+
+    const travail = tour.filter((_, index) => index !== indexReponse);
+    if (travail.length > 0) {
       items.push({
-        callCount: run.length,
-        hasError: hasErrorIn(run),
-        id: `tools:${run[0]?.id ?? "?"}:${String(run.length)}`,
+        callCount: travail.length,
+        hasError: hasErrorIn(travail),
+        id: `travail:${travail[0]?.id ?? "?"}:${String(travail.length)}`,
         kind: "tools",
-        messages: run,
-        tools: toolNamesOf(run),
+        messages: travail,
+        tools: toolNamesOf(travail),
       });
     }
-    run = [];
+    const reponse = indexReponse >= 0 ? tour[indexReponse] : undefined;
+    if (reponse !== undefined) items.push({ kind: "single", message: reponse });
+
+    tour = [];
   };
 
   for (const message of messages) {
-    if (isToolOnly(message)) {
-      run.push(message);
+    if (message.role === "user") {
+      flush();
+      items.push({ kind: "single", message });
       continue;
     }
-    flush();
-    items.push({ kind: "single", message });
+    tour.push(message);
   }
   flush();
 
   return items;
 };
+
+/**
+ * `true` si un message porte du texte que l'agent a **écrit pour être lu**.
+ *
+ * Un résultat d'outil est du texte, mais ce n'est pas une réponse : le compter
+ * comme telle ferait passer la dernière sortie de commande pour la conclusion du
+ * tour.
+ */
+const aDeLaProse = (message: RenderedMessage): boolean =>
+  message.role === "assistant" && message.blocks.some((block) => block.kind === "text");
 
 // ---------------------------------------------------------------------------
 // Question en attente
