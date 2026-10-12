@@ -28,6 +28,8 @@ import { fetchModelCatalog, reportError, sendPrompt } from "./api.ts";
 import type { SendResult } from "./api.ts";
 import type { ModelCatalogResponse } from "@herdr-remote/shared";
 import type { AgentModel } from "@herdr-remote/shared";
+import { Feuille } from "./Feuille.tsx";
+import { Notice } from "./Notice.tsx";
 
 export const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 
@@ -140,15 +142,16 @@ export const ModelSheet = ({ agentName, kind, paneId, onClose }: Props) => {
   };
 
   return (
-    <div className="sheet">
-      <header className="sheet__head">
-        <strong>Modèle et pensée</strong>
-        <span className="muted small">{agentName}</span>
-        <button type="button" className="ghost" onClick={onClose}>
-          Fermer
-        </button>
-      </header>
-
+    <Feuille
+      ariaLabel={`Modèle et pensée de ${agentName}`}
+      onClose={onClose}
+      titre={
+        <>
+          Modèle et pensée
+          <span className="muted small">{agentName}</span>
+        </>
+      }
+    >
       {lastSend !== null ? (
         <p className="sendState">
           {busy ? (
@@ -176,9 +179,9 @@ export const ModelSheet = ({ agentName, kind, paneId, onClose }: Props) => {
       <h3 className="model__title">Modèle</h3>
 
       {catalogError !== null ? (
-        <p className="notice notice--error">
+        <Notice ton="erreur">
           Catalogue illisible pour <code>{kind}</code> — {catalogError}
-        </p>
+        </Notice>
       ) : catalog === null ? (
         <p className="muted small">Lecture du catalogue…</p>
       ) : catalog.models.length === 0 ? (
@@ -187,10 +190,10 @@ export const ModelSheet = ({ agentName, kind, paneId, onClose }: Props) => {
           est affichée telle quelle (AGENTS.md — « ne pas exposer un état qu'on
           ne peut pas vérifier »).
         */
-        <p className="notice notice--warn">
+        <Notice ton="avertissement">
           {catalog.error ?? "Ce type d'agent ne déclare pas ses modèles."} Source :{" "}
           <code>{catalog.source}</code>
-        </p>
+        </Notice>
       ) : (
         <>
           <input
@@ -296,6 +299,6 @@ export const ModelSheet = ({ agentName, kind, paneId, onClose }: Props) => {
           </div>
         </>
       )}
-    </div>
+    </Feuille>
   );
 };

@@ -12,6 +12,7 @@
  */
 import { baseName } from "./api.ts";
 import type { TouchedFile } from "./blocks.ts";
+import { Feuille } from "./Feuille.tsx";
 
 interface Props {
   readonly files: ReadonlyArray<TouchedFile>;
@@ -56,16 +57,18 @@ export const FilesSheet = ({
   const sorted = [...files].toSorted((a, b) => b.added + b.removed - (a.added + a.removed));
 
   return (
-    <div className="sheet">
-      <header className="sheet__head">
-        <strong>Fichiers touchés</strong>
-        <span className="muted small">
-          {files.length} fichier{files.length > 1 ? "s" : ""}
-        </span>
-        <button type="button" className="ghost" onClick={onClose}>
-          Fermer
-        </button>
-      </header>
+    <Feuille
+      ariaLabel="Fichiers touchés"
+      onClose={onClose}
+      titre={
+        <>
+          Fichiers touchés
+          <span className="muted small">
+            {files.length} fichier{files.length > 1 ? "s" : ""}
+          </span>
+        </>
+      }
+    >
       <ul className="files__list">
         {sorted.map((file) => (
           <li key={file.path} className="file">
@@ -88,6 +91,6 @@ export const FilesSheet = ({
           </li>
         ))}
       </ul>
-    </div>
+    </Feuille>
   );
 };

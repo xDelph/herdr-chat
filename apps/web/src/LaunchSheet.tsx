@@ -28,6 +28,8 @@ import {
   verifierLancement,
 } from "./launch.ts";
 import type { LaunchChoice } from "./launch.ts";
+import { Feuille } from "./Feuille.tsx";
+import { Notice } from "./Notice.tsx";
 
 interface Props {
   readonly kinds: ReadonlyArray<InstalledKind>;
@@ -109,18 +111,7 @@ export const LaunchSheet = ({ kinds, launching, onClose, onLaunch, titre, worksp
   }, [kind, launching, onLaunch, verdict, workspaceId]);
 
   return (
-    // `<dialog open>` et non un `div` avec `role` : la feuille est un dialogue,
-    // et sa sémantique doit venir de la balise. Elle n'est pas **modale** — le
-    // focus circule encore derrière — donc aucun `aria-modal`, qui mentirait.
-    // Le piégeage du focus appartient à U11.
-    <dialog open className="sheet" aria-label="Lancer un agent">
-      <header className="sheet__head">
-        <strong className="sheet__name">Nouvel agent dans {titre}</strong>
-        <button type="button" className="ghost" onClick={onClose}>
-          Fermer
-        </button>
-      </header>
-
+    <Feuille ariaLabel="Lancer un agent" onClose={onClose} titre={`Nouvel agent dans ${titre}`}>
       <label className="launch__label" htmlFor="launch-kind">
         Type d'agent
       </label>
@@ -140,9 +131,9 @@ export const LaunchSheet = ({ kinds, launching, onClose, onLaunch, titre, worksp
       {chargement ? <p className="muted small">Lecture du catalogue de {kind}…</p> : null}
 
       {echec !== null ? (
-        <p className="notice notice--error">
+        <Notice ton="erreur">
           catalogue illisible pour {kind} : {echec}
-        </p>
+        </Notice>
       ) : null}
 
       {chargement || echec !== null ? null : catalog === null || catalog.models.length === 0 ? (
@@ -232,7 +223,7 @@ export const LaunchSheet = ({ kinds, launching, onClose, onLaunch, titre, worksp
         </>
       )}
 
-      {verdict.envoyable ? null : <p className="notice notice--error">{verdict.raison}</p>}
+      {verdict.envoyable ? null : <Notice ton="erreur">{verdict.raison}</Notice>}
 
       <div className="launch__actions">
         <button
@@ -248,6 +239,6 @@ export const LaunchSheet = ({ kinds, launching, onClose, onLaunch, titre, worksp
           seuls moments où l'application agit pour tous les agents.
         </p>
       </div>
-    </dialog>
+    </Feuille>
   );
 };

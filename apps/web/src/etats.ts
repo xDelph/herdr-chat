@@ -71,20 +71,26 @@ export const etatLecture = ({
 };
 
 /**
- * « il y a 2 min » — ou `null` si l'on ne sait pas.
+ * Heure de la dernière lecture réussie — ou `null` si on ne sait pas.
  *
- * ⚠️ On ne dit **jamais** « à l'instant » quand on ne sait pas : une
- * horodatage absent displaysé comme récent mentirait sur la fraîcheur, et c'est
- * précisément ce que l'utilisateur cherche à savoir.
+ * ⚠️ **Pourquoi une heure fixe et pas « il y a 2 min ».** Cet avis est une
+ * région vivante : son contenu ne doit changer que lorsqu'il apparaît, sinon le
+ * lecteur d'écran répète l'annonce à chaque relecture. Un âge relatif change
+ * toutes les 4 secondes ; l'heure d'clock ne change pas.
+ *
+ * ⚠️ Et jamais d'heure inventée : sans horodatage, on ne dit rien du tout.
+ * « à l'instant » sans source serait mentir sur la fraîcheur, qui est
+ * exactement ce que l'utilisateur cherche à savoir.
+ *
+ * Formatage manuel plutôt que `toLocaleTimeString` : la sortie ne dépend alors
+ * ni de la locale du téléphone, ni du format 12 h qu'iPhone applique par
+ * défaut — et c'est testable.
  */
-export const depuis = (dernierSucces: number | null, maintenant: number): string | null => {
+export const heureLue = (dernierSucces: number | null): string | null => {
   if (dernierSucces === null) return null;
-  const secondes = Math.max(0, Math.round((maintenant - dernierSucces) / 1000));
-  if (secondes < 10) return "à l'instant";
-  if (secondes < 60) return `il y a ${secondes} s`;
-  const minutes = Math.round(secondes / 60);
-  if (minutes < 60) return `il y a ${minutes} min`;
-  const heures = Math.round(minutes / 60);
-  if (heures < 24) return `il y a ${heures} h`;
-  return `il y a ${Math.round(heures / 24)} j`;
+  const date = new Date(dernierSucces);
+  if (Number.isNaN(date.getTime())) return null;
+  const heures = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+  return `${heures}:${minutes}`;
 };

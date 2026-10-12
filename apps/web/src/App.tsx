@@ -44,6 +44,7 @@ import { TrustCard } from "./TrustCard.tsx";
 import { AttentionCard } from "./Attention.tsx";
 import { DEFAULT_TAB, parseRoute, routeToHash, TabSchema, TABS, TAB_LABEL } from "./routing.ts";
 import type { Route, Tab } from "./routing.ts";
+import { Notice } from "./Notice.tsx";
 
 /**
  * Modèle et niveau de raisonnement choisis au lancement.
@@ -337,8 +338,6 @@ export const App = () => {
   const [chargement, setChargement] = useState(true);
   /** Horodatage de la dernière lecture **réussie**, ou `null` si jamais. */
   const [dernierSucces, setDernierSucces] = useState<number | null>(null);
-  /** Horloge du bandeau d'état. */
-  const [maintenant, setMaintenant] = useState<number>(() => Date.now());
 
   /**
    * Dernier état connu de chaque agent.
@@ -389,9 +388,6 @@ export const App = () => {
     void refresh();
     const timer = setInterval(() => {
       void refresh();
-      // Même cadence que la lecture : « il y a 3 min » suit la donnée au lieu
-      // de vieillir tout seul pendant que l'application dort.
-      setMaintenant(Date.now());
     }, 4000);
     return () => clearInterval(timer);
   }, [refresh]);
@@ -653,9 +649,9 @@ export const App = () => {
     return (
       <div className="app">
         {agentPerime ? (
-          <p className="notice notice--warn">
+          <Notice ton="avertissement">
             Cet agent n'apparaît plus dans Herdr. Ce qui suit est le dernier état connu.
-          </p>
+          </Notice>
         ) : null}
         <ChatScreen agent={agentAffiche} onBack={closeAgent} />
       </div>
@@ -675,9 +671,7 @@ export const App = () => {
         <header className="topbar">
           <h1>Herdr Remote</h1>
         </header>
-        <p className="notice notice--error">
-          Cet agent n'existe plus dans Herdr. Il a peut-être été fermé.
-        </p>
+        <Notice ton="erreur">Cet agent n'existe plus dans Herdr. Il a peut-être été fermé.</Notice>
         <button type="button" className="back" onClick={closeAgent}>
           ‹ Retour
         </button>
@@ -706,13 +700,12 @@ export const App = () => {
         libelleVide={
           tab === "projets" ? "Aucun projet dans Herdr." : "Aucune conversation ouverte dans Herdr."
         }
-        maintenant={maintenant}
         onReessayer={reessayer}
       />
       {overview !== null && overview.withoutSession > 0 ? (
-        <p className="notice notice--warn">
+        <Notice ton="avertissement">
           {overview.withoutSession} agent(s) sans chemin de session exposé
-        </p>
+        </Notice>
       ) : null}
 
       {route.kind === "projet" ? (
@@ -735,7 +728,7 @@ export const App = () => {
             Toucher un projet ouvre son agent. Le <strong>+</strong> ajoute un agent — dans un
             projet vide, ou dans un nouvel onglet s'il en a déjà un.
           </p>
-          {launchError !== null ? <p className="notice notice--error">{launchError}</p> : null}
+          {launchError !== null ? <Notice ton="erreur">{launchError}</Notice> : null}
           {trustRequest !== null ? (
             <TrustCard request={trustRequest} onDone={() => setTrustRequest(null)} />
           ) : null}

@@ -24,6 +24,7 @@ export const FileOpenerContext = createContext<(path: string) => void>(() => und
 /** Ouvrir une image distante dans la visionneuse. */
 export const UrlOpenerContext = createContext<(url: string) => void>(() => undefined);
 import type { Block, Item, RenderedMessage } from "./blocks.ts";
+import { Notice } from "./Notice.tsx";
 
 const str = (value: unknown): string => (typeof value === "string" ? value : "");
 
@@ -412,9 +413,7 @@ const SubagentBlock = ({ block }: { block: Extract<Block, { kind: "subagent" }> 
           <p className="sa__questions">question : {result.digest.questions}</p>
         ) : null}
 
-        {result.errorMessage !== null ? (
-          <p className="notice notice--error">{result.errorMessage}</p>
-        ) : null}
+        {result.errorMessage !== null ? <Notice ton="erreur">{result.errorMessage}</Notice> : null}
       </div>
     ))}
   </div>

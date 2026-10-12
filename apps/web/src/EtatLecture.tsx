@@ -9,55 +9,54 @@
  * dernière lecture réussie. « Hors ligne » sans horodatage dit la moitié du
  * problème — et l'autre moitié, c'est de savoir si ce qu'on lit est vieux.
  */
-import { depuis } from "./etats.ts";
+import { heureLue } from "./etats.ts";
+import { Notice } from "./Notice.tsx";
 import type { EtatLecture } from "./etats.ts";
 
 interface Props {
-  /** Horloge de rendu, en millisecondes — passée pour rester déterministe. */
-  readonly maintenant: number;
   readonly etat: EtatLecture;
   /** Phrase affichée quand la lecture réussit et qu'il n'y a rien à montrer. */
   readonly libelleVide: string;
   readonly onReessayer: () => void;
 }
 
-export const BandeauEtat = ({ etat, libelleVide, maintenant, onReessayer }: Props) => {
+export const BandeauEtat = ({ etat, libelleVide, onReessayer }: Props) => {
   switch (etat.phase) {
     case "pret":
       return null;
 
     case "chargement":
-      return <p className="notice">Lecture…</p>;
+      return <Notice>Lecture…</Notice>;
 
     case "vide":
       // Jamais en rouge : un parc sans agent n'est pas une panne.
-      return <p className="notice">{libelleVide}</p>;
+      return <Notice>{libelleVide}</Notice>;
 
     case "erreur":
       return (
-        <div className="notice notice--error">
+        <Notice ton="erreur">
           <p>{etat.cause}</p>
           <Bouton onReessayer={onReessayer}>Réessayer</Bouton>
-        </div>
+        </Notice>
       );
 
     case "hors-ligne":
       return (
-        <div className="notice notice--warn">
+        <Notice ton="avertissement">
           <p>
-            Connexion perdue. Ce qui est affiché date de{" "}
-            {depuis(etat.dernierSucces, maintenant) ?? "la dernière lecture réussie, inconnue"}.
+            Connexion perdue. Dernière lecture réussie{" "}
+            {heureLue(etat.dernierSucces) ?? "à une heure inconnue"}.
           </p>
           <Bouton onReessayer={onReessayer}>Réessayer</Bouton>
-        </div>
+        </Notice>
       );
 
     case "reconnexion":
       return (
-        <p className="notice notice--warn">
+        <Notice ton="avertissement">
           Flux temps réel interrompu — reconnexion en cours. L'affichage se met à jour à la lecture
           suivante.
-        </p>
+        </Notice>
       );
   }
 
@@ -66,7 +65,7 @@ export const BandeauEtat = ({ etat, libelleVide, maintenant, onReessayer }: Prop
     théorie. On affiche quand même quelque chose : un état qu'on ne sait pas
     nommer ne doit pas disparaître en silence, il doit se voir.
   */
-  return <p className="notice notice--error">état de lecture inconnu — rechargez la page</p>;
+  return <Notice ton="erreur">état de lecture inconnu — rechargez la page</Notice>;
 };
 
 /**

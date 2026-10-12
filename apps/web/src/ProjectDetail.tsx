@@ -16,6 +16,7 @@ import type { AgentView, InstalledKind, WorkspaceView } from "./api.ts";
 import { LaunchSheet } from "./LaunchSheet.tsx";
 import type { LaunchChoice } from "./launch.ts";
 import { agentName, statusClass, statusLabel } from "./labels.tsx";
+import { Notice } from "./Notice.tsx";
 
 interface Props {
   readonly agents: ReadonlyArray<AgentView>;
@@ -85,7 +86,7 @@ export const ProjectDetail = memo(
           </button>
           {/* Un projet peut disparaître entre l'ouverture et l'affichage — le
             snapshot se rafraîchit. Un écran vide serait pris pour un bug. */}
-          <p className="notice notice--error">Ce projet n'existe plus.</p>
+          <Notice ton="erreur">Ce projet n'existe plus.</Notice>
         </section>
       );
     }

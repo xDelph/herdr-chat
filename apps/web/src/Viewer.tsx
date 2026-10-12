@@ -11,6 +11,8 @@ import { useEffect, useMemo, useState } from "react";
 import { Option, Schema } from "effect";
 import { ApiErrorResponse } from "@herdr-remote/shared";
 import { baseName, fileUrl } from "./api.ts";
+import { Feuille } from "./Feuille.tsx";
+import { Notice } from "./Notice.tsx";
 
 /** Langage déduit de l'extension — sert d'étiquette et d'indice de coloration. */
 const LANGUAGE_BY_EXTENSION: Readonly<Record<string, string>> = {
@@ -107,7 +109,7 @@ const CodeView = ({ path }: { path: string }) => {
     };
   }, [path]);
 
-  if (error !== null) return <p className="notice notice--error">{error}</p>;
+  if (error !== null) return <Notice ton="erreur">{error}</Notice>;
   if (text === null) return <p className="muted small">Lecture…</p>;
 
   // Le HTML est calculé **une fois par texte**, pas à chaque rendu : sans cela
@@ -166,27 +168,20 @@ export const FileViewer = ({ path, onClose, onBack }: ViewerProps) => {
   const isImage = /\.(png|jpe?g|gif|webp|avif)$/i.test(path);
   const source = isRemote ? path : fileUrl(path);
 
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  /*
+    Plus d'écouteur `Échap` sur `window` : `Feuille` le gère, et il le gère
+    mieux. Deux gestionnaires signifiaient que la touche pouvait fermer deux
+    fois — la visionneuse, puis la liste de fichiers derrière elle.
+  */
 
   return (
-    <div className="sheet">
-      <header className="sheet__head">
-        {onBack !== undefined ? (
-          <button type="button" className="ghost" onClick={onBack}>
-            ‹ Fichiers
-          </button>
-        ) : null}
-        <span className="sheet__name">{name}</span>
-        <button type="button" className="ghost" onClick={onClose}>
-          Fermer
-        </button>
-      </header>
+    <Feuille
+      ariaLabel={`${name} — visionneuse`}
+      onClose={onClose}
+      onRetour={onBack}
+      retourLibelle={onBack === undefined ? undefined : "‹ Fichiers"}
+      titre={name}
+    >
       <p className="file__path mono small">{path}</p>
 
       {isImage ? (
@@ -200,6 +195,6 @@ export const FileViewer = ({ path, onClose, onBack }: ViewerProps) => {
       ) : (
         <CodeView path={path} />
       )}
-    </div>
+    </Feuille>
   );
 };

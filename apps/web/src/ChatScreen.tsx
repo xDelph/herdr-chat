@@ -20,6 +20,7 @@ import { FileOpenerContext, ItemsView, UrlOpenerContext } from "./Blocks.tsx";
 import { FilesSheet } from "./Files.tsx";
 import { ModelSheet, describeSend } from "./ModelSheet.tsx";
 import { FileViewer } from "./Viewer.tsx";
+import { Notice } from "./Notice.tsx";
 
 export const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void }) => {
   const [entries, setEntries] = useState<readonly SessionEntry[]>([]);
@@ -249,13 +250,13 @@ export const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => 
           </header>
 
           {agent.sessionPath === null ? (
-            <p className="notice notice--warn">
+            <Notice ton="avertissement">
               Aucun chemin de session exposé par Herdr pour cet agent. Le contenu n'est pas
               affichable — et il n'est pas reconstruit artificiellement.
-            </p>
+            </Notice>
           ) : null}
 
-          {error !== null ? <p className="notice notice--error">{error}</p> : null}
+          {error !== null ? <Notice ton="erreur">{error}</Notice> : null}
 
           {/*
             Une session vide n'est **pas** une panne.

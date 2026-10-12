@@ -10,7 +10,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { depuis, etatLecture } from "./etats.ts";
+import { etatLecture, heureLue } from "./etats.ts";
 
 const situation = (modification: Partial<Parameters<typeof etatLecture>[0]> = {}) =>
   etatLecture({
@@ -84,24 +84,25 @@ describe("U10 — l'ordre de priorité", () => {
 });
 
 describe("U10 — la fraîcheur se dit, ou ne se dit pas", () => {
-  test("« il y a … » selon l'écart", () => {
-    expect(depuis(0, 3_000)).toBe("à l'instant");
-    expect(depuis(0, 30_000)).toBe("il y a 30 s");
-    expect(depuis(0, 180_000)).toBe("il y a 3 min");
-    expect(depuis(0, 7_200_000)).toBe("il y a 2 h");
-    expect(depuis(0, 172_800_000)).toBe("il y a 2 j");
+  test("l'heure de la dernière lecture réussie", () => {
+    // 2024-03-05T08:07:00 en heure locale du poste de test.
+    const instant = new Date(2024, 2, 5, 8, 7, 0).getTime();
+    expect(heureLue(instant)).toBe("08:07");
   });
 
-  test("jamais d'horloge en avance : on borne à zéro", () => {
-    // Deux horloges peuvent différer de quelques ms. « il y a -1 s » serait un
-    // défaut visible.
-    expect(depuis(10_000, 5_000)).toBe("à l'instant");
+  test("deux chiffres, toujours", () => {
+    const instant = new Date(2024, 2, 5, 9, 5, 0).getTime();
+    expect(heureLue(instant)).toBe("09:05");
   });
 
   test("sans horodatage, on ne prétend pas savoir", () => {
-    // ⚠️ Pas de « à l'instant » par défaut : c'est la information même que
-    // l'utilisateur cherche, et la donner fausse est pire que de rien dire.
-    expect(depuis(null, 5_000)).toBeNull();
+    // ⚠️ Pas de « à l'instant » par défaut : c'est l'information même que
+    // l'utilisateur cherche, et la donner fausse est pire que de ne rien dire.
+    expect(heureLue(null)).toBeNull();
+  });
+
+  test("un horodatage illisible ne donne pas une heure fausse", () => {
+    expect(heureLue(Number.NaN)).toBeNull();
   });
 });
 

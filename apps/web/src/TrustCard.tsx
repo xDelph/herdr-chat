@@ -13,6 +13,7 @@
 import { useState } from "react";
 import { answerTrust } from "./api.ts";
 import type { TrustRequired } from "./api.ts";
+import { Notice } from "./Notice.tsx";
 
 interface Props {
   readonly request: TrustRequired;
@@ -50,7 +51,7 @@ export const TrustCard = ({ request, onDone }: Props) => {
         confirmation à chaque fois. Cette réponse est <strong>enregistrée définitivement</strong>{" "}
         sur cette machine.
       </p>
-      {error !== null ? <p className="notice notice--error">{error}</p> : null}
+      {error !== null ? <Notice ton="erreur">{error}</Notice> : null}
       <div className="trust__actions">
         <button
           type="button"
