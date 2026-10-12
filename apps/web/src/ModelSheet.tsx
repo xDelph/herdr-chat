@@ -30,6 +30,7 @@ import type { ModelCatalogResponse } from "@herdr-remote/shared";
 import type { AgentModel } from "@herdr-remote/shared";
 import { Feuille } from "./Feuille.tsx";
 import { Notice } from "./Notice.tsx";
+import { expliquerEnvoi, expliquerEchec, expliquerSuppression } from "./etats-envoi.ts";
 
 export const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 
@@ -59,16 +60,18 @@ export const thinkingLabel = (level: string): string => {
  * Libellé d'un état d'envoi — utilisé par le composeur **et** par la feuille
  * modèle, pour qu'il n'existe qu'une seule formulation.
  */
+/**
+ * Un envoi, rendu selon son état réel (U08).
+ *
+ * ⚠️ Avant, les trois échecs se réduisaient à `échec : …`. `attente`,
+ * `erreur` et `inconnu` se corrigent différemment — renvoyer, corriger, ne rien
+ * faire — et un préfixe commun les rendait indiscernables sur une capture
+ * d'écran. Les textes et les actions viennent de `etats-envoi.ts`.
+ */
 export const describeSend = (result: SendResult): string => {
-  if (result.kind === "sent") {
-    return result.confirmation === "confirmed"
-      ? "envoyé (confirmé par Herdr)"
-      : "envoi effectué, confirmation incertaine — état inconnu";
-  }
-  if (result.kind === "suppressed") {
-    return `double envoi supprimé — ${result.reason}`;
-  }
-  return `échec : ${result.message}`;
+  if (result.kind === "sent") return expliquerEnvoi(result.confirmation).texte;
+  if (result.kind === "suppressed") return expliquerSuppression(result.reason).texte;
+  return expliquerEchec(result.state, result.message).texte;
 };
 
 interface Props {

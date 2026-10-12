@@ -67,9 +67,23 @@ export type {
  * quoi que ce soit, et `detail` dit pourquoi. Les deux cas sont distingués pour
  * que l'interface n'affiche jamais « répondu » quand rien ne l'a été.
  */
+/**
+ * Réponse à une décision de confiance.
+ *
+ * ⚠️ `state` est **conservé**, et c'était le défaut : il était décodé depuis la
+ * réponse puis jeté, si bien que le client ne pouvait pas distinguer « décision
+ * transmise » de « confiance accordée ». L'écran disparaissait dans les deux cas,
+ * et l'utilisateur croyait avoir donné une permission permanente.
+ *
+ * `inconnu` n'est pas un état de Herdr : c'est le nôtre, pour un transport qui
+ * n'a rien dit. Un état qu'on ne connaît pas ne vaut jamais un accord.
+ */
 export type TrustAnswer =
-  | { readonly accepted: true; readonly detail: string }
-  | { readonly accepted: false; readonly detail: string };
+  | { readonly accepted: true; readonly detail: string; readonly state: TrustState }
+  | { readonly accepted: false; readonly detail: string; readonly state: TrustState };
+
+/** États de décision de confiance, plus le nôtre pour un transport muet. */
+export type TrustState = "transmise" | "acceptee" | "refusee" | "non-applicable" | "inconnu";
 
 export const answerTrust = async (paneId: string, accept: boolean): Promise<TrustAnswer> => {
   const response = await fetch(`/api/agents/${encodeURIComponent(paneId)}/trust`, {
@@ -80,13 +94,22 @@ export const answerTrust = async (paneId: string, accept: boolean): Promise<Trus
   const payload = await readJson(response);
   if (!response.ok) {
     const failure = decodeError(payload);
-    return { accepted: false, detail: failure?.error ?? `échec ${String(response.status)}` };
+    return {
+      accepted: false,
+      detail: failure?.error ?? `échec ${String(response.status)}`,
+      state: "inconnu",
+    };
   }
   const decoded = decoderOf(TrustResolvedResponse)(payload);
   if (decoded === undefined) {
-    return { accepted: false, detail: "réponse illisible" };
+    // Réponse illisible : on ne la lit pas comme un refus, ni comme un accord.
+    return { accepted: false, detail: "réponse illisible", state: "inconnu" };
   }
-  return { accepted: decoded.accepted, detail: decoded.accepted ? "ok" : "refusé" };
+  return {
+    accepted: decoded.accepted,
+    detail: decoded.accepted ? "ok" : "refusé",
+    state: decoded.state,
+  };
 };
 
 /**

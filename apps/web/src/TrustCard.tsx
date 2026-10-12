@@ -14,6 +14,8 @@ import { useState } from "react";
 import { answerTrust } from "./api.ts";
 import type { TrustRequired } from "./api.ts";
 import { Notice } from "./Notice.tsx";
+import { expliquerConfiance } from "./etats-envoi.ts";
+import type { IssueConfiance } from "./etats-envoi.ts";
 
 interface Props {
   readonly request: TrustRequired;
@@ -23,6 +25,16 @@ interface Props {
 export const TrustCard = ({ request, onDone }: Props) => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * État réel de la décision, tant qu'elle n'est pas **résolue**.
+   *
+   * ⚠️ `transmise` n'est pas « accordée » (B06/U08). Herdr peut refuser la
+   * touche, et l'agent peut redémarrer. L'ancien code regardait `accepted` et
+   * disparaissait : l'utilisateur lisait une permission permanente supposedly
+   * donnée alors que rien ne le prouvait. La carte reste donc jusqu'à un état
+   * résolu, et le mot affiché reste « transmise ».
+   */
+  const [issue, setIssue] = useState<IssueConfiance | null>(null);
 
   const answer = async (accept: boolean) => {
     if (busy) return;
@@ -30,10 +42,11 @@ export const TrustCard = ({ request, onDone }: Props) => {
     setError(null);
     try {
       const outcome = await answerTrust(request.paneId, accept);
-      // Un refus côté serveur signifie que l'invite n'était plus là : on ne
-      // prétend pas avoir répondu à la place de l'utilisateur.
-      if (!outcome.accepted) setError(outcome.detail);
-      else onDone();
+      const resolue = expliquerConfiance(outcome.state);
+      setIssue(resolue);
+      // Seule une issue résolue autorise à quitter l'écran. Un refus n'est pas
+      // une panne : rien n'est écrit, et c'est dit.
+      if (resolue.resolue) onDone();
     } catch (cause: unknown) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -52,26 +65,29 @@ export const TrustCard = ({ request, onDone }: Props) => {
         sur cette machine.
       </p>
       {error !== null ? <Notice ton="erreur">{error}</Notice> : null}
-      <div className="trust__actions">
-        <button
-          type="button"
-          className="row__action row__action--primary"
-          disabled={busy}
-          onClick={() => void answer(true)}
-        >
-          {busy ? "…" : "Faire confiance"}
-        </button>
-        <button
-          type="button"
-          className="ghost"
-          disabled={busy}
-          // ⚠️ Refuser n'est pas un échec : l'agent reste simplement bloqué,
-          // et rien n'est écrit dans la configuration.
-          onClick={() => void answer(false)}
-        >
-          Refuser
-        </button>
-      </div>
+      {issue !== null && !issue.resolue ? <Notice ton="avertissement">{issue.texte}</Notice> : null}
+      {issue !== null && !issue.resolue ? null : (
+        <div className="trust__actions">
+          <button
+            type="button"
+            className="row__action row__action--primary"
+            disabled={busy}
+            onClick={() => void answer(true)}
+          >
+            {busy ? "…" : "Faire confiance"}
+          </button>
+          <button
+            type="button"
+            className="ghost"
+            disabled={busy}
+            // ⚠️ Refuser n'est pas un échec : l'agent reste simplement bloqué,
+            // et rien n'est écrit dans la configuration.
+            onClick={() => void answer(false)}
+          >
+            Refuser
+          </button>
+        </div>
+      )}
     </div>
   );
 };
