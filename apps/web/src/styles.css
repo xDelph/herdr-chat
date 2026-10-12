@@ -128,6 +128,8 @@ h2 {
 
 .screen__head {
   align-items: center;
+  /* Deux lignes : le titre, et le contexte juste en dessous. C'est la
+     disposition de la référence, et elle tient sans tronquer le titre. */
   /*
     Identique à `.topbar` : même fond, mêmes gouttières, même zone sure.
 
@@ -374,9 +376,9 @@ button:disabled {
 }
 
 .bubble {
-  border-radius: var(--radius-lg);
+  border-radius: 18px;
   max-width: 92%;
-  padding: 8px 12px;
+  padding: 10px 14px;
   /*
     `break-word` : une URL ou un chemin sans espaces doit être coupé quand il
     ne tient plus, sinon la bulle élargit le fil et `.messages` se met à
@@ -386,25 +388,54 @@ button:disabled {
   overflow-wrap: break-word;
 }
 
+/*
+  Ta demande : une **bulle**, alignée à droite.
+
+  ⚠️ Pas de bordure : le fond suffit à délimiter, et un contour autour de chaque
+  message transforme le fil en tableau.
+*/
 .bubble--user {
   align-self: flex-end;
-  background: color-mix(in srgb, var(--accent) 26%, var(--surface));
+  background: var(--surface-2);
+  /* Un peu plus compact que le texte de l'agent : c'est une demande, pas une
+     réponse à lire en entier. */
+  padding: 10px 14px;
 }
 
+/*
+  La réponse de l'agent : **pas de bulle du tout**.
+
+  ⚠️ C'est le point qui change le plus la lecture. Une réponse est longue,
+  structurée, avec des listes et du code ; l'enfermer dans une bulle rétrécit sa
+  largeur, ajoute des marges inutiles et hache le texte. Sur fond nu, elle
+  occupe toute la largeur et se lit comme un document — c'est aussi la
+  disposition de Codex.
+*/
 .bubble--assistant {
-  align-self: flex-start;
-  background: var(--surface);
+  align-self: stretch;
+  background: none;
+  max-width: 100%;
+  padding: 2px 0;
 }
 
 .bubble--system,
 .bubble--toolResult,
 .bubble--bashExecution {
   align-self: stretch;
-  background: var(--surface-2);
-  border: 1px dashed var(--border);
+  background: none;
+  /* La sortie d'un outil se distingue par sa **police**, pas par un cadre :
+     c'est du texte technique, il n'a pas besoin d'être encadré pour le dire. */
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  padding: 2px 0;
 }
 
+/* Métadonnées sous le message : discrètes, jamais au-dessus du contenu. */
 .bubble__role {
+  display: block;
+  margin-top: 4px;
+  opacity: 0.75;
   color: var(--muted);
   display: block;
   font-size: 12px;
@@ -421,14 +452,30 @@ button:disabled {
   white-space: pre-wrap;
 }
 
+/*
+  Composeur : une **pastille flottante**, pas une barre collée au bord.
+
+  ⚠️ Elle reste un enfant de la colonne flex — c'est ce qui garantit qu'elle ne
+  part pas avec le contenu en défilant. Seul son habillage change : fond arrondi
+  et marges, pour qu'elle se détache du fil au lieu d'y être soudée.
+
+  `env(safe-area-inset-bottom)` garde le champ au-dessus de la barre iOS.
+*/
 .composer {
   align-items: flex-end;
-  background: var(--surface);
-  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: var(--radius-pill);
   display: flex;
   gap: 8px;
-  /* `env(safe-area-inset-bottom)` garde le champ au-dessus de la barre iOS. */
-  padding: 8px 12px calc(8px + env(safe-area-inset-bottom));
+  margin: 6px 12px calc(8px + env(safe-area-inset-bottom));
+  padding: 6px 8px 6px 14px;
+}
+
+/* Le champ lui-même n'a plus de cadre : la pastille est autour de lui. */
+.composer textarea {
+  background: none;
+  border: none;
+  padding: 6px 0;
 }
 
 .composer textarea {
@@ -937,36 +984,59 @@ button:disabled {
    Groupes d'appels d'outils
    --------------------------------------------------------------------------- */
 
-.group {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  overflow: hidden;
-}
+/*
+  Suite d'outils : une **ligne discrète**, pas un cadre.
 
-.group--error {
-  border-color: color-mix(in srgb, var(--err) 45%, var(--border));
+  ⚠️ Un bloc encadré par groupe d'appels transforme une session réelle — qui en
+  compte des centaines — en suite de cadres, et les réponses disparaissent dans
+  le bruit. Ici le groupe se résume à une ligne grise, comme « Worked for 2m »
+  dans la référence : on la déplie si on veut, sinon elle passe.
+*/
+.group {
+  border: none;
 }
 
 .group__head {
   align-items: center;
-  background: color-mix(in srgb, var(--surface-2) 70%, transparent);
+  background: none;
   border: none;
-  color: inherit;
+  /* Le filet sépare la ligne du contenu suivant sans ajouter de cadre. */
+  border-bottom: 1px solid var(--border);
+  color: var(--muted);
   display: flex;
   flex-wrap: wrap;
+  font-size: 13px;
   gap: 8px;
   /* 44 px : ces lignes de regroupement mesuraient 37 px. */
   min-height: var(--tap-min);
-  padding: 9px 12px;
+  padding: 6px 0;
   text-align: left;
   width: 100%;
 }
 
+.group__head::after {
+  /* Chevron : dit que la ligne s'ouvre, sans occuper de largeur fixe. */
+  content: "›";
+  font-size: 15px;
+  line-height: 1;
+  transition: transform 120ms ease;
+}
+
+.group__head[aria-expanded="true"]::after {
+  transform: rotate(90deg);
+}
+
+/* Un échec reste visible : le résumé se colore, il ne disparaît pas. */
+.group--error .group__head {
+  color: var(--err);
+  border-bottom-color: color-mix(in srgb, var(--err) 45%, var(--border));
+}
+
 .group__count {
-  color: var(--muted);
-  font-size: 12px;
-  letter-spacing: 0.4px;
-  text-transform: uppercase;
+  color: inherit;
+  font-size: 13px;
+  letter-spacing: normal;
+  text-transform: none;
 }
 
 .group__tools {
@@ -1342,6 +1412,28 @@ button:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/*
+  La flèche de retour est un **glyphe**, pas un bouton encadré.
+
+  ⚠️ « ‹ Retour » en toutes lettres occupait la largeur du titre sur un écran
+  étroit, et sa bordure en faisait un bouton au même rang que les actions de
+  droite. Une flèche seule dit « revenir » sans rivaliser avec le titre ; sa
+  cible tactile reste de 44 px.
+*/
+.chat .back {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 22px;
+  min-width: var(--tap-min);
+  padding: 0;
+}
+
+/* Le sous-titre du titre : contexte, en gris et plus petit. */
+.screen__title > .muted {
+  font-size: 13px;
 }
 
 /* ---------------------------------------------------------------------------

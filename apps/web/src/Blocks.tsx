@@ -587,18 +587,22 @@ const timeOf = (iso: string | null): string => {
 /** Une bulle : rôle, métadonnées, blocs. Mémoïsée. */
 export const MessageBubble = memo(({ message }: { message: RenderedMessage }) => (
   <article className={`bubble bubble--${message.role}`}>
+    {message.blocks.map((block, index) => (
+      <BlockView key={`${message.id}-${String(index)}`} block={block} />
+    ))}
     {/*
-      Le rôle n'est écrit que pour les rôles **non évidents**. « USER » sur une
-      bulle alignée à droite, avec sa couleur, ne dit rien de plus.
+      Les métadonnées passent **sous** le contenu.
+
+      ⚠️ Au-dessus, elles s'interposent entre le message précédent et celui
+      qu'on commence à lire ; le rôle, le modèle et l'heure se lisent après coup,
+      quand on se demande d'où vient ce qu'on vient de lire. C'est aussi l'ordre
+      de la référence.
     */}
     <span className="bubble__role">
       {message.role === "user"
         ? timeOf(message.at)
         : `${message.role}${message.meta["model"] !== undefined ? ` · ${message.meta["model"]}` : ""}${message.meta["tokens"] !== undefined ? ` · ${message.meta["tokens"]} tok` : ""}${message.at !== null ? ` · ${timeOf(message.at)}` : ""}`}
     </span>
-    {message.blocks.map((block, index) => (
-      <BlockView key={`${message.id}-${String(index)}`} block={block} />
-    ))}
   </article>
 ));
 MessageBubble.displayName = "MessageBubble";

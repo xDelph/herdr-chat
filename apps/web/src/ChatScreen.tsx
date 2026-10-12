@@ -200,8 +200,8 @@ export const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => 
       <FileOpenerContext.Provider value={openPathFromBlock}>
         <section className="chat">
           <header className="screen__head">
-            <button type="button" className="back" onClick={onBack}>
-              ‹ Retour
+            <button type="button" className="back" onClick={onBack} aria-label="Retour">
+              ‹
             </button>
             <div className="screen__title">
               <strong>{agentName(agent)}</strong>

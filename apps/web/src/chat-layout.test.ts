@@ -214,7 +214,13 @@ describe("U07 — le clavier ne déclenche ni zoom ni chevauchement", () => {
   });
 
   test("le composeur garde la zone sûre du bas", () => {
-    expect(bloc(".composer")["padding"]).toContain("env(safe-area-inset-bottom)");
+    // ⚠️ U19 : la pastille flottante porte désormais la marge, donc c'est la
+    // **marge** qui porte la zone sûre. Peu importe laquelle des deux, à
+    // condition que l'une des deux la porte : sans elle, le champ passe sous la
+    // barre d'accueil de l'iPhone.
+    const composeur = bloc(".composer");
+    const porteur = `${composeur["margin"] ?? ""} ${composeur["padding"] ?? ""}`;
+    expect(porteur).toContain("env(safe-area-inset-bottom)");
   });
 
   test("les actions de l'en-tête restent au minimum tactile", () => {
@@ -276,5 +282,62 @@ describe("U07 — 320 px de large", () => {
 
   test("le composeur se resserre aussi", () => {
     expect(/\.composer \{([^}]*)\}/.exec(etroit)?.[1]).toContain("padding-left: 8px");
+  });
+});
+
+describe("U19 — la conversation se lit comme un document", () => {
+  test("ta demande est une bulle, la réponse de l'agent n'en a pas", () => {
+    /*
+      ⚠️ C'est le changement qui pèse le plus sur la lecture. Une réponse est
+      longue, structurée, avec des listes et du code ; l'enfermer dans une bulle
+      rétrécit sa largeur et hache le texte. Sur fond nu, elle occupe toute la
+      largeur et se lit comme un document — c'est aussi la disposition de Codex.
+    */
+    const bulle = bloc(".bubble--user");
+    expect(bulle["align-self"]).toBe("flex-end");
+    expect(bulle.background).toBe("var(--surface-2)");
+
+    const reponse = bloc(".bubble--assistant");
+    expect(reponse.background).toBe("none");
+    expect(reponse["align-self"]).toBe("stretch");
+    expect(reponse["max-width"]).toBe("100%");
+  });
+
+  test("un groupe d'outils est une ligne, pas un cadre", () => {
+    // Une session réelle compte des centaines d'appels : encadrés un par un,
+    // les réponses disparaissent dans le bruit.
+    expect(bloc(".group")["border"]).toBe("none");
+    expect(bloc(".group__head")["border-bottom"]).toContain("var(--border)");
+    // Et la ligne s'annonce comme dépliable.
+    expect(css).toContain('.group__head[aria-expanded="true"]');
+  });
+
+  test("le composeur est une pastille flottante, pas une barre", () => {
+    const composeur = bloc(".composer");
+    expect(composeur["border-radius"]).toBe("var(--radius-pill)");
+    expect(composeur.background).toBe("var(--surface-2)");
+    // Pas de filet de séparation : la pastille se détache déjà.
+    expect(composeur["border-top"]).toBeUndefined();
+    // Et il reste un enfant de la colonne : c'est ce qui l'empêche de partir
+    // avec le contenu en défilant.
+    expect(bloc(".chat .composer")["flex"]).toBe("0 0 auto");
+  });
+
+  test("les métadonnées passent sous le message", () => {
+    // Au-dessus, elles s'interposent entre deux messages qu'on enchaîne.
+    const blocs = readFileSync(join(import.meta.dir, "Blocks.tsx"), "utf8");
+    const corps = blocs.slice(blocs.indexOf("const MessageBubble"));
+    expect(corps.indexOf("bubble__role")).toBeGreaterThan(corps.indexOf("BlockView"));
+    expect(bloc(".bubble__role")["display"]).toBe("block");
+  });
+
+  test("la flèche de retour est un glyphe, avec un nom accessible", () => {
+    // « ‹ Retour » en toutes lettres occupait la largeur du titre à 320 px.
+    const ecran = readFileSync(join(import.meta.dir, "ChatScreen.tsx"), "utf8");
+    expect(ecran).toContain('aria-label="Retour"');
+    expect(ecran).not.toContain("‹ Retour");
+    // La cible tactile reste au minimum, même sans texte.
+    expect(bloc(".chat .back")["min-width"]).toBe("var(--tap-min)");
+    expect(bloc(".chat .back")["border"]).toBe("none");
   });
 });
