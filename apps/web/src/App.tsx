@@ -24,8 +24,7 @@ import {
   openEventStream,
 } from "./api.ts";
 import type { AgentView, InstalledKind, Health, Overview, TrustRequired } from "./api.ts";
-import { ALL_STATUSES, agentName, statusClass, statusLabel } from "./labels.tsx";
-import { AgentRow } from "./AgentRow.tsx";
+import { ALL_STATUSES, statusLabel } from "./labels.tsx";
 import { ChatScreen } from "./ChatScreen.tsx";
 import { describeEvent, nameByPane } from "./activite.ts";
 import { WorkspaceRowMemo } from "./ProjectRow.tsx";
@@ -35,8 +34,11 @@ import { ProjectAgentsOf } from "./ProjectDetail.tsx";
 import { Gallery } from "./Gallery.tsx";
 import type { LaunchChoice } from "./launch.ts";
 import { TrustCard } from "./TrustCard.tsx";
-import { AttentionCard } from "./Attention.tsx";
 import { DEFAULT_TAB, parseRoute, routeToHash, TabSchema, TABS, TAB_LABEL } from "./routing.ts";
+import { SECTIONS, SECTION_LABEL, sectionOf } from "./sections.ts";
+import { ConversationRow } from "./ConversationRow.tsx";
+import { SectionTitle } from "./SectionTitle.tsx";
+import { ProjectPicker } from "./ProjectPicker.tsx";
 import type { Route, Tab } from "./routing.ts";
 import { Notice } from "./Notice.tsx";
 
@@ -50,6 +52,15 @@ import { Notice } from "./Notice.tsx";
  * Lit le fragment courant et se resynchronise sur les navigations, y compris le
  * bouton retour. L'analyse vit dans `routing.ts`, où elle est testée.
  */
+/**
+ * Extrait le `paneId` d'un événement du flux.
+ *
+ * Déclaré hors du composant : un schéma construit dans le corps recrée le
+ * décodeur à chaque rendu, et se lit comme un composant React.
+ */
+const lireEvenementPane = (data: unknown) =>
+  Option.getOrUndefined(Schema.decodeUnknownOption(Schema.Struct({ paneId: Schema.String }))(data));
+
 const useHashRoute = (): [Route, (next: Route) => void] => {
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
 
@@ -112,6 +123,15 @@ export const App = () => {
   const [chargement, setChargement] = useState(true);
   /** Horodatage de la dernière lecture **réussie**, ou `null` si jamais. */
   const [dernierSucces, setDernierSucces] = useState<number | null>(null);
+  /**
+   * Horloge de la liste.
+   *
+   * Distincte de celle du bandeau d'état, qui n'en a plus besoin : une ligne de
+   * liste n'est pas une région vivante, donc « il y a 2 min » ne déclenche
+   * aucune annonce répétée (U11). Elle suit la cadence de la veille, sinon
+   * l'âge affiché resterait figé pendant toute la session.
+   */
+  const [maintenant, setMaintenant] = useState<number>(() => Date.now());
 
   /**
    * Dernier état connu de chaque agent.
@@ -162,6 +182,9 @@ export const App = () => {
     void refresh();
     const timer = setInterval(() => {
       void refresh();
+      // L'horloge de la liste suit la veille : sans elle, « il y a 2 min »
+      // resterait figé pendant toute la session.
+      setMaintenant(Date.now());
     }, 4000);
     return () => clearInterval(timer);
   }, [refresh]);
@@ -277,9 +300,6 @@ export const App = () => {
    */
   const projectRoot =
     agents.find((agent) => agent.workspaceLabel === "herdr-pwa")?.cwd ?? agents[0]?.cwd ?? "";
-  // Un agent « bloqué » attend une intervention : c'est la seule catégorie qui
-  // appelle une action de l'utilisateur.
-  const awaiting = agents.filter((agent) => agent.status === "blocked");
   /** `true` si au moins un agent tourne — sert à ne jamais afficher un vide. */
   const waiting = agents.length > 0;
 
@@ -300,10 +320,63 @@ export const App = () => {
       ),
     [projectRoot],
   );
-  const filtered = agents.filter(
-    (agent) =>
-      (statusFilter === "tous" || agent.status === statusFilter) &&
-      (workspaceFilter === "tous" || agent.workspaceId === workspaceFilter),
+  /**
+   * Liste **par sections**, filtrée.
+   *
+   * ⚠️ Le filtre porte sur la liste entière, pas sur une section : un agent
+   * filtré disparaît aussi de « À traiter ». Le contraire donnerait l'impression
+   * qu'il a été traité.
+   */
+  const filtreActif = statusFilter !== "tous" || workspaceFilter !== "tous";
+  const liste = useMemo(() => {
+    const retenus = agents.filter(
+      (agent) =>
+        (statusFilter === "tous" || agent.status === statusFilter) &&
+        (workspaceFilter === "tous" || agent.workspaceId === workspaceFilter),
+    );
+    // On groupe les **agents** eux-mêmes, pas des résumés : la ligne affiche le
+    // contexte complet (onglet, type, projet) et un résumé ne le porte pas.
+    return SECTIONS.map((section) => ({
+      conversations: retenus.filter((agent) => sectionOf(agent.status) === section),
+      section,
+    }));
+  }, [agents, statusFilter, workspaceFilter]);
+  const totalVisible = liste.reduce((cumul, une) => cumul + une.conversations.length, 0);
+
+  /**
+   * Dernier événement connu, par agent.
+   *
+   * ⚠️ Herdr ne donne **aucun** horodatage par agent. Le journal d'événements
+   * est la seule source réelle ; il est donc incomplet par nature — un agent
+   * lancé avant le dernier rechargement n'a pas d'instant, et la colonne reste
+   * vide. Une heure inventée serait pire qu'une cellule muette.
+   */
+  const instantsParPane = useMemo(() => {
+    const table = new Map<string, number>();
+    for (const item of activity) {
+      // La charge utile est décodée, pas devinée : un événement sans `paneId`
+      // n'a pas de ligne, et le dire vaut mieux qu'un `undefined` qui
+      // ramènerait toutes les lignes au même instant.
+      const lu = lireEvenementPane(item.data);
+      if (lu === undefined) continue;
+      const pane = lu.paneId;
+      const precedent = table.get(pane);
+      // Le journal est trié du plus récent au plus ancien : le premier vue
+      // gagne, et un `max` évite de dépendre de cet ordre.
+      if (precedent === undefined || item.at > precedent) table.set(pane, item.at);
+    }
+    return table;
+  }, [activity]);
+
+  const [filtresOuverts, setFiltresOuverts] = useState(false);
+  const [projetChoisi, setProjetChoisi] = useState(false);
+  const ouvrirFiltres = useCallback(() => setFiltresOuverts((ouvert) => !ouvert), []);
+  const choisirProjet = useCallback(
+    (workspaceId: string) => {
+      setProjetChoisi(false);
+      navigate({ kind: "projet", workspaceId });
+    },
+    [navigate, setProjetChoisi],
   );
 
   // Détail d'un projet (U05) : ses conversations, et rien d'autre. Le filtre de
@@ -540,82 +613,140 @@ export const App = () => {
         existe » et « de quoi s’occuper » — deux listes, une seule réponse.
       */}
       {tab === "conversations" ? (
-        <section className="screen">
-          <h2>Conversations</h2>
-          <div className="filters">
-            <select value={workspaceFilter} onChange={onWorkspaceFilter}>
-              <option value="tous">tous les projets</option>
-              {overview?.workspaces.map((workspace) => (
-                <option key={workspace.workspaceId} value={workspace.workspaceId}>
-                  {workspace.label ?? workspace.workspaceId}
-                </option>
-              ))}
-            </select>
-            <select value={statusFilter} onChange={onStatusFilter}>
-              <option value="tous">tous les états</option>
-              {ALL_STATUSES.map((status) => (
-                <option key={status} value={status}>
-                  {statusLabel(status)}
-                </option>
-              ))}
-            </select>
-          </div>
-          <ul className="list">
-            {filtered.map((agent) => (
-              <li key={agent.paneId}>
-                <AgentRow agent={agent} onOpen={onOpenAgent} />
-              </li>
-            ))}
-          </ul>
-          {filtered.length === 0 ? <p className="muted">Aucun agent pour ce filtre.</p> : null}
+        <section className="screen screen--liste">
+          <header className="liste__head">
+            <h2>Conversations</h2>
+            {/*
+              Les filtres sont **cachés** par défaut : deux listes déroulantes
+              au-dessus de la liste occupaient le premier écran et n'aidaient à
+              personne à lire. Ils n'apparaissent que si on les demande — et le
+              bouton dit alors qu'ils sont actifs.
+            */}
+            <button
+              type="button"
+              className="ghost liste__filtres"
+              aria-expanded={filtresOuverts}
+              onClick={ouvrirFiltres}
+            >
+              {filtreActif ? "Filtres actifs" : "Filtres"}
+            </button>
+          </header>
 
-          {/* Première section de Conversations, plus un onglet séparé. */}
-          <h2>À traiter</h2>
-          {awaiting.length === 0 ? (
-            waiting ? (
-              /*
-                ⚠️ Un écran d'accueil ne doit pas être vide. Quand rien n'attend,
-                on montre **l'état du parc** : qui tourne, et depuis quand.
-              */
-              <ul className="list list--compact">
-                {agents.map((agent) => (
-                  <li key={agent.paneId} className="row row--static">
-                    <span className={statusClass(agent.status)} />
-                    <span className="row__main">
-                      <strong>{agentName(agent)}</strong>
-                      <span className="muted small">{statusLabel(agent.status)}</span>
-                    </span>
-                  </li>
+          {filtresOuverts || filtreActif ? (
+            <div className="filters">
+              <select
+                value={workspaceFilter}
+                aria-label="Filtrer par projet"
+                onChange={onWorkspaceFilter}
+              >
+                <option value="tous">tous les projets</option>
+                {overview?.workspaces.map((workspace) => (
+                  <option key={workspace.workspaceId} value={workspace.workspaceId}>
+                    {workspace.label ?? workspace.workspaceId}
+                  </option>
                 ))}
-              </ul>
-            ) : (
-              <p className="muted">Rien ne tourne pour l'instant.</p>
-            )
-          ) : (
-            <div className="attention__list">
-              {awaiting.map((agent) => (
-                <AttentionCard key={agent.paneId} agent={agent} onOpen={onOpenAgent} />
-              ))}
+              </select>
+              <select value={statusFilter} aria-label="Filtrer par état" onChange={onStatusFilter}>
+                <option value="tous">tous les états</option>
+                {ALL_STATUSES.map((status) => (
+                  <option key={status} value={status}>
+                    {statusLabel(status)}
+                  </option>
+                ))}
+              </select>
             </div>
-          )}
+          ) : null}
 
-          <h2>Activité récente</h2>
+          {liste.map(({ conversations, section }) => (
+            <section key={section} className="liste__section">
+              <SectionTitle count={conversations.length}>{SECTION_LABEL[section]}</SectionTitle>
+              {conversations.length === 0 ? (
+                /*
+                  Une section vide **reste visible**, avec son compte à zéro. La
+                  retirer ferait disparaître la structure : l'utilisateur ne
+                  saurait plus s'il a tout vu, ou si une section lui a été
+                  cachée.
+                */
+                <p className="liste__vide">rien ici</p>
+              ) : (
+                <ul className="liste">
+                  {conversations.map((conversation) => (
+                    <li key={conversation.paneId}>
+                      <ConversationRow
+                        agent={conversation}
+                        instant={instantsParPane.get(conversation.paneId) ?? null}
+                        maintenant={maintenant}
+                        onOpen={onOpenAgent}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+          ))}
+
+          {totalVisible === 0 && filtreActif ? (
+            <p className="muted">Aucun agent pour ce filtre.</p>
+          ) : null}
+
+          {/*
+            Le parc quand il n'y a rien du tout à montrer. Un écran d'accueil ne
+            doit pas être vide : quand rien ne tourne, on le dit, et le bouton
+            flottant reste là pour lancer.
+          */}
+          {agents.length === 0 && !waiting ? (
+            <p className="muted liste__rien">Aucun agent dans Herdr pour l'instant.</p>
+          ) : null}
+
+          <SectionTitle count={activity.length}>Activité</SectionTitle>
           {activity.length === 0 ? (
             <p className="muted small">
               Rien reçu pour l'instant. Les lancements, messages et changements d'état apparaissent
               ici.
             </p>
           ) : (
-            <ul className="list list--compact">
+            <ul className="liste liste--activite">
               {activity.map((item) => (
-                <li key={item.id} className="small">
-                  <span className="mono muted">{new Date(item.at).toLocaleTimeString()}</span>{" "}
-                  {describeEvent(item.kind, item.data, activityNames)}
+                <li key={item.id} className="conv__ligne--bas">
+                  <span className="conv__meta">
+                    {describeEvent(item.kind, item.data, activityNames)}
+                  </span>
+                  <span className="conv__temps">
+                    {new Date(item.at).toLocaleTimeString("fr-FR", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
                 </li>
               ))}
             </ul>
           )}
         </section>
+      ) : null}
+
+      {/*
+        Bouton flottant : l'action principale doit être atteignable **sans**
+        remonter la liste. Il reste au-dessus du bas d'écran grâce à
+        `position: fixed`, et son nom dit ce qu'il fait — il demande le projet,
+        il ne lance pas dans le vide.
+      */}
+      {tab === "conversations" ? (
+        <button
+          type="button"
+          className="fab"
+          onClick={() => setProjetChoisi(true)}
+          disabled={agents.length === 0}
+        >
+          + Nouvel agent
+        </button>
+      ) : null}
+
+      {projetChoisi ? (
+        <ProjectPicker
+          onClose={() => setProjetChoisi(false)}
+          onPick={choisirProjet}
+          workspaces={overview?.workspaces ?? []}
+        />
       ) : null}
 
       {tab === "reglages" ? (

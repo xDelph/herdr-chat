@@ -43,6 +43,14 @@
     d'état n'a pas à être touchable.
   */
   --tap-min: 44px;
+  /*
+    Hauteur de la barre d'onglets : le minimum tactile plus sa bordure haute.
+
+    ⚠️ Sert au bouton flottant, qui doit se placer **au-dessus** d'elle. Un
+    `bottom` en pixels nus le faisait passer derrière la barre : le bouton
+    restait à moitié caché, et rien ne le signalait.
+  */
+  --tabs-height: calc(var(--tap-min) + 1px);
 
   /*
     Contrastes **mesurés** par calcul de luminance relative (WCAG 2.1), pas
@@ -1825,4 +1833,252 @@ button:disabled {
     padding-left: 8px;
     padding-right: 8px;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Liste des conversations — plate, dense, lisible d'un coup d'œil
+   ---------------------------------------------------------------------------
+   Trois lignes par conversation : source et temps, titre, contexte et état.
+   L'espace fait la séparation ; **aucune bordure** entre les lignes, comme dans
+   la référence. Une bordure sur toute la largeur ajoute du bruit sans rien
+   apprendre : les lignes sont déjà sur la même grille.
+--------------------------------------------------------------------------- */
+
+.screen--liste {
+  /* Gouttière de gauche nulle : le titre de ligne colle au bord, comme la
+     référence. Les marges internes reviennent sur la ligne elle-même. */
+  padding-left: 0;
+  padding-right: 0;
+}
+
+.liste__head {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 0 16px 4px;
+}
+
+.liste__head h2 {
+  margin: 0;
+}
+
+.liste__filtres {
+  font-size: 14px;
+  min-width: 0;
+}
+
+.liste__section {
+  margin-top: 6px;
+}
+
+.liste {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.liste__vide,
+.liste__rien {
+  color: var(--muted);
+  font-size: 13px;
+  padding: 6px 16px 10px;
+}
+
+/* Titre de section : libellé + filet qui file vers la droite. */
+.section {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 12px;
+  font-weight: 600;
+  gap: 8px;
+  letter-spacing: 0.6px;
+  margin: 18px 0 4px;
+  padding: 0 16px;
+  text-transform: uppercase;
+}
+
+.section__count {
+  font-weight: 400;
+}
+
+/* Le filet porte la ligne de base autant que le style : sans lui, les titres
+   flottent et la grille se perd. `flex: 1` le laisse prendre ce qui reste. */
+.section__filet {
+  background: var(--border);
+  flex: 1;
+  height: 1px;
+}
+
+/* --- La ligne ------------------------------------------------------------ */
+
+.conv {
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  /* Toute la largeur, avec un minimum de 44 px de haut : la cible tactile est
+     la ligne entière, pas le titre. */
+  min-height: var(--tap-min);
+  padding: 10px 16px 12px;
+  text-align: left;
+  width: 100%;
+}
+
+.conv:active {
+  background: var(--surface-2);
+}
+
+.conv__ligne {
+  align-items: baseline;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  min-width: 0;
+}
+
+.conv__source {
+  color: var(--muted);
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conv__temps {
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+
+.conv__titre {
+  font-size: 16px;
+  font-weight: 600;
+  /* Titre à deux lignes au maximum : au-delà, la ligne mange l'écran. */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.conv__meta {
+  color: var(--muted);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+  L'état est un **mot coloré**, pas une pastille : une pastille oblige à
+  connaître la légende, un mot se lit. La couleur porte l'information qu'on
+  cherche en premier — « est-ce que ça m'attend ? ».
+
+  `unknown` reste en `muted` : le rouge serait une accuse portée sur l'agent
+  alors qu'on ne sait rien de lui.
+*/
+.etat {
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.etat--bloque {
+  color: var(--warn);
+}
+
+.etat--en-cours {
+  color: var(--accent);
+}
+
+.etat--fait {
+  color: var(--ok);
+}
+
+.liste--activite li {
+  color: var(--muted);
+  font-size: 12px;
+  padding: 5px 16px;
+}
+
+/* --- Choix du projet ------------------------------------------------------ */
+
+.picker {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  list-style: none;
+  margin: 0;
+  padding: 4px 0 0;
+}
+
+.picker__row {
+  align-items: baseline;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  min-height: var(--tap-min);
+  padding: 10px 4px;
+  text-align: left;
+  width: 100%;
+}
+
+.picker__nom {
+  font-size: 16px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.picker__compte {
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+
+/*
+  Bouton flottant.
+
+  ⚠️ `position: fixed` et non `absolute` dans la colonne : l'écran `.screen`
+  défile, et un bouton absolu remonterait avec le contenu. Il doit rester
+  atteignable sans faire défiler la liste — c'est tout son intérêt.
+*/
+.fab {
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-pill);
+  /*
+    ⚠️ **Au-dessus de la barre d'onglets**, pas dessus. `--tabs-height` porte la
+    hauteur réelle de la barre ; un `bottom` en pixels nus plaçait le bouton
+    derrière elle, à moitié caché, sans que rien ne le signale.
+  */
+  bottom: calc(var(--tabs-height) + 16px + env(safe-area-inset-bottom));
+  color: #04101f;
+  font-size: 15px;
+  font-weight: 600;
+  min-height: var(--tap-min);
+  padding: 12px 20px;
+  position: fixed;
+  /* À droite, comme dans la référence : le pouce y arrive sans lâcher le
+     téléphone, et la zone de contenu reste dégagée à gauche. */
+  right: 16px;
+  z-index: 20;
+}
+
+.fab:disabled {
+  opacity: 0.5;
 }
