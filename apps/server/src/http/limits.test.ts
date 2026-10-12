@@ -24,7 +24,9 @@ import { PREVIEW_BYTES as SUMMARY_PREVIEW } from "../conversations/Summary.ts";
 import { MAX_CONCURRENT_READS as CONVERSATION_READS } from "./routes-conversations.ts";
 import { guardMutation } from "./OriginGuard.ts";
 
-const ORIGINE = "http://127.0.0.1:8791";
+/** Une seule origine ne suffit plus : la PWA est servie par plusieurs adresses. */
+const ORIGINES: ReadonlyArray<string> = ["http://127.0.0.1:8791"];
+const ORIGINE = ORIGINES[0] ?? "";
 
 /**
  * Requête minimale.
@@ -98,7 +100,7 @@ describe("S06 — le prompt est borné en octets UTF-8", () => {
 
 describe("S06 — le corps JSON est refusé avant lecture", () => {
   test("un corps à la limite est accepté", () => {
-    expect(guardMutation(requete({ "content-length": String(MAX_JSON_BYTES) }), ORIGINE).ok).toBe(
+    expect(guardMutation(requete({ "content-length": String(MAX_JSON_BYTES) }), ORIGINES).ok).toBe(
       true,
     );
   });
@@ -106,7 +108,7 @@ describe("S06 — le corps JSON est refusé avant lecture", () => {
   test("un corps d'un octet de plus est refusé en 413", () => {
     const verdict = guardMutation(
       requete({ "content-length": String(MAX_JSON_BYTES + 1) }),
-      ORIGINE,
+      ORIGINES,
     );
     expect(verdict.ok).toBe(false);
     expect(verdict.status).toBe(413);
@@ -116,13 +118,13 @@ describe("S06 — le corps JSON est refusé avant lecture", () => {
   test("une longueur absente ou fausse ne bloque pas", () => {
     // Un client qui n'annonce pas de longueur ne doit pas être refusé pour
     // une information manquante : la limite reste appliquée au prompt ensuite.
-    expect(guardMutation(requete(), ORIGINE).ok).toBe(true);
-    expect(guardMutation(requete({ "content-length": "beaucoup" }), ORIGINE).ok).toBe(true);
+    expect(guardMutation(requete(), ORIGINES).ok).toBe(true);
+    expect(guardMutation(requete({ "content-length": "beaucoup" }), ORIGINES).ok).toBe(true);
   });
 
   test("la longueur est lue sans se fier à la casse de l'en-tête", () => {
     expect(
-      guardMutation(requete({ "Content-Length": String(MAX_JSON_BYTES + 1) }), ORIGINE).ok,
+      guardMutation(requete({ "Content-Length": String(MAX_JSON_BYTES + 1) }), ORIGINES).ok,
     ).toBe(false);
   });
 });
@@ -130,5 +132,48 @@ describe("S06 — le corps JSON est refusé avant lecture", () => {
 describe("S06 — les flux SSE sont bornés et le compteur se libère", () => {
   test("le plafond annoncé est bien celui du contrat", () => {
     expect(MAX_SSE_STREAMS).toBe(8);
+  });
+});
+
+/** Requête dont on choisit l'origine. */
+const requeteAvec = (origin: string) => requete({ origin });
+
+describe("U15 — plusieurs adresses servent la même PWA", () => {
+  test("chacune des adresses déclarées passe", () => {
+    for (const origine of [
+      "http://127.0.0.1:8791",
+      "http://localhost:8791",
+      "https://macbook.ts.net:8790",
+    ]) {
+      expect(guardMutation(requeteAvec(origine), [...ORIGINES, origine]).ok).toBe(true);
+    }
+  });
+
+  test("une adresse non déclarée est refusée", () => {
+    const verdict = guardMutation(requeteAvec("https://ailleurs.example"), ORIGINES);
+    expect(verdict.ok).toBe(false);
+    expect(verdict.reason).toBe("origin-etrangere");
+  });
+
+  test("une adresse suffixe ne passe pas", () => {
+    // La comparaison reste entière : `macbook.ts.net.evil.com` n'est pas
+    // `macbook.ts.net`.
+    expect(
+      guardMutation(requeteAvec("https://macbook.ts.net.evil.com"), [
+        ...ORIGINES,
+        "https://macbook.ts.net",
+      ]).ok,
+    ).toBe(false);
+  });
+
+  test("le refus nomme les deux parties", () => {
+    // Sans cela, il faut reproduire la requête pour savoir quoi corriger.
+    const verdict = guardMutation(requeteAvec("https://ailleurs.example"), ORIGINES);
+    expect(verdict.recue).toBe("https://ailleurs.example");
+    expect(verdict.attendue).toContain("http://127.0.0.1:8791");
+  });
+
+  test("une liste vide refuse tout", () => {
+    expect(guardMutation(requeteAvec(ORIGINE), []).ok).toBe(false);
   });
 });

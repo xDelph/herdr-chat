@@ -111,9 +111,9 @@ const decodeTrustBody = Schema.decodeUnknownOption(TrustBody);
  * l'utilisateur à un autre dialogue serait pire que de ne rien faire.
  */
 const makeAnswerTrust =
-  (logPath: string, publicOrigin: string, herdr: HerdrApi) =>
+  (logPath: string, publicOrigins: ReadonlyArray<string>, herdr: HerdrApi) =>
   async (request: RouteRequest): Promise<Response> => {
-    const refused = refuseIfCrossSite(logPath, request, publicOrigin);
+    const refused = refuseIfCrossSite(logPath, request, publicOrigins);
     if (refused !== undefined) return refused;
 
     const raw: unknown = await request.json().catch(() => undefined);
@@ -210,10 +210,10 @@ const ACCEPTED_KINDS = new Set([
  */
 const clientLog = async (
   logPath: string,
-  publicOrigin: string,
+  publicOrigins: ReadonlyArray<string>,
   request: RouteRequest,
 ): Promise<Response> => {
-  const refused = refuseIfCrossSite(logPath, request, publicOrigin);
+  const refused = refuseIfCrossSite(logPath, request, publicOrigins);
   if (refused !== undefined) return refused;
 
   const raw: unknown = await request.json().catch(() => undefined);
@@ -261,20 +261,22 @@ const modelCatalog = (logPath: string, request: RouteRequest): Promise<Response>
 const refuseIfCrossSite = (
   logPath: string,
   request: RouteRequest,
-  publicOrigin: string,
+  publicOrigins: ReadonlyArray<string>,
 ): Response | undefined => {
   // 1. Méthode. Une route mutante n'accepte que POST ; `Allow` est renvoyé avec
   //    le 405, sinon le client ignore la route au lieu de se corriger.
   const method = request.method ?? "POST";
   if (method !== "POST") return methodNotAllowed();
 
-  const verdict = guardMutation(request, publicOrigin);
+  const verdict = guardMutation(request, publicOrigins);
   if (verdict.ok) return undefined;
   const reason = verdict.reason ?? "origin-etrangere";
   return respond(
     logPath,
     decoderOf(ApiErrorResponse),
-    { error: describeGuardRejection(reason) },
+    // ⚠️ Les deux origines sont rapportées : un refus qui ne dit pas ce qui a
+    // été trouvé oblige à reproduire la requête pour comprendre.
+    { error: describeGuardRejection(reason, verdict.attendue, verdict.recue) },
     verdict.status ?? 403,
   );
 };
@@ -282,7 +284,7 @@ const refuseIfCrossSite = (
 export const makeRoutes = (deps: ApiDeps): Routes => {
   const { config, herdr, hub, sender, watch, startedAt } = deps;
 
-  const answerTrust = makeAnswerTrust(config.logPath, config.publicOrigin, herdr);
+  const answerTrust = makeAnswerTrust(config.logPath, config.publicOrigins, herdr);
   const sessionRoutes = makeSessionRoutes(config, herdr);
   const fileRoutes = makeFileRoutes(config, herdr);
   const eventRoutes = makeEventRoutes(hub);
@@ -390,7 +392,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     );
 
   const prompt = async (request: RouteRequest): Promise<Response> => {
-    const refused = refuseIfCrossSite(config.logPath, request, config.publicOrigin);
+    const refused = refuseIfCrossSite(config.logPath, request, config.publicOrigins);
     if (refused !== undefined) return refused;
 
     const raw: unknown = await request.json().catch(() => undefined);
@@ -492,7 +494,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
    * récupérable, pas disparaître dans un message d'erreur (B08).
    */
   const launchAgent = async (request: RouteRequest): Promise<Response> => {
-    const refused = refuseIfCrossSite(config.logPath, request, config.publicOrigin);
+    const refused = refuseIfCrossSite(config.logPath, request, config.publicOrigins);
     if (refused !== undefined) return refused;
 
     const workspaceId = request.params["workspaceId"] ?? "";
@@ -827,7 +829,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     "/api/agents/kinds": agentKinds,
     "/api/agents/:kind/models": (request) => modelCatalog(config.logPath, request),
     "/api/agents/:paneId/trust": answerTrust,
-    "/api/log": (request) => clientLog(config.logPath, config.publicOrigin, request),
+    "/api/log": (request) => clientLog(config.logPath, config.publicOrigins, request),
     "/api/events": eventRoutes.events,
     "/api/file": fileRoutes.file,
     "/api/images": fileRoutes.images,

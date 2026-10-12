@@ -32,6 +32,15 @@ export interface GuardVerdict {
   readonly ok: boolean;
   readonly reason?: GuardRejection;
   readonly status?: number;
+  /**
+   * Ce qui a réellement été trouvé, pour un refus d'origine.
+   *
+   * ⚠️ « origine non autorisée » sans la valeur reçue est **indiagnosticable** :
+   * ni l'utilisateur ni l'opérateur ne peuvent savoir si le problème est une
+   * mauvaise configuration ou une requête d'un autre appareil. La cause se dit.
+   */
+  readonly attendue?: string;
+  readonly recue?: string | null;
 }
 
 /** Cherche un en-tête sans se fier à sa casse. */
@@ -50,22 +59,25 @@ const readHeaderInsensible = (
   return null;
 };
 
-/** Origines autorisées, comparées **exactement**. */
-export const isAllowedOrigin = (origin: string | null, expected: string): boolean => {
-  // Comparaison de chaîne entière : `https://macbook.ts.net.evil.com` ne doit pas
-  // passer pour `https://macbook.ts.net`.
-  return origin !== null && origin === expected;
-};
+/**
+ * Origines autorisées, comparées **exactement** et **entièrement**.
+ *
+ * `https://macbook.ts.net.evil.com` ne doit pas passer pour
+ * `https://macbook.ts.net` : pas de comparaison partielle, pas de motif.
+ */
+export const isAllowedOrigin = (origin: string | null, expected: ReadonlyArray<string>): boolean =>
+  origin !== null && expected.includes(origin);
 
 /**
  * Vérifie une requête mutante.
  *
- * `expectedOrigin` est l'origine **exacte** de la PWA, tirée de la
- * configuration. Aucun motif, aucune liste blanche laxiste.
+ * `expectedOrigins` sont les origines **exactes** de la PWA, tirées de la
+ * configuration. Aucun motif, aucune liste blanche laxiste : une entrée de trop
+ * est une porte ouverte, et une de moins casse l'envoi.
  */
 export const guardMutation = (
   request: Pick<RouteRequest, "headers" | "json">,
-  expectedOrigin: string,
+  expectedOrigins: ReadonlyArray<string>,
 ): GuardVerdict => {
   const origin = request.headers.get("origin");
 
@@ -74,8 +86,17 @@ export const guardMutation = (
   if (origin === null || origin.length === 0) {
     return { ok: false, reason: "origin-absente", status: 403 };
   }
-  if (!isAllowedOrigin(origin, expectedOrigin)) {
-    return { ok: false, reason: "origin-etrangere", status: 403 };
+  if (!isAllowedOrigin(origin, expectedOrigins)) {
+    // Les deux origines sont rapportées : celles attendues viennent de la
+    // configuration, celle reçue vient du navigateur. Les nommer suffit à
+    // corriger la configuration sans avoir à reproduire la requête.
+    return {
+      attendue: expectedOrigins.join(" | "),
+      ok: false,
+      recue: origin,
+      reason: "origin-etrangere",
+      status: 403,
+    };
   }
 
   // 2. Type de contenu. Un formulaire HTML ne peut produire que
@@ -103,12 +124,19 @@ export const guardMutation = (
 };
 
 /** Message : la cause, jamais un refus muet. */
-export const describeGuardRejection = (reason: GuardRejection): string => {
+export const describeGuardRejection = (
+  reason: GuardRejection,
+  attendue?: string,
+  recue?: string | null,
+): string => {
   switch (reason) {
     case "origin-absente":
       return "origine absente : requête cross-site probable";
     case "origin-etrangere":
-      return "origine non autorisée";
+      // ⚠️ Les deux origines sont **dites**. Sans elles, l'utilisateur ne peut
+      // que deviner entre « mauvaise configuration » et « autre appareil », et la
+      // correction demande de reproduire la requête.
+      return `origine non autorisée (attendue ${attendue ?? "?"}, reçue ${recue ?? "?"})`;
     case "methode":
       return "méthode non autorisée sur cette route";
     case "content-type":

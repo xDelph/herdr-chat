@@ -48,11 +48,20 @@ export interface ServerConfig {
   /**
    * Origine **exacte** de la PWA, pour le contrôle CSRF (S02).
    *
-   * Comparée caractère par caractère : un motif laxiste laisserait passer
-   * `https://macbook.ts.net.evil.com`. Par défaut, l'origine locale qui sert
-   * elle-même la PWA ; en production c'est le nom Tailscale.
+   * Comparées caractère par caractère : un motif laxiste laisserait passer
+   * `https://macbook.ts.net.evil.com`.
+   *
+   * ⚠️ **Pourquoi une liste.** La PWA est servie par ce serveur, mais on peut
+   * l'ouvrir par plusieurs adresses qui pointent pourtant sur lui :
+   * `127.0.0.1`, `localhost`, le nom Tailscale. Le navigateur envoie l'origine
+   * de la page, et une seule valeur refusait les deux autres — l'envoi depuis le
+   * téléphone devenait impossible sans que l'erreur dise laquelle.
+   *
+   * Ce n'est **pas** un élargissement : une page tierce ne peut pas forger un
+   * en-tête `Origin`, et chacune de ces adresses sert ce serveur. La liste est
+   * déclarée à la main dans l'environnement, jamais devinée.
    */
-  readonly publicOrigin: string;
+  readonly publicOrigins: ReadonlyArray<string>;
   /**
    * Racines **supplémentaires** pour la lecture de fichiers.
    *
@@ -125,9 +134,15 @@ export class ServerConfigTag extends Context.Service<ServerConfigTag, ServerConf
         hostname: bind,
         duplicateWindowMs: DUPLICATE_WINDOW_MS,
         logPath: env["HERDR_REMOTE_LOG_PATH"] ?? defaultLogPath(),
-        publicOrigin:
+        publicOrigins: (
+          env["HERDR_REMOTE_PUBLIC_ORIGINS"] ??
           env["HERDR_REMOTE_PUBLIC_ORIGIN"] ??
-          `http://${bind === "127.0.0.1" ? "127.0.0.1" : bind}:${String(port)}`,
+          ""
+        )
+          .split(",")
+          .map((origine) => origine.trim())
+          .filter((origine) => origine.length > 0)
+          .concat([`http://${bind === "127.0.0.1" ? "127.0.0.1" : bind}:${String(port)}`]),
         extraFileRoots,
       });
     }),
