@@ -34,6 +34,8 @@ import type {
 import { AgentStatus } from "@herdr-remote/shared";
 import { ALL_STATUSES, agentContext, agentName, statusClass, statusLabel } from "./labels.tsx";
 import { ChatScreen } from "./ChatScreen.tsx";
+import { BandeauEtat } from "./EtatLecture.tsx";
+import { etatLecture } from "./etats.ts";
 import { ProjectAgentsOf } from "./ProjectDetail.tsx";
 import { Gallery } from "./Gallery.tsx";
 import { LaunchSheet } from "./LaunchSheet.tsx";
@@ -331,18 +333,55 @@ export const App = () => {
    */
   const [trustRequest, setTrustRequest] = useState<TrustRequired | null>(null);
   const [workspaceFilter, setWorkspaceFilter] = useState<string>("tous");
+  /** Une lecture est-elle en cours ? Prévoir le premier rendu, qui n'en est pas. */
+  const [chargement, setChargement] = useState(true);
+  /** Horodatage de la dernière lecture **réussie**, ou `null` si jamais. */
+  const [dernierSucces, setDernierSucces] = useState<number | null>(null);
+  /** Horloge du bandeau d'état. */
+  const [maintenant, setMaintenant] = useState<number>(() => Date.now());
 
+  /**
+   * Dernier état connu de chaque agent.
+   *
+   * ⚠️ Le snapshot perd brièvement un agent : veilleur qui redémarre, `resync`,
+   * Herdr qui repart. `selectedAgent` devenait alors `null` et l'application
+   * **sortait de la conversation** — le fil, la position de défilement et le
+   * brouillon disparaissaient. Le contrat dit « coupure conserve messages et
+   * brouillon » : on garde donc la dernière observation réelle, et on signale
+   * qu'elle est périmée.
+   *
+   * C'est un **état**, pas une référence : React interdit de lire une référence
+   * pendant le rendu, et il a raison — la valeur doit déclencher un rendu.
+   */
+  const [memoire, setMemoire] = useState<ReadonlyMap<string, AgentView>>(() => new Map());
+
+  /**
+   * Lectures en vol.
+   *
+   * Un compteur, pas un booléen : la lecture automatique démarre une nouvelle
+   * requête toutes les 4 s, et une réponse lente arrivait après la suivante. Le
+   * « chargement » se levait trop tôt, et l'écran clignotait.
+   */
+  const enCours = useRef(0);
   const refresh = useCallback(async () => {
+    enCours.current += 1;
+    setChargement(true);
     try {
       const [nextOverview, nextHealth] = await Promise.all([fetchOverview(), fetchHealth()]);
       setOverview(nextOverview);
       setHealth(nextHealth);
       setError(null);
+      // Horodatage de la **dernière** lecture réussie : c'est ce qui permet de
+      // dire l'âge de ce qui est affiché au lieu de supposer qu'il est frais.
+      setDernierSucces(Date.now());
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
       setError(message);
-      // Journalisé : une barre rouge disparaît au rechargement, pas le journal.
+      // Journalisé : un bandeau disparaît au rechargement, pas le journal.
       reportError("échec du chargement de la vue d'ensemble", message);
+    } finally {
+      enCours.current -= 1;
+      if (enCours.current === 0) setChargement(false);
     }
   }, []);
 
@@ -350,6 +389,9 @@ export const App = () => {
     void refresh();
     const timer = setInterval(() => {
       void refresh();
+      // Même cadence que la lecture : « il y a 3 min » suit la donnée au lieu
+      // de vieillir tout seul pendant que l'application dort.
+      setMaintenant(Date.now());
     }, 4000);
     return () => clearInterval(timer);
   }, [refresh]);
@@ -402,6 +444,58 @@ export const App = () => {
   const agents = useMemo(() => overview?.agents ?? [], [overview]);
   // Table de noms **du rendu** : un nom arrivé après un événement s'y applique.
   const activityNames = nameByPane(agents);
+
+  /**
+   * Mémoire des observations.
+   *
+   * Alimentée à chaque rafraîchissement réussi : elle sert de filet quand le
+   * snapshot perd un agent. Le `resync` et le redémarrage du veilleur en
+   * produisent, et pendant ce temps `ChatScreen` reste monté.
+   *
+   * La carte n'est remplacée que si quelque chose a **vraiment** changé : sinon
+   * chaque lecture redéclencherait le rendu de toute la liste.
+   */
+  useEffect(() => {
+    setMemoire((precedent) => {
+      if (
+        precedent.size === agents.length &&
+        agents.every((agent) => precedent.get(agent.paneId) === agent)
+      ) {
+        return precedent;
+      }
+      const suivant = new Map(precedent);
+      for (const agent of agents) suivant.set(agent.paneId, agent);
+      return suivant;
+    });
+  }, [agents]);
+
+  /**
+   * Nombre de lignes que l'onglet courant montre.
+   *
+   * C'est cette quantité qui décide si l'écran est « vide », pas le nombre
+   * d'agents : l'onglet Projets affiche des projets, et trois projets sans
+   * agent ne sont pas une liste vide.
+   */
+  const total =
+    tab === "projets" ? (overview?.workspaces.length ?? 0) : (overview?.agents.length ?? 0);
+
+  /**
+   * Un seul état d'affichage, jamais deux.
+   *
+   * `error` garde son nom : c'est la cause d'échec de la dernière lecture. Ce
+   * qui change, c'est ce qu'on en fait — voir `etats.ts`.
+   */
+  const etat = etatLecture({
+    chargement,
+    erreur: error,
+    live: live === "live",
+    total,
+    dernierSucces,
+  });
+
+  const reessayer = useCallback(() => {
+    void refresh();
+  }, [refresh]);
 
   /**
    * Racine du projet courant, déduite d'un agent qui tourne dedans.
@@ -543,10 +637,50 @@ export const App = () => {
   const selectedAgent =
     route.kind === "agent" ? (agents.find((a) => a.paneId === route.paneId) ?? null) : null;
 
-  if (route.kind === "agent" && selectedAgent !== null) {
+  /**
+   * Repli sur la dernière observation, le temps que l'agent revienne.
+   *
+   * `ChatScreen` n'est jamais démonté pendant une coupure : ses messages, sa
+   * position de défilement et son brouillon restent en mémoire. Le bandeau dit
+   * que l'affichage est périmé — on ne prétend pas que ce qui est à l'écran
+   * vient d'arriver.
+   */
+  const agentMemorise = route.kind === "agent" ? (memoire.get(route.paneId) ?? null) : null;
+  const agentAffiche = selectedAgent ?? agentMemorise;
+  const agentPerime = selectedAgent === null && agentMemorise !== null;
+
+  if (route.kind === "agent" && agentAffiche !== null) {
     return (
       <div className="app">
-        <ChatScreen agent={selectedAgent} onBack={closeAgent} />
+        {agentPerime ? (
+          <p className="notice notice--warn">
+            Cet agent n'apparaît plus dans Herdr. Ce qui suit est le dernier état connu.
+          </p>
+        ) : null}
+        <ChatScreen agent={agentAffiche} onBack={closeAgent} />
+      </div>
+    );
+  }
+
+  /**
+   * La route pointe un agent **jamais** vu.
+   *
+   * Avant, l'application retombait silencieusement sur les onglets : le
+   * fragment disait « agent », l'écran disait « liste ». Rien ne signalait la
+   * perte, et l'utilisateur ne comprenait pas ce qui s'était passé.
+   */
+  if (route.kind === "agent") {
+    return (
+      <div className="app">
+        <header className="topbar">
+          <h1>Herdr Remote</h1>
+        </header>
+        <p className="notice notice--error">
+          Cet agent n'existe plus dans Herdr. Il a peut-être été fermé.
+        </p>
+        <button type="button" className="back" onClick={closeAgent}>
+          ‹ Retour
+        </button>
       </div>
     );
   }
@@ -567,7 +701,14 @@ export const App = () => {
         </span>
       </header>
 
-      {error !== null ? <p className="notice notice--error">{error}</p> : null}
+      <BandeauEtat
+        etat={etat}
+        libelleVide={
+          tab === "projets" ? "Aucun projet dans Herdr." : "Aucune conversation ouverte dans Herdr."
+        }
+        maintenant={maintenant}
+        onReessayer={reessayer}
+      />
       {overview !== null && overview.withoutSession > 0 ? (
         <p className="notice notice--warn">
           {overview.withoutSession} agent(s) sans chemin de session exposé

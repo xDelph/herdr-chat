@@ -407,6 +407,15 @@ export const openEventStream = (handlers: {
   source.addEventListener("message", markLive);
 
   const forward = (kind: string) => (event: MessageEvent<string>) => {
+    /*
+      Un événement **nommé** prouve lui aussi que le flux vit.
+
+      `message` ne se déclenche que pour les événements sans nom — or le trafic
+      utile ici est nommé (`agent_status`, `prompt`…). Sans cette ligne, une
+      coupure de trois secondes suivie d'un `agent_status` bien reçu laissait
+      l'indicateur « hors ligne » alors que le flux fonctionnait.
+    */
+    markLive();
     let data: unknown = event.data;
     try {
       data = JSON.parse(event.data);

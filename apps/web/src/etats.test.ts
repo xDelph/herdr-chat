@@ -1,0 +1,150 @@
+/**
+ * Les six états de lecture (U10).
+ *
+ * Le contrat du tableau dit deux choses qu'on peut exécuter :
+ *
+ * - « coupure conserve messages et brouillon » — tant qu'il reste des données
+ *   affichées, aucune coupure ne peut produire un écran vide ;
+ * - « `resync` recharge une fois » — voir `etats-rechargement.test.ts`.
+ */
+import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { depuis, etatLecture } from "./etats.ts";
+
+const situation = (modification: Partial<Parameters<typeof etatLecture>[0]> = {}) =>
+  etatLecture({
+    chargement: false,
+    erreur: null,
+    live: true,
+    total: 3,
+    dernierSucces: 1_000,
+    ...modification,
+  });
+
+describe("U10 — les six états, et un seul à la fois", () => {
+  test("tout va bien : prêt", () => {
+    expect(situation()).toEqual({ phase: "pret" });
+  });
+
+  test("première lecture, rien à afficher : chargement", () => {
+    expect(situation({ chargement: true, total: 0, dernierSucces: null })).toEqual({
+      phase: "chargement",
+    });
+  });
+
+  test("lecture réussie, parc vide : vide — pas une erreur", () => {
+    // ⚠️ L'absence d'agents est un état normal. La présenter en erreur ferait
+    // chercher une panne qui n'existe pas.
+    expect(situation({ total: 0 })).toEqual({ phase: "vide" });
+  });
+
+  test("jamais rien affiché, lecture échouée : erreur, avec sa cause", () => {
+    expect(situation({ erreur: "injoignable", total: 0, dernierSucces: null })).toEqual({
+      phase: "erreur",
+      cause: "injoignable",
+    });
+  });
+
+  test("données affichées, lecture échouée : hors ligne, pas écran vide", () => {
+    // C'est la phrase du contrat : les messages et le brouillon restent.
+    expect(situation({ erreur: "injoignable" })).toEqual({
+      phase: "hors-ligne",
+      dernierSucces: 1_000,
+    });
+  });
+
+  test("données fraiches, flux coupé : reconnexion", () => {
+    expect(situation({ live: false })).toEqual({ phase: "reconnexion" });
+  });
+});
+
+describe("U10 — l'ordre de priorité", () => {
+  test("erreur et écran vide : l'erreur l'emporte", () => {
+    // Sinon l'utilisateur lit « aucun agent » et cherche du mauvais côté.
+    expect(situation({ erreur: "boom", total: 0, chargement: true }).phase).toBe("erreur");
+  });
+
+  test("données affichées, coupure et flux mort : la coupure d'abord", () => {
+    // Les deux disent « la connexion a un souci » ; la coupure est la cause
+    // vérifiée, l'autre n'est qu'un indice.
+    expect(situation({ erreur: "boom", live: false }).phase).toBe("hors-ligne");
+  });
+
+  test("rafraîchissement en cours sur un écran rempli : ce n'est pas un chargement", () => {
+    // Sans cette règle, toute l'écran clignoterait toutes les 4 secondes.
+    expect(situation({ chargement: true }).phase).toBe("pret");
+  });
+
+  test("écran vide, flux coupé : c'est bien vide", () => {
+    // Le flux mort n'explique pas l'absence d'agents : Herdr peut être joignable
+    // et n'avoir aucun agent.
+    expect(situation({ total: 0, live: false }).phase).toBe("vide");
+  });
+});
+
+describe("U10 — la fraîcheur se dit, ou ne se dit pas", () => {
+  test("« il y a … » selon l'écart", () => {
+    expect(depuis(0, 3_000)).toBe("à l'instant");
+    expect(depuis(0, 30_000)).toBe("il y a 30 s");
+    expect(depuis(0, 180_000)).toBe("il y a 3 min");
+    expect(depuis(0, 7_200_000)).toBe("il y a 2 h");
+    expect(depuis(0, 172_800_000)).toBe("il y a 2 j");
+  });
+
+  test("jamais d'horloge en avance : on borne à zéro", () => {
+    // Deux horloges peuvent différer de quelques ms. « il y a -1 s » serait un
+    // défaut visible.
+    expect(depuis(10_000, 5_000)).toBe("à l'instant");
+  });
+
+  test("sans horodatage, on ne prétend pas savoir", () => {
+    // ⚠️ Pas de « à l'instant » par défaut : c'est la information même que
+    // l'utilisateur cherche, et la donner fausse est pire que de rien dire.
+    expect(depuis(null, 5_000)).toBeNull();
+  });
+});
+
+/**
+ * Le câblage de `App`, vérifié sur sa source.
+ *
+ * La phrase du contrat est « coupure conserve messages et brouillon ». Elle ne
+ * tient pas dans une fonction : elle tient dans le fait que `ChatScreen` **n'est
+ * pas démonté**. Ces tests lisent le composant et ferment cette porte.
+ */
+describe("U10 — une coupure ne sort pas de la conversation", () => {
+  const app = readFileSync(join(import.meta.dir, "App.tsx"), "utf8");
+
+  test("l'agent affiché retombe sur la dernière observation", () => {
+    expect(app).toContain("memoire.get(route.paneId)");
+    expect(app).toContain("const agentAffiche = selectedAgent ?? agentMemorise;");
+  });
+
+  test("c'est l'agent de repli qui décide du montage, pas le snapshot seul", () => {
+    // Le défaut : `selectedAgent !== null` suffisait à démonter `ChatScreen`.
+    expect(app).toContain('route.kind === "agent" && agentAffiche !== null');
+    expect(app).not.toContain('route.kind === "agent" && selectedAgent !== null');
+  });
+
+  test("un agent jamais vu ne retombe pas silencieusement sur les onglets", () => {
+    expect(app).toContain("Cet agent n'existe plus dans Herdr");
+    // Le fragment disait « agent » et l'écran disait « liste » : rien ne
+    // signalait la perte.
+    expect(app.indexOf("Cet agent n'existe plus dans Herdr")).toBeGreaterThan(
+      app.indexOf('route.kind === "agent" && agentAffiche !== null'),
+    );
+  });
+
+  test("l'état périmé est annoncé, pas tu en silence", () => {
+    expect(app).toContain("agentPerime");
+    expect(app).toContain("Ce qui suit est le dernier état connu");
+  });
+
+  test("le bandeau d'état remplace l'avis d'erreur brut", () => {
+    expect(app).toContain("etat={etat}");
+    expect(app).toContain("onReessayer={reessayer}");
+    // L'ancien avis d'erreur sans action : l'utilisateur n'avait rien à faire
+    // de l'information.
+    expect(app).not.toContain('<p className="notice notice--error">{error}</p>');
+  });
+});
