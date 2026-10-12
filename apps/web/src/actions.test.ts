@@ -1,0 +1,190 @@
+/**
+ * Un appel d'outil raconté en une ligne (U21).
+ *
+ * Ces tests portent sur les trois choses qu'un groupe replié doit dire : ce qui
+ * a été fait, combien de temps, et pour combien de jetons.
+ */
+import { describe, expect, test } from "bun:test";
+import type { RenderedMessage } from "./blocks.ts";
+import { actionDe, coutDuGroupe, dureeEnMots, jetonsCourts, resumeDuGroupe } from "./actions.ts";
+
+const message = (
+  meta: Readonly<Record<string, string>> = {},
+  at: string | null = null,
+): RenderedMessage => ({
+  at,
+  blocks: [],
+  id: `m-${String(Math.random())}`,
+  meta,
+  role: "assistant",
+  text: "",
+});
+
+describe("U21 — un appel se raconte en une ligne", () => {
+  test("une commande : son icône, son verbe, sa première ligne", () => {
+    const action = actionDe("bash", { command: "npm test\nnpm run build" });
+    expect(action.icone).toBe("🖥");
+    expect(action.singulier).toBe("Commande lancée");
+    // ⚠️ Une commande peut contenir un script entier : l'afficher en entier
+    // défait la ligne compacte.
+    expect(action.cible).toBe("npm test");
+    expect(action.estFichier).toBe(false);
+  });
+
+  test("une édition : le chemin devient une cible cliquable", () => {
+    const action = actionDe("edit", { path: "/dev/p/backup.py" });
+    expect(action.icone).toBe("✎");
+    expect(action.cible).toBe("/dev/p/backup.py");
+    expect(action.estFichier).toBe(true);
+  });
+
+  test("une création se distingue d'une modification", () => {
+    // « Créé » et « modifié » ne se relisent pas de la même façon.
+    expect(actionDe("write", { path: "a.ts" }).singulier).toBe("Fichier créé");
+    expect(actionDe("edit", { path: "a.ts" }).singulier).toBe("Fichier modifié");
+  });
+
+  test("une suppression a sa propre famille", () => {
+    const action = actionDe("rm", { path: "vieux.ts" });
+    expect(action.icone).toBe("✕");
+    expect(action.singulier).toBe("Fichier supprimé");
+    expect(action.estFichier).toBe(true);
+  });
+
+  test("un outil inconnu garde une ligne, sans être inventé", () => {
+    // ⚠️ Le nom technique **n'est pas traduit** : c'est un identifiant, et
+    // l'inventer ferait perdre le lien avec la session.
+    const action = actionDe("outil-du-futur", { path: "x" });
+    expect(action.icone).toBe("•");
+    expect(action.singulier).toBe("Action");
+  });
+
+  test("la casse du nom ne change pas la reconnaissance", () => {
+    expect(actionDe("BASH", { command: "ls" }).singulier).toBe("Commande lancée");
+    expect(actionDe(" Edit ", { path: "a" }).singulier).toBe("Fichier modifié");
+  });
+
+  test("un chemin vide ne devient pas une cible cliquable", () => {
+    const action = actionDe("edit", { path: "   " });
+    expect(action.cible).toBeNull();
+  });
+});
+
+describe("U21 — le résumé dit ce qui a été fait", () => {
+  test("les familles rencontrées, dans l'ordre de lecture", () => {
+    // « 7 appels » ne dit pas **ce qui a été fait** — la seule question qu'on se
+    // pose devant un groupe replié.
+    expect(resumeDuGroupe(["bash", "edit", "read", "bash"])).toBe(
+      "Fichiers modifiés, commandes lancées, fichiers lus",
+    );
+  });
+
+  test("une famille répétée n'apparaît qu'une fois", () => {
+    expect(resumeDuGroupe(["bash", "bash", "bash"])).toBe("Commandes lancées");
+  });
+
+  test("un groupe vide ne produit pas de résumé", () => {
+    expect(resumeDuGroupe([])).toBe("");
+  });
+
+  test("un outil inconnu est résumé, pas ignoré", () => {
+    // L'ignorer ferait disparaître du travail de la ligne. La casse suit la
+    // position dans l'énumération, donc on compare sans y prêter attention.
+    expect(resumeDuGroupe(["bash", "outil-inconnu"]).toLowerCase()).toContain("actions");
+  });
+});
+
+describe("U21 — les jetons se lisent d'un regard", () => {
+  test("65 000 devient 65k", () => {
+    // ⚠️ `65000` ne se lit pas au doigt et prend la place de trois mots.
+    expect(jetonsCourts(65_000)).toBe("65k");
+    expect(jetonsCourts(1_200_000)).toBe("1200k");
+  });
+
+  test("sous 10 000 on garde une décimale", () => {
+    // `1,5k` et `2k` ne disent pas la même chose quand on compare deux travaux.
+    expect(jetonsCourts(1500)).toBe("1,5k");
+    expect(jetonsCourts(999)).toBe("999");
+  });
+
+  test("sans jetons, rien — jamais « 0k »", () => {
+    expect(jetonsCourts(0)).toBe("");
+    expect(jetonsCourts(Number.NaN)).toBe("");
+  });
+});
+
+describe("U21 — la durée d'un travail", () => {
+  test("les minutes et les secondes", () => {
+    expect(dureeEnMots(14 * 60_000 + 20_000)).toBe("14 min 20 s");
+  });
+
+  test("sous la minute, en secondes", () => {
+    expect(dureeEnMots(42_000)).toBe("42 s");
+  });
+
+  test("les secondes disparaissent au-delà d'une heure", () => {
+    // « 1 h 4 min 12 s » se déchiffre ; « 1 h 4 min » se lit.
+    expect(dureeEnMots(64 * 60_000 + 12_000)).toBe("1 h 4 min");
+  });
+
+  test("plancher, jamais d'arrondi vers le haut", () => {
+    // Un âge exagéré est exactement ce que l'utilisateur compare avec son
+    // souvenir.
+    expect(dureeEnMots(119_000)).toBe("1 min 59 s");
+  });
+
+  test("une durée nulle ou négative ne s'affiche pas", () => {
+    expect(dureeEnMots(0)).toBe("");
+    expect(dureeEnMots(-5)).toBe("");
+  });
+});
+
+describe("U21 — le coût du travail, pas celui de la session", () => {
+  test("les jetons du groupe sont additionnés", () => {
+    // ⚠️ Le total de la session ne dit rien sur ce qu'on vient de lire.
+    const cout = coutDuGroupe([
+      message({ tokens: "1200" }, "2026-10-09T15:00:00.000Z"),
+      message({ tokens: "800" }, "2026-10-09T15:00:30.000Z"),
+    ]);
+    expect(cout.jetons).toBe(2000);
+  });
+
+  test("la durée est celle du groupe, pas d'une session entière", () => {
+    const cout = coutDuGroupe([
+      message({}, "2026-10-09T15:00:00.000Z"),
+      message({}, "2026-10-09T15:14:20.000Z"),
+    ]);
+    expect(cout.dureeMs).toBe(14 * 60_000 + 20_000);
+  });
+
+  test("un seul message n'a pas de durée", () => {
+    // On ne prétend pas mesurer un intervalle qui n'existe pas.
+    expect(coutDuGroupe([message({}, "2026-10-09T15:00:00.000Z")]).dureeMs).toBeNull();
+  });
+
+  test("les messages sont lus dans le désordre sans fausser la durée", () => {
+    const cout = coutDuGroupe([
+      message({}, "2026-10-09T15:14:20.000Z"),
+      message({}, "2026-10-09T15:00:00.000Z"),
+    ]);
+    expect(cout.dureeMs).toBe(14 * 60_000 + 20_000);
+  });
+
+  test("un horodatage illisible ne fabrique pas de durée", () => {
+    const cout = coutDuGroupe([
+      message({}, "pas-une-date"),
+      message({}, "2026-10-09T15:14:20.000Z"),
+    ]);
+    expect(cout.dureeMs).toBeNull();
+  });
+
+  test("sans jetons déclarés, rien plutôt que zéro", () => {
+    // ⚠️ « 0 jeton » se lirait comme une mesure, alors qu'on n'en a pas.
+    expect(coutDuGroupe([message({})]).jetons).toBeNull();
+  });
+
+  test("un jeton illisible est ignoré, sans faire tomber le total", () => {
+    const cout = coutDuGroupe([message({ tokens: "beaucoup" }), message({ tokens: "500" })]);
+    expect(cout.jetons).toBe(500);
+  });
+});

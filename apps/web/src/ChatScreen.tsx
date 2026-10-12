@@ -204,7 +204,12 @@ export const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => 
               ‹
             </button>
             <div className="screen__title">
-              <strong>{agentName(agent)}</strong>
+              {/*
+                Le titre de la conversation, pas le nom de l'agent : c'est ce
+                qu'on a sous les yeux en ouvrant, et le contexte juste dessous
+                dit de quel agent et de quel projet il s'agit.
+              */}
+              <strong>{agent.title ?? agentName(agent)}</strong>
               {/*
                 Le statut **en tete** : la ligne est tronquée à l'ellipse sur
                 un écran étroit, et « onglet 1 · pi · devcli-private » se coupe
@@ -218,17 +223,13 @@ export const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => 
           bouton discret, avec le compte, uniquement s'il y en a.
         */}
             {files.length > 0 ? (
-              <button type="button" className="row__action" onClick={onToggleFiles}>
-                Fichiers
-                {/*
-                  Le compte est la première chose qui disparaît sous 360 px :
-                  « Fichiers · 16 » et « Fichiers » occupent la même place, et
-                  le titre — la seule information qui dise de quel agent il
-                  s'agit — se réduisait à « herd… ». Le nombre reste lisible sur
-                  l'écran de fichiers, qu'on ouvre de toute façon pour les
-                  voir.
-                */}
-                <span className="chat__files-count"> · {files.length}</span>
+              <button
+                type="button"
+                className="row__action row__action--icone"
+                onClick={onToggleFiles}
+                aria-label={`Fichiers touchés (${String(files.length)})`}
+              >
+                <span aria-hidden="true">🗂</span>
               </button>
             ) : null}
             {/*
@@ -239,13 +240,14 @@ export const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => 
             */}
             <button
               type="button"
-              className="row__action"
+              className="row__action row__action--icone"
+              aria-label="Modèle et raisonnement"
               onClick={() => {
                 setShowFiles(false);
                 setShowModel((value) => !value);
               }}
             >
-              Modèle
+              <span aria-hidden="true">⚙</span>
             </button>
           </header>
 
@@ -290,7 +292,7 @@ export const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => 
           ) : null}
 
           <div className="messages" ref={scrollerRef} onScroll={onScroll}>
-            <ItemsView items={toItems(messages)} />
+            <ItemsView enCours={agent.status === "working"} items={toItems(messages)} />
           </div>
 
           {openFile !== null ? (

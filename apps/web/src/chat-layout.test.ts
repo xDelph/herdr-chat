@@ -270,14 +270,19 @@ describe("U07 — 320 px de large", () => {
     expect(token("tap-min")).toBe("44px");
   });
 
-  test("le compte de fichiers disparaît, le libellé reste", () => {
-    expect(etroit).toContain(".chat__files-count");
-    expect(etroit).toMatch(/\.chat__files-count \{\s*display: none;/);
-    // Le compte est bien le seul élément masqué : « Fichiers » reste lisible.
-    const depart = positionDe("row__action");
-    const bouton = source.slice(depart, depart + 700);
-    expect(bouton).toContain("chat__files-count");
-    expect(bouton).toContain("{files.length}");
+  test("le compte de fichiers passe dans le nom accessible", () => {
+    /*
+      ⚠️ U21 : « Fichiers · 16 » et « Modèle » sont devenus des **icônes**.
+      Deux boutons à libellé occupaient la moitié de l'en-tête à 320 px et
+      affamaient le titre.
+      L'information n'est pas perdue : le compte est dans le nom accessible, donc
+      lu par un lecteur d'écran, et l'écran de fichiers le montre.
+    */
+    const ecran = readFileSync(join(import.meta.dir, "ChatScreen.tsx"), "utf8");
+    expect(ecran).toContain("aria-label={`Fichiers touchés (${String(files.length)})`}");
+    expect(ecran).not.toContain("chat__files-count");
+    expect(ecran).toContain('aria-label="Modèle et raisonnement"');
+    expect(ecran).not.toContain(">Modèle<");
   });
 
   test("le composeur se resserre aussi", () => {
@@ -373,5 +378,54 @@ describe("U20 — le bouton d'envoi suit la forme d'iOS", () => {
     // bouton actif qui ne fait rien laisse croire à une panne.
     expect(ecran).toContain("disabled={sending || draft.trim().length === 0}");
     expect(bloc(".composer .send:disabled").background).toBe("var(--surface)");
+  });
+});
+
+describe("U21 — un travail se raconte, puis se replie", () => {
+  const blocs = readFileSync(join(import.meta.dir, "Blocks.tsx"), "utf8");
+
+  test("le dépliage suit l'état du travail", () => {
+    /*
+      ⚠️ Pendant, le groupe est **ouvert** : on vient voir ce qui se passe, et
+      la réflexion est dedans. À la fin il se **replie tout seul** — la réponse
+      finale est ce qu'on veut lire, et un groupe resté ouvert la repousserait
+      hors de l'écran.
+    */
+    expect(blocs).toContain("useState(enCours || item.hasError)");
+    expect(blocs).toContain("setOpen(enCours || item.hasError)");
+  });
+
+  test("un clic de l'utilisateur n'est pas écrasé par l'état du travail", () => {
+    // Sinon le groupe se rouvrirait tout seul à chaque rafraîchissement.
+    expect(blocs).toContain("toucheParUtilisateur");
+    expect(blocs).toContain("if (toucheParUtilisateur) return;");
+  });
+
+  test("une ligne de travail est repliée par défaut", () => {
+    // Même quand le groupe est ouvert : trois détails dépliés noient le résumé.
+    expect(blocs).toContain("const [open, setOpen] = useState(false);");
+  });
+
+  test("les jetons sont ceux du travail, et sous le titre", () => {
+    expect(blocs).toContain("coutDuGroupe(item.messages)");
+    expect(blocs).toContain("jetonsCourts(cout.jetons)");
+    // Et ils ont quitté la ligne des métadonnées d'un message.
+    const bulle = blocs.slice(blocs.indexOf("const MessageBubble"));
+    expect(bulle.slice(0, 900)).not.toContain('meta["tokens"]');
+    expect(bulle.slice(0, 900)).not.toContain('meta["model"]');
+  });
+
+  test("l'en-tête du chat porte le titre de la conversation", () => {
+    const ecran = readFileSync(join(import.meta.dir, "ChatScreen.tsx"), "utf8");
+    expect(ecran).toContain("{agent.title ?? agentName(agent)}");
+    // Le contexte reste dessous : de quel agent et de quel projet il s'agit.
+    expect(ecran).toContain("headerContext(agent)");
+  });
+
+  test("les lignes internes ont leurs styles", () => {
+    // Une ligne compacte, pas un cadre : c'est tout l'objet du changement.
+    expect(bloc(".ligne__head")["min-height"]).toBe("var(--tap-min)");
+    expect(bloc(".ligne__cible--lien")["text-decoration"]).toBe("underline");
+    expect(bloc(".group__jetons").color).toBe("var(--muted)");
   });
 });

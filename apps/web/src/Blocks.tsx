@@ -6,10 +6,18 @@
  * `write` 372. Un rendu générique unique obligerait à lire du JSON à l'écran
  * pour comprendre ce que l'agent a fait.
  */
-import { createContext, memo, useContext, useState } from "react";
+import { createContext, memo, useCallback, useContext, useEffect, useState } from "react";
 import { Schema } from "effect";
 import { Option } from "effect";
 import { Markdown } from "./Markdown.tsx";
+import {
+  coutDuGroupe,
+  dureeEnMots,
+  jetonsCourts,
+  lignesDeTravail,
+  resumeDuGroupe,
+} from "./actions.ts";
+import type { LigneTravail } from "./actions.ts";
 import { fileUrl } from "./api.ts";
 
 /**
@@ -598,11 +606,12 @@ export const MessageBubble = memo(({ message }: { message: RenderedMessage }) =>
       quand on se demande d'où vient ce qu'on vient de lire. C'est aussi l'ordre
       de la référence.
     */}
-    <span className="bubble__role">
-      {message.role === "user"
-        ? timeOf(message.at)
-        : `${message.role}${message.meta["model"] !== undefined ? ` · ${message.meta["model"]}` : ""}${message.meta["tokens"] !== undefined ? ` · ${message.meta["tokens"]} tok` : ""}${message.at !== null ? ` · ${timeOf(message.at)}` : ""}`}
-    </span>
+    {/*
+      ⚠️ **Ni modèle ni jetons ici.** Le modèle ne dit rien de ce qu'on lit, et
+      les jetons appartiennent au **travail** — ils vivent dans l'en-tête du
+      groupe, sommés sur ce qui a été fait. Ici il ne reste que l'heure.
+    */}
+    <span className="bubble__role">{timeOf(message.at)}</span>
   </article>
 ));
 MessageBubble.displayName = "MessageBubble";
@@ -617,34 +626,42 @@ MessageBubble.displayName = "MessageBubble";
  * ⚠️ Un groupe contenant une **erreur** s'ouvre **d'office**. Replier un échec
  * derrière un résumé reviendrait à le cacher.
  */
-const ToolGroup = ({ item }: { item: Extract<Item, { kind: "tools" }> }) => {
-  const [open, setOpen] = useState(item.hasError);
+/**
+ * Une ligne de travail : un appel, dépliable.
+ *
+ * ⚠️ **Repliée par défaut**, même quand le groupe est ouvert. Une commande, une
+ * édition et une sortie dépliées d'office noient la ligne de résumé ; elles
+ * s'ouvrent à la demande, une par une.
+ */
+const LigneDeTravail = ({ ligne }: { ligne: LigneTravail }) => {
+  const [open, setOpen] = useState(false);
+  const cible = ligne.action.cible;
 
   return (
-    <div className={item.hasError ? "group group--error" : "group"}>
+    <div className="ligne">
       <button
         type="button"
-        className="group__head"
-        onClick={() => setOpen((value) => !value)}
+        className="ligne__head"
         aria-expanded={open}
+        onClick={() => setOpen((valeur) => !valeur)}
+        disabled={ligne.details.length === 0}
       >
-        <span className="group__count">{item.callCount} appels</span>
-        <span className="group__tools">
-          {item.tools.map((tool) => (
-            <span key={tool.name} className="group__tool">
-              {tool.name}
-              {tool.count > 1 ? ` ×${String(tool.count)}` : ""}
-            </span>
-          ))}
+        <span className="ligne__icone" aria-hidden="true">
+          {ligne.action.icone}
         </span>
-        {item.hasError ? <span className="group__flag">échec</span> : null}
-        <span className="group__chevron">{open ? "▾" : "▸"}</span>
+        <span className="ligne__verbe">{ligne.action.singulier}</span>
+        {cible === null ? null : ligne.action.estFichier ? (
+          // Un chemin de fichier se souligne : il mène à quelque chose. Un
+          // argument qui n'est pas un fichier ne promet pas d'ouverture.
+          <span className="ligne__cible ligne__cible--lien">{cible}</span>
+        ) : (
+          <span className="ligne__cible mono">{cible}</span>
+        )}
       </button>
-
-      {open ? (
-        <div className="group__body">
-          {item.messages.map((message) => (
-            <MessageBubble key={message.id} message={message} />
+      {open && ligne.details.length > 0 ? (
+        <div className="ligne__body">
+          {ligne.details.map((block, index) => (
+            <BlockView key={`${String(index)}-${block.kind}`} block={block} />
           ))}
         </div>
       ) : null}
@@ -652,14 +669,87 @@ const ToolGroup = ({ item }: { item: Extract<Item, { kind: "tools" }> }) => {
   );
 };
 
+/**
+ * Un travail : « Working for » pendant, « Worked for » après.
+ *
+ * ⚠️ **Le dépliage suit l'état du travail.** Pendant, le groupe est ouvert —
+ * on vient voir ce qui se passe, et la réflexion est dedans. À la fin, il se
+ * **replie tout seul** : la réponse finale est ce qu'on veut lire, et un groupe
+ * resté ouvert la repousserait hors de l'écran.
+ *
+ * Le repli est décidé par l'état, pas par un clic : `enCours` qui passe à
+ * `false` referme. Un groupe qu'on a ouvert à la main sur un travail terminé le
+ * reste, lui, parce que c'est un choix.
+ */
+const ToolGroup = ({
+  item,
+  enCours,
+}: {
+  item: Extract<Item, { kind: "tools" }>;
+  enCours: boolean;
+}) => {
+  const [open, setOpen] = useState(enCours || item.hasError);
+  const [toucheParUtilisateur, setToucheParUtilisateur] = useState(false);
+
+  useEffect(() => {
+    // L'utilisateur a tranché : l'état du travail ne revient plus dessus.
+    if (toucheParUtilisateur) return;
+    setOpen(enCours || item.hasError);
+  }, [enCours, item.hasError, toucheParUtilisateur]);
+
+  const basculer = useCallback(() => {
+    setToucheParUtilisateur(true);
+    setOpen((valeur) => !valeur);
+  }, []);
+
+  const lignes = lignesDeTravail(item.messages);
+  const cout = coutDuGroupe(item.messages);
+  const duree = dureeEnMots(cout.dureeMs ?? 0);
+  const jetons = cout.jetons === null ? "" : jetonsCourts(cout.jetons);
+  const resume = resumeDuGroupe(item.tools.map((outil) => outil.name));
+
+  return (
+    <div className={item.hasError ? "group group--error" : "group"}>
+      <button type="button" className="group__head" onClick={basculer} aria-expanded={open}>
+        {/* « Working » pendant, « Worked » après : le mot dit l'état, la durée
+            dit le coût. */}
+        <span className="group__titre">
+          {enCours ? "En cours" : "A travaillé"}
+          {duree.length > 0 ? ` ${duree}` : ""}
+        </span>
+        {resume.length > 0 ? <span className="group__resume">{resume}</span> : null}
+        {/* ⚠️ Les jetons du **travail**, pas le cumul de la session. */}
+        {jetons.length > 0 ? <span className="group__jetons">{jetons}</span> : null}
+        {item.hasError ? <span className="group__flag">échec</span> : null}
+      </button>
+
+      {open ? (
+        <div className="group__body">
+          {lignes.map((ligne, index) => (
+            <LigneDeTravail key={`${String(index)}-${ligne.action.icone}`} ligne={ligne} />
+          ))}
+          {lignes.length === 0 ? <p className="blk__hint">aucun appel enregistré</p> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
 /** Rend une liste d'éléments de conversation. */
-export const ItemsView = ({ items }: { items: ReadonlyArray<Item> }) => (
+export const ItemsView = ({
+  items,
+  enCours = false,
+}: {
+  readonly items: ReadonlyArray<Item>;
+  /** L'agent travaille-t-il en ce moment ? Décide du dépliage du dernier groupe. */
+  readonly enCours?: boolean;
+}) => (
   <>
     {items.map((item) =>
       item.kind === "single" ? (
         <MessageBubble key={item.message.id} message={item.message} />
       ) : (
-        <ToolGroup key={item.id} item={item} />
+        <ToolGroup key={item.id} item={item} enCours={enCours && item === items.at(-1)} />
       ),
     )}
   </>

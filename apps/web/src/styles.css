@@ -2269,3 +2269,94 @@ button:disabled {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* ---------------------------------------------------------------------------
+   Ligne de travail — un appel, replié (U21)
+   --------------------------------------------------------------------------- */
+
+/*
+  ⚠️ Une seule ligne par appel, **repliée par défaut**. Une commande, une
+  édition et sa sortie dépliées d'office noient le résumé ; elles s'ouvrent une
+  par une, à la demande.
+*/
+.ligne {
+  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+}
+
+.ligne__head {
+  align-items: baseline;
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  font-size: 13px;
+  gap: 8px;
+  min-height: var(--tap-min);
+  padding: 6px 0;
+  text-align: left;
+  width: 100%;
+}
+
+.ligne__head:disabled {
+  cursor: default;
+}
+
+.ligne__icone {
+  flex: 0 0 auto;
+  font-size: 13px;
+  width: 18px;
+}
+
+.ligne__verbe {
+  flex: 0 0 auto;
+}
+
+/* La cible est un chemin ou une commande : police fixe, et coupure propre. */
+.ligne__cible {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ⚠️ Un chemin de fichier se souligne : il mène quelque part. Un argument qui
+   n'est pas un fichier ne doit pas promettre une ouverture qui n'existe pas. */
+.ligne__cible--lien {
+  color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ligne__body {
+  padding: 0 0 8px 26px;
+}
+
+/* Le titre du groupe dit l'état, la durée dit le coût. */
+.group__titre {
+  color: var(--text);
+  flex: 0 0 auto;
+  font-size: 13px;
+}
+
+.group__resume {
+  color: var(--muted);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ⚠️ Les jetons du **travail**, pas le cumul de la session. */
+.group__jetons {
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+
+/* Une action d'en-tête réduite à son icône. */
+.row__action--icone {
+  font-size: 15px;
+  padding: 6px 10px;
+}
