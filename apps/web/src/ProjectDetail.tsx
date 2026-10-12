@@ -11,10 +11,10 @@
  * main pour la manœuvre la plus courante (D019.2). Aucun second agent n'est
  * jamais lancé automatiquement.
  */
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import type { AgentView, InstalledKind, WorkspaceView } from "./api.ts";
-import { LaunchOptions } from "./LaunchOptions.tsx";
-import type { LaunchChoice } from "./LaunchOptions.tsx";
+import { LaunchSheet } from "./LaunchSheet.tsx";
+import type { LaunchChoice } from "./launch.ts";
 import { agentName, statusClass, statusLabel } from "./labels.tsx";
 
 interface Props {
@@ -57,28 +57,25 @@ const ConversationRow = ({
 
 export const ProjectDetail = memo(
   ({ agents, back, kinds, launching, onLaunch, onOpenAgent, workspace }: Props) => {
-    // `pi` par défaut : c'est l'agent réellement utilisé, mais le choix reste
-    // ouvert à tout ce que Herdr sait démarrer.
-    const [kind, setKind] = useState<string>("pi");
-    const [showOptions, setShowOptions] = useState(false);
-    const [choice, setChoice] = useState<LaunchChoice>({});
+    const [sheetOpen, setSheetOpen] = useState(false);
+    const ouvrirSheet = useCallback(() => setSheetOpen(true), []);
+    const fermerSheet = useCallback(() => setSheetOpen(false), []);
 
     /**
-     * Liste rendue, recalculée seulement quand elle change **réellement**.
+     * Type retenu quand on lance sans passer par la feuille.
      *
-     * Le parent reconstruit `agents` à chaque rafraîchissement du snapshot (toutes
-     * les 2 s). Sans cette stabilisation, `ProjectDetail` se redessine en entier
-     * à chaque fois et perd la position de défilement — le défaut que D016 a déjà
-     * corrigé une fois pour la conversation.
-     *
-     * La dépendance est l'**identité des panes**, pas le tableau : deux
-     * rafraîchissements qui renvoient les mêmes agents ne changent pas la clé, donc
-     * pas le rendu.
+     * `pi` quand il est installé — c'est l'agent réellement utilisé, donc le
+     * premier installé n'est pas forcément le bon. Sinon celui que Herdr
+     * connaît.
      */
-    const cleAgents = agents.map((agent) => agent.paneId).join("\u0000");
-    const liste = useMemo(() => agents, [cleAgents]); // eslint-disable-line react-hooks/exhaustive-deps
-    const toggleOptions = useCallback(() => setShowOptions((ouvert) => !ouvert), []);
-    const onChoice = useCallback((next: LaunchChoice) => setChoice(next), []);
+    const kindParDefaut =
+      kinds.find((candidat) => candidat.kind === "pi")?.kind ?? kinds[0]?.kind ?? "pi";
+
+    // Pas de stabilisation ici : `ProjectDetail` est mémoïsé avec un
+    // comparateur de contenu (`memesProps` plus bas), et c'est lui — pas
+    // l'identité du tableau — qui décide du rendu. Une clé calculée ici
+    // reproduirait la même règle deux fois, au même endroit.
+    const liste = agents;
 
     if (workspace === undefined) {
       return (
@@ -94,6 +91,22 @@ export const ProjectDetail = memo(
     }
 
     const titre = workspace.label ?? workspace.workspaceId;
+
+    /**
+     * Lancement immédiat, **sans choix**.
+     *
+     * « Nouvel agent » doit rester à une seule frappe (D019.2) : c'est la
+     * manœuvre la plus courante, et la feuille est à côté, pas dessus. Un choix
+     * omis n'est pas un choix raté — l'agent démarre avec ses propres valeurs,
+     * et la feuille le dit.
+     *
+     * Fonction simple et non `useCallback` : elle est définie **après** le garde
+     * d'existence du projet, donc `workspace` y est déjà affirmé. Un hook ne
+     * peut pas vivre après un retour anticipé.
+     */
+    const lancer = () => {
+      onLaunch(workspace.workspaceId, kindParDefaut, {});
+    };
 
     return (
       <section className="screen">
@@ -124,30 +137,24 @@ export const ProjectDetail = memo(
             type="button"
             className="row__action row__action--primary"
             disabled={launching}
-            onClick={() => onLaunch(workspace.workspaceId, kind, choice)}
+            onClick={lancer}
           >
             {launching ? "Lancement…" : "Nouvel agent"}
           </button>
-          {kinds.length > 1 ? (
-            <button type="button" className="ghost" onClick={toggleOptions}>
-              {showOptions ? "Masquer les options" : "Options"}
-            </button>
-          ) : null}
+          <button type="button" className="ghost" onClick={ouvrirSheet}>
+            Options
+          </button>
         </div>
 
-        {showOptions ? (
-          <>
-            <div className="filters">
-              <select value={kind} onChange={(event) => setKind(event.currentTarget.value)}>
-                {kinds.map((option) => (
-                  <option key={option.kind} value={option.kind}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <LaunchOptions kind={kind} onChange={onChoice} />
-          </>
+        {sheetOpen ? (
+          <LaunchSheet
+            kinds={kinds}
+            launching={launching}
+            onClose={fermerSheet}
+            onLaunch={onLaunch}
+            titre={titre}
+            workspaceId={workspace.workspaceId}
+          />
         ) : null}
       </section>
     );

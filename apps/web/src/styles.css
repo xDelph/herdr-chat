@@ -1158,20 +1158,6 @@ button:disabled {
   justify-content: flex-start;
 }
 
-.launch__kind {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  /* `muted` : à 16px, le choix du type d'agent rivalisait avec le nom du
-     projet, qui doit rester le premier lu. */
-  color: var(--muted);
-  /* 16 px, pas 12 : sous ce seuil Safari iOS zoome à la mise au point d'un
-     contrôle de formulaire, et l'utilisateur doit redresser à la main. */
-  font-size: 16px;
-  min-height: var(--tap-min);
-  padding: 7px 4px;
-}
-
 /* ---------------------------------------------------------------------------
    Fichiers touchés
    --------------------------------------------------------------------------- */
@@ -1433,20 +1419,37 @@ button:disabled {
   padding: 4px 8px;
 }
 
-/* Plein largeur sur sa propre ligne : les deux listes déroulantes ne doivent
-   pas écraser le nom du projet. */
-.launch__panel {
-  flex: 1 0 100%;
+/*
+  Pied de la feuille de lancement.
+
+  Le bouton reste en haut de l'action et non en bas de l'écran : sur un iPhone
+  à 568 px, un bouton collé en bas disparaît sous le clavier au moment où l'on
+  veut le lire. La règle dit pourquoi c'est envoyé une seule fois.
+*/
+.launch__actions {
+  border-top: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 6px 0 10px;
+  gap: 8px;
+  margin-top: 18px;
+  padding-top: 12px;
 }
 
-.launch__options {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
+.launch__actions .row__action {
+  align-self: flex-start;
+}
+
+/*
+  Étiquette de contrôle : le premier mot qui dit ce qu'on choisit.
+
+  Les listes déroulantes étaient orphelines — « Modèle », « raisonnement »
+  flottaient sans dire à quoi ils s'appliquaient, et la feuille de lancement
+  en compte trois d'affilée.
+*/
+.launch__label {
+  color: var(--muted);
+  font-size: 13px;
+  margin: 14px 0 4px;
 }
 
 .launch__filter,

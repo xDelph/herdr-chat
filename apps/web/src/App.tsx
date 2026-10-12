@@ -36,8 +36,8 @@ import { ALL_STATUSES, agentContext, agentName, statusClass, statusLabel } from 
 import { ChatScreen } from "./ChatScreen.tsx";
 import { ProjectAgentsOf } from "./ProjectDetail.tsx";
 import { Gallery } from "./Gallery.tsx";
-import { LaunchOptions } from "./LaunchOptions.tsx";
-import type { LaunchChoice } from "./LaunchOptions.tsx";
+import { LaunchSheet } from "./LaunchSheet.tsx";
+import type { LaunchChoice } from "./launch.ts";
 import { TrustCard } from "./TrustCard.tsx";
 import { AttentionCard } from "./Attention.tsx";
 import { DEFAULT_TAB, parseRoute, routeToHash, TabSchema, TABS, TAB_LABEL } from "./routing.ts";
@@ -158,24 +158,37 @@ const WorkspaceRow = ({
   onOpen: (workspaceId: string) => void;
 }) => {
   const hasAgent = agentPaneCount > 0;
-  // `pi` par défaut : c'est l'agent réellement utilisé, mais le choix reste
-  // ouvert à tout ce que Herdr sait démarrer.
-  const [kind, setKind] = useState<string>("pi");
-  const [showOptions, setShowOptions] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const handleOpen = useCallback(
     () => onOpen(workspace.workspaceId),
     [onOpen, workspace.workspaceId],
   );
-  /** Modèle et raisonnement choisis — transmis à `agent.start`. */
-  const [choice, setChoice] = useState<LaunchChoice>({});
-  const onChoice = useCallback((next: LaunchChoice) => setChoice(next), []);
+  const ouvrirSheet = useCallback(() => setSheetOpen(true), []);
+  const fermerSheet = useCallback(() => setSheetOpen(false), []);
+
+  /**
+   * Type retenu quand on lance sans passer par la feuille.
+   *
+   * `pi` quand il est installé — c'est l'agent réellement utilisé, donc le
+   * premierinstallé n'est pas forcément le bon. Sinon le premier que Herdr
+   * connaît, et non aucun : « aucun agent installé » a déjà son refus
+   * explicite sur le bouton.
+   */
+  const kindParDefaut =
+    kinds.find((candidat) => candidat.kind === "pi")?.kind ?? kinds[0]?.kind ?? "pi";
+
+  /**
+   * Lancement immédiat, **sans choix**.
+   *
+   * Le `+` reste à une seule frappe : c'est l'action la plus courante, et la
+   * feuille de lancement est à côté, pas dessus. Un choix omis n'est pas un
+   * choix raté — l'agent démarre avec ses propres valeurs, et c'est écrit
+   * dans la feuille.
+   */
   const handleLaunch = useCallback(
-    () => onLaunch(workspace.workspaceId, kind, choice),
-    [choice, kind, onLaunch, workspace.workspaceId],
+    () => onLaunch(workspace.workspaceId, kindParDefaut, {}),
+    [kindParDefaut, onLaunch, workspace.workspaceId],
   );
-  const onKindChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
-    setKind(event.target.value);
-  }, []);
 
   return (
     /*
@@ -217,25 +230,8 @@ const WorkspaceRow = ({
           onClick={(event) => event.stopPropagation()}
           onKeyDown={(event) => event.stopPropagation()}
         >
-          <select
-            className="launch__kind"
-            value={kind}
-            onChange={onKindChange}
-            aria-label="Type d'agent à lancer"
-          >
-            {kinds.map((candidate) => (
-              <option key={candidate.kind} value={candidate.kind}>
-                {candidate.label}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            className="ghost launch__toggle"
-            aria-expanded={showOptions}
-            onClick={() => setShowOptions((value) => !value)}
-          >
-            {showOptions ? "Masquer" : "Modèle"}
+          <button type="button" className="ghost launch__toggle" onClick={ouvrirSheet}>
+            Options
           </button>
           <button
             type="button"
@@ -249,20 +245,15 @@ const WorkspaceRow = ({
           </button>
         </span>
       }
-      {/*
-        Modèle et raisonnement sont **dépliants** : une ligne de projet doit
-        rester lisible d'un coup d'œil, et 439 modèles ne tiennent pas dans
-        une rangée.
-      */}
-      {showOptions ? (
-        <div
-          className="launch__panel"
-          role="presentation"
-          onClick={(event) => event.stopPropagation()}
-          onKeyDown={(event) => event.stopPropagation()}
-        >
-          <LaunchOptions kind={kind} onChange={onChoice} />
-        </div>
+      {sheetOpen ? (
+        <LaunchSheet
+          kinds={kinds}
+          launching={launching}
+          onClose={fermerSheet}
+          onLaunch={onLaunch}
+          titre={workspace.label ?? workspace.workspaceId}
+          workspaceId={workspace.workspaceId}
+        />
       ) : null}
     </div>
   );
