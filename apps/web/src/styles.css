@@ -43,14 +43,6 @@
     d'état n'a pas à être touchable.
   */
   --tap-min: 44px;
-  /*
-    Hauteur de la barre d'onglets : le minimum tactile plus sa bordure haute.
-
-    ⚠️ Sert au bouton flottant, qui doit se placer **au-dessus** d'elle. Un
-    `bottom` en pixels nus le faisait passer derrière la barre : le bouton
-    restait à moitié caché, et rien ne le signalait.
-  */
-  --tabs-height: calc(var(--tap-min) + 1px);
 
   /*
     Contrastes **mesurés** par calcul de luminance relative (WCAG 2.1), pas
@@ -101,8 +93,18 @@ body {
   background: var(--surface);
   border-bottom: 1px solid var(--border);
   display: flex;
+  /*
+    ⚠️ `flex: 0 0 auto` : l'en-tête garde sa hauteur même quand la liste réclame
+    de la place. Sans elle, un contenu long le comprimait, et il **défilait avec
+    la liste** — le titre et l'engrenage sortaient de l'écran.
+  */
+  flex: 0 0 auto;
   justify-content: space-between;
   padding: max(10px, env(safe-area-inset-top)) 16px 10px;
+  /* Reste au-dessus du contenu qui défile sous lui. */
+  position: sticky;
+  top: 0;
+  z-index: 10;
 }
 
 h1 {
@@ -452,33 +454,6 @@ button:disabled {
   color: var(--muted);
   font-size: 12px;
   padding: 6px 16px 12px;
-}
-
-.tabs {
-  background: var(--surface);
-  border-top: 1px solid var(--border);
-  display: flex;
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-.tab {
-  align-items: center;
-  background: transparent;
-  border: none;
-  border-radius: 0;
-  color: var(--muted);
-  display: flex;
-  flex: 1;
-  font-size: 13px;
-  justify-content: center;
-  /* 44 px : la barre mesurait 39 px, sous le minimum tactile iOS. */
-  min-height: var(--tap-min);
-  padding: 10px 4px;
-}
-
-.tab--active {
-  color: var(--accent);
-  font-weight: 600;
 }
 
 .terminal {
@@ -1890,15 +1865,28 @@ button:disabled {
 /* Titre de section : libellé + filet qui file vers la droite. */
 .section {
   align-items: center;
+  /*
+    ⚠️ Fond opaque : sans lui, le contenu qui passe dessous apparaîtrait au
+    travers du titre collé.
+  */
+  background: var(--bg);
   color: var(--muted);
   display: flex;
   font-size: 12px;
   font-weight: 600;
   gap: 8px;
   letter-spacing: 0.6px;
-  margin: 18px 0 4px;
-  padding: 0 16px;
+  /*
+    Le titre de section **colle** en haut du défilement : on sait toujours dans
+    quelle section on lit. `padding-top` plutôt que `margin-top` — une marge
+    laisserait une bande où le contenu défilerait avant le titre.
+  */
+  margin: 0;
+  padding: 14px 16px 6px;
+  position: sticky;
+  top: 0;
   text-transform: uppercase;
+  z-index: 1;
 }
 
 .section__count {
@@ -2077,11 +2065,11 @@ button:disabled {
   border: none;
   border-radius: var(--radius-pill);
   /*
-    ⚠️ **Au-dessus de la barre d'onglets**, pas dessus. `--tabs-height` porte la
-    hauteur réelle de la barre ; un `bottom` en pixels nus plaçait le bouton
-    derrière elle, à moitié caché, sans que rien ne le signale.
+    ⚠️ Il réservait 45 px pour la barre d'onglets : cette barre n'existe plus,
+    l'écart ne servait donc plus qu'à faire flotter le bouton dans le vide. Il
+    ne reste que la marge de flottement et la zone sûre du bas.
   */
-  bottom: calc(var(--tabs-height) + 16px + env(safe-area-inset-bottom));
+  bottom: calc(14px + env(safe-area-inset-bottom));
   color: #04101f;
   font-size: 15px;
   font-weight: 600;

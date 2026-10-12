@@ -168,19 +168,18 @@ describe("U16 — la liste garde sa structure", () => {
     expect(fab["min-height"]).toBe("var(--tap-min)");
   });
 
-  test("le bouton flottant passe AU-DESSUS de la barre d'onglets", () => {
+  test("le bouton flottant ne réserve plus la place d'une barre disparue", () => {
     /*
-      ⚠️ C'est le défaut visuel le plus probable d'un bouton flottant : un
-      `bottom` en pixels nus le place derrière la barre, à moitié caché, sans
-      qu'aucun test ne le voie. Le calcul doit nommer la hauteur de la barre.
+      ⚠️ Il réservait 45 px pour la barre d'onglets. Depuis U17 cette barre
+      n'existe plus, et l'écart ne servait qu'à faire flotter le bouton dans le
+      vide. Ce test empêche le retour d'un décalage fantôme.
     */
     const fab = bloc(".fab");
-    expect(fab.bottom).toContain("var(--tabs-height)");
-    // Et cette hauteur doit correspondre à la barre réelle, pas à un chiffre
-    // écrit à la main qui dériverait au premier changement de gabarit.
-    expect(bloc(".tab")["min-height"]).toBe("var(--tap-min)");
-    expect(bloc(".tabs").background).toBe("var(--surface)");
-    expect(bloc(".tabs")["padding-bottom"]).toContain("safe-area-inset-bottom");
+    expect(fab.bottom).not.toContain("tabs-height");
+    expect(fab.bottom).toContain("safe-area-inset-bottom");
+    // Et la barre elle-même ne doit plus exister, ni en style ni en balise.
+    expect(cssNu).not.toContain(".tabs {");
+    expect(app).not.toContain('className="tabs"');
   });
 
   test("le bouton flottant demande un projet, il ne lance pas dans le vide", () => {
@@ -188,5 +187,48 @@ describe("U16 — la liste garde sa structure", () => {
     // qu'il annonce.
     expect(app).toContain("ProjectPicker");
     expect(app).toContain("+ Nouvel agent");
+  });
+});
+
+describe("U18 — l'en-tête reste en haut", () => {
+  test("la barre du haut ne rétrécit pas et colle", () => {
+    // ⚠️ Sans `flex: 0 0 auto`, une liste longue comprime l'en-tête : le titre
+    // et l'engrenage sortent de l'écran en défilant.
+    const barre = bloc(".topbar");
+    expect(barre["flex"]).toBe("0 0 auto");
+    expect(barre["position"]).toBe("sticky");
+    expect(barre.top).toBe("0");
+  });
+
+  test("l'en-tête est hors du conteneur défilant", () => {
+    // `.screen` est ce qui défile. L'en-tête étant son frère, il ne défile pas
+    // avec lui — c'est la structure qui le garantit, pas une astuce de style.
+    const ecran = bloc(".screen");
+    expect(ecran["overflow-y"]).toBe("auto");
+    expect(app.indexOf('className="topbar"')).toBeLessThan(
+      app.indexOf('className="screen screen--liste"'),
+    );
+  });
+
+  test("le titre de section colle en haut du défilement", () => {
+    // On sait toujours dans quelle section on lit, même au milieu de la liste.
+    const titre = bloc(".section");
+    expect(titre["position"]).toBe("sticky");
+    expect(titre.top).toBe("0");
+    // Fond opaque : sinon le contenu se verrait au travers.
+    expect(titre.background).toBe("var(--bg)");
+  });
+
+  test("le titre de section n'a pas de marge, seulement un rembourrage", () => {
+    // ⚠️ Une marge laisserait une bande où le contenu défilerait **avant** le
+    // titre collé — le titre semblerait sauter.
+    const titre = bloc(".section");
+    expect(titre["margin"]).toBe("0");
+    expect(titre["padding"]).toContain("14px 16px 6px");
+  });
+
+  test("les deux niveaux collants ne se recouvrent pas", () => {
+    // Le titre de section passe **sous** la barre du haut, jamais par-dessus.
+    expect(Number(bloc(".topbar")["z-index"])).toBeGreaterThan(Number(bloc(".section")["z-index"]));
   });
 });
