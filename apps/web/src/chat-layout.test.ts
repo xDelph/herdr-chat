@@ -312,9 +312,12 @@ describe("U19 — la conversation se lit comme un document", () => {
     // Une session réelle compte des centaines d'appels : encadrés un par un,
     // les réponses disparaissent dans le bruit.
     expect(bloc(".group")["border"]).toBe("none");
-    expect(bloc(".group__head")["border-bottom"]).toContain("var(--border)");
-    // Et la ligne s'annonce comme dépliable.
-    expect(css).toContain('.group__head[aria-expanded="true"]');
+    // Aucun filet non plus : l'espacement sépare (U26).
+    expect(bloc(".group__head")["border"]).toBe("none");
+    // Et la ligne s'annonce comme dépliable par un chevron **dans** la première
+    // ligne — en `::after` du bouton, il tombait sur une troisième ligne.
+    expect(bloc(".group__chevron")["margin-left"]).toBe("auto");
+    expect(css).not.toContain(".group__head::after");
   });
 
   test("le composeur est une pastille flottante, pas une barre", () => {
@@ -384,21 +387,23 @@ describe("U20 — le bouton d'envoi suit la forme d'iOS", () => {
 describe("U21 — un travail se raconte, puis se replie", () => {
   const blocs = readFileSync(join(import.meta.dir, "Blocks.tsx"), "utf8");
 
-  test("le dépliage suit l'état du travail", () => {
+  test("un bloc de travail est replié par défaut, tout le temps", () => {
     /*
-      ⚠️ Pendant, le groupe est **ouvert** : on vient voir ce qui se passe, et
-      la réflexion est dedans. À la fin il se **replie tout seul** — la réponse
-      finale est ce qu'on veut lire, et un groupe resté ouvert la repousserait
-      hors de l'écran.
+      ⚠️ Le travail n'est pas ce qu'on vient lire : c'est la réponse. Un bloc qui
+      s'ouvrirait seul pendant le travail, puis se refermerait, changerait la
+      hauteur du fil sous le doigt — et pousserait la réponse hors de l'écran au
+      moment précis où elle arrive.
     */
-    expect(blocs).toContain("useState(enCours || item.hasError)");
-    expect(blocs).toContain("setOpen(enCours || item.hasError)");
+    expect(blocs).toContain("const [open, setOpen] = useState(false);");
+    expect(blocs).not.toContain("setOpen(enCours || item.hasError)");
   });
 
-  test("un clic de l'utilisateur n'est pas écrasé par l'état du travail", () => {
-    // Sinon le groupe se rouvrirait tout seul à chaque rafraîchissement.
-    expect(blocs).toContain("toucheParUtilisateur");
-    expect(blocs).toContain("if (toucheParUtilisateur) return;");
+  test("l'échec annoncé par le badge a un répondant visible", () => {
+    // Sinon l'en-tête annonce « échec » et rien à l'écran ne dit **lequel**.
+    expect(blocs).toContain("ligne.enEchec");
+    expect(blocs).toContain("ligne__verbe--echec");
+    const actions = readFileSync(join(import.meta.dir, "actions.ts"), "utf8");
+    expect(actions).toContain("precedente.enEchec = true");
   });
 
   test("une ligne de travail est repliée par défaut", () => {

@@ -266,6 +266,8 @@ const instant = (message: RenderedMessage): number | null => {
 
 /** Ce qu'un travail a coûté : sa durée, et ses jetons. */
 export interface Cout {
+  /** Lignes ajoutées, toutes éditions du travail confondues. */
+  readonly added: number;
   /** Durée mesurée entre le premier et le dernier message, ou `null`. */
   readonly dureeMs: number | null;
   /**
@@ -276,6 +278,8 @@ export interface Cout {
    * vient de lire — et c'est pourtant ce qu'il affichait.
    */
   readonly jetons: number | null;
+  /** Lignes retirées, toutes éditions du travail confondues. */
+  readonly removed: number;
 }
 
 /** Coût d'un groupe : durée mesurée, jetons additionnés. */
@@ -284,8 +288,17 @@ export const coutDuGroupe = (messages: ReadonlyArray<RenderedMessage>): Cout => 
   let dernier: number | null = null;
   let jetons = 0;
   let avecJetons = false;
+  let added = 0;
+  let removed = 0;
 
   for (const message of messages) {
+    for (const block of message.blocks) {
+      if (block.kind !== "toolCall") continue;
+      const delta = deltaDe(block.name, block.arguments);
+      if (delta === null) continue;
+      added += delta.added;
+      removed += delta.removed;
+    }
     const at = instant(message);
     if (at !== null) {
       if (premier === null || at < premier) premier = at;
@@ -304,7 +317,7 @@ export const coutDuGroupe = (messages: ReadonlyArray<RenderedMessage>): Cout => 
   // intervalle qui n'existe pas.
   const dureeMs =
     premier !== null && dernier !== null && dernier > premier ? dernier - premier : null;
-  return { dureeMs, jetons: avecJetons ? jetons : null };
+  return { added, dureeMs, jetons: avecJetons ? jetons : null, removed };
 };
 
 /**
@@ -325,6 +338,15 @@ export type LigneTravail =
        * et l'état déplié.
        */
       readonly cle: string;
+      /**
+       * `true` quand cet appel a **échoué**.
+       *
+       * ⚠️ Sans ce marquage, le badge « échec » de l'en-tête n'avait aucun
+       * répondant visible : la sortie fautive était repliée dans une ligne, et
+       * rien à l'écran ne disait **laquelle**. On ne signale pas un échec qu'on
+       * ne peut pas montrer.
+       */
+      readonly enEchec: boolean;
       readonly kind: "action";
       readonly action: Action;
       /**
@@ -364,7 +386,9 @@ export const lignesDeTravail = (
         readonly cle: string;
         readonly kind: "action";
         readonly action: Action;
+        /** Mutable : la sortie d'un appel s'y ajoute après coup. */
         readonly details: Array<Block>;
+        enEchec: boolean;
       }
     | { readonly cle: string; readonly kind: "texte"; readonly texte: Block };
   const lignes: Array<LigneEnCours> = [];
@@ -387,6 +411,7 @@ export const lignesDeTravail = (
           action: actionDe(block.name, block.arguments),
           cle,
           details: [block],
+          enEchec: false,
           kind: "action",
         });
         continue;
@@ -403,15 +428,51 @@ export const lignesDeTravail = (
           },
           cle,
           details: [block],
+          enEchec: false,
           kind: "action",
         });
         continue;
       }
       if (block.kind === "thinking") {
-        lignes.push({ action: ACTION_REFLEXION, cle, details: [block], kind: "action" });
+        lignes.push({
+          action: ACTION_REFLEXION,
+          cle,
+          details: [block],
+          enEchec: false,
+          kind: "action",
+        });
         continue;
       }
       if (block.kind === "toolResult") {
+        // Un résultat en échec marque la ligne qui le porte : c'est là qu'on
+        // regarde, et c'est ce que le badge de l'en-tête annonce.
+        if (block.isError) {
+          const precedente = lignes.at(-1);
+          if (precedente !== undefined && precedente.kind === "action") {
+            precedente.enEchec = true;
+          } else {
+            /*
+              Un échec sans appel avant lui — une sortie orpheline. Il devient sa
+              propre ligne, **marquée** : le badge de l'en-tête doit avoir un
+              répondant visible, sinon il annonce un échec introuvable.
+            */
+            lignes.push({
+              action: {
+                cible: block.toolName.length > 0 ? block.toolName : null,
+                delta: null,
+                estFichier: false,
+                icone: "▤",
+                pluriel: "Résultats",
+                singulier: "Résultat en échec",
+              },
+              cle: `${cle}:echec`,
+              details: [block],
+              enEchec: true,
+              kind: "action",
+            });
+            continue;
+          }
+        }
         // Le résultat se rattache à l'appel qui le précède. Sans appel avant
         // lui, il devient sa propre ligne : ne rien afficher perdrait la
         // sortie.
@@ -431,6 +492,7 @@ export const lignesDeTravail = (
           },
           cle,
           details: [block],
+          enEchec: false,
           kind: "action",
         });
       }

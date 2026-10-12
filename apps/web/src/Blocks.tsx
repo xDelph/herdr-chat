@@ -6,7 +6,7 @@
  * `write` 372. Un rendu générique unique obligerait à lire du JSON à l'écran
  * pour comprendre ce que l'agent a fait.
  */
-import { createContext, memo, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, memo, useCallback, useContext, useState } from "react";
 import { Schema } from "effect";
 import { Option } from "effect";
 import { Markdown } from "./Markdown.tsx";
@@ -572,6 +572,7 @@ const LIGNE_DU_BLOC = (block: Block): LigneTravail => {
     action: actionDeBloc(block),
     cle: `bloc:${block.kind}`,
     details: [block],
+    enEchec: block.kind === "toolResult" && block.isError,
     kind: "action",
   };
   ligneDuBlocCache.set(block, neuve);
@@ -702,6 +703,32 @@ const LigneDeTravail = ({ ligne }: { ligne: LigneTravail }) => {
   if (ligne.kind === "texte") return <VueDetail block={ligne.texte} />;
 
   const { action, details } = ligne;
+
+  /*
+    La réflexion se lit **telle quelle**, en petit et en gris.
+
+    ⚠️ Elle passait par l'ancien rendu, qui l'enfermait dans un cadre avec un
+    badge « RÉFLEXION » et sa bordure : le bloc encadré que tu voyais encore.
+    C'est du raisonnement, pas une pièce à conviction — il n'a pas à crier plus
+    fort que la réponse.
+  */
+  if (details.length === 1 && details[0]?.kind === "thinking") {
+    const pensee = details[0];
+    return (
+      <div className="reflexion">
+        <span className="ligne__icone" aria-hidden="true">
+          {action.icone}
+        </span>
+        {pensee.redacted ? (
+          <p className="reflexion__texte">contenu masqué par le fournisseur</p>
+        ) : (
+          <div className="reflexion__texte">
+            <Markdown source={pensee.thinking} />
+          </div>
+        )}
+      </div>
+    );
+  }
   const cible = action.cible;
 
   return (
@@ -716,7 +743,9 @@ const LigneDeTravail = ({ ligne }: { ligne: LigneTravail }) => {
         <span className="ligne__icone" aria-hidden="true">
           {action.icone}
         </span>
-        <span className="ligne__verbe">{action.singulier}</span>
+        <span className={ligne.enEchec ? "ligne__verbe ligne__verbe--echec" : "ligne__verbe"}>
+          {action.singulier}
+        </span>
         {cible === null ? null : action.estFichier ? (
           // Un chemin de fichier se souligne : il mène à quelque chose. Un
           // argument qui n'est pas un fichier ne promet pas d'ouverture.
@@ -765,39 +794,56 @@ const ToolGroup = ({
   item: Extract<Item, { kind: "tools" }>;
   enCours: boolean;
 }) => {
-  const [open, setOpen] = useState(enCours || item.hasError);
-  const [toucheParUtilisateur, setToucheParUtilisateur] = useState(false);
-
-  useEffect(() => {
-    // L'utilisateur a tranché : l'état du travail ne revient plus dessus.
-    if (toucheParUtilisateur) return;
-    setOpen(enCours || item.hasError);
-  }, [enCours, item.hasError, toucheParUtilisateur]);
-
-  const basculer = useCallback(() => {
-    setToucheParUtilisateur(true);
-    setOpen((valeur) => !valeur);
-  }, []);
+  /*
+    ⚠️ **Replié par défaut, toujours.** Le travail n'est pas ce qu'on vient lire :
+    c'est la réponse. Un bloc qui s'ouvrirait seul pendant le travail, puis se
+    refermerait, changerait la hauteur du fil sous le doigt — et pousserait la
+    réponse hors de l'écran au moment précis où elle arrive.
+  */
+  const [open, setOpen] = useState(false);
+  const basculer = useCallback(() => setOpen((valeur) => !valeur), []);
 
   const lignes = lignesDeTravail(item.messages);
   const cout = coutDuGroupe(item.messages);
   const duree = dureeEnMots(cout.dureeMs ?? 0);
   const jetons = cout.jetons === null ? "" : jetonsCourts(cout.jetons);
   const resume = resumeDuGroupe(item.tools.map((outil) => outil.name));
+  const diff =
+    cout.added > 0 || cout.removed > 0 ? (
+      <span className="group__diff">
+        <span className="ligne__delta--plus">+{cout.added}</span>
+        <span className="ligne__delta--moins">−{cout.removed}</span>
+      </span>
+    ) : null;
 
   return (
     <div className={item.hasError ? "group group--error" : "group"}>
       <button type="button" className="group__head" onClick={basculer} aria-expanded={open}>
-        {/* « Working » pendant, « Worked » après : le mot dit l'état, la durée
-            dit le coût. */}
-        <span className="group__titre">
-          {enCours ? "En cours" : "A travaillé"}
-          {duree.length > 0 ? ` ${duree}` : ""}
+        <span className="group__ligne">
+          <span className="group__titre">
+            {enCours ? "En cours" : "A travaillé"}
+            {duree.length > 0 ? ` ${duree}` : ""}
+          </span>
+          {resume.length > 0 ? <span className="group__resume">{resume}</span> : null}
+          {item.hasError ? <span className="group__flag">échec</span> : null}
+          {/* Le chevron vit **dans** la première ligne : en `::after` du bouton,
+              il tombait sur une troisième ligne depuis que l'en-tête est une
+              colonne de deux lignes. */}
+          <span className="group__chevron" aria-hidden="true">
+            {open ? "▾" : "›"}
+          </span>
         </span>
-        {resume.length > 0 ? <span className="group__resume">{resume}</span> : null}
-        {/* ⚠️ Les jetons du **travail**, pas le cumul de la session. */}
-        {jetons.length > 0 ? <span className="group__jetons">{jetons}</span> : null}
-        {item.hasError ? <span className="group__flag">échec</span> : null}
+        {/*
+          ⚠️ **Jetons et diff sur la seconde ligne**, pas sur celle du titre.
+          Sur la même ligne, ils poussaient le résumé hors de l'écran à 320 px et
+          se disputaient la lecture avec le verbe et la durée.
+        */}
+        {jetons.length > 0 || diff !== null ? (
+          <span className="group__ligne group__ligne--bas">
+            {jetons.length > 0 ? <span className="group__jetons">{jetons}</span> : null}
+            {diff}
+          </span>
+        ) : null}
       </button>
 
       {open ? (

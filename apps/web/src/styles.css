@@ -352,8 +352,10 @@ button:disabled {
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 10px;
-  padding-bottom: 12px;
+  /* ⚠️ 6 px et non 10 : l'interligne des blocs est ce qui se voit le plus quand
+     on compare à Codex, et 10 px faisait respirer chaque tour comme une section. */
+  gap: 6px;
+  padding-bottom: 8px;
 }
 
 /*
@@ -919,6 +921,8 @@ button:disabled {
 .chat .messages {
   flex: 1 1 auto;
   min-height: 0;
+  /* Resserré : l'espacement par défaut faisait respirer chaque bloc comme une
+     section, et une conversation tenait deux fois moins de tours à l'écran. */
   /*
     ⚠️ **`overflow-x: hidden` n'est pas un détail.** Sans lui, un seul enfant
     trop large — une URL longue dans un bloc de code — élargissait le conteneur,
@@ -1041,15 +1045,16 @@ button:disabled {
   dans la référence : on la déplie si on veut, sinon elle passe.
 */
 .group {
+  /* Aucun cadre : l'espace sépare. Un contour autour d'un groupe replié
+     transforme la conversation en suite de cartes. */
+  background: none;
   border: none;
 }
 
 .group__head {
-  align-items: center;
+  align-items: baseline;
   background: none;
   border: none;
-  /* Le filet sépare la ligne du contenu suivant sans ajouter de cadre. */
-  border-bottom: 1px solid var(--border);
   color: var(--muted);
   display: flex;
   flex-wrap: wrap;
@@ -1062,16 +1067,10 @@ button:disabled {
   width: 100%;
 }
 
-.group__head::after {
-  /* Chevron : dit que la ligne s'ouvre, sans occuper de largeur fixe. */
-  content: "›";
+.group__chevron {
+  margin-left: auto;
   font-size: 15px;
   line-height: 1;
-  transition: transform 120ms ease;
-}
-
-.group__head[aria-expanded="true"]::after {
-  transform: rotate(90deg);
 }
 
 /* Un échec reste visible : le résumé se colore, il ne disparaît pas. */
@@ -2054,7 +2053,7 @@ button:disabled {
   /* Toute la largeur, avec un minimum de 44 px de haut : la cible tactile est
      la ligne entière, pas le titre. */
   min-height: var(--tap-min);
-  padding: 12px 16px 14px;
+  padding: 10px 16px 10px;
   text-align: left;
   width: 100%;
 }
@@ -2400,4 +2399,65 @@ button:disabled {
 .ligne__delta--moins {
   color: var(--err);
   margin-left: 6px;
+}
+
+/* ---------------------------------------------------------------------------
+   Un travail : deux lignes d'en-tête, replié par défaut (U26)
+   --------------------------------------------------------------------------- */
+
+.group__head {
+  /* Deux lignes : le verbe et le résumé, puis les chiffres. */
+  align-items: baseline;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.group__ligne {
+  align-items: baseline;
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+}
+
+.group__ligne--bas {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.group__diff {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+}
+
+/*
+  ⚠️ L'échec se marque **sur la ligne fautive**, pas seulement dans l'en-tête.
+  Un badge qui annonce un échec sans qu'on puisse le trouver fait perdre plus de
+  temps qu'il n'en fait gagner.
+*/
+.ligne__verbe--echec {
+  color: var(--err);
+}
+
+/*
+  La réflexion : le texte, en petit et en gris.
+
+  ⚠️ Elle passait par l'ancien rendu, qui l'enfermait dans un cadre avec un badge
+  « RÉFLEXION » et sa bordure. C'est du raisonnement, pas une pièce à conviction :
+  il n'a pas à crier plus fort que la réponse.
+*/
+.reflexion {
+  color: var(--muted);
+  display: flex;
+  font-size: 13px;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.reflexion__texte {
+  min-width: 0;
+}
+
+.reflexion__texte p {
+  margin: 0 0 4px;
 }

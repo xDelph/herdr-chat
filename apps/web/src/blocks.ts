@@ -722,14 +722,27 @@ export const toItems = (messages: ReadonlyArray<RenderedMessage>): ReadonlyArray
 };
 
 /**
- * `true` si un message porte du texte que l'agent a **écrit pour être lu**.
+ * `true` si un message est **uniquement** de la prose.
  *
- * Un résultat d'outil est du texte, mais ce n'est pas une réponse : le compter
- * comme telle ferait passer la dernière sortie de commande pour la conclusion du
- * tour.
+ * ⚠️ **Uniquement**, et c'est le point. Un message `text + thinking` est de la
+ * prose *et* du travail : le prendre pour la réponse sortait son `thinking` du
+ * bloc, et une ligne « Réflexion » se retrouvait **hors** d'un bloc refermé.
+ * C'est exactement le sous-bloc orphelin qu'on voyait à l'écran.
+ *
+ * Un résultat d'outil est du texte, mais ce n'est pas une réponse non plus : le
+ * compter comme telle ferait passer la dernière sortie de commande pour la
+ * conclusion du tour.
  */
 const aDeLaProse = (message: RenderedMessage): boolean =>
-  message.role === "assistant" && message.blocks.some((block) => block.kind === "text");
+  message.role === "assistant" &&
+  message.blocks.some((block) => block.kind === "text") &&
+  !message.blocks.some(
+    (block) =>
+      block.kind === "thinking" ||
+      block.kind === "toolCall" ||
+      block.kind === "toolResult" ||
+      block.kind === "bashExecution",
+  );
 
 // ---------------------------------------------------------------------------
 // Question en attente
