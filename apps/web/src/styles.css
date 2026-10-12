@@ -2360,3 +2360,21 @@ button:disabled {
   font-size: 15px;
   padding: 6px 10px;
 }
+
+/* Taille d'un changement, sur la ligne de travail : les mêmes couleurs que le
+   diff lui-même, pour qu'on fasse le lien sans y penser. */
+.ligne__delta {
+  flex: 0 0 auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  margin-left: auto;
+}
+
+.ligne__delta--plus {
+  color: var(--ok);
+}
+
+.ligne__delta--moins {
+  color: var(--err);
+  margin-left: 6px;
+}

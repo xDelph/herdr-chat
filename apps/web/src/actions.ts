@@ -30,7 +30,57 @@ export interface Action {
    * qui n'est pas un fichier promettrait une ouverture qui n'existe pas.
    */
   readonly estFichier: boolean;
+  /**
+   * Lignes ajoutées et retirées, pour une écriture ou une édition.
+   *
+   * ⚠️ `null` quand l'appel n'écrit rien : afficher `+0 −0` sur une commande
+   * laisserait croire à un changement mesuré alors qu'il n'y en a pas.
+   */
+  readonly delta: Delta | null;
 }
+
+/** Taille d'un changement, en lignes. */
+export interface Delta {
+  readonly added: number;
+  readonly removed: number;
+}
+
+/**
+ * Compte les lignes d'un changement.
+ *
+ * ⚠️ **Même règle que `touchedFilesOf` et la feuille Fichiers** : une écriture
+ * ajoute tout son contenu, une édition ajoute `newText` et retire `oldText`. Deux
+ * comptages différents donneraient deux chiffres pour le même fichier.
+ */
+/** Nombre de lignes d'un texte, ou 0 quand il n'y en a pas. */
+const lignesDeTexte = (valeur: unknown): number =>
+  typeof valeur === "string" && valeur.length > 0 ? valeur.split("\n").length : 0;
+
+/** Objet exploitable par clé, sans supposer sa forme. */
+const estObjet = (valeur: unknown): valeur is Record<string, unknown> =>
+  typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
+
+export const deltaDe = (nom: string, args: Readonly<Record<string, unknown>>): Delta | null => {
+  const minuscule = nom.trim().toLowerCase();
+
+  if (minuscule === "write") {
+    const contenu = args["content"];
+    if (typeof contenu !== "string") return null;
+    return { added: lignesDeTexte(contenu), removed: 0 };
+  }
+  if (minuscule !== "edit") return null;
+
+  const edites = args["edits"];
+  if (!Array.isArray(edites)) return null;
+  let added = 0;
+  let removed = 0;
+  for (const edition of edites) {
+    if (!estObjet(edition)) continue;
+    added += lignesDeTexte(edition["newText"]);
+    removed += lignesDeTexte(edition["oldText"]);
+  }
+  return added === 0 && removed === 0 ? null : { added, removed };
+};
 
 /** Familles d'actions, dans l'ordre d'apparition du résumé. */
 type Famille = "edition" | "suppression" | "shell" | "lecture" | "recherche" | "autre";
@@ -101,6 +151,7 @@ export const actionDe = (nom: string, args: Readonly<Record<string, unknown>>): 
   if (NOMS_SUPPRESSION.has(minuscule)) {
     return {
       cible: chaine(args, "path") ?? chaine(args, "file"),
+      delta: null,
       estFichier: true,
       icone: "✕",
       pluriel: "Fichiers supprimés",
@@ -117,6 +168,7 @@ export const actionDe = (nom: string, args: Readonly<Record<string, unknown>>): 
   if (connu === undefined) {
     return {
       cible: cible ?? chaine(args, "query"),
+      delta: null,
       estFichier: false,
       icone: "•",
       pluriel: "Actions",
@@ -126,6 +178,7 @@ export const actionDe = (nom: string, args: Readonly<Record<string, unknown>>): 
 
   return {
     cible: cible ?? chaine(args, "query"),
+    delta: deltaDe(minuscule, args),
     estFichier: connu.famille === "edition" || connu.famille === "lecture",
     icone: connu.icone,
     pluriel: connu.pluriel,
@@ -270,6 +323,7 @@ export interface LigneTravail {
 /** Action d'une ligne de réflexion — elle n'est pas un outil. */
 const ACTION_REFLEXION: Action = {
   cible: null,
+  delta: null,
   estFichier: false,
   icone: "✻",
   pluriel: "Réflexions",
@@ -291,13 +345,17 @@ export const lignesDeTravail = (
   for (const message of messages) {
     for (const block of message.blocks) {
       if (block.kind === "toolCall") {
-        lignes.push({ action: actionDe(block.name, block.arguments), details: [] });
+        // ⚠️ L'appel **est** son propre détail : le diff d'une édition vit dans
+        // ses arguments, pas dans son résultat. Sans lui, « Fichier modifié »
+        // n'avait rien à déplier.
+        lignes.push({ action: actionDe(block.name, block.arguments), details: [block] });
         continue;
       }
       if (block.kind === "bashExecution") {
         lignes.push({
           action: {
             cible: block.command.split("\n")[0] ?? null,
+            delta: null,
             estFichier: false,
             icone: "🖥",
             pluriel: "Commandes lancées",
@@ -323,6 +381,7 @@ export const lignesDeTravail = (
         lignes.push({
           action: {
             cible: block.toolName ?? null,
+            delta: null,
             estFichier: false,
             icone: "▤",
             pluriel: "Résultats",

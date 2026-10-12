@@ -6,7 +6,15 @@
  */
 import { describe, expect, test } from "bun:test";
 import type { RenderedMessage } from "./blocks.ts";
-import { actionDe, coutDuGroupe, dureeEnMots, jetonsCourts, resumeDuGroupe } from "./actions.ts";
+import {
+  actionDe,
+  coutDuGroupe,
+  deltaDe,
+  dureeEnMots,
+  jetonsCourts,
+  lignesDeTravail,
+  resumeDuGroupe,
+} from "./actions.ts";
 
 const message = (
   meta: Readonly<Record<string, string>> = {},
@@ -186,5 +194,110 @@ describe("U21 — le coût du travail, pas celui de la session", () => {
   test("un jeton illisible est ignoré, sans faire tomber le total", () => {
     const cout = coutDuGroupe([message({ tokens: "beaucoup" }), message({ tokens: "500" })]);
     expect(cout.jetons).toBe(500);
+  });
+});
+
+describe("U22 — la taille d'un changement se dit sur la ligne", () => {
+  test("une écriture ajoute tout son contenu", () => {
+    const delta = deltaDe("write", { content: "a\nb\nc", path: "neuf.ts" });
+    expect(delta).toEqual({ added: 3, removed: 0 });
+  });
+
+  test("une édition compte ce qu'elle ajoute et ce qu'elle retire", () => {
+    const delta = deltaDe("edit", {
+      edits: [
+        { newText: "un\ndeux", oldText: "un" },
+        { newText: "trois", oldText: "a\nb\nc\nd" },
+      ],
+      path: "a.ts",
+    });
+    expect(delta).toEqual({ added: 3, removed: 5 });
+  });
+
+  test("une commande n'a pas de delta, jamais zéro", () => {
+    // ⚠️ `+0 −0` sur une lecture laisserait croire à un changement mesuré alors
+    // qu'il n'y en a pas.
+    expect(deltaDe("bash", { command: "ls" })).toBeNull();
+    expect(deltaDe("read", { path: "a.ts" })).toBeNull();
+    // Et l'action elle-même, pas seulement le compteur : c'est elle qui est
+    // affichée, donc c'est elle qui doit porter « null ».
+    expect(actionDe("bash", { command: "ls" }).delta).toBeNull();
+    expect(actionDe("read", { path: "a.ts" }).delta).toBeNull();
+  });
+
+  test("une édition sans changement ne produit pas de delta", () => {
+    expect(deltaDe("edit", { edits: [{ newText: "", oldText: "" }], path: "a.ts" })).toBeNull();
+  });
+
+  test("une forme inattendue ne fait pas tomber la ligne", () => {
+    expect(deltaDe("edit", { edits: "pas un tableau" })).toBeNull();
+    expect(deltaDe("write", { content: 12 })).toBeNull();
+  });
+
+  test("le delta remonte dans l'action, prêt à afficher", () => {
+    const action = actionDe("edit", { edits: [{ newText: "x", oldText: "a\nb" }], path: "a.ts" });
+    expect(action.delta).toEqual({ added: 1, removed: 2 });
+    expect(action.cible).toBe("a.ts");
+  });
+});
+
+describe("U22 — l'appel lui-même est son détail", () => {
+  test("une édition a de quoi se déplier", () => {
+    /*
+      ⚠️ Le diff d'une édition vit dans ses **arguments**, pas dans son
+      résultat. Avec `details: []`, « Fichier modifié » n'avait rien à déplier :
+      le diff existait dans le code sans être atteignable.
+    */
+    const appel = {
+      arguments: { edits: [{ newText: "x", oldText: "y" }], path: "a.ts" },
+      id: "c1",
+      kind: "toolCall" as const,
+      name: "edit",
+    };
+    const lignes = lignesDeTravail([
+      { at: null, blocks: [appel], id: "m1", meta: {}, role: "assistant", text: "" },
+    ]);
+    expect(lignes).toHaveLength(1);
+    expect(lignes[0]?.details).toHaveLength(1);
+    expect(lignes[0]?.details[0]?.kind).toBe("toolCall");
+  });
+
+  test("la sortie se rattache à l'appel qui la précède", () => {
+    // Deux lignes par appel doubleraient la longueur du groupe.
+    const lignes = lignesDeTravail([
+      {
+        at: null,
+        blocks: [
+          {
+            arguments: { command: "ls" },
+            id: "c1",
+            kind: "toolCall" as const,
+            name: "bash",
+          },
+        ],
+        id: "m1",
+        meta: {},
+        role: "assistant",
+        text: "",
+      },
+      {
+        at: null,
+        blocks: [
+          {
+            images: [],
+            isError: false,
+            kind: "toolResult" as const,
+            text: "fichier.ts",
+            toolName: "bash",
+          },
+        ],
+        id: "m2",
+        meta: {},
+        role: "toolResult",
+        text: "",
+      },
+    ]);
+    expect(lignes).toHaveLength(1);
+    expect(lignes[0]?.details.map((bloc) => bloc.kind)).toEqual(["toolCall", "toolResult"]);
   });
 });

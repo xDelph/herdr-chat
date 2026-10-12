@@ -657,6 +657,16 @@ const LigneDeTravail = ({ ligne }: { ligne: LigneTravail }) => {
         ) : (
           <span className="ligne__cible mono">{cible}</span>
         )}
+        {/*
+          ⚠️ Le delta se tait quand il n'y a rien à mesurer : `+0 −0` sur une
+          lecture laisserait croire à un changement constaté.
+        */}
+        {ligne.action.delta === null ? null : (
+          <span className="ligne__delta">
+            <span className="ligne__delta--plus">+{ligne.action.delta.added}</span>
+            <span className="ligne__delta--moins">−{ligne.action.delta.removed}</span>
+          </span>
+        )}
       </button>
       {open && ligne.details.length > 0 ? (
         <div className="ligne__body">

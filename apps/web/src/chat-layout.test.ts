@@ -429,3 +429,32 @@ describe("U21 — un travail se raconte, puis se replie", () => {
     expect(bloc(".group__jetons").color).toBe("var(--muted)");
   });
 });
+
+describe("U22 — le changement se mesure sur la ligne", () => {
+  const blocs2 = readFileSync(join(import.meta.dir, "Blocks.tsx"), "utf8");
+
+  test("les lignes `+` et `−` sont affichées", () => {
+    expect(blocs2).toContain('className="ligne__delta"');
+    expect(blocs2).toContain("+{ligne.action.delta.added}");
+    expect(blocs2).toContain("−{ligne.action.delta.removed}");
+  });
+
+  test("elles se taisent quand il n'y a rien à mesurer", () => {
+    // ⚠️ `+0 −0` sur une commande laisserait croire à un changement constaté.
+    expect(blocs2).toContain("ligne.action.delta === null ? null :");
+  });
+
+  test("les couleurs sont celles du diff lui-même", () => {
+    // Le lien se fait sans y penser : `+` vert, `−` rouge, comme dans le diff.
+    expect(bloc(".ligne__delta--plus").color).toBe("var(--ok)");
+    expect(bloc(".ligne__delta--moins").color).toBe("var(--err)");
+  });
+
+  test("le diff d'une édition est atteignable", () => {
+    // ⚠️ Il existait dans le code sans être joignable : `details: []` sur un
+    // appel d'édition laissait « Fichier modifié » sans rien à déplier.
+    const actions = readFileSync(join(import.meta.dir, "actions.ts"), "utf8");
+    expect(actions).toContain("details: [block]");
+    expect(blocs2).toContain("ligne.details.length === 0");
+  });
+});
