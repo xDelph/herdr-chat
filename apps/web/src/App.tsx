@@ -23,22 +23,16 @@ import {
   fetchOverview,
   openEventStream,
 } from "./api.ts";
-import type {
-  AgentView,
-  InstalledKind,
-  Health,
-  Overview,
-  TrustRequired,
-  WorkspaceView,
-} from "./api.ts";
-import { AgentStatus } from "@herdr-remote/shared";
-import { ALL_STATUSES, agentContext, agentName, statusClass, statusLabel } from "./labels.tsx";
+import type { AgentView, InstalledKind, Health, Overview, TrustRequired } from "./api.ts";
+import { ALL_STATUSES, agentName, statusClass, statusLabel } from "./labels.tsx";
+import { AgentRow } from "./AgentRow.tsx";
 import { ChatScreen } from "./ChatScreen.tsx";
+import { describeEvent, nameByPane } from "./activite.ts";
+import { WorkspaceRowMemo } from "./ProjectRow.tsx";
 import { BandeauEtat } from "./EtatLecture.tsx";
 import { etatLecture } from "./etats.ts";
 import { ProjectAgentsOf } from "./ProjectDetail.tsx";
 import { Gallery } from "./Gallery.tsx";
-import { LaunchSheet } from "./LaunchSheet.tsx";
 import type { LaunchChoice } from "./launch.ts";
 import { TrustCard } from "./TrustCard.tsx";
 import { AttentionCard } from "./Attention.tsx";
@@ -75,226 +69,6 @@ const useHashRoute = (): [Route, (next: Route) => void] => {
   }, []);
 
   return [route, navigate];
-};
-
-/**
- * Table `paneId → nom lisible`.
- *
- * Sert partout où un identifiant de pane apparaît — y compris dans le journal
- * d'activité, qui affichait `w8:p1` au lieu du nom du projet.
- */
-const nameByPane = (agents: ReadonlyArray<AgentView>): ReadonlyMap<string, string> =>
-  new Map(agents.map((agent) => [agent.paneId, agentName(agent)]));
-
-/** Rend un événement du flux lisible, sans JSON brut à l'écran. */
-const describeEvent = (kind: string, data: unknown, names: ReadonlyMap<string, string>): string => {
-  const decoded = Option.getOrUndefined(
-    Schema.decodeUnknownOption(
-      Schema.Struct({
-        from: Schema.optional(Schema.NullOr(AgentStatus)),
-        kind: Schema.optional(Schema.String),
-        paneId: Schema.optional(Schema.String),
-        reason: Schema.optional(Schema.String),
-        status: Schema.optional(Schema.String),
-        text: Schema.optional(Schema.String),
-        to: Schema.optional(Schema.NullOr(AgentStatus)),
-      }),
-    )(data),
-  );
-
-  if (decoded === undefined) return kind;
-
-  // Un identifiant de pane n'apprend rien : on affiche le nom du projet quand
-  // on le connaît, et un libellé neutre sinon — **jamais** l'identifiant.
-  const raw = decoded.paneId ?? "";
-  const label = raw.length > 0 ? (names.get(raw) ?? "un agent") : "un agent";
-
-  if (kind === "agent_status") {
-    switch (decoded.kind) {
-      case "appeared":
-        return `${label} — agent lancé`;
-      case "disappeared":
-        return `${label} — agent arrêté`;
-      default:
-        return `${label} — ${statusLabel(decoded.from ?? "unknown")} → ${statusLabel(decoded.to ?? "unknown")}`;
-    }
-  }
-
-  if (kind === "prompt") return `message envoyé à ${label}`;
-  if (kind === "prompt-suppressed") return `double envoi supprimé pour ${label}`;
-  if (kind === "agent-launched") return `${label} — agent lancé (${decoded.kind ?? ""})`;
-  if (kind === "resync") return "journal tronqué — rechargement complet";
-  return kind;
-};
-
-/**
- * Libellés par état.
- *
- * La clé est **typée** : un état absent de cette table ne compile pas, donc
- * impossible d'oublier un libellé en ajoutant un état à l'union (A04).
-/**
- * Ligne de projet. **Cliquable** : ouvre les agents de ce projet.
- *
- * Avant, la ligne était statique — le clic ne faisait rien, ce qui laissait
- * croire à une application cassée.
- */
-/**
- * Ligne de projet.
- *
- * Elle montre **ce qui s'y passe** et propose l'action utile : ouvrir l'agent
- * s'il y en a un, en lancer un sinon. Une ligne qui ne fait rien laisse croire
- * que l'application est cassée.
- */
-const WorkspaceRow = ({
-  workspace,
-  agentPaneCount,
-  kinds,
-  launching,
-  onLaunch,
-  onOpen,
-}: {
-  workspace: WorkspaceView;
-  agentPaneCount: number;
-  launching: boolean;
-  kinds: ReadonlyArray<InstalledKind>;
-  onLaunch: (workspaceId: string, kind: string, choice: LaunchChoice) => void;
-  onOpen: (workspaceId: string) => void;
-}) => {
-  const hasAgent = agentPaneCount > 0;
-  const [sheetOpen, setSheetOpen] = useState(false);
-  const handleOpen = useCallback(
-    () => onOpen(workspace.workspaceId),
-    [onOpen, workspace.workspaceId],
-  );
-  const ouvrirSheet = useCallback(() => setSheetOpen(true), []);
-  const fermerSheet = useCallback(() => setSheetOpen(false), []);
-
-  /**
-   * Type retenu quand on lance sans passer par la feuille.
-   *
-   * `pi` quand il est installé — c'est l'agent réellement utilisé, donc le
-   * premierinstallé n'est pas forcément le bon. Sinon le premier que Herdr
-   * connaît, et non aucun : « aucun agent installé » a déjà son refus
-   * explicite sur le bouton.
-   */
-  const kindParDefaut =
-    kinds.find((candidat) => candidat.kind === "pi")?.kind ?? kinds[0]?.kind ?? "pi";
-
-  /**
-   * Lancement immédiat, **sans choix**.
-   *
-   * Le `+` reste à une seule frappe : c'est l'action la plus courante, et la
-   * feuille de lancement est à côté, pas dessus. Un choix omis n'est pas un
-   * choix raté — l'agent démarre avec ses propres valeurs, et c'est écrit
-   * dans la feuille.
-   */
-  const handleLaunch = useCallback(
-    () => onLaunch(workspace.workspaceId, kindParDefaut, {}),
-    [kindParDefaut, onLaunch, workspace.workspaceId],
-  );
-
-  return (
-    /*
-      Un vrai `<button>` pour la zone « ouvrir », et les contrôles de lancement
-      **à côté** — jamais imbriqués. Un bouton dans un bouton est du HTML
-      invalide ; le lint l'a signalé, et il avait raison.
-    */
-    <div className="row row--project">
-      <button
-        type="button"
-        className="row__open"
-        aria-label={
-          hasAgent
-            ? `Ouvrir ${workspace.label ?? "le projet"}`
-            : `Lancer un agent dans ${workspace.label ?? "le projet"}`
-        }
-        onClick={hasAgent ? handleOpen : handleLaunch}
-      >
-        <span className={statusClass(workspace.agentStatus ?? "unknown")} />
-        <span className="row__main">
-          <strong>{workspace.label ?? "(projet sans nom)"}</strong>
-          <span className="muted small">
-            {agentPaneCount === 0
-              ? // « état inconnu » sur un projet sans agent est du bruit : il n'y a
-                // pas d'état à connaître.
-                "aucun agent"
-              : `${String(agentPaneCount)} agent${agentPaneCount > 1 ? "s" : ""} · ${statusLabel(workspace.agentStatus ?? "unknown")}`}
-          </span>
-        </span>
-      </button>
-      {/* Lancement possible **même si un agent tourne** : cela crée un nouvel
-          onglet dans le projet. */}
-      {
-        <span
-          className="launch"
-          role="presentation"
-          // Le choix du type et le lancement ne doivent pas déclencher
-          // l'ouverture du projet.
-          onClick={(event) => event.stopPropagation()}
-          onKeyDown={(event) => event.stopPropagation()}
-        >
-          <button type="button" className="ghost launch__toggle" onClick={ouvrirSheet}>
-            Options
-          </button>
-          <button
-            type="button"
-            className="row__action row__action--primary"
-            onClick={handleLaunch}
-            disabled={launching || workspace.checkoutPath === null || kinds.length === 0}
-          >
-            {/* ⚠️ Un seul libellé : dans tous les cas on **ajoute** un agent.
-                « Lancer » et « + » faisaient la même chose sous deux noms. */}
-            {launching ? "…" : "+"}
-          </button>
-        </span>
-      }
-      {sheetOpen ? (
-        <LaunchSheet
-          kinds={kinds}
-          launching={launching}
-          onClose={fermerSheet}
-          onLaunch={onLaunch}
-          titre={workspace.label ?? workspace.workspaceId}
-          workspaceId={workspace.workspaceId}
-        />
-      ) : null}
-    </div>
-  );
-};
-
-const AgentRow = ({ agent, onOpen }: { agent: AgentView; onOpen: (paneId: string) => void }) => {
-  const handleClick = useCallback(
-    (event: React.MouseEvent<HTMLButtonElement>) => {
-      const paneId = event.currentTarget.dataset["pane"];
-      if (paneId !== undefined) onOpen(paneId);
-    },
-    [onOpen],
-  );
-
-  return (
-    <button
-      type="button"
-      className="row"
-      aria-label={`Ouvrir ${agentName(agent)}`}
-      data-pane={agent.paneId}
-      onClick={handleClick}
-    >
-      <span className={statusClass(agent.status)} />
-      <span className="row__main">
-        <strong>{agentName(agent)}</strong>
-        <span className="muted small">
-          {/*
-            ⚠️ Un agent fraîchement lancé est détecté par Herdr au bout de
-            ~20 secondes. Pendant ce délai `agent` est nul : sans ce message, la
-            ligne ressemble à un agent cassé.
-          */}
-          {agent.agent === null
-            ? "démarrage en cours…"
-            : `${agentContext(agent)} · ${statusLabel(agent.status)}`}
-        </span>
-      </span>
-    </button>
-  );
 };
 
 export const App = () => {
@@ -735,7 +509,7 @@ export const App = () => {
           <ul className="list">
             {overview?.workspaces.map((workspace) => (
               <li key={workspace.workspaceId}>
-                <WorkspaceRow
+                <WorkspaceRowMemo
                   agentPaneCount={workspace.agentPanes.length}
                   kinds={kinds}
                   launching={launching === workspace.workspaceId}
