@@ -335,8 +335,22 @@ export const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => 
 
           <div className="composer">
             <textarea value={draft} onChange={onDraftChange} placeholder={placeholder} rows={1} />
-            <button type="button" className="send" onClick={onSubmit} disabled={sending}>
-              {sending ? "…" : "Envoyer"}
+            {/*
+              Bouton d'envoi **rond, avec une flèche** — la forme standard d'iOS.
+
+              ⚠️ Il est **éteint quand le champ est vide** : c'est le
+              comportement d'iOS, et il dit avant l'appui qu'il n'y a rien à
+              envoyer. Un bouton actif qui ne fait rien laisse croire à une panne.
+              Le libellé disparaît de l'écran mais reste lu : `aria-label`.
+            */}
+            <button
+              type="button"
+              className="send"
+              onClick={onSubmit}
+              disabled={sending || draft.trim().length === 0}
+              aria-label="Envoyer"
+            >
+              <span aria-hidden="true">↑</span>
             </button>
           </div>
 

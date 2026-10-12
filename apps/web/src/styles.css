@@ -490,11 +490,36 @@ button:disabled {
   « Envoyer » au format d'une action, pas d'un bouton pleine largeur : il
   occupait 54 px de haut pour trois mots.
 */
+/*
+  Bouton d'envoi : un **rond plein**, pas un bouton à libellé.
+
+  ⚠️ « Envoyer » en toutes lettres occupait un tiers de la largeur de la
+  pastille sur un écran étroit, alors que l'action est évidente et unique. iOS
+  en fait un cercle avec une flèche : la forme se reconnaît sans être lue.
+
+  La cible reste à 44 px — le minimum tactile ne se négocie pas, même pour une
+  forme. `--radius-pill` en fait un cercle dès que la largeur égale la hauteur.
+*/
 .composer .send {
+  align-items: center;
+  background: var(--accent);
+  border: none;
+  border-radius: var(--radius-pill);
+  color: #04101f;
+  display: flex;
   flex-shrink: 0;
-  font-size: 13px;
+  font-size: 18px;
+  font-weight: 700;
+  justify-content: center;
   min-height: var(--tap-min);
-  padding: 6px 12px;
+  min-width: var(--tap-min);
+  padding: 0;
+}
+
+/* Éteint, comme sur iOS : il dit avant l'appui qu'il n'y a rien à envoyer. */
+.composer .send:disabled {
+  background: var(--surface);
+  color: var(--muted);
 }
 
 .sendState {

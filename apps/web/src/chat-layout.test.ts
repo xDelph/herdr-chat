@@ -341,3 +341,37 @@ describe("U19 — la conversation se lit comme un document", () => {
     expect(bloc(".chat .back")["border"]).toBe("none");
   });
 });
+
+describe("U20 — le bouton d'envoi suit la forme d'iOS", () => {
+  const ecran = readFileSync(join(import.meta.dir, "ChatScreen.tsx"), "utf8");
+
+  test("un rond, pas un bouton à libellé", () => {
+    // ⚠️ « Envoyer » en toutes lettres occupait un tiers de la largeur de la
+    // pastille à 320 px, alors que l'action est évidente et unique.
+    const bouton = bloc(".composer .send");
+    expect(bouton["border-radius"]).toBe("var(--radius-pill)");
+    expect(bouton["min-height"]).toBe("var(--tap-min)");
+    expect(bouton["min-width"]).toBe("var(--tap-min)");
+    // Le libellé a quitté l'écran : ce qui reste est la flèche.
+    expect(ecran).toContain('<span aria-hidden="true">↑</span>');
+    expect(ecran).not.toContain('"Envoyer"}');
+  });
+
+  test("la cible tactile reste à 44 px, même pour une forme", () => {
+    // Le minimum ne se négocie pas : un rond de 32 px serait joli et
+    // inatteignable au pouce.
+    expect(bloc(".composer .send")["min-width"]).toBe("var(--tap-min)");
+  });
+
+  test("le libellé disparaît de l'écran mais reste lu", () => {
+    expect(ecran).toContain('aria-label="Envoyer"');
+    expect(ecran).toContain('aria-hidden="true"');
+  });
+
+  test("il est éteint quand le champ est vide", () => {
+    // Comportement d'iOS : il dit avant l'appui qu'il n'y a rien à envoyer. Un
+    // bouton actif qui ne fait rien laisse croire à une panne.
+    expect(ecran).toContain("disabled={sending || draft.trim().length === 0}");
+    expect(bloc(".composer .send:disabled").background).toBe("var(--surface)");
+  });
+});
