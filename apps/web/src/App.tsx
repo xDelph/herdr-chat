@@ -104,16 +104,27 @@ export const App = () => {
       const keyboardOpen =
         focusedInput && viewport !== null && viewport.height < window.innerHeight - 100;
 
-      // In an installed iOS app, visualViewport can report a shorter height
-      // with the keyboard closed. Keep the shell anchored to the layout
-      // viewport normally; constrain it to visualViewport while typing.
-      if (keyboardOpen && viewport) {
-        document.documentElement.style.setProperty("--app-viewport-height", `${viewport.height}px`);
-        document.documentElement.style.setProperty("--app-viewport-top", `${viewport.offsetTop}px`);
-      } else {
-        document.documentElement.style.removeProperty("--app-viewport-height");
-        document.documentElement.style.removeProperty("--app-viewport-top");
-      }
+      /*
+        ⚠️ `100dvh` is NOT trustworthy in an installed iOS app.
+
+        The shell used to fall back to `100dvh` when the keyboard was closed, and
+        that left **50-60 px of blank space at the bottom** — the height of the
+        iOS status bar. WebKit resolves `dvh` there as "screen minus the status
+        bar", so a shell anchored at `top: 0` stopped short of the real bottom,
+        and neither the composer nor the floating button could reach it.
+
+        `window.innerHeight` is the value that is actually right, in both modes:
+        in standalone it is the full visible height, and in iOS Safari it is the
+        area above the browser chrome — whereas `dvh` is the one that lies.
+
+        We therefore always set the height, instead of removing it and hoping the
+        CSS fallback is correct. While typing we follow `visualViewport`, which is
+        the only thing that knows where the keyboard ends.
+      */
+      const height = keyboardOpen && viewport ? viewport.height : window.innerHeight;
+      const top = keyboardOpen && viewport ? viewport.offsetTop : 0;
+      document.documentElement.style.setProperty("--app-viewport-height", `${height}px`);
+      document.documentElement.style.setProperty("--app-viewport-top", `${top}px`);
     };
 
     syncViewport();

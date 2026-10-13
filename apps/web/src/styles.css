@@ -82,28 +82,46 @@ body {
   overflow: hidden;
   overscroll-behavior: none;
   -webkit-text-size-adjust: 100%;
-}
+  /*
+    ⚠️ **No `height: 100%` here, and that is the whole point.**
 
-body {
-  min-height: 100vh;
-  min-height: 100dvh;
+    On iOS, `html { height: 100% }` resolves against the *layout* viewport,
+    which in an installed app is short by the status bar (~54 px). Every element
+    chained to it with a percentage inherited that shortfall, which is exactly
+    the blank strip at the bottom of the screen. `body` therefore sizes itself
+    to its content — and its content is the shell, whose height is measured.
+
+    The same applies to `100vh`/`100dvh` below: WebKit reports them short in
+    standalone mode, so the measured value always wins.
+  */
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
 #root {
-  height: 100%;
-  height: 100dvh;
+  /*
+    The single owner of the viewport box. `--app-viewport-height` is written by
+    `App.tsx` from `window.innerHeight` (or the visual viewport while typing) —
+    the one measurement iOS does not get wrong. `.app` then fills it.
+
+    Reverting to `height: 100%` or `100dvh` reintroduces the bottom gap; if this
+    box ever stops matching, look there first.
+  */
+  height: var(--app-viewport-height, 100dvh);
   overflow: hidden;
+  position: relative;
+  top: var(--app-viewport-top, 0px);
 }
 
 .app {
   display: flex;
   flex-direction: column;
-  height: var(--app-viewport-height, 100dvh);
+  height: 100%;
   min-height: 0;
   overflow: hidden;
   overscroll-behavior: none;
   position: relative;
-  top: var(--app-viewport-top, 0px);
 }
 
 .topbar {
@@ -149,7 +167,12 @@ h2 {
   display: flex;
   flex: 0 0 auto;
   justify-content: flex-end;
-  padding: 0 16px 10px;
+  /*
+    Same reason as the composer: the shell now reaches the real bottom edge, so
+    the iOS home indicator would sit on top of the button. Padding lifts the
+    button clear of it, and the footer keeps filling the edge.
+  */
+  padding: 0 16px max(10px, env(safe-area-inset-bottom));
 }
 
 .screen--project {
@@ -730,7 +753,15 @@ button:disabled {
   border-radius: var(--radius-field);
   display: flex;
   gap: 6px;
-  margin: 6px 12px 10px;
+  /*
+    ⚠️ The bottom inset is PADDING, never height. The shell now reaches the real
+    bottom edge, so the iOS home indicator overlays the last ~34 px: without
+    this, the composer sits underneath it. Adding it as padding lifts the field
+    clear of the indicator while the background still fills to the edge — which
+    is the opposite of the gap that `safe-area-inset-bottom` used to cause when
+    the shell was too short.
+  */
+  margin: 6px 12px max(10px, env(safe-area-inset-bottom));
   padding: 4px 4px 4px 14px;
 }
 

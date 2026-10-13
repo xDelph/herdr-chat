@@ -164,7 +164,7 @@ describe("U16 — la liste garde sa structure", () => {
     const footer = bloc(".app__footer");
     expect(footer.display).toBe("flex");
     expect(footer.flex).toBe("0 0 auto");
-    expect(footer.padding).toBe("0 16px 10px");
+    expect(footer.padding).toBe("0 16px max(10px, env(safe-area-inset-bottom))");
     const fab = bloc(".fab");
     expect(fab["min-height"]).toBe("var(--tap-min)");
   });
@@ -176,9 +176,26 @@ describe("U16 — la liste garde sa structure", () => {
       vide. Ce test empêche le retour d'un décalage fantôme.
     */
     const footer = bloc(".app__footer");
-    expect(footer.padding).toBe("0 16px 10px");
-    expect(cssNu).not.toContain("safe-area-inset-bottom");
-    // Et la barre elle-même ne doit plus exister, ni en style ni en balise.
+    expect(footer.padding).toBe("0 16px max(10px, env(safe-area-inset-bottom))");
+
+    /*
+      ⚠️ Ce test interdisait `safe-area-inset-bottom` **partout dans la feuille**.
+      L'interdiction était juste à l'époque : la boîte du shell était trop courte
+      sur iOS, donc l'inset s'ajoutait à un vide déjà là. Maintenant que le shell
+      atteint le vrai bord, l'inset fait l'inverse — il dégage l'indicateur
+      d'accueil.
+
+      La règle utile n'est donc pas « jamais d'inset » mais **« jamais un inset
+      nu »** : chaque usage doit passer par un plancher `max(...)`, pour que la
+      barre d'accueil ne puisse pas rapetisser une cible tactile ni créer d'espace
+      quand il n'y a pas de barre (desktop, Android). Un inset nu reviendrait à
+      ajouter du vide — c'est ce que ce test empêche désormais.
+    */
+    for (const trouve of cssNu.matchAll(/safe-area-inset-bottom/gu)) {
+      const contexte = cssNu.slice(Math.max(0, (trouve.index ?? 0) - 40), trouve.index ?? 0);
+      expect(contexte).toContain("max(");
+    }
+    // Et la barre d'onglets elle-même ne doit plus exister, ni en style ni en balise.
     expect(cssNu).not.toContain(".tabs {");
     expect(app).not.toContain('className="tabs"');
   });

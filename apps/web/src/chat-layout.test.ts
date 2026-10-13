@@ -181,10 +181,18 @@ describe("U07 — le fil prend la place restante, et seulement celle-là", () =>
   test("le shell utilise le flux viewport et seule sa liste défile", () => {
     // Éviter fixed/sticky sur le shell dans les PWA iOS autonomes : WebKit
     // peut les déplacer au scroll. Le flex garde le footer hors du scroller.
-    expect(bloc("#root")["height"]).toBe("100dvh");
+    //
+    // ⚠️ **Un seul élément possède la boîte viewport, et c'est `#root`.** Avant,
+    // `#root` valait `100dvh` et `.app` recalculait la même chose : deux
+    // propriétaires pour une seule mesure. En mode installé sur iOS, `100dvh`
+    // est calculé COURT (la hauteur de la barre d'état, ~54 px) — d'où la bande
+    // blanche en bas de l'écran. La mesure vient maintenant de
+    // `--app-viewport-height`, écrite depuis `window.innerHeight`, et `.app` se
+    // contente de remplir la racine.
+    expect(bloc("#root")["height"]).toBe("var(--app-viewport-height, 100dvh)");
+    expect(bloc("#root")["top"]).toBe("var(--app-viewport-top, 0px)");
+    expect(bloc(".app")["height"]).toBe("100%");
     expect(bloc(".app")["position"]).toBe("relative");
-    expect(bloc(".app")["height"]).toBe("var(--app-viewport-height, 100dvh)");
-    expect(bloc(".app")["top"]).toBe("var(--app-viewport-top, 0px)");
     expect(bloc(".app")["overflow"]).toBe("hidden");
   });
 });
@@ -216,10 +224,23 @@ describe("U07 — le clavier ne déclenche ni zoom ni chevauchement", () => {
     expect(bloc(".composer textarea")["resize"]).toBe("none");
   });
 
-  test("le composeur garde un retrait simple en bas", () => {
+  test("le composeur dégage la barre d'accueil iOS, sans jamais créer de vide", () => {
+    /*
+      ⚠️ Ce test interdisait `safe-area-inset-bottom`. Il avait raison **à
+      l'époque** : la boîte du shell était trop courte, donc l'inset s'ajoutait
+      à un vide déjà présent et l'aggravait. Maintenant que le shell atteint le
+      vrai bord bas, l'inset fait le contraire — il empêche l'indicateur
+      d'accueil de recouvrir le champ.
+
+      Deux garanties opposées, donc, et les deux sont testées :
+      - l'inset est un **margin** (il pousse le champ), jamais une hauteur ;
+      - il est **plancher** à 10 px, donc il ne peut pas rapetisser la pastille.
+    */
     const composeur = bloc(".composer");
-    expect(composeur["margin"]).toBe("6px 12px 10px");
+    expect(composeur["margin"]).toBe("6px 12px max(10px, env(safe-area-inset-bottom))");
     expect(composeur["padding"]).not.toContain("safe-area-inset-bottom");
+    // Le bouton flottant est dans le pied de page : même remède, même endroit.
+    expect(bloc(".app__footer")["padding"]).toContain("env(safe-area-inset-bottom)");
   });
 
   test("les actions de l'en-tête restent au minimum tactile", () => {
