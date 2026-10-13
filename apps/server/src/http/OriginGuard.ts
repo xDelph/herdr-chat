@@ -140,7 +140,7 @@ export const describeGuardRejection = (
     case "methode":
       return "method not allowed on this route";
     case "content-type":
-      return "Content-Type attendu : application/json";
+      return "expected Content-Type: application/json";
     case "corps-trop-grand":
       return `corps trop grand (maximum ${String(MAX_JSON_BYTES)} octets)`;
     default:
