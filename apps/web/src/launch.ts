@@ -51,19 +51,19 @@ export type VerdictLancement =
 export const levelLabel = (level: string): string => {
   switch (level) {
     case "off":
-      return "désactivé";
+      return "off";
     case "minimal":
       return "minimal";
     case "low":
-      return "faible";
+      return "low";
     case "medium":
-      return "moyen";
+      return "medium";
     case "high":
-      return "élevé";
+      return "high";
     case "xhigh":
-      return "très élevé";
+      return "extra high";
     case "max":
-      return "maximal";
+      return "maximum";
     case "ultra":
       return "ultra";
     default:
@@ -139,7 +139,7 @@ export const verifierLancement = ({
     return {
       envoyable: false,
       raison:
-        "niveau de raisonnement sans modèle : les niveaux acceptés dépendent du modèle choisi.",
+        "Thinking level requires a model because supported levels depend on the selected model.",
     };
   }
 

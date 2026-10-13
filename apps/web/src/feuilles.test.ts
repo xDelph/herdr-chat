@@ -101,15 +101,12 @@ describe("U09 — ouvrir une feuille ne perd ni le fil ni le brouillon", () => {
     }
   });
 
-  test("aucune ouverture de feuille ne vide le brouillon", () => {
-    // `setDraft("")` n'a qu'un endroit légitime : l'envoi réussi.
-    const occurrences = chat.split('setDraft("")').length - 1;
-    expect(occurrences).toBe(1);
-    // La remise à zéro n'a lieu que **après un envoi confirmé** : vider au
-    // simple fait-part partirait le brouillon alors que le message est
-    // peut-être encore parti. On regarde donc la condition qui précède.
-    const position = chat.indexOf('setDraft("")');
-    expect(chat.slice(Math.max(0, position - 200), position)).toContain('result.kind === "sent"');
+  test("un envoi optimiste garde le texte visible dans l'historique", () => {
+    // Le composeur est vidé après création du message local; son contenu reste
+    // visible et annulable dans le fil pendant la confirmation.
+    expect(chat).toContain('state: "queued", text');
+    expect(chat).toContain("message.text");
+    expect(chat).toContain("annulerEnvoi(message)");
   });
 });
 
@@ -122,7 +119,12 @@ describe("U09 — le retour d'un fichier mène à la liste", () => {
   });
 
   test("le bouton de retour n'existe que si l'on vient de la liste", () => {
-    expect(chat).toContain("fromFiles\n                  ? () => {");
+    const retour = chat.slice(
+      chat.indexOf("onBack={"),
+      chat.indexOf("/>", chat.indexOf("onBack={")),
+    );
+    expect(retour).toContain("fromFiles");
+    expect(retour).toContain("setShowFiles(true)");
   });
 
   test("fermer la visionneuse ne laisse pas le drapeau levé", () => {

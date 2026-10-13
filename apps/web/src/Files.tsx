@@ -12,11 +12,13 @@
  */
 import { baseName } from "./api.ts";
 import type { TouchedFile } from "./blocks.ts";
+import { relativeWorkspacePath } from "./blocks.ts";
 import { Feuille } from "./Feuille.tsx";
 
 interface Props {
   readonly files: ReadonlyArray<TouchedFile>;
   readonly fermeture?: boolean;
+  readonly cwd: string | null | undefined;
 }
 
 /** Diff compact, tel qu'il a été appliqué. */
@@ -39,16 +41,17 @@ const DiffView = ({ file }: { file: TouchedFile }) => (
       </div>
     ))}
     {file.edits.length > 6 ? (
-      <p className="blk__hint">{file.edits.length - 6} édition(s) supplémentaire(s)</p>
+      <p className="blk__hint">{file.edits.length - 6} additional edit(s)</p>
     ) : null}
     {file.edits.length === 0 ? (
-      <p className="blk__hint">écriture complète — ouvrir le fichier pour le contenu</p>
+      <p className="blk__hint">Full file write — open the file to view its contents</p>
     ) : null}
   </>
 );
 
 export const FilesSheet = ({
   files,
+  cwd,
   onClose,
   onOpenFile,
   fermeture,
@@ -63,14 +66,14 @@ export const FilesSheet = ({
 
   return (
     <Feuille
-      ariaLabel="Fichiers touchés"
+      ariaLabel="Files changed"
       onClose={onClose}
       {...(fermeture === undefined ? {} : { fermeture })}
       titre={
         <>
-          Fichiers touchés
+          Files changed
           <span className="muted small">
-            {files.length} fichier{files.length > 1 ? "s" : ""}
+            {files.length} file{files.length > 1 ? "s" : ""}
           </span>
         </>
       }
@@ -83,17 +86,21 @@ export const FilesSheet = ({
               qu'on se pose devant une liste de fichiers modifiés. Le fichier
               entier reste accessible, mais en second.
             */}
-            <div className="file__head">
-              <span className="file__name">{baseName(file.path)}</span>
-              <span className="file__stats small">
-                <span className="stat stat--add">+{file.added}</span>
-                <span className="stat stat--del">−{file.removed}</span>
-              </span>
-            </div>
-            <DiffView file={file} />
-            <button type="button" className="blk__toggle" onClick={() => onOpenFile(file.path)}>
-              ouvrir le fichier entier
-            </button>
+            <details className="file__details">
+              <summary className="file__head">
+                <span className="file__name">
+                  {relativeWorkspacePath(file.path, cwd) || baseName(file.path)}
+                </span>
+                <span className="file__stats small">
+                  <span className="stat stat--add">+{file.added}</span>
+                  <span className="stat stat--del">−{file.removed}</span>
+                </span>
+              </summary>
+              <DiffView file={file} />
+              <button type="button" className="blk__toggle" onClick={() => onOpenFile(file.path)}>
+                Open full file
+              </button>
+            </details>
           </li>
         ))}
       </ul>

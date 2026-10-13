@@ -94,7 +94,7 @@ const CodeView = ({ path }: { path: string }) => {
           const body: unknown = await response.json().catch(() => undefined);
           const decoded = Option.getOrUndefined(Schema.decodeUnknownOption(ApiErrorResponse)(body));
           if (!cancelled) {
-            setError(decoded?.error ?? `lecture impossible (${String(response.status)})`);
+            setError(decoded?.error ?? `Unable to load file (${String(response.status)})`);
           }
           return;
         }
@@ -140,7 +140,7 @@ const CodeView = ({ path }: { path: string }) => {
         </div>
       ))}
       {text.split("\n").length > MAX_LINES ? (
-        <p className="blk__hint">affichage limité aux {MAX_LINES} premières lignes</p>
+        <p className="blk__hint">Showing the first {MAX_LINES} lines</p>
       ) : null}
     </div>
   );
@@ -177,7 +177,7 @@ export const FileViewer = ({ path, onClose, onBack }: ViewerProps) => {
 
   return (
     <Feuille
-      ariaLabel={`${name} — visionneuse`}
+      ariaLabel={`${name} — viewer`}
       onClose={onClose}
       onRetour={onBack}
       retourLibelle={onBack === undefined ? undefined : "‹ Fichiers"}

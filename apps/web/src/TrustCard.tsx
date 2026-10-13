@@ -57,12 +57,11 @@ export const TrustCard = ({ request, onDone }: Props) => {
   return (
     <div className="trust">
       <p className="trust__title">
-        <strong>{request.kind}</strong> demande la confiance de « {request.folder} »
+        <strong>{request.kind}</strong> requests access to “{request.folder}”
       </p>
       <p className="trust__warn">
-        Il pourra y <strong>lire, écrire et exécuter du code</strong> — y compris sans te demander
-        confirmation à chaque fois. Cette réponse est <strong>enregistrée définitivement</strong>{" "}
-        sur cette machine.
+        It will be able to <strong>read, write, and run code</strong> there without asking you each
+        time. This choice is <strong>saved permanently</strong> on this machine.
       </p>
       {error !== null ? <Notice ton="erreur">{error}</Notice> : null}
       {issue !== null && !issue.resolue ? <Notice ton="avertissement">{issue.texte}</Notice> : null}
@@ -74,7 +73,7 @@ export const TrustCard = ({ request, onDone }: Props) => {
             disabled={busy}
             onClick={() => void answer(true)}
           >
-            {busy ? "…" : "Faire confiance"}
+            {busy ? "…" : "Trust this folder"}
           </button>
           <button
             type="button"
@@ -84,7 +83,7 @@ export const TrustCard = ({ request, onDone }: Props) => {
             // et rien n'est écrit dans la configuration.
             onClick={() => void answer(false)}
           >
-            Refuser
+            Deny
           </button>
         </div>
       )}

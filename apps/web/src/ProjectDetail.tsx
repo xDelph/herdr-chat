@@ -72,11 +72,11 @@ export const ProjectDetail = memo(
       return (
         <section className="screen">
           <button type="button" className="back" onClick={back}>
-            ‹ Projets
+            ‹ Workspaces
           </button>
           {/* Un projet peut disparaître entre l'ouverture et l'affichage — le
             snapshot se rafraîchit. Un écran vide serait pris pour un bug. */}
-          <Notice ton="erreur">Ce projet n'existe plus.</Notice>
+          <Notice ton="erreur">This workspace no longer exists.</Notice>
         </section>
       );
     }
@@ -84,9 +84,9 @@ export const ProjectDetail = memo(
     const titre = workspace.label ?? workspace.workspaceId;
 
     return (
-      <section className="screen">
+      <section className="screen screen--project">
         <button type="button" className="back" onClick={back}>
-          ‹ Projets
+          ‹ Workspaces
         </button>
         <header className="screen__head">
           <h2>{titre}</h2>
@@ -96,7 +96,7 @@ export const ProjectDetail = memo(
         {agents.length === 0 ? (
           // « aucun agent » et « aucune conversation » sont le même état, mais le
           // libellé dit ce qu'il faut faire ensuite.
-          <p className="muted">Aucun agent dans ce projet. Lancez-en un pour démarrer.</p>
+          <p className="muted">No agents in this workspace. Launch one to get started.</p>
         ) : (
           <ul className="list">
             {liste.map((agent) => (
@@ -114,7 +114,7 @@ export const ProjectDetail = memo(
             disabled={launching}
             onClick={ouvrirSheet}
           >
-            {launching ? "Lancement…" : "Nouvel agent"}
+            {launching ? "Launching…" : "New agent"}
           </button>
         </div>
 

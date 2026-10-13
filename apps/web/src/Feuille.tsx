@@ -174,7 +174,7 @@ export const Feuille = ({
         )}
         <span className="sheet__name">{titre}</span>
         <button type="button" className="ghost" onClick={fermer}>
-          Fermer
+          Close
         </button>
       </header>
       <div className="sheet__body">{children}</div>

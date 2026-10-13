@@ -38,19 +38,19 @@ export const THINKING_LEVELS = ["off", "minimal", "low", "medium", "high", "xhig
 export const thinkingLabel = (level: string): string => {
   switch (level) {
     case "off":
-      return "désactivée";
+      return "off";
     case "minimal":
-      return "minimale";
+      return "minimal";
     case "low":
-      return "faible";
+      return "low";
     case "medium":
-      return "moyenne";
+      return "medium";
     case "high":
-      return "élevée";
+      return "high";
     case "xhigh":
-      return "très élevée";
+      return "extra high";
     case "max":
-      return "maximale";
+      return "maximum";
     default:
       return level;
   }
@@ -250,22 +250,22 @@ export const ModelSheet = ({
 
   return (
     <Feuille
-      ariaLabel={`Modèle et pensée de ${agentName}`}
+      ariaLabel={`Model and thinking for ${agentName}`}
       onClose={onClose}
-      titre={`Modèle · ${agentName}`}
+      titre={`Model · ${agentName}`}
     >
       {resultats.length > 0 ? (
         <div className="model__results" aria-live="polite">
           {resultats.map(({ command, result }) => (
             <p className="sendState" key={command}>
-              <code>{command}</code> — {busy ? "envoi…" : describeSend(result)}
+              <code>{command}</code> — {busy ? "Sending…" : describeSend(result)}
             </p>
           ))}
         </div>
       ) : null}
 
       <p className="muted small">
-        Les choix sont préparés ici. Rien n'est envoyé avant « Appliquer ».
+        Your choices are prepared here. Nothing is sent until you tap “Apply”.
       </p>
 
       {catalogError !== null ? (
@@ -273,17 +273,15 @@ export const ModelSheet = ({
           Catalogue illisible pour <code>{kind}</code> — {catalogError}
         </Notice>
       ) : catalog === null ? (
-        <p className="muted small">Lecture du catalogue…</p>
+        <p className="muted small">Loading model catalog…</p>
       ) : catalog.models.length === 0 ? (
-        <Notice ton="avertissement">
-          {catalog.error ?? `Aucun catalogue vérifié pour ${kind}.`}
-        </Notice>
+        <Notice ton="avertissement">{catalog.error ?? `No verified catalog for ${kind}.`}</Notice>
       ) : (
         <>
           {kind === "pi" ? (
             <section className="model__step" aria-labelledby="model-provider-title">
               <h3 id="model-provider-title" className="model__title">
-                1 · Fournisseur
+                1 · Provider
               </h3>
               <div className="model__providers">
                 {providers.map((candidate) => (
@@ -312,18 +310,18 @@ export const ModelSheet = ({
           {kind !== "pi" || provider !== null ? (
             <section className="model__step" aria-labelledby="model-choice-title">
               <h3 id="model-choice-title" className="model__title">
-                {kind === "pi" ? "2 · Modèle" : "Modèle"}
+                {kind === "pi" ? "2 · Model" : "Model"}
               </h3>
               <input
                 type="search"
                 className="model__search"
                 value={filter}
-                placeholder={`Filtrer parmi ${String(modelesVisibles.length)} modèles`}
-                aria-label="Filtrer les modèles"
+                placeholder={`Filter ${String(modelesVisibles.length)} models`}
+                aria-label="Filter models"
                 onChange={(event) => setFilter(event.target.value)}
               />
               <label className="model__label" htmlFor="model-choice">
-                Modèle
+                Model
               </label>
               <select
                 id="model-choice"
@@ -332,7 +330,7 @@ export const ModelSheet = ({
                 disabled={busy}
                 onChange={(event) => choisirModele(event.currentTarget.value)}
               >
-                <option value="">Choisir un modèle…</option>
+                <option value="">Choose a model…</option>
                 {modelesVisibles.map((candidate) => {
                   const label =
                     kind === "pi" && provider !== null
@@ -340,24 +338,24 @@ export const ModelSheet = ({
                       : (candidate.label ?? candidate.id);
                   return (
                     <option key={candidate.id} value={candidate.id}>
-                      {candidate.id === modeleActuel ? `${label} · Actuel` : label}
+                      {candidate.id === modeleActuel ? `${label} · Current` : label}
                     </option>
                   );
                 })}
               </select>
               {modeleActuel === null ? (
-                <p className="muted small">Modèle actuel non déclaré dans la session.</p>
+                <p className="muted small">Current model is not declared in the session.</p>
               ) : (
                 <p className="muted small">
-                  Modèle actuel : <code>{modeleActuel}</code>
+                  Current model: <code>{modeleActuel}</code>
                 </p>
               )}
               {modelesVisibles.length === 0 ? (
-                <p className="muted small">Aucun modèle ne correspond à ce filtre.</p>
+                <p className="muted small">No models match this filter.</p>
               ) : null}
             </section>
           ) : (
-            <p className="muted small">Choisissez un fournisseur pour afficher ses modèles.</p>
+            <p className="muted small">Choose a provider to see its models.</p>
           )}
         </>
       )}
@@ -365,12 +363,12 @@ export const ModelSheet = ({
       {modele !== null && modele.thinkingLevels.length > 0 ? (
         <section className="model__step" aria-labelledby="thinking-title">
           <h3 id="thinking-title" className="model__title">
-            {kind === "pi" ? "3 · Pensée" : "Niveau de pensée"}
+            {kind === "pi" ? "3 · Thinking" : "Thinking level"}
           </h3>
           <p className="muted small">
             {currentThinking === undefined
-              ? "Niveau actuel inconnu."
-              : `Actuellement : ${thinkingLabel(currentThinking)}.`}
+              ? "Current thinking level unknown."
+              : `Current: ${thinkingLabel(currentThinking)}.`}
           </p>
           <div className="model__chips">
             {modele.thinkingLevels.map((level) => {
@@ -391,7 +389,7 @@ export const ModelSheet = ({
           </div>
         </section>
       ) : modele !== null ? (
-        <p className="muted small">Ce modèle ne déclare pas de niveau de pensée séparé.</p>
+        <p className="muted small">This model does not declare a separate thinking level.</p>
       ) : null}
 
       <div className="model__actions">
@@ -401,10 +399,11 @@ export const ModelSheet = ({
           disabled={busy || modele === null || !changementsDisponibles}
           onClick={() => void appliquer()}
         >
-          {busy ? "Envoi…" : "Appliquer les changements"}
+          {busy ? "Sending…" : "Apply changes"}
         </button>
         <p className="muted small">
-          La confirmation indique la transmission à l'agent, pas l'application du réglage.
+          Confirmation means the command reached the agent; it does not confirm the setting was
+          applied.
         </p>
       </div>
     </Feuille>

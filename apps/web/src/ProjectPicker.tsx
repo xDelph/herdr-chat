@@ -29,13 +29,13 @@ export const ProjectPicker = ({ onClose, onPick, workspaces }: Props) => {
 
   return (
     <Feuille
-      ariaLabel="Choisir un projet"
+      ariaLabel="Choose a workspace"
       fermeture={projetEnAttente !== null}
       onClose={fermer}
-      titre="Où lancer l'agent ?"
+      titre="Where should the agent run?"
     >
       {workspaces.length === 0 ? (
-        <p className="muted small">Aucun projet visible dans Herdr pour l'instant.</p>
+        <p className="muted small">No workspaces visible in Herdr yet.</p>
       ) : (
         <ul className="picker">
           {workspaces.map((workspace) => (

@@ -131,7 +131,7 @@ export const LaunchSheet = ({ kinds, launching, onClose, onLaunch, titre, worksp
   }, [kind, launching, onLaunch, verdict, workspaceId]);
 
   return (
-    <Feuille ariaLabel="Lancer un agent" onClose={onClose} titre={`Nouvel agent dans ${titre}`}>
+    <Feuille ariaLabel="Launch an agent" onClose={onClose} titre={`New agent in ${titre}`}>
       <label className="launch__label" htmlFor="launch-kind">
         Type d'agent
       </label>
@@ -184,7 +184,7 @@ export const LaunchSheet = ({ kinds, launching, onClose, onLaunch, titre, worksp
                   setFiltre("");
                 }}
               >
-                <option value="">modèle par défaut de Pi</option>
+                <option value="">Pi default model</option>
                 {providers.map((candidate) => (
                   <option key={candidate} value={candidate}>
                     {candidate}
@@ -197,14 +197,14 @@ export const LaunchSheet = ({ kinds, launching, onClose, onLaunch, titre, worksp
           {kind !== "pi" || provider !== null ? (
             <>
               <label className="launch__label" htmlFor="launch-filtre">
-                Rechercher un modèle
+                Search models
               </label>
               {filtreUtile(catalog) ? (
                 <input
                   id="launch-filtre"
                   type="search"
                   className="launch__filter"
-                  placeholder={`filtrer ${String(catalog.models.length)} modèles…`}
+                  placeholder={`Filter ${String(catalog.models.length)} models…`}
                   onChange={(event) => setFiltre(event.currentTarget.value)}
                 />
               ) : null}
@@ -212,7 +212,7 @@ export const LaunchSheet = ({ kinds, launching, onClose, onLaunch, titre, worksp
           ) : null}
 
           <label className="launch__label" htmlFor="launch-model">
-            Modèle
+            Model
           </label>
           {/*
               Le filtre réduit la liste, il ne la choisit pas. C'était le défaut :
@@ -225,7 +225,7 @@ export const LaunchSheet = ({ kinds, launching, onClose, onLaunch, titre, worksp
             value={model}
             onChange={(event) => setModel(event.currentTarget.value)}
           >
-            <option value="">modèle par défaut de l'agent</option>
+            <option value="">Agent default model</option>
             {visibles.slice(0, MAX_MODELES_AFFICHES).map((candidat) => (
               <option key={candidat.id} value={candidat.id}>
                 {kind === "pi" && provider !== null
@@ -237,16 +237,16 @@ export const LaunchSheet = ({ kinds, launching, onClose, onLaunch, titre, worksp
             ))}
           </select>
           {filtre.length > 0 && visibles.length === 0 ? (
-            <p className="muted small">aucun modèle ne contient « {filtre} »</p>
+            <p className="muted small">No models contain “{filtre}”</p>
           ) : null}
 
           {choisi === undefined ? null : (
             <>
               <label className="launch__label" htmlFor="launch-thinking">
-                Niveau de raisonnement
+                Thinking level
               </label>
               {niveaux.length === 0 ? (
-                <p className="muted small">ce modèle ne déclare aucun niveau de raisonnement</p>
+                <p className="muted small">This model does not declare any thinking levels.</p>
               ) : (
                 <select
                   id="launch-thinking"
@@ -254,7 +254,7 @@ export const LaunchSheet = ({ kinds, launching, onClose, onLaunch, titre, worksp
                   value={thinking}
                   onChange={(event) => setThinking(event.currentTarget.value)}
                 >
-                  <option value="">raisonnement par défaut</option>
+                  <option value="">Default thinking level</option>
                   {/*
                       Un niveau devenu incompatible reste **visible**, marqué et
                       non sélectionnable. Le masquer ferait croire que rien n'est
@@ -262,12 +262,12 @@ export const LaunchSheet = ({ kinds, launching, onClose, onLaunch, titre, worksp
                     */}
                   {niveauAccepte ? null : (
                     <option value={thinking} disabled>
-                      {thinking} — non accepté par {choisi.id}
+                      {thinking} — not supported by {choisi.id}
                     </option>
                   )}
                   {niveaux.map((niveau) => (
                     <option key={niveau} value={niveau}>
-                      raisonnement : {levelLabel(niveau)}
+                      Thinking: {levelLabel(niveau)}
                     </option>
                   ))}
                 </select>
@@ -286,11 +286,11 @@ export const LaunchSheet = ({ kinds, launching, onClose, onLaunch, titre, worksp
           disabled={!verdict.envoyable || launching || kinds.length === 0}
           onClick={lancer}
         >
-          {launching ? "Lancement…" : "Lancer"}
+          {launching ? "Launching…" : "Launch"}
         </button>
         <p className="muted small">
-          Herdr ne sait changer ni le modèle ni le raisonnement après le démarrage : ce sont les
-          seuls moments où l'application agit pour tous les agents.
+          Herdr cannot change the model or thinking level after launch. These are the only settings
+          the app can set for all agents.
         </p>
       </div>
     </Feuille>

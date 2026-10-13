@@ -59,7 +59,10 @@ const lexer = (source: string): Tokens.Generic[] => {
 const inline = (tokens: Tokens.Generic[] | undefined, keyPrefix: string): ReactNode[] => {
   if (tokens === undefined) return [];
   return tokens.map((token, index) => {
-    const key = stableKey(token, `${keyPrefix}-${String(index)}`);
+    // Le contenu seul n'est pas unique : deux jetons `text` adjacents peuvent
+    // avoir exactement la même valeur. L'index distingue ces frères dans une
+    // même liste et évite les clés React dupliquées.
+    const key = `${stableKey(token, `${keyPrefix}-${String(index)}`)}:${String(index)}`;
     switch (token.type) {
       case "strong":
         return <strong key={key}>{inline(token["tokens"], key)}</strong>;
@@ -104,7 +107,7 @@ const inline = (tokens: Tokens.Generic[] | undefined, keyPrefix: string): ReactN
 /** Rend un niveau de blocs. Récursif : listes imbriquées, citations. */
 const blocks = (tokens: Tokens.Generic[], keyPrefix: string): ReactNode[] =>
   tokens.map((token, index) => {
-    const key = stableKey(token, `${keyPrefix}-${String(index)}`);
+    const key = `${stableKey(token, `${keyPrefix}-${String(index)}`)}:${String(index)}`;
     switch (token.type) {
       case "heading": {
         const depth = Number(token["depth"] ?? 1);
@@ -137,7 +140,7 @@ const blocks = (tokens: Tokens.Generic[], keyPrefix: string): ReactNode[] =>
         const ordered = token["ordered"] === true;
         const items = tokenList(token["items"]);
         const rendered = items.map((item, itemIndex) => (
-          <li key={stableKey(item, `${key}-${String(itemIndex)}`)}>
+          <li key={`${stableKey(item, `${key}-${String(itemIndex)}`)}:${String(itemIndex)}`}>
             {inline(item["tokens"], `${key}-${itemIndex}`)}
             {item["tokens"] === undefined ? String(item["text"] ?? "") : null}
           </li>
@@ -161,7 +164,9 @@ const blocks = (tokens: Tokens.Generic[], keyPrefix: string): ReactNode[] =>
               <thead>
                 <tr>
                   {header.map((cell, cellIndex) => (
-                    <th key={stableKey(cell, `${key}-h-${String(cellIndex)}`)}>
+                    <th
+                      key={`${stableKey(cell, `${key}-h-${String(cellIndex)}`)}:${String(cellIndex)}`}
+                    >
                       {inline(cell["tokens"], key)}
                     </th>
                   ))}
@@ -171,7 +176,9 @@ const blocks = (tokens: Tokens.Generic[], keyPrefix: string): ReactNode[] =>
                 {rows.map((row, rowIndex) => (
                   <tr key={`row:${JSON.stringify(row).slice(0, 40)}${String(rowIndex)}`}>
                     {row.map((cell, cellIndex) => (
-                      <td key={stableKey(cell, `${key}-r-${String(cellIndex)}`)}>
+                      <td
+                        key={`${stableKey(cell, `${key}-r-${String(cellIndex)}`)}:${String(cellIndex)}`}
+                      >
                         {inline(cell["tokens"], key)}
                       </td>
                     ))}

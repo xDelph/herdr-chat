@@ -130,7 +130,7 @@ describe("U06 — l'envoi est bloqué, et la cause est dite", () => {
       thinking: "high",
     });
     expect(verdict.envoyable).toBe(false);
-    if (!verdict.envoyable) expect(verdict.raison).toContain("sans modèle");
+    if (!verdict.envoyable) expect(verdict.raison).toContain("requires a model");
   });
 
   test("modèle absent du catalogue : bloqué, et le motif est vérifiable", () => {
