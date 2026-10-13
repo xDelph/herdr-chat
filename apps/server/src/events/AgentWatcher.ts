@@ -123,7 +123,11 @@ export class AgentWatcher extends Context.Service<AgentWatcher, AgentWatcherApi>
                 const agent = result.agents.find((candidate) => candidate.paneId === change.paneId);
                 void (async () => {
                   try {
-                    await notifications?.agentFinished(agent?.title ?? "", change.paneId);
+                    await notifications?.agentFinished(
+                      agent?.title ?? "",
+                      change.paneId,
+                      change.to,
+                    );
                   } catch (cause: unknown) {
                     console.error(
                       `[push] unable to notify about agent status change: ${String(cause)}`,

@@ -17,7 +17,17 @@ export interface PushNotificationsApi {
   readonly publicKey: () => Promise<string>;
   readonly subscribe: (subscription: PushSubscription) => Promise<void>;
   readonly unsubscribe: (endpoint: string) => Promise<void>;
-  readonly agentFinished: (title: string, tag?: string) => Promise<void>;
+  /**
+   * Signale qu'un agent n'est plus « en train de travailler ».
+   *
+   * ⚠️ **`status` n'est pas décoratif.** Le déclencheur est le passage de
+   * `working` à autre chose, et cet « autre chose » peut être `blocked` — c'est
+   * le cas où l'agent **attend une réponse**, donc le plus urgent de tous. Une
+   * version précédente annonçait « Agent finished » dans les deux cas : le
+   * téléphone disait « c'est terminé » alors que l'agent était bloqué sur une
+   * question, et personne n'ouvrait l'app. C'est l'inverse du service rendu.
+   */
+  readonly agentFinished: (title: string, tag?: string, status?: string | null) => Promise<void>;
 }
 
 const emptyStore = (): PushStore => ({ subscriptions: [] });
@@ -142,16 +152,29 @@ export const makePushNotifications = (
           subscriptions: store.subscriptions.filter((item) => item.endpoint !== endpoint),
         });
       }),
-    agentFinished: (title, tag) =>
+    agentFinished: (title, tag, status) =>
       withKeys(async (store, keys) => {
         webpush.setVapidDetails(subject, keys.publicKey, keys.privateKey);
+
+        /*
+          ⚠️ `blocked` is NOT `done`. Both arrive here — the event is "stopped
+          working" — but one of them needs a human and the other does not.
+          Announcing the same thing for both makes the notification useless
+          precisely when it matters most.
+        */
+        const waiting = status === "blocked";
         const payload = JSON.stringify({
-          title: "Agent finished",
-          body:
-            title.length > 0
+          title: waiting ? "Agent needs you" : "Agent finished",
+          body: waiting
+            ? title.length > 0
+              ? `${title} is waiting for your answer.`
+              : "An agent is waiting for your answer."
+            : title.length > 0
               ? `${title} has finished working.`
               : "Your agent has finished working.",
-          tag: tag ?? "herdr-agent-finished",
+          // Two different tags: a pending question must not be silently replaced
+          // by a later "finished" notification for the same pane.
+          tag: tag === undefined ? "herdr-agent" : `${waiting ? "waiting" : "done"}-${tag}`,
           url: "/",
         });
         const expired = new Set<string>();

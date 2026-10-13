@@ -22,6 +22,17 @@ import { dirname, join } from "node:path";
 /** Journal par défaut. Un test ne doit **jamais** y écrire (A03). */
 export const defaultLogPath = (): string => join(homedir(), ".herdr-remote", "herdr-remote.log");
 
+/**
+ * Store par défaut des abonnements Web Push.
+ *
+ * ⚠️ **À côté du journal, jamais dans le dossier courant.** Le défaut précédent
+ * était `process.cwd()/.herdr-remote/push.json` : lancer le serveur depuis un
+ * autre dossier créait un store vide, et les abonnements **disparaissaient sans
+ * un mot** — exactement le genre de panne qu'on ne diagnostique pas. Les données
+ * d'une instance vivent au même endroit, et l'instance c'est l'utilisateur.
+ */
+export const defaultPushStorePath = (): string => join(homedir(), ".herdr-remote", "push.json");
+
 /** Au-delà, le fichier est renommé : on garde une génération précédente. */
 const MAX_BYTES = 4 * 1024 * 1024;
 

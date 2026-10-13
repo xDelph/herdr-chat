@@ -40,7 +40,7 @@ const sendOverUnixSocket = (socketPath: string, line: string, timeoutMs: number)
           reject(new Error(detail));
         };
 
-        const timer = setTimeout(() => fail(`délai de ${timeoutMs} ms dépassé`), timeoutMs);
+        const timer = setTimeout(() => fail(`timed out after ${timeoutMs} ms`), timeoutMs);
 
         socket.on("connect", () => {
           socket.write(`${line}\n`);
@@ -64,7 +64,7 @@ const sendOverUnixSocket = (socketPath: string, line: string, timeoutMs: number)
 
         socket.on("close", () => {
           clearTimeout(timer);
-          fail("connexion fermée avant toute réponse");
+          fail("connection closed before any response");
         });
       }),
     catch: (cause) =>
@@ -105,8 +105,8 @@ export class TransportTag extends Context.Service<TransportTag, Transport>()(
               if (next === undefined) {
                 return yield* Effect.fail(
                   new TransportError({
-                    cause: "file de réponses vide",
-                    detail: "aucune réponse de test disponible",
+                    cause: "empty response queue",
+                    detail: "no test response available",
                     socketPath: "(test)",
                   }),
                 );

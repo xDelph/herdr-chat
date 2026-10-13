@@ -111,15 +111,15 @@ export const describeRejection = (reason: PathRejection): string => {
     default:
       // Atteignable seulement si une cause est ajoutée au type sans son texte :
       // le dire vaut mieux que rendre `undefined` à l'appelant.
-      return "chemin refusé";
+      return "path refused";
     case "racine-absente":
-      return "racine des sessions introuvable";
+      return "sessions root not found";
     case "chemin-absent":
-      return "session absente";
+      return "missing session";
     case "hors-racine":
-      return "chemin de session hors de la racine autorisée";
+      return "session path outside the allowed root";
     case "lien-sortant":
-      return "lien symbolique sortant de la racine autorisée";
+      return "symlink escaping the allowed root";
   }
 };
 

@@ -198,7 +198,7 @@ export class HerdrClient extends Context.Service<HerdrClient, HerdrApi>()(
         if (result === undefined) {
           return yield* Effect.fail(
             new HerdrDecodeError({
-              detail: "réponse sans `result` ni `error`",
+              detail: "response with neither `result` nor `error`",
               method,
               raw,
             }),
@@ -280,7 +280,7 @@ export class HerdrClient extends Context.Service<HerdrClient, HerdrApi>()(
           if (Option.isNone(decoded)) {
             return Effect.fail(
               new HerdrDecodeError({
-                detail: "`tab.create` sans pane racine exploitable",
+                detail: "`tab.create` without a usable root pane",
                 method: Method.tabCreate,
                 raw: JSON.stringify(payload).slice(0, 300),
               }),
@@ -308,7 +308,7 @@ export class HerdrClient extends Context.Service<HerdrClient, HerdrApi>()(
             ? Effect.succeed(decoded.value)
             : Effect.fail(
                 new HerdrDecodeError({
-                  detail: "réponse `ping` sans `protocol` ni `version`",
+                  detail: "`ping` response without `protocol` or `version`",
                   method: Method.ping,
                   raw: JSON.stringify(payload),
                 }),

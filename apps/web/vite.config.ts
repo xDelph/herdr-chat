@@ -34,6 +34,18 @@ export default defineConfig({
       },
       manifest: {
         background_color: "#0b1220",
+        /*
+          ⚠️ Sans ce tableau, iOS affiche une vignette **vide** sur l'écran
+          d'accueil — et c'est la première chose qu'on voit d'une PWA installée.
+          `maskable` est déclaré : le dessin tient dans les 80 % centraux, donc
+          le masque rond d'Android ne le rogne pas.
+        */
+        icons: [
+          { sizes: "192x192", src: "/icon-192.png", type: "image/png" },
+          { purpose: "maskable", sizes: "192x192", src: "/icon-192.png", type: "image/png" },
+          { sizes: "512x512", src: "/icon-512.png", type: "image/png" },
+          { purpose: "maskable", sizes: "512x512", src: "/icon-512.png", type: "image/png" },
+        ],
         description: "Piloter Herdr et ses agents depuis l'iPhone",
         display: "standalone",
         name: "Herdr Remote",

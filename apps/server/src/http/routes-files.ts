@@ -30,7 +30,7 @@ export const makeFileRoutes = (config: ServerConfig, herdr: HerdrApi) => {
           const url = new URL(request.url);
           const requested = url.searchParams.get("path");
           if (requested === null || requested.length === 0) {
-            return yield* Effect.fail(new FileDenied({ reason: "paramètre `path` manquant" }));
+            return yield* Effect.fail(new FileDenied({ reason: "missing `path` parameter" }));
           }
 
           const payload = yield* herdr.snapshot();

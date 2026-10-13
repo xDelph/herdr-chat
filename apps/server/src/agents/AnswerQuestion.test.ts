@@ -110,7 +110,7 @@ describe("repondreQuestion", () => {
     const { frappes, resultat } = await lancer([ECRAN, ECRAN], 2);
     expect(frappes).toEqual([["2", "enter"]]);
     expect(resultat.state).toBe("transmise");
-    expect(resultat.detail).toContain("pas prouvée");
+    expect(resultat.detail).toContain("not proven");
   });
 
   test("on ne suppose jamais un choix déjà sélectionné", async () => {

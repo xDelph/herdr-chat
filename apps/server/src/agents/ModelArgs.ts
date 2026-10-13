@@ -55,7 +55,7 @@ export const buildModelArgs = (
       }
       return {
         args: [],
-        error: `« ${kind} » exige un modèle pour choisir un niveau de raisonnement`,
+        error: `“${kind}” requires a model to choose a reasoning level`,
       };
     }
     const modelId = target ?? "";
@@ -91,7 +91,7 @@ export const buildModelArgs = (
           return {
             args: ["--model", modelId],
             error:
-              "chez cursor le niveau de raisonnement fait partie du nom du modèle : choisissez le modèle qui l'inclut",
+              "with cursor the reasoning level is part of the model name: pick a model that includes it",
           };
         }
         return { args: ["--model", modelId] };
@@ -99,7 +99,7 @@ export const buildModelArgs = (
       default:
         return {
           args: [],
-          error: `aucun mécanisme de lancement vérifié pour « ${kind} »`,
+          error: `no verified launch mechanism for “${kind}”`,
         };
     }
   });
@@ -119,7 +119,7 @@ export const checkThinkingSupported = (
   Effect.gen(function* () {
     if (thinking.trim().length === 0) return null;
     if (!MODEL_AWARE_KINDS.includes(kind)) {
-      return `« ${kind} » : niveau de raisonnement non vérifié`;
+      return `“${kind}”: unverified reasoning level`;
     }
     const catalog = yield* catalogOf(kind);
     const found = catalog.models.find((candidate) => candidate.id === model);
@@ -127,5 +127,5 @@ export const checkThinkingSupported = (
     if (found === undefined) return null;
     if (found.thinkingLevels.length === 0) return null;
     if (found.thinkingLevels.includes(thinking.trim())) return null;
-    return `« ${model} » ne propose pas le niveau « ${thinking.trim()} » (disponible : ${found.thinkingLevels.join(", ")})`;
+    return `“${model}” does not offer the level “${thinking.trim()}” (available: ${found.thinkingLevels.join(", ")})`;
   });

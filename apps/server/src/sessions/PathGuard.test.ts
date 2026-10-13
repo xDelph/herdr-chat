@@ -157,7 +157,7 @@ describe("describeRejection — jamais de message générique", () => {
   });
 
   test("le refus nomme la racine autorisée", () => {
-    expect(describeRejection("hors-racine")).toContain("racine");
+    expect(describeRejection("hors-racine")).toContain("root");
   });
 });
 

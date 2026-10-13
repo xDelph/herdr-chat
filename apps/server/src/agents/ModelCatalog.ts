@@ -131,7 +131,7 @@ const run = (
           ]);
           if (sortie.atteint) {
             throw new Error(
-              `sortie trop volumineuse (plus de ${String(MODEL_CATALOG_STDOUT_BYTES)} octets)`,
+              `output too large (more than ${String(MODEL_CATALOG_STDOUT_BYTES)} bytes)`,
             );
           }
           if (exitCode !== 0) {
@@ -157,7 +157,7 @@ const run = (
             out: Option.getOrElse(Result.getSuccess(result), () => ""),
           }
         : {
-            error: Option.getOrElse(Result.getFailure(result), () => "échec inconnu"),
+            error: Option.getOrElse(Result.getFailure(result), () => "unknown failure"),
             out: "",
           },
     ),
@@ -212,7 +212,7 @@ const piCatalog = Effect.gen(function* () {
   }
 
   if (models.length === 0) {
-    return yield* failed(source, "sortie vide ou illisible");
+    return yield* failed(source, "empty or unreadable output");
   }
   return {
     error: null,
@@ -237,13 +237,13 @@ const CLAUDE_EFFORTS = ["low", "medium", "high", "max"] as const;
 
 const claudeCatalog = Effect.sync((): CatalogResult => ({
   error:
-    "claude n'énumère pas ses modèles hors session authentifiée : seuls les alias du CLI sont proposés",
+    "claude does not list its models outside an authenticated session: only the CLI aliases are offered",
   models: CLAUDE_ALIASES.map((alias) => ({
     id: alias,
     label: undefined,
     thinkingLevels: CLAUDE_EFFORTS,
   })),
-  source: "claude --help (alias documentés)",
+  source: "claude --help (documented aliases)",
   thinkingLevels: CLAUDE_EFFORTS,
 }));
 
@@ -290,7 +290,7 @@ const codexCatalog = Effect.gen(function* () {
 
   const decoded = Option.getOrUndefined(Schema.decodeUnknownOption(CodexCatalogPayload)(parsed));
   if (decoded === undefined) {
-    return yield* failed(source, "forme inattendue : aucun tableau `models` exploitable");
+    return yield* failed(source, "unexpected shape: no usable `models` array");
   }
 
   const models: CatalogModel[] = decoded.models.map((record) => ({
@@ -301,7 +301,7 @@ const codexCatalog = Effect.gen(function* () {
     ),
   }));
 
-  if (models.length === 0) return yield* failed(source, "catalogue vide");
+  if (models.length === 0) return yield* failed(source, "empty catalog");
 
   return {
     error: null,
@@ -342,7 +342,7 @@ const cursorCatalog = Effect.gen(function* () {
     });
   }
 
-  if (models.length === 0) return yield* failed(source, "liste vide ou illisible");
+  if (models.length === 0) return yield* failed(source, "empty or unreadable list");
 
   return {
     error: null,
@@ -390,7 +390,7 @@ export const catalogOf = (kind: string): Effect.Effect<CatalogResult> => {
   const adapter = ADAPTERS[kind];
   if (adapter === undefined) {
     return Effect.succeed({
-      error: `aucun mécanisme de listage vérifié pour « ${kind} »`,
+      error: `no verified listing mechanism for “${kind}”`,
       models: [],
       source: "aucune",
       thinkingLevels: [],

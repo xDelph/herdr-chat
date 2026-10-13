@@ -66,7 +66,7 @@ export const repondreQuestion = (
 
     if (question === undefined) {
       return {
-        detail: "aucune question lisible à l'écran — rien n'a été envoyé",
+        detail: "no readable question on screen — nothing was sent",
         state: "refusee" as const,
       };
     }
@@ -74,7 +74,7 @@ export const repondreQuestion = (
     if (!numeroOffert(question.choix, numero)) {
       const offerts = question.choix.map((c) => c.numero).join(", ");
       return {
-        detail: `choix ${String(numero)} refusé : la question n'offre que ${offerts} — rien n'a été envoyé`,
+        detail: `choice ${String(numero)} refused: the question only offers ${offerts} — nothing was sent`,
         state: "refusee" as const,
       };
     }
@@ -89,10 +89,10 @@ export const repondreQuestion = (
 
     if (questionDeLEcran(apres.text) !== undefined) {
       return {
-        detail: `« ${libelle} » transmis — la question est toujours à l'écran, l'application n'est pas prouvée`,
+        detail: `“${libelle}” sent — the question is still on screen, so it is not proven applied`,
         state: "transmise" as const,
       };
     }
 
-    return { detail: `« ${libelle} » — l'agent a repris`, state: "appliquee" as const };
+    return { detail: `“${libelle}” — the agent resumed`, state: "appliquee" as const };
   });

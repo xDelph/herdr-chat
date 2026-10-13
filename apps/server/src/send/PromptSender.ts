@@ -101,7 +101,7 @@ export class PromptSender extends Context.Service<PromptSender, PromptSenderApi>
             // Échec : on n'enregistre RIEN. Le prochain envoi doit passer.
             return yield* Effect.fail(
               new PromptNotConfirmed({
-                detail: `envoi non confirmé : ${String(outcome.failure)}`,
+                detail: `send not confirmed: ${String(outcome.failure)}`,
                 target,
               }),
             );

@@ -10,6 +10,13 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Herdr Remote" />
+    <link rel="icon" href="/favicon.png" type="image/png" />
+    <!--
+      ⚠️ iOS n'utilise PAS le manifest pour l'icône d'accueil : sans cette
+      balise, la PWA installée garde une vignette blanche même avec un manifest
+      correct. C'est la seule ligne qui compte pour l'iPhone.
+    -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <title>Herdr Remote</title>
   </head>

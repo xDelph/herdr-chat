@@ -121,7 +121,7 @@ describe("TrustPrompt — rien n'est envoyé si l'invite n'est pas là", () => {
     );
     expect(outcome.accepted).toBe(false);
     expect(outcome.state).toBe("transmise");
-    expect(outcome.detail).toContain("pas prouvée");
+    expect(outcome.detail).toContain("not proven");
     // La frappe, elle, a bien eu lieu : c'est la preuve qui manque.
     expect(sent).toEqual([["1", "enter"]]);
   });

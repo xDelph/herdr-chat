@@ -116,14 +116,14 @@ export const readAllowedFile = (
 ): Effect.Effect<FileResult, FileDenied | FileUnavailable> =>
   Effect.gen(function* () {
     if (roots.length === 0) {
-      return yield* Effect.fail(new FileDenied({ reason: "aucun projet autorisé" }));
+      return yield* Effect.fail(new FileDenied({ reason: "no authorized project" }));
     }
 
     const resolved = resolve(requested);
 
     // 1) Vérification **avant** toute I/O sur le chemin résolu.
     if (!isInside(resolved, roots)) {
-      return yield* Effect.fail(new FileDenied({ reason: "hors des dossiers de projet" }));
+      return yield* Effect.fail(new FileDenied({ reason: "outside the project folders" }));
     }
 
     // 2) Résolution des liens symboliques, puis re-vérification.
@@ -148,7 +148,7 @@ export const readAllowedFile = (
       }),
     );
     if (!isInside(real, realRoots)) {
-      return yield* Effect.fail(new FileDenied({ reason: "lien sortant des dossiers de projet" }));
+      return yield* Effect.fail(new FileDenied({ reason: "symlink escaping the project folders" }));
     }
 
     // 3) Ouverture, puis `stat` et lecture sur **le même descripteur** (S04).
@@ -180,7 +180,7 @@ export const readAllowedFile = (
     if (!info.isFile()) {
       // Fuite garantie : le descripteur a été ouvert, il faut le rendre.
       yield* Effect.promise(() => handle.close());
-      return yield* Effect.fail(new FileDenied({ reason: "ce n'est pas un fichier" }));
+      return yield* Effect.fail(new FileDenied({ reason: "not a file" }));
     }
 
     // 4) Taille bornée.

@@ -69,7 +69,7 @@ export const describeCause = (cause: unknown): string => {
   } catch {
     // Sérialisation impossible (référence circulaire) : on continue.
   }
-  return `échec sans message (${cause === null ? "null" : typeof cause})`;
+  return `failure without a message (${cause === null ? "null" : typeof cause})`;
 };
 
 /**
@@ -131,7 +131,7 @@ export const respond = (
     return json(
       logPath,
       {
-        error: "le serveur a produit une réponse hors contrat",
+        error: "the server produced a response outside the contract",
         hint: "voir packages/shared/src/api.ts — le contrat fait foi",
       },
       500,
@@ -155,11 +155,15 @@ export const run = async <A, E>(
   if (Result.isSuccess(result)) {
     const value = Option.getOrUndefined(Result.getSuccess(result));
     return value === undefined
-      ? json(logPath, { error: "résultat illisible" }, 500)
+      ? json(logPath, { error: "unreadable result" }, 500)
       : onSuccess(value);
   }
   const failure = failureOf(result);
-  return json(logPath, { error: failure === undefined ? "échec inconnu" : describe(failure) }, 500);
+  return json(
+    logPath,
+    { error: failure === undefined ? "unknown failure" : describe(failure) },
+    500,
+  );
 };
 
 /** Décodeur tolérant : renvoie `undefined` plutôt que de lever. */

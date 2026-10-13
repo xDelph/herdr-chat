@@ -71,7 +71,7 @@ export const makeEventRoutes = (hub: EventHubApi) => {
               buffer +=
                 `id: ${String(catchUp.resumeFrom)}\n` +
                 `event: resync\n` +
-                `data: ${JSON.stringify({ reason: "journal tronqué", resumeFrom: catchUp.resumeFrom })}\n\n`;
+                `data: ${JSON.stringify({ reason: "truncated journal", resumeFrom: catchUp.resumeFrom })}\n\n`;
               cursor = catchUp.resumeFrom;
             }
             for (const event of catchUp.events) {

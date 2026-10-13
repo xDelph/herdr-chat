@@ -102,12 +102,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
     const cursorParam = url.searchParams.get("cursor");
     const cursor = cursorParam === null ? undefined : decodeCursor(cursorParam);
     if (cursorParam !== null && cursor === undefined) {
-      return respond(
-        config.logPath,
-        decoderOf(ApiErrorResponse),
-        { error: "curseur invalide" },
-        400,
-      );
+      return respond(config.logPath, decoderOf(ApiErrorResponse), { error: "invalid cursor" }, 400);
     }
     const before = beforeParam === null ? undefined : decodeCursor(beforeParam);
     if (
@@ -117,7 +112,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
       return respond(
         config.logPath,
         decoderOf(ApiErrorResponse),
-        { error: "curseur de lecture précédente invalide" },
+        { error: "invalid previous-page cursor" },
         400,
       );
     }
@@ -323,7 +318,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
           decoderOf(ApiErrorResponse),
           {
             cause: "invalide",
-            error: invalidSession("résultat illisible").message,
+            error: invalidSession("unreadable result").message,
           },
           422,
         );
@@ -332,7 +327,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
         return respond(
           config.logPath,
           decoderOf(ApiErrorResponse),
-          { error: "aucun chemin de session exploitable pour cet agent" },
+          { error: "no usable session path for this agent" },
           404,
         );
       }
@@ -341,7 +336,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
           config.logPath,
           decoderOf(ApiErrorResponse),
           {
-            error: "la session a changé; recharge la conversation pour continuer",
+            error: "the session changed; reload the conversation to continue",
           },
           409,
         );

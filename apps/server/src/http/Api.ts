@@ -96,7 +96,7 @@ class LaunchFailed extends Schema.TaggedError<LaunchFailed>()("LaunchFailed", {
  * Catalogue de modèles d'un type d'agent.
  *
  * Chaque réponse porte **la commande qui l'a produit** (`source`) : un
- * catalogue non traçable ne serait pas vérifiable, et ce projet refuse
+ * catalogue non traçable ne serait pas vérifiable, et this project refuse
  * d'exposer un état qu'on ne peut pas contrôler.
  *
  * Un kind sans mesure renvoie `models: []` et la raison dans `error` — pas
@@ -130,7 +130,7 @@ const makeAnswerTrust =
       return respond(
         logPath,
         decoderOf(ApiErrorResponse),
-        { error: "corps invalide : `accept` (booléen) requis" },
+        { error: "invalid body: `accept` (boolean) required" },
         400,
       );
     }
@@ -143,13 +143,13 @@ const makeAnswerTrust =
       return respond(
         logPath,
         decoderOf(ApiErrorResponse),
-        { error: failure === undefined ? "échec inconnu" : describe(failure) },
+        { error: failure === undefined ? "unknown failure" : describe(failure) },
         502,
       );
     }
     const outcome = Option.getOrUndefined(Result.getSuccess(result));
     if (outcome === undefined) {
-      return respond(logPath, decoderOf(ApiErrorResponse), { error: "réponse illisible" }, 500);
+      return respond(logPath, decoderOf(ApiErrorResponse), { error: "unreadable response" }, 500);
     }
     return respond(logPath, decoderOf(TrustResolvedResponse), {
       accepted: outcome.accepted,
@@ -176,7 +176,7 @@ const makeAnswerQuestion =
       return respond(
         logPath,
         decoderOf(ApiErrorResponse),
-        { error: "corps invalide : `numero` (entier) requis" },
+        { error: "invalid body: `numero` (integer) required" },
         400,
       );
     }
@@ -190,13 +190,13 @@ const makeAnswerQuestion =
       return respond(
         logPath,
         decoderOf(ApiErrorResponse),
-        { error: failure === undefined ? "échec inconnu" : describe(failure) },
+        { error: failure === undefined ? "unknown failure" : describe(failure) },
         502,
       );
     }
     const outcome = Option.getOrUndefined(Result.getSuccess(result));
     if (outcome === undefined) {
-      return respond(logPath, decoderOf(ApiErrorResponse), { error: "réponse illisible" }, 500);
+      return respond(logPath, decoderOf(ApiErrorResponse), { error: "unreadable response" }, 500);
     }
     return respond(logPath, decoderOf(QuestionAnsweredResponse), {
       detail: outcome.detail,
@@ -418,7 +418,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
   const health = (): Promise<Response> =>
     Effect.gen(function* () {
       const ping = yield* Effect.result(herdr.ping());
-      // Herdr injoignable n'est pas une erreur du backend : on répond 503 avec
+      // Herdr unreachable n'est pas une erreur du backend : on répond 503 avec
       // `reachable: false`, jamais une 200 qui laisserait croire que tout va bien.
       if (Result.isFailure(ping)) {
         return respond(
@@ -437,7 +437,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
         return respond(
           config.logPath,
           decoderOf(ApiErrorResponse),
-          { error: "réponse `ping` illisible" },
+          { error: "unreadable `ping` response" },
           500,
         );
       }
@@ -528,7 +528,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       return respond(
         config.logPath,
         decoderOf(ApiErrorResponse),
-        { error: "corps invalide : `text` (chaîne) requis" },
+        { error: "invalid body: `text` (string) required" },
         400,
       );
     }
@@ -560,7 +560,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
         return respond(
           config.logPath,
           decoderOf(ApiErrorResponse),
-          { error: "résultat d'envoi illisible" },
+          { error: "unreadable send result" },
           500,
         );
       }
@@ -574,11 +574,11 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       await Effect.runPromise(
         hub.publish("prompt-suppressed", {
           paneId,
-          reason: "envoi identique consécutif",
+          reason: "consecutive identical send",
         }),
       );
       return respond(config.logPath, decoderOf(PromptSuppressedResponse), {
-        reason: "envoi identique déjà confirmé dans la fenêtre",
+        reason: "identical send already confirmed within the window",
         status: "suppressed",
       });
     }
@@ -634,7 +634,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       return respond(
         config.logPath,
         decoderOf(ApiErrorResponse),
-        { error: "snapshot Herdr illisible — arrêt non demandé" },
+        { error: "unreadable Herdr snapshot — stop not requested" },
         502,
       );
     }
@@ -644,7 +644,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       return respond(
         config.logPath,
         decoderOf(ApiErrorResponse),
-        { error: `aucun agent Herdr dans le pane ${paneId}` },
+        { error: `no Herdr agent in pane ${paneId}` },
         404,
       );
     }
@@ -661,7 +661,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
         config.logPath,
         decoderOf(ApiErrorResponse),
         {
-          error: failure === undefined ? "envoi de Ctrl+C refusé" : describe(failure),
+          error: failure === undefined ? "Ctrl+C send refused" : describe(failure),
         },
         502,
       );
@@ -702,12 +702,12 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     const raw: unknown = await request.json().catch(() => undefined);
     const body = decoderOf(LaunchAgentRequest)(raw);
     /** Libellé du projet, connu après lecture du snapshot. */
-    let folderLabel = "ce projet";
+    let folderLabel = "this project";
     if (body === undefined) {
       return respond(
         config.logPath,
         decoderOf(ApiErrorResponse),
-        { error: "corps invalide : `kind` requis" },
+        { error: "invalid body: `kind` required" },
         400,
       );
     }
@@ -727,7 +727,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       return respond(
         config.logPath,
         decoderOf(ApiErrorResponse),
-        { error: "types d'agents indisponibles : lancement refusé" },
+        { error: "agent types unavailable: launch refused" },
         503,
       );
     }
@@ -739,7 +739,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       return respond(
         config.logPath,
         decoderOf(ApiErrorResponse),
-        { error: "liste des types illisible : lancement refusé" },
+        { error: "unreadable type list: launch refused" },
         503,
       );
     }
@@ -768,7 +768,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
         config.logPath,
         decoderOf(ApiErrorResponse),
         {
-          error: `type d'agent non installé : « ${body.kind} »`,
+          error: `agent type not installed: “${body.kind}”`,
           hint: kinds.map((integration) => integration.command).join(", "),
         },
         400,
@@ -786,12 +786,12 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
           const workspace = snapshot.workspaces.find((w) => w.workspace_id === workspaceId);
           if (workspace === undefined) {
             // Aucun identifiant brut dans un message destiné à l'écran.
-            return yield* Effect.fail({ message: "ce projet n'existe plus" });
+            return yield* Effect.fail({ message: "this project no longer exists" });
           }
 
           // Les noms affichés sont ceux que l'utilisateur reconnaît, jamais des
           // identifiants internes.
-          const label = workspace.label ?? "ce projet";
+          const label = workspace.label ?? "this project";
           folderLabel = label;
 
           // Lancer dans un projet qui a **déjà** un agent est permis : cela crée
@@ -817,7 +817,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
           const checkout = checkoutPathOf(workspace, snapshot.panes ?? []);
           if (checkout === null) {
             return yield* Effect.fail({
-              message: `aucun dossier de travail connu pour ${label}`,
+              message: `no known working folder for ${label}`,
             });
           }
 
@@ -835,7 +835,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
               Effect.mapError(
                 (cause) =>
                   new LaunchFailed({
-                    detail: `l'onglet n'a pas pu être créé : ${describeCause(cause)}`,
+                    detail: `the tab could not be created: ${describeCause(cause)}`,
                     paneId: null,
                     phase: "onglet",
                   }),
@@ -887,7 +887,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
                 (cause) =>
                   new LaunchFailed({
                     // L'onglet existe : le dire évite de relancer pour rien.
-                    detail: `${body.kind} n'a pas démarré : ${describeCause(cause)}`,
+                    detail: `${body.kind} did not start: ${describeCause(cause)}`,
                     paneId: tab.paneId,
                     phase: "agent",
                   }),
@@ -945,7 +945,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
             {
               folder: folderLabel,
               kind: body.kind,
-              message: `${body.kind} demande la confiance de « ${folderLabel} ». Il pourra y lire, écrire et exécuter du code — y compris sans te demander. Cette réponse est enregistrée définitivement.`,
+              message: `${body.kind} is asking to trust “${folderLabel}”. It will be able to read, write and run code there — including without asking again. This answer is recorded permanently.`,
               paneId: decoded.paneId,
               status: "trust-required",
             },
@@ -957,7 +957,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       return respond(
         config.logPath,
         decoderOf(ApiErrorResponse),
-        { error: failure === undefined ? "échec inconnu" : describe(failure) },
+        { error: failure === undefined ? "unknown failure" : describe(failure) },
         502,
       );
     }
@@ -966,7 +966,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       return respond(
         config.logPath,
         decoderOf(ApiErrorResponse),
-        { error: "résultat de lancement illisible" },
+        { error: "unreadable launch result" },
         500,
       );
     }
@@ -1000,7 +1000,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       return respond(
         config.logPath,
         decoderOf(ApiErrorResponse),
-        { error: "types d'agents indisponibles" },
+        { error: "agent types unavailable" },
         502,
       );
     }
@@ -1009,7 +1009,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       return respond(
         config.logPath,
         decoderOf(ApiErrorResponse),
-        { error: "réponse Herdr illisible" },
+        { error: "unreadable Herdr response" },
         502,
       );
     }

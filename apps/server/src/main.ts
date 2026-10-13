@@ -23,6 +23,7 @@ import { PromptSender } from "./send/PromptSender.ts";
 import { makeRoutes } from "./http/Api.ts";
 import type { Routes } from "./http/Reply.ts";
 import { makePushNotifications } from "./notifications/PushNotifications.ts";
+import { defaultPushStorePath } from "./logging/LogFile.ts";
 
 const startedAt = Date.now();
 
@@ -37,8 +38,8 @@ export const makeStaticHandler = (distDir: string) => {
       // de renvoyer une 404 opaque.
       return Response.json(
         {
-          error: "PWA non compilée",
-          hint: "lancer `bun run --cwd apps/web build` ou utiliser le serveur de développement Vite",
+          error: "PWA not built",
+          hint: "run `bun run --cwd apps/web build`, or use the Vite development server",
         },
         { status: 503 },
       );
@@ -94,7 +95,11 @@ export const program = Effect.gen(function* () {
 
   const sender = yield* PromptSender.make(herdr, config.duplicateWindowMs);
   const notifications = makePushNotifications(
-    process.env["HERDR_REMOTE_PUSH_STORE"] ?? join(process.cwd(), ".herdr-remote", "push.json"),
+    // ⚠️ `process.cwd()` plaçait les abonnements dans le dépôt : lancé depuis un
+    // autre dossier, le serveur repartait d'un store vide, et les abonnements
+    // disparaissaient **sans un mot**. Le dossier du journal est le bon voisin —
+    // c'est déjà là que vivent les données de cette instance.
+    process.env["HERDR_REMOTE_PUSH_STORE"] ?? defaultPushStorePath(),
   );
 
   // Veille : c'est ce qui produit le direct. Sans elle, le flux n'émettait que
@@ -138,7 +143,7 @@ export const program = Effect.gen(function* () {
       `Herdr joignable — version ${ping.success.version}, protocole ${ping.success.protocol}`,
     );
   } else {
-    yield* Effect.logWarning(`Herdr injoignable au démarrage (${config.herdrSocketPath})`);
+    yield* Effect.logWarning(`Herdr unreachable at startup (${config.herdrSocketPath})`);
   }
 
   yield* Effect.addFinalizer(() =>
@@ -171,7 +176,7 @@ const main = Effect.scoped(program).pipe(
   // exacte avant de quitter en erreur, jamais un échec silencieux.
   Effect.tapError((error) =>
     Effect.sync(() => {
-      process.stderr.write(`[herdr-remote] démarrage refusé : ${describe(error)}\n`);
+      process.stderr.write(`[herdr-remote] startup refused: ${describe(error)}\n`);
     }),
   ),
 );

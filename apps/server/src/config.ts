@@ -159,8 +159,8 @@ export class ServerConfigTag extends Context.Service<ServerConfigTag, ServerConf
         return yield* Effect.fail(
           new ConfigError({
             detail:
-              `HERDR_REMOTE_BIND = « ${bind} » refusé. Attendu 127.0.0.1 ou une ` +
-              `adresse Tailscale (100.x.y.z / fd7a:…). Jamais 0.0.0.0 ni une IP publique.`,
+              `HERDR_REMOTE_BIND = “${bind}” refused. Expected 127.0.0.1 or a ` +
+              `Tailscale address (100.x.y.z / fd7a:…). Never 0.0.0.0 or a public IP.`,
           }),
         );
       }

@@ -119,7 +119,7 @@ describe("readAllowedFile — garde-fous", () => {
   test("REFUSE un fichier hors des racines", async () => {
     const result = await read(join(outside, "secret.txt"));
     expect(Result.isFailure(result)).toBe(true);
-    expect(reasonOf(result)).toContain("hors des dossiers");
+    expect(reasonOf(result)).toContain("outside the project folders");
   });
 
   test("REFUSE une traversée `..`", async () => {
@@ -131,13 +131,13 @@ describe("readAllowedFile — garde-fous", () => {
     // Le chemin d'appel est sous la racine ; la cible ne l'est pas.
     const result = await read(join(root, "lien-piege.txt"));
     expect(Result.isFailure(result)).toBe(true);
-    expect(reasonOf(result)).toContain("dossiers de projet");
+    expect(reasonOf(result)).toContain("project folders");
   });
 
   test("REFUSE un répertoire", async () => {
     const result = await read(join(root, "nested"));
     expect(Result.isFailure(result)).toBe(true);
-    expect(reasonOf(result)).toBe("ce n'est pas un fichier");
+    expect(reasonOf(result)).toBe("not a file");
   });
 
   test("REFUSE quand aucune racine n'est autorisée", async () => {

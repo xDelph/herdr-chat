@@ -131,20 +131,20 @@ export const describeGuardRejection = (
 ): string => {
   switch (reason) {
     case "origin-absente":
-      return "origine absente : requête cross-site probable";
+      return "missing origin: likely cross-site request";
     case "origin-etrangere":
       // ⚠️ Les deux origines sont **dites**. Sans elles, l'utilisateur ne peut
       // que deviner entre « mauvaise configuration » et « autre appareil », et la
       // correction demande de reproduire la requête.
-      return `origine non autorisée (attendue ${attendue ?? "?"}, reçue ${recue ?? "?"})`;
+      return `unauthorized origin (expected ${attendue ?? "?"}, received ${recue ?? "?"})`;
     case "methode":
-      return "méthode non autorisée sur cette route";
+      return "method not allowed on this route";
     case "content-type":
       return "Content-Type attendu : application/json";
     case "corps-trop-grand":
       return `corps trop grand (maximum ${String(MAX_JSON_BYTES)} octets)`;
     default:
-      return "requête refusée";
+      return "request refused";
   }
 };
 

@@ -78,7 +78,7 @@ export const respondToTrust = (
       return {
         accepted: false,
         state: "non-applicable" as const,
-        detail: "l'invite de confiance n'est plus à l'écran — rien n'a été envoyé",
+        detail: "the trust prompt is no longer on screen — nothing was sent",
       };
     }
 
@@ -98,8 +98,8 @@ export const respondToTrust = (
         accepted: false,
         state: "transmise" as const,
         detail: accept
-          ? "décision transmise — l'invite est toujours à l'écran, l'acceptation n'est pas prouvée"
-          : "décision transmise — le refus n'est pas encore confirmé par l'écran",
+          ? "decision sent — the prompt is still on screen, so acceptance is not proven"
+          : "decision sent — the refusal is not yet confirmed by the screen",
       };
     }
 
@@ -107,8 +107,8 @@ export const respondToTrust = (
       accepted: accept,
       state: accept ? ("acceptee" as const) : ("refusee" as const),
       detail: accept
-        ? "confiance accordée à ce dossier — codex pourra y exécuter du code"
-        : "confiance refusée : le dossier reste non approuvé et l'agent reste bloqué",
+        ? "trust granted for this folder — codex will be able to run code there"
+        : "trust denied: the folder stays unapproved and the agent stays blocked",
     };
   });
 
