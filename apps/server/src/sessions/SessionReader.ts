@@ -15,7 +15,7 @@
 import { Effect, Option, Schema } from "effect";
 import { open } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
-import { SESSION_HEADER_BYTES } from "@herdr-remote/shared";
+import { ligneCodexVersPi, SESSION_HEADER_BYTES } from "@herdr-remote/shared";
 import { describeRejection, resolveWithin } from "./PathGuard.ts";
 
 /** En-tête de session, tel qu'écrit en première ligne. */
@@ -59,8 +59,12 @@ export class SessionPathRejected extends Schema.TaggedError<SessionPathRejected>
  * `root` vide = aucun confinement. Utile aux tests sur fichiers temporaires
  * isolés ; le chemin de production fournit toujours sa racine (S03).
  */
-const openGuarded = async (root: string, path: string): Promise<FileHandle> => {
-  if (root === "") return open(path, "r");
+const openGuarded = async (
+  root: string | ReadonlyArray<string>,
+  path: string,
+): Promise<FileHandle> => {
+  // Une liste vide (ou une chaîne vide) = aucun confinement, pour les tests.
+  if (root === "" || (Array.isArray(root) && root.length === 0)) return open(path, "r");
 
   const verdict = await resolveWithin(root, path);
   if (!verdict.ok || verdict.resolved === undefined) {
@@ -188,6 +192,14 @@ const parseEntry = (line: string): RawEntry => {
   } catch {
     parsed = undefined;
   }
+
+  // ⚠️ **Le seul point d'entrée.** Une ligne codex est traduite ici, une fois,
+  // en forme pi : tout ce qui suit — aperçu, titre, blocs, curseur — n'a pas à
+  // savoir d'où vient la ligne. Un second décodeur plus loin aurait dupliqué
+  // chaque décision d'affichage.
+  const traduite = ligneCodexVersPi(parsed);
+  if (traduite !== undefined) return toRawEntry(traduite, JSON.stringify(traduite));
+
   return toRawEntry(parsed, line);
 };
 
@@ -233,7 +245,12 @@ export const readHeader = (path: string, root = "") =>
  * `pending` est recollé au début de la lecture : une ligne incomplète vue au
  * tour précédent redevient complète dès que la suite arrive.
  */
-export const tailFrom = (path: string, offset: number, pending: string, root = "") =>
+export const tailFrom = (
+  path: string,
+  offset: number,
+  pending: string,
+  root: string | ReadonlyArray<string> = "",
+) =>
   Effect.tryPromise({
     try: async (): Promise<TailedSession> => {
       const handle: FileHandle = await openGuarded(root, path);
@@ -291,7 +308,11 @@ export const readAll = (path: string, root = "") => tailFrom(path, 0, "", root);
  *
  * Le résultat porte `offset` : le client reprend ensuite en incrémental.
  */
-export const readTail = (path: string, maxBytes: number, root = "") =>
+export const readTail = (
+  path: string,
+  maxBytes: number,
+  root: string | ReadonlyArray<string> = "",
+) =>
   Effect.tryPromise({
     try: async (): Promise<TailedSession & { readonly truncated: boolean }> => {
       const handle: FileHandle = await openGuarded(root, path);
@@ -344,7 +365,7 @@ export const readTail = (path: string, maxBytes: number, root = "") =>
  * Sert à valider un curseur **avant** de l'utiliser : rotation et troncature
  * se détectent sur `dev`/`ino` et sur la taille, sans transferer le contenu.
  */
-export const fileSize = (path: string, root = "") =>
+export const fileSize = (path: string, root: string | ReadonlyArray<string> = "") =>
   Effect.tryPromise({
     try: async (): Promise<{ identity: FileIdentity; size: number }> => {
       const handle = await openGuarded(root, path);

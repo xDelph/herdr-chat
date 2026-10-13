@@ -57,7 +57,7 @@ export const isWithin = (root: string, candidate: string): boolean => {
  * Ne lève jamais : un refus est une valeur, pas une exception, pour que la
  * route puisse en faire une réponse 403 explicite avec sa cause.
  */
-export const resolveWithin = async (root: string, candidate: string): Promise<PathVerdict> => {
+const resolveWithinUn = async (root: string, candidate: string): Promise<PathVerdict> => {
   let realRoot: string;
   try {
     realRoot = await realpath(root);
@@ -121,4 +121,37 @@ export const describeRejection = (reason: PathRejection): string => {
     case "lien-sortant":
       return "lien symbolique sortant de la racine autorisée";
   }
+};
+
+/**
+ * Résout `candidate` et vérifie qu'il reste sous **l'une** des racines.
+ *
+ * ⚠️ **Pourquoi plusieurs racines.** Chaque agent a son propre dossier de
+ * sessions : `~/.pi/agent/sessions` pour pi, `~/.codex/sessions` pour codex. Un
+ * garde à racine unique refusait les sessions codex comme « hors racine » — un
+ * refus de sûreté, pris à tort pour un défaut de format. Une racine unique
+ * obligerait à choisir un agent.
+ *
+ * Un refus précis l'emporte sur « racine-absente » : une racine mal configurée
+ * ne doit pas masquer une vraie sortie de périmètre.
+ */
+export const resolveWithin = async (
+  roots: string | ReadonlyArray<string>,
+  candidate: string,
+): Promise<PathVerdict> => {
+  const racines = typeof roots === "string" ? [roots] : roots;
+  // Les racines sont indépendantes : les résoudre en parallèle évite de payer
+  // un `realpath` après l'autre sur le chemin chaud de chaque lecture.
+  const verdicts = await Promise.all(racines.map((racine) => resolveWithinUn(racine, candidate)));
+  for (const verdict of verdicts) {
+    if (verdict.ok) return verdict;
+  }
+  // Aucune racine ne convient. Un refus précis l'emporte sur « racine-absente » :
+  // une racine mal configurée ne doit pas masquer une vraie sortie de périmètre.
+  return (
+    verdicts.find((verdict) => verdict.reason !== "racine-absente") ?? {
+      ok: false,
+      reason: "racine-absente",
+    }
+  );
 };

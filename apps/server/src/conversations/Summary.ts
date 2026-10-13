@@ -317,6 +317,6 @@ export const summaryOf = (
 
 /** Lecteur par défaut : la fin du fichier, bornée. */
 export const defaultRead =
-  (root: string) =>
+  (root: string | ReadonlyArray<string>) =>
   (path: string): Effect.Effect<TailedSession, unknown> =>
     readTail(path, PREVIEW, root);

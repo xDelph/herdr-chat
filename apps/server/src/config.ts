@@ -24,7 +24,7 @@ export interface ServerConfig {
   /** Chemin du socket de l'API Herdr (couche A). */
   readonly herdrSocketPath: string;
   /** Racine des sessions Pi. Jamais devinée par projet : Herdr fournit le chemin. */
-  readonly piSessionsRoot: string;
+  readonly sessionRoots: ReadonlyArray<string>;
   /** Port d'écoute. Toujours lié à `127.0.0.1` (T5.1). */
   readonly port: number;
   /**
@@ -184,7 +184,12 @@ export class ServerConfigTag extends Context.Service<ServerConfigTag, ServerConf
       return ServerConfigTag.of({
         // `HERDR_SOCKET` (couche B) n'est délibérément jamais lu ici.
         herdrSocketPath: socketPath,
-        piSessionsRoot: env["PI_SESSIONS_ROOT"] ?? `${home}/.pi/agent/sessions`,
+        // ⚠️ Un dossier par agent : chaque type écrit ses sessions chez lui. La
+        // liste est le seul endroit qui décide de ce qui est lisible.
+        sessionRoots: [
+          env["PI_SESSIONS_ROOT"] ?? `${home}/.pi/agent/sessions`,
+          env["CODEX_SESSION_ROOT"] ?? `${home}/.codex/sessions`,
+        ],
         port,
         hostname: bind,
         duplicateWindowMs: DUPLICATE_WINDOW_MS,

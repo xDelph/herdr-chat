@@ -12,12 +12,14 @@ const ligne = (
   paneId: string,
   status: AgentStatus = "idle",
   timestamp?: number,
+  /** Titre affiché. Par défaut le `paneId`, ce qui rend les listes lisibles. */
+  titre?: string,
 ): ConversationSummary => ({
   ...(timestamp === undefined ? {} : { timestamp }),
   paneId,
   sessionState: "available",
   status,
-  title: paneId,
+  title: titre ?? paneId,
   workspaceId: "w1",
 });
 
@@ -108,6 +110,54 @@ describe("U04 — tri dans chaque section", () => {
     const copie = source.map((c) => c.paneId);
     sectionConversations(source);
     expect(source.map((c) => c.paneId)).toEqual(copie);
+  });
+});
+
+describe("U04 — l'ordre par nom", () => {
+  test("le défaut reste le plus récent — on ne change pas la règle en silence", () => {
+    const source = [ligne("w1:p1", "idle", 100), ligne("w1:p2", "idle", 300)];
+    expect(dans(sectionConversations(source), "recents")).toEqual(["w1:p2", "w1:p1"]);
+    expect(dans(sectionConversations(source, "recent"), "recents")).toEqual(["w1:p2", "w1:p1"]);
+  });
+
+  test("par nom : ordre alphabétique, quelle que soit la date", () => {
+    const source = [
+      ligne("w1:p1", "idle", 300, "zeta"),
+      ligne("w1:p2", "idle", 100, "alpha"),
+      ligne("w1:p3", "idle", 200, "midi"),
+    ];
+    expect(dans(sectionConversations(source, "nom"), "recents")).toEqual([
+      "w1:p2",
+      "w1:p3",
+      "w1:p1",
+    ]);
+  });
+
+  test("l'ordre par nom ignore la casse et les accents", () => {
+    // « Émile » doit se ranger à « e », pas après « z » : sinon la liste paraît
+    // rangée alors qu'elle ne l'est pas.
+    const source = [ligne("w1:p1", "idle", 1, "Émile"), ligne("w1:p2", "idle", 1, "zoe")];
+    expect(dans(sectionConversations(source, "nom"), "recents")).toEqual(["w1:p1", "w1:p2"]);
+  });
+
+  test("à nom égal, paneId croissant — l'ordre reste déterministe", () => {
+    const source = [ligne("w1:p9", "idle", 1), ligne("w1:p2", "idle", 2)];
+    expect(dans(sectionConversations(source, "nom"), "recents")).toEqual(["w1:p2", "w1:p9"]);
+  });
+
+  test("changer l'ordre ne change AUCUNE répartition", () => {
+    // L'ordre est un affichage, pas un classement : les sections et leurs
+    // effectifs doivent être identiques dans les deux ordres.
+    const source = [
+      ligne("w1:p1", "blocked", 100, "c"),
+      ligne("w1:p2", "working", 200, "a"),
+      ligne("w1:p3", "idle", 300, "b"),
+    ];
+    for (const ordre of ["recent", "nom"] as const) {
+      const entrees = sectionConversations(source, ordre);
+      expect(entrees.map((e) => e.section)).toEqual([...SECTIONS]);
+      expect(entrees.map((e) => e.conversations.length)).toEqual([1, 1, 1]);
+    }
   });
 });
 

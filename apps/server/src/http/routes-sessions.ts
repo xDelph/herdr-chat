@@ -24,6 +24,7 @@ import {
   encodeCursor,
   SessionResponse,
 } from "@herdr-remote/shared";
+import { localiserSession } from "../agents/SessionLocator.ts";
 import type { ServerConfig } from "../config.ts";
 import { classifyReadFailure, invalidSession, statusFor } from "../sessions/ReadCause.ts";
 import type { HerdrApi } from "../herdr/HerdrClient.ts";
@@ -46,6 +47,11 @@ const AgentSessionSlot = Schema.Struct({
 
 const decodeSessionSlot = Schema.decodeUnknownOption(AgentSessionSlot);
 
+/** Type d'agent, tel que Herdr le nomme. Sert à savoir si un `id` est résoluble. */
+const decodeAgentKind = Schema.decodeUnknownOption(
+  Schema.Struct({ agent: Schema.optional(Schema.NullOr(Schema.String)) }),
+);
+
 /**
  * Chemin du fichier de session, ou `undefined` si l'agent n'en a pas.
  *
@@ -57,8 +63,11 @@ export const sessionPathOf = (agent: unknown): string | undefined => {
   const decoded = Option.getOrUndefined(decodeSessionSlot(agent));
   if (decoded === undefined) return undefined;
   const info = decoded.agent_session;
-  if (info === undefined || info === null || info.kind !== "path") return undefined;
-  return info.value;
+  if (info === undefined || info === null) return undefined;
+  // ⚠️ `agent` porte aussi le nom du type : c'est lui qui dit si un `id` est
+  // résoluble. La décision est prise dans `localiserSession`, et nulle part ici.
+  const kind = Option.getOrUndefined(decodeAgentKind(agent))?.agent ?? null;
+  return localiserSession(kind, info);
 };
 
 /** Fabrique les deux routes. `config` n'est lu que pour son `logPath`. */
@@ -129,7 +138,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
             // Rotation ou troncature : le curseur ne décrit plus ce fichier.
             // Le client doit **remplacer** sa vue, pas y ajouter — sinon il
             // afficherait des entrées qui ne sont plus dans le fichier.
-            const taille = yield* Effect.result(fileSize(path, config.piSessionsRoot));
+            const taille = yield* Effect.result(fileSize(path, config.sessionRoots));
             if (Result.isFailure(taille)) {
               const failure = Result.getFailure(taille);
               if (isMissingFile(failure)) {
@@ -146,7 +155,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
             if (!rejoueDepuis || !pasTronque) {
               // Curseur invalide : on **relit la fin** et on l'annonce.
               const rafraichit = yield* Effect.result(
-                readTail(path, SESSION_TAIL_BYTES, config.piSessionsRoot),
+                readTail(path, SESSION_TAIL_BYTES, config.sessionRoots),
               );
               const valeur = Option.getOrUndefined(Result.getSuccess(rafraichit));
               return {
@@ -158,7 +167,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
               };
             }
             const tailed = yield* Effect.result(
-              tailFrom(path, cursor.offset, "", config.piSessionsRoot),
+              tailFrom(path, cursor.offset, "", config.sessionRoots),
             );
             return {
               kind: "ok" as const,
@@ -175,7 +184,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
             Number.isInteger(tailBytes) && tailBytes > 0
               ? Math.min(tailBytes, SESSION_TAIL_HARD_CAP)
               : SESSION_TAIL_BYTES;
-          const tailed = yield* Effect.result(readTail(path, finite, config.piSessionsRoot));
+          const tailed = yield* Effect.result(readTail(path, finite, config.sessionRoots));
           if (Result.isFailure(tailed)) {
             const failure = failureOf(tailed);
             // Absence de fichier → session vide. Autre erreur → vraie panne.

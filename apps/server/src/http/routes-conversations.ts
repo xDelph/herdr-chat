@@ -142,7 +142,7 @@ export const makeConversationRoutes = (config: ServerConfig, herdr: HerdrApi) =>
       decoded.workspaces.map((workspace) => [workspace.workspace_id, workspace.label ?? ""]),
     );
 
-    const read = defaultRead(config.piSessionsRoot);
+    const read = defaultRead(config.sessionRoots);
     const lire = (path: string): Effect.Effect<TailedSession, unknown> => read(path);
 
     /*

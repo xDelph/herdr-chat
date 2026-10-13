@@ -39,6 +39,7 @@ describe("U14 — une session se lit quand elle a un chemin", () => {
 describe("U14 — seuls les types vérifiés sont proposés", () => {
   test("pi est proposé : Herdr expose un fichier JSONL", () => {
     expect(typeLisible("pi")).toBe(true);
+    expect(typeLisible("codex")).toBe(true);
   });
 
   test("opencode est refusé : sa session est dans une base", () => {
@@ -49,10 +50,15 @@ describe("U14 — seuls les types vérifiés sont proposés", () => {
     expect(typeLisible("devin")).toBe(false);
   });
 
-  test("codex et cursor sont refusés : aucune session exposée", () => {
-    // Mesuré après avoir **travaillé** : `completion_seq` monté, statut `done`,
-    // et toujours aucun chemin. Ce n'est donc pas une session qui naît tard.
-    expect(typeLisible("codex")).toBe(false);
+  test("codex est ACCEPTÉ : un identifiant vaut un chemin", () => {
+    // ⚠️ Ce test affirmait l'inverse. La mesure de 2026-10-13 l'a démentie :
+    // Herdr donne bien à codex un `kind: "id"`, et cet identifiant est celui du
+    // fichier `~/.codex/sessions/**/rollout-*.jsonl`. « Pas de chemin » n'est
+    // pas « pas de session » — c'était une erreur de lecture du produit.
+    expect(typeLisible("codex")).toBe(true);
+  });
+
+  test("cursor reste refusé : rien n'a été mesuré pour lui", () => {
     expect(typeLisible("cursor")).toBe(false);
   });
 
@@ -64,7 +70,8 @@ describe("U14 — seuls les types vérifiés sont proposés", () => {
   });
 
   test("les types refusés le sont tous, sans exception cachée", () => {
-    for (const kind of ["opencode", "devin", "codex", "cursor", "claude", "agy", "gemini"]) {
+    // ⚠️ codex n'est plus dans cette liste, et c'est le seul changement.
+    for (const kind of ["opencode", "devin", "cursor", "claude", "agy", "gemini"]) {
       expect(typeLisible(kind)).toBe(false);
     }
   });

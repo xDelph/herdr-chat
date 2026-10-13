@@ -15,8 +15,7 @@
  * | pi       | oui     | `kind: path`, fichier `.jsonl` | **oui**          |
  * | opencode | oui     | `kind: id` + base SQLite      | non             |
  * | devin    | oui     | `kind: id` (`heavenly-…`)     | non             |
- * | codex    | oui     | rien, même après avoir        | non             |
- * |          |         | travaillé (`completion_seq`)  |                 |
+ * | codex    | oui     | `kind: id` ×2 (voir ci-dessous) | **oui**        |
  * | cursor   | oui     | rien                         | non             |
  * | claude   | écran de connexion — non concluant | — | inconnu |
  * | agy      | démarrage refusé         | —                             | inconnu         |
@@ -29,13 +28,29 @@
  * inexistant** : il est simplement non vérifié, et l'honnêteté consiste à ne pas
  * le proposer.
  *
+ * ⚠️ **Correction du 2026-10-13, Herdr 0.9.3, protocole 22.** La première mesure
+ * concluait que codex n'exposait « rien ». Elle était **fausse**. Refaite sur un
+ * agent codex réellement utilisé, Herdr expose :
+ *
+ * ```
+ * agent_session: { source: "herdr:codex", kind: "id", value: "01a13437-…" }
+ * ```
+ *
+ * Ce n'est pas un `path`, donc l'ancienne lecture l'ignorait — mais cet
+ * identifiant est **exactement** celui du nom de fichier de codex
+ * (`~/.codex/sessions/<date>/rollout-<horodatage>-<id>.jsonl`). La leçon, et elle
+ * vaut au-delà de codex : **« pas de chemin » n'est pas « pas de session »**. Un
+ * `kind` inattendu est une question de forme, pas une preuve d'illisibilité, et
+ * la seule façon de trancher est d'aller regarder le disque.
+ *
  * Pour ajouter un type : démarrer un agent de ce type dans un pane jetable,
- * vérifier qu'Herdr expose un chemin, puis l'ajouter ici **avec la date et la
- * version de Herdr**. Sans ces deux éléments, l'entrée est une hypothèse.
+ * vérifier **sur le disque** que la session se lit, puis l'ajouter ici **avec la
+ * date et la version de Herdr**. Sans ces deux éléments, l'entrée est une
+ * hypothèse.
  */
 
 /** Types vérifiés : Herdr expose pour eux un chemin de session que l'on peut lire. */
-export const TYPES_A_SESSION_LISIBLE: ReadonlySet<string> = new Set(["pi"]);
+export const TYPES_A_SESSION_LISIBLE: ReadonlySet<string> = new Set(["pi", "codex"]);
 
 /** Herdr testé le jour de la mesure, et la version du protocole. */
 export const MESURE_SUR = { herdr: "0.9.3", protocole: 22, le: "2026-10-12" } as const;

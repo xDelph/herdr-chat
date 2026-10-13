@@ -53,7 +53,7 @@ const config: ServerConfig = {
   herdrSocketPath: join(TEST_TMP, "fake.sock"),
   hostname: "127.0.0.1",
   logPath: join(TEST_TMP, "herdr-remote.log"),
-  piSessionsRoot: join(TEST_TMP, "sessions"),
+  sessionRoots: [join(TEST_TMP, "sessions")],
   publicOrigins: ["http://127.0.0.1:8791"],
   port: DEFAULT_BACKEND_PORT,
 };

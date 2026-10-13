@@ -2579,23 +2579,30 @@ button:disabled {
    --------------------------------------------------------------------------- */
 
 .ordre {
-  align-items: center;
   display: flex;
-  gap: 8px;
   justify-content: flex-end;
-  padding: 4px 0 8px;
+  /* Négatif : la bascule se cale sur la même ligne que l'en-tête, sans
+     ajouter de hauteur à la liste. */
+  margin-bottom: -34px;
 }
 
-.ordre__label {
+/* Une cible tactile de 44 px, pour une pastille qui paraît en faire 28. */
+.ordre__bascule {
+  align-items: center;
+  background: none;
+  border: 0;
   color: var(--muted);
+  display: flex;
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  height: 44px;
+  justify-content: center;
+  letter-spacing: 0.02em;
+  min-width: 44px;
+  padding: 0;
 }
 
-.ordre__choix {
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text);
-  font-size: 13px;
-  padding: 6px 8px;
+.ordre__bascule[aria-pressed="true"] {
+  color: var(--accent);
+  font-weight: 600;
 }

@@ -33,7 +33,7 @@ import { ProjectAgentsOf } from "./ProjectDetail.tsx";
 import type { LaunchChoice } from "./launch.ts";
 import { TrustCard } from "./TrustCard.tsx";
 import { parseRoute, routeToHash } from "./routing.ts";
-import { ORDRES, ORDRE_LABEL, SECTION_LABEL, sectionConversations } from "./sections.ts";
+import { ORDRE_LABEL, SECTION_LABEL, sectionConversations } from "./sections.ts";
 import type { Ordre } from "./sections.ts";
 import { ConversationRow } from "./ConversationRow.tsx";
 import { SectionTitle } from "./SectionTitle.tsx";
@@ -298,9 +298,8 @@ export const App = () => {
    */
   /** Ordre choisi. Défaut « récent » : le contrat U04. */
   const [ordre, setOrdre] = useState<Ordre>("recent");
-  const onOrdreChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
-    // Décodage plutôt qu'assertion : une valeur inattendue retombe sur le défaut.
-    setOrdre(event.target.value === "nom" ? "nom" : "recent");
+  const basculerOrdre = useCallback(() => {
+    setOrdre((actuel) => (actuel === "recent" ? "nom" : "recent"));
   }, []);
 
   const sections = useMemo(
@@ -553,21 +552,28 @@ export const App = () => {
       */}
       <section className="screen screen--liste">
         {/*
-          Sélecteur d'ordre. ⚠️ Le défaut reste « plus récentes » : à
-          l'ouverture on veut voir ce qui vient de bouger. « Par nom » sert à
-          retrouver une conversation précise.
+          Un **basculement**, pas une liste déroulante : deux états, un seul
+          geste, et la place d'une icône. Une liste déroulante pour deux choix
+          coûtait une ligne entière et deux gestes.
+
+          ⚠️ Le défaut reste « récent » : à l'ouverture on veut voir ce qui vient
+          de bouger. « Par nom » sert à retrouver une conversation précise.
         */}
         <div className="ordre">
-          <label className="ordre__label" htmlFor="ordre">
-            Trier
-          </label>
-          <select id="ordre" className="ordre__choix" value={ordre} onChange={onOrdreChange}>
-            {ORDRES.map((valeur) => (
-              <option key={valeur} value={valeur}>
-                {ORDRE_LABEL[valeur]}
-              </option>
-            ))}
-          </select>
+          <button
+            type="button"
+            className="ordre__bascule"
+            aria-pressed={ordre === "nom"}
+            onClick={basculerOrdre}
+            title={ORDRE_LABEL[ordre]}
+          >
+            <span aria-hidden="true">{ordre === "nom" ? "A→Z" : "⏱"}</span>
+            <span className="visually-hidden">
+              {ordre === "nom"
+                ? "Trié par nom, appuyer pour trier par date"
+                : "Trié par date, appuyer pour trier par nom"}
+            </span>
+          </button>
         </div>
         {sections.map(({ lignes, section }) => (
           <section key={section}>

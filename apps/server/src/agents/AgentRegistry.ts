@@ -22,6 +22,7 @@ import type {
 } from "@herdr-remote/shared";
 import { readHeader } from "../sessions/SessionReader.ts";
 import { sessionLisible } from "./Lisibilite.ts";
+import { localiserSession } from "./SessionLocator.ts";
 
 /** Vue d'un agent exposée à l'interface. */
 export interface AgentView {
@@ -129,7 +130,8 @@ export const enrichAgent = (
 ): Effect.Effect<AgentView> =>
   Effect.gen(function* () {
     const session = agent.agent_session ?? null;
-    const path = session?.kind === "path" ? session.value : null;
+    // ⚠️ Résolution unique : `path` passe tel quel, `id` est résolu pour codex.
+    const path = localiserSession(agent.agent ?? null, session) ?? null;
 
     let sessionCwd: string | null = null;
     let sessionId: string | null = null;
