@@ -26,6 +26,7 @@ import {
   PromptFailedResponse,
   PromptSentResponse,
   PromptSuppressedResponse,
+  StopAgentResponse,
 } from "@herdr-remote/shared";
 import { buildOverview, checkoutPathOf, composerOverview } from "../agents/AgentRegistry.ts";
 import { buildModelArgs, checkThinkingSupported } from "../agents/ModelArgs.ts";
@@ -57,6 +58,8 @@ import { makeConversationRoutes } from "./routes-conversations.ts";
 import { typeLisible } from "../agents/Lisibilite.ts";
 import { describeGuardRejection, guardMutation, methodNotAllowed } from "./OriginGuard.ts";
 import { writeLog } from "../logging/LogFile.ts";
+import type { PushNotificationsApi } from "../notifications/PushNotifications.ts";
+import type { PushSubscription } from "web-push";
 
 export interface ApiDeps {
   readonly config: ServerConfig;
@@ -65,6 +68,7 @@ export interface ApiDeps {
   readonly sender: PromptSenderApi;
   readonly watch: WatchLoop;
   readonly startedAt: number;
+  readonly notifications?: PushNotificationsApi;
 }
 
 /** Corps de requête attendu pour l'envoi d'un prompt. */
@@ -298,7 +302,10 @@ const modelCatalog = (logPath: string, request: RouteRequest): Promise<Response>
     Effect.gen(function* () {
       const kind = request.params["kind"] ?? "";
       const catalog = yield* catalogOf(kind);
-      return respond(logPath, decoderOf(ModelCatalogResponse), { ...catalog, kind });
+      return respond(logPath, decoderOf(ModelCatalogResponse), {
+        ...catalog,
+        kind,
+      });
     }),
   );
 
@@ -334,7 +341,7 @@ const refuseIfCrossSite = (
 };
 
 export const makeRoutes = (deps: ApiDeps): Routes => {
-  const { config, herdr, hub, sender, watch, startedAt } = deps;
+  const { config, herdr, hub, sender, watch, startedAt, notifications } = deps;
 
   const answerTrust = makeAnswerTrust(config.logPath, config.publicOrigins, herdr);
   const answerQuestion = makeAnswerQuestion(config.logPath, config.publicOrigins, herdr);
@@ -342,6 +349,71 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
   const fileRoutes = makeFileRoutes(config, herdr);
   const eventRoutes = makeEventRoutes(hub);
   const conversationRoutes = makeConversationRoutes(config, herdr);
+
+  const notificationKey = async (): Promise<Response> => {
+    if (notifications === undefined) {
+      return new Response("Web Push is unavailable", { status: 503 });
+    }
+    try {
+      return new Response(await notifications.publicKey(), {
+        headers: { "cache-control": "no-store", "content-type": "text/plain; charset=utf-8" },
+      });
+    } catch (cause) {
+      return json(config.logPath, { error: `Web Push setup failed: ${String(cause)}` }, 500);
+    }
+  };
+
+  const notificationSubscription = async (request: RouteRequest): Promise<Response> => {
+    const refused = refuseIfCrossSite(config.logPath, request, config.publicOrigins);
+    if (refused !== undefined) return refused;
+    if (notifications === undefined)
+      return json(config.logPath, { error: "Web Push is unavailable" }, 503);
+
+    const raw: unknown = await request.json().catch(() => undefined);
+    const unsubscribe = Option.getOrUndefined(
+      Schema.decodeUnknownOption(Schema.Struct({ unsubscribe: Schema.String }))(raw),
+    );
+    if (unsubscribe !== undefined) {
+      try {
+        await notifications.unsubscribe(unsubscribe.unsubscribe);
+        return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
+      } catch (cause) {
+        return json(
+          config.logPath,
+          { error: `Could not remove push subscription: ${String(cause)}` },
+          500,
+        );
+      }
+    }
+
+    const subscription = Option.getOrUndefined(
+      Schema.decodeUnknownOption(
+        Schema.Struct({
+          endpoint: Schema.String,
+          expirationTime: Schema.optional(Schema.NullOr(Schema.Number)),
+          keys: Schema.Struct({ auth: Schema.String, p256dh: Schema.String }),
+        }),
+      )(raw),
+    );
+    if (subscription === undefined || !subscription.endpoint.startsWith("https://")) {
+      return json(config.logPath, { error: "Invalid Web Push subscription" }, 400);
+    }
+    try {
+      const savedSubscription: PushSubscription = {
+        endpoint: subscription.endpoint,
+        expirationTime: subscription.expirationTime ?? null,
+        keys: subscription.keys,
+      };
+      await notifications.subscribe(savedSubscription);
+      return new Response(null, { status: 204, headers: { "cache-control": "no-store" } });
+    } catch (cause) {
+      return json(
+        config.logPath,
+        { error: `Could not save push subscription: ${String(cause)}` },
+        500,
+      );
+    }
+  };
 
   const health = (): Promise<Response> =>
     Effect.gen(function* () {
@@ -428,7 +500,9 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
         const payload = yield* herdr.snapshot();
         const snapshot = Option.getOrUndefined(decodeSnapshot(payload["snapshot"]));
         if (snapshot === undefined) {
-          return yield* Effect.fail({ message: "snapshot Herdr illisible (forme inattendue)" });
+          return yield* Effect.fail({
+            message: "snapshot Herdr illisible (forme inattendue)",
+          });
         }
         return yield* buildOverview({
           agents: snapshot.agents,
@@ -498,7 +572,10 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     // Un double envoi n'est pas une erreur serveur : c'est un no-op assumé (D007.2).
     if (failure !== undefined && isDuplicate(failure)) {
       await Effect.runPromise(
-        hub.publish("prompt-suppressed", { paneId, reason: "envoi identique consécutif" }),
+        hub.publish("prompt-suppressed", {
+          paneId,
+          reason: "envoi identique consécutif",
+        }),
       );
       return respond(config.logPath, decoderOf(PromptSuppressedResponse), {
         reason: "envoi identique déjà confirmé dans la fenêtre",
@@ -521,6 +598,77 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
       },
       502,
     );
+  };
+
+  /**
+   * Demande une interruption du processus au premier plan.
+   *
+   * Herdr 0.9.3 n'expose pas de méthode `agent.stop`. La seule primitive
+   * disponible est `agent.send_keys` : on ne l'utilise que si le snapshot
+   * confirme que le pane porte encore un agent `working`. La réponse confirme
+   * la transmission de Ctrl+C, jamais l'arrêt effectif du processus.
+   */
+  const stopAgent = async (request: RouteRequest): Promise<Response> => {
+    const refused = refuseIfCrossSite(config.logPath, request, config.publicOrigins);
+    if (refused !== undefined) return refused;
+
+    const paneId = request.params["paneId"] ?? "";
+    const payload = await Effect.runPromise(Effect.result(herdr.snapshot()));
+    if (Result.isFailure(payload)) {
+      const failure = failureOf(payload);
+      return respond(
+        config.logPath,
+        decoderOf(ApiErrorResponse),
+        {
+          error: failure === undefined ? "snapshot Herdr indisponible" : describe(failure),
+        },
+        502,
+      );
+    }
+    const snapshotPayload = Option.getOrUndefined(Result.getSuccess(payload));
+    const snapshot =
+      snapshotPayload === undefined
+        ? undefined
+        : Option.getOrUndefined(decodeSnapshot(snapshotPayload["snapshot"]));
+    if (snapshot === undefined) {
+      return respond(
+        config.logPath,
+        decoderOf(ApiErrorResponse),
+        { error: "snapshot Herdr illisible — arrêt non demandé" },
+        502,
+      );
+    }
+
+    const agent = snapshot.agents.find((candidate) => candidate.pane_id === paneId);
+    if (agent === undefined) {
+      return respond(
+        config.logPath,
+        decoderOf(ApiErrorResponse),
+        { error: `aucun agent Herdr dans le pane ${paneId}` },
+        404,
+      );
+    }
+    if (agent.agent_status !== "working") {
+      return respond(config.logPath, decoderOf(StopAgentResponse), {
+        status: "not-running",
+      });
+    }
+
+    const sent = await Effect.runPromise(Effect.result(herdr.sendKeys(paneId, ["ctrl-c"])));
+    if (Result.isFailure(sent)) {
+      const failure = failureOf(sent);
+      return respond(
+        config.logPath,
+        decoderOf(ApiErrorResponse),
+        {
+          error: failure === undefined ? "envoi de Ctrl+C refusé" : describe(failure),
+        },
+        502,
+      );
+    }
+    return respond(config.logPath, decoderOf(StopAgentResponse), {
+      status: "interrupt-sent",
+    });
   };
 
   /**
@@ -675,7 +823,12 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
 
           // Étape 1 : un onglet dans le projet, ouvert dans son dossier.
           const tab = yield* herdr
-            .createTab({ cwd: checkout, focus: false, label: name, workspace_id: workspaceId })
+            .createTab({
+              cwd: checkout,
+              focus: false,
+              label: name,
+              workspace_id: workspaceId,
+            })
             .pipe(
               // ⚠️ Une erreur non qualifiée n'est pas exploitable : on dit quelle
               // étape a échoué, et où en est resté le projet.
@@ -741,7 +894,12 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
               ),
             );
 
-          return { kind: body.kind, name, paneId: tab.paneId, tabId: tab.tabId };
+          return {
+            kind: body.kind,
+            name,
+            paneId: tab.paneId,
+            tabId: tab.tabId,
+          };
         }),
       ),
     );
@@ -814,7 +972,11 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     }
 
     await Effect.runPromise(
-      hub.publish("agent-launched", { kind: started.kind, paneId: started.paneId, workspaceId }),
+      hub.publish("agent-launched", {
+        kind: started.kind,
+        paneId: started.paneId,
+        workspaceId,
+      }),
     );
 
     return respond(
@@ -872,11 +1034,14 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
         state: integration.state,
       }));
 
-    return respond(config.logPath, decoderOf(InstalledKindsResponse), { kinds });
+    return respond(config.logPath, decoderOf(InstalledKindsResponse), {
+      kinds,
+    });
   };
 
   return {
     "/api/agents/:paneId/prompt": prompt,
+    "/api/agents/:paneId/stop": stopAgent,
     "/api/workspaces/:workspaceId/agents": launchAgent,
     "/api/agents/:paneId/session": sessionRoutes.session,
     "/api/agents/kinds": agentKinds,
@@ -885,6 +1050,8 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     "/api/agents/:paneId/trust": answerTrust,
     "/api/log": (request) => clientLog(config.logPath, config.publicOrigins, request),
     "/api/events": eventRoutes.events,
+    "/api/notifications/vapid-key": notificationKey,
+    "/api/notifications/subscriptions": notificationSubscription,
     "/api/file": fileRoutes.file,
     "/api/images": fileRoutes.images,
     "/api/health": health,

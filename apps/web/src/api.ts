@@ -31,6 +31,7 @@ import {
   SessionResponse as SessionResponseSchema,
   TrustRequiredResponse,
   TrustResolvedResponse,
+  StopAgentResponse,
 } from "@herdr-remote/shared";
 
 /**
@@ -60,6 +61,7 @@ export type {
   SessionResponse,
   TrustRequiredResponse as TrustRequired,
   TrustResolvedResponse as TrustResolved,
+  StopAgentResponse,
   WorkspaceView,
 } from "@herdr-remote/shared";
 
@@ -82,8 +84,16 @@ export type {
  * n'a rien dit. Un état qu'on ne connaît pas ne vaut jamais un accord.
  */
 export type TrustAnswer =
-  | { readonly accepted: true; readonly detail: string; readonly state: TrustState }
-  | { readonly accepted: false; readonly detail: string; readonly state: TrustState };
+  | {
+      readonly accepted: true;
+      readonly detail: string;
+      readonly state: TrustState;
+    }
+  | {
+      readonly accepted: false;
+      readonly detail: string;
+      readonly state: TrustState;
+    };
 
 /** États de décision de confiance, plus le nôtre pour un transport muet. */
 export type TrustState = "transmise" | "acceptee" | "refusee" | "non-applicable" | "inconnu";
@@ -206,7 +216,11 @@ export const fetchModelCatalog = (kind: string): Promise<ModelCatalogResponse> =
 export type SendResult =
   | { kind: "sent"; confirmation: "confirmed" | "unknown"; fingerprint: string }
   | { kind: "suppressed"; reason: string }
-  | { kind: "failed"; message: string; state: "attente" | "erreur" | "inconnu" };
+  | {
+      kind: "failed";
+      message: string;
+      state: "attente" | "erreur" | "inconnu";
+    };
 
 const ErrorPayload = ApiErrorResponse;
 const SuppressedPayload = PromptSuppressedResponse;
@@ -291,9 +305,14 @@ export const fetchOverview = () => decoded("/api/overview", decoderOf(OverviewSc
  */
 export const fetchSession = (
   paneId: string,
-  options: { readonly cursor?: string; readonly tail?: number } = {},
+  options: {
+    readonly before?: string;
+    readonly cursor?: string;
+    readonly tail?: number;
+  } = {},
 ) => {
   const query = new URLSearchParams();
+  if (options.before !== undefined) query.set("before", options.before);
   if (options.cursor !== undefined) query.set("cursor", options.cursor);
   if (options.tail !== undefined) query.set("tail", String(options.tail));
   const suffix = query.size > 0 ? `?${query.toString()}` : "";
@@ -391,6 +410,14 @@ export const sendPrompt = async (paneId: string, text: string): Promise<SendResu
     state: "inconnu",
   };
 };
+
+/** Envoie une demande d'interruption à un agent que Herdr voit en cours. */
+export const stopAgent = (paneId: string): Promise<StopAgentResponse> =>
+  decoded(
+    `/api/agents/${encodeURIComponent(paneId)}/stop`,
+    decoderOf(StopAgentResponse),
+    "arrêt d'agent",
+  );
 
 /**
  * Ouvre le flux d'événements.
@@ -518,7 +545,10 @@ export const answerQuestion = async (paneId: string, numero: number): Promise<An
   try {
     payload = await readJson(response);
   } catch {
-    return { detail: `réponse illisible (${response.status})`, state: "refusee" };
+    return {
+      detail: `réponse illisible (${response.status})`,
+      state: "refusee",
+    };
   }
 
   if (response.status !== 200) {
@@ -536,6 +566,9 @@ export const answerQuestion = async (paneId: string, numero: number): Promise<An
   const decode = Schema.decodeUnknownOption(QuestionAnsweredResponse);
   const valeur = Option.getOrUndefined(decode(payload));
   return valeur === undefined
-    ? { detail: "réponse illisible : l'état n'a pas pu être lu", state: "refusee" }
+    ? {
+        detail: "réponse illisible : l'état n'a pas pu être lu",
+        state: "refusee",
+      }
     : { detail: valeur.detail, state: valeur.state };
 };

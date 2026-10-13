@@ -174,6 +174,8 @@ export const SessionResponse = Schema.Struct({
   incremental: Schema.Boolean,
   /** Curseur à renvoyer au prochain appel. Absent quand la session est nouvelle. */
   cursor: Schema.optional(Schema.String),
+  /** Curseur opaque pour demander la page précédente de l'historique. */
+  previousCursor: Schema.optional(Schema.String),
   /** `true` quand des entrées précédentes existent mais n'ont pas été renvoyées. */
   hasMore: Schema.Boolean,
   /**
@@ -216,6 +218,12 @@ export const PromptSuppressedResponse = Schema.Struct({
   status: Schema.Literal("suppressed"),
 });
 export type PromptSuppressedResponse = typeof PromptSuppressedResponse.Type;
+
+/** Demande d'interruption envoyée au terminal d'un agent en cours. */
+export const StopAgentResponse = Schema.Struct({
+  status: Schema.Literals(["interrupt-sent", "not-running"]),
+});
+export type StopAgentResponse = typeof StopAgentResponse.Type;
 
 /** Demande de lancement d'un agent dans un projet. */
 export const LaunchAgentRequest = Schema.Struct({

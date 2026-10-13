@@ -285,6 +285,7 @@ describe("identité des routes — A01", () => {
       "/api/agents/:paneId/answer",
       "/api/agents/:paneId/prompt",
       "/api/agents/:paneId/session",
+      "/api/agents/:paneId/stop",
       "/api/agents/:paneId/trust",
       "/api/agents/kinds",
       "/api/conversations",
@@ -293,6 +294,8 @@ describe("identité des routes — A01", () => {
       "/api/health",
       "/api/images",
       "/api/log",
+      "/api/notifications/subscriptions",
+      "/api/notifications/vapid-key",
       "/api/overview",
       "/api/workspaces/:workspaceId/agents",
     ]);
