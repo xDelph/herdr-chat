@@ -16,6 +16,8 @@
 > **Phase 5 ⚠️** T5.1 ✅ (bind vérifié, `0.0.0.0` refusé en code) · T5.3b ✅ · T5.4 ✅ — **T5.2 ⛔ BLOQUÉ** : Serve non activé sur le tailnet (D010)
 > **Reste** : T6.0 (critère de succès MVP sur iPhone), puis V1/V2
 
+> **Mise à jour du 11/10/2026 :** ce statut Phase 5 est historique. Serve est désormais configuré sur HTTPS `:8790` → `127.0.0.1:8791` (`tailscale serve status`, D019). La validation iPhone/PWA et l'alignement du port de release restent à faire dans le backlog actif ; ne pas interpréter T5.2 comme toujours bloqué par l'administration.
+
 > ## ⚠️ Règle de méthode imposée par le spike
 > **Le schéma n'est PAS la source de vérité de l'implémentation.** Écart mesuré et répété (D008.2) : `EventMatch` = 19 variantes au schéma, **1 seule** implémentée · `revision` toujours `0` · `agent_status` optionnel au schéma, exigé par le serveur.
 > **Toute capacité doit être vérifiée par EXÉCUTION avant d'être utilisée.** Le schéma sert à découvrir la surface, pas à décider de sa disponibilité.

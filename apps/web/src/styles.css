@@ -20,7 +20,12 @@
   --radius-lg: 12px;
   --radius-pill: 999px;
   /* Rayon d'un champ de saisie : la forme d'iOS Messages, ni galet ni rectangle. */
-  --radius-field: 22px;
+  /*
+   * Rayon du champ de saisie.
+   * ⚠️ 22 px donnait un galet sur un champ d'une ligne, et une pilule écrasée
+   * dès qu'il grandit. 14 px suit le champ quelle que soit sa hauteur.
+   */
+  --radius-field: 14px;
   /* Fonds qui n'appartiennent pas a la palette de surfaces : code, terminal,
      ligne numero, voile. Ils etaient repetes et copies dans le CSS. */
   --code-bg: #05080f;
@@ -481,29 +486,53 @@ button:disabled {
   est divisé par deux — la pastille mesurait 56 px de haut pour un champ d'une
   ligne.
 */
+/*
+  Pastille de saisie.
+  ⚠️ Un rayon de galet (22 px) sur un champ qui peut faire cinq lignes donne une
+  forme de pilule écrasée. 14 px suit le champ quelle que soit sa hauteur.
+*/
 .composer {
-  align-items: center;
+  align-items: flex-end;
   background: var(--surface-2);
   border-radius: var(--radius-field);
   display: flex;
   gap: 6px;
   margin: 6px 12px calc(6px + env(safe-area-inset-bottom));
-  padding: 3px 4px 3px 14px;
+  padding: 4px 4px 4px 14px;
 }
 
-/* Le champ lui-même n'a plus de cadre : la pastille est autour de lui. */
+/*
+  Le champ n'a aucun cadre propre : la pastille est autour de lui.
+  ⚠️ `outline: none` est indispensable — Safari dessine sinon un anneau de mise
+  au point disgracieux dès la première frappe, à l'intérieur de la pastille.
+*/
 .composer textarea {
   background: none;
   border: none;
-  padding: 6px 0;
-}
-
-.composer textarea {
   flex: 1;
   /* 16 px : en dessous, Safari iOS zoome à la mise au point. */
   font-size: 16px;
-  min-height: var(--tap-min);
+  /* Aligne le texte sur la même ligne de base que le bouton, quelle que soit
+     la hauteur. Sans cela, une ligne unique flottait vers le haut. */
+  line-height: 22px;
+  margin: 0;
+  min-height: 22px;
+  outline: none;
+  padding: 11px 0;
   resize: none;
+}
+
+.composer textarea:focus,
+.composer textarea:focus-visible {
+  border: none;
+  box-shadow: none;
+  outline: none;
+}
+
+/* Le texte indicatif se cale sur la même ligne que le texte saisi. */
+.composer textarea::placeholder {
+  color: var(--muted);
+  line-height: 22px;
 }
 
 /*
@@ -2492,4 +2521,55 @@ button:disabled {
 
 .reflexion__texte p {
   margin: 0 0 4px;
+}
+
+/* ---------------------------------------------------------------------------
+   Familles de blocs — un liseré, pas une icône
+   ---------------------------------------------------------------------------
+   ⚠️ Des icônes monochromes ne se distinguent pas d'un bloc à l'autre, et trois
+   glyphes choisis séparément ne forment pas un système. Un **liseré gauche
+   coloré** identifie la famille d'un regard, sans lire, et reste lisible en
+   thème clair comme sombre.
+   --------------------------------------------------------------------------- */
+
+/* Ce qui agit sur le monde : shell. */
+.blk--bash,
+.blk--bash-exec {
+  border-left: 3px solid var(--accent);
+}
+
+/* Ce qui modifie un fichier : édition, écriture. */
+.blk--edit,
+.blk--write {
+  border-left: 3px solid var(--warn);
+}
+
+/* Ce qui observe : lecture, résultat d'outil. */
+.blk--result {
+  border-left: 3px solid color-mix(in srgb, var(--muted) 55%, transparent);
+}
+
+/* Ce qui pense : réflexion. */
+.blk--thinking {
+  border-left: 3px solid #9879d2;
+}
+
+/* Un échec prime sur la famille : le rouge remplace le liseré. */
+.blk--error {
+  border-left: 3px solid var(--err);
+}
+
+/* La flèche d'un bloc repliable : plus lisible, et alignée à droite. */
+.blk__row,
+.group__head,
+.files > summary,
+.blk--compaction > summary {
+  cursor: pointer;
+}
+
+.blk__chevron {
+  color: var(--muted);
+  flex-shrink: 0;
+  font-size: 13px;
+  margin-left: auto;
 }

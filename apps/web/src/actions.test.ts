@@ -106,7 +106,16 @@ describe("U21 — les jetons se lisent d'un regard", () => {
   test("65 000 devient 65k", () => {
     // ⚠️ `65000` ne se lit pas au doigt et prend la place de trois mots.
     expect(jetonsCourts(65_000)).toBe("65k");
-    expect(jetonsCourts(1_200_000)).toBe("1200k");
+  });
+
+  test("au-delà du million, on passe au million", () => {
+    /*
+     * ⚠️ `1_200_000` s'affichait « 1200k » — et un gros travail « 2156k ».
+     * Quatre chiffres suivis d'un `k` ne se lisent pas ; l'utilisateur l'a
+     * signalé. On change d'unité au million.
+     */
+    expect(jetonsCourts(1_200_000)).toBe("1,2 M");
+    expect(jetonsCourts(2_156_000)).toBe("2,2 M");
   });
 
   test("sous 10 000 on garde une décimale", () => {

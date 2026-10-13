@@ -24,6 +24,8 @@ bun run apps/server/src/main.ts           # http://127.0.0.1:8790
 
 **Chemin canonique (HTTPS, PWA installable)** — nécessite que Serve soit activé sur le tailnet :
 
+La configuration actuelle est déjà active : HTTPS `:8790` pointe vers `127.0.0.1:8791` (D019). Vérifier `tailscale serve status` et le port réel du backend avant de modifier cette configuration. La commande ci-dessous est une **installation initiale**, pas une étape à relancer aveuglément sur ce Mac.
+
 ```bash
 tailscale serve --bg 8790
 ```

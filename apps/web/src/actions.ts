@@ -226,9 +226,15 @@ export const resumeDuGroupe = (noms: ReadonlyArray<string>): string => {
 export const jetonsCourts = (nombre: number): string => {
   if (!Number.isFinite(nombre) || nombre <= 0) return "";
   if (nombre < 1000) return String(Math.round(nombre));
+
   const milliers = nombre / 1000;
   if (milliers < 10) return `${milliers.toFixed(1).replace(".", ",")}k`;
-  return `${String(Math.round(milliers))}k`;
+  // ⚠️ Au-delà du million, `2156k` ne se lit pas : on passe au million. Sans
+  // cette borne, un gros travail s'affichait « 2156k ».
+  if (milliers < 1000) return `${String(Math.round(milliers))}k`;
+
+  const millions = milliers / 1000;
+  return `${millions.toFixed(1).replace(".", ",")} M`;
 };
 
 /**

@@ -5,12 +5,13 @@
 ## Frontière de confiance
 
 ```text
-iPhone personnel ── tailnet Tailscale ── Serve HTTPS ── 127.0.0.1:8790 ── Herdr Remote
+iPhone personnel ── tailnet Tailscale ── Serve HTTPS ── 127.0.0.1:<port local> ── Herdr Remote
                                                             │
                                                             └── socket Herdr + sessions Pi
 ```
 
 - Le serveur de release écoute exclusivement sur `127.0.0.1` ; Tailscale Serve est le seul chemin distant pris en charge. `tailscale funnel` et toute exposition sur le LAN ou Internet sont exclus.
+- Mesure du 11/10/2026 : Serve publie actuellement HTTPS `:8790` vers `127.0.0.1:8791`. F03/F06/S01 doivent retenir puis vérifier un port local cohérent dans les scripts, la formule et Serve ; le port HTTPS public peut être différent.
 - L'accès distant dépend des appareils et règles d'accès du tailnet. Avant la release, vérifier qu'un appareil personnel autorisé atteint la PWA et qu'un appareil exclu par les grants/ACL n'atteint pas le port Serve. Ne pas déduire cette restriction du seul fait que Serve est activé.
 - **Toute personne ou tout processus pouvant joindre le service peut lire les sessions exposées et appeler les routes mutantes.** Cela comprend les processus locaux du Mac et tout appareil auquel la politique Tailscale accorde l'accès. C'est une limite assumée du mode personnel, pas une authentification implicite.
 - Le chemin alternatif actuel `HERDR_REMOTE_BIND=<IP Tailscale>` existe dans le dépôt, mais n'est pas la configuration publiée pour la release PWA. Son sort doit être tranché dans S01 et la documentation d'installation doit décrire le chemin effectivement vérifié.

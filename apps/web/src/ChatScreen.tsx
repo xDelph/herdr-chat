@@ -148,8 +148,25 @@ export const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => 
     if (el !== null) el.scrollTop = el.scrollHeight;
   }, [entries.length]);
 
+  /**
+   * Champ grandissant, borné à cinq lignes.
+   *
+   * ⚠️ Un `textarea` à hauteur fixe oblige à faire défiler son propre message
+   * dès la deuxième ligne. Toutes les messageries grandissent puis s'arrêtent :
+   * au-delà de cinq lignes on écrit un document, pas un message.
+   *
+   * La hauteur est remise à `auto` **avant** de mesurer — sinon `scrollHeight`
+   * ne fait que croître et le champ ne redescend jamais quand on efface.
+   */
   const onDraftChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setDraft(event.target.value);
+    const field = event.target;
+    setDraft(field.value);
+
+    field.style.height = "auto";
+    const LINE_HEIGHT = 22;
+    const maximum = LINE_HEIGHT * 5;
+    field.style.height = `${String(Math.min(field.scrollHeight, maximum))}px`;
+    field.style.overflowY = field.scrollHeight > maximum ? "auto" : "hidden";
   }, []);
 
   const submit = useCallback(async () => {

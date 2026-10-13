@@ -85,7 +85,7 @@ Herdr → panes / agents / subagents existants
 
 ## 6. Sécurité & performance (non négociables)
 
-- **Tailscale uniquement :** Serve HTTPS vers le service local sur `127.0.0.1:8790` ; **jamais** `tailscale funnel`, jamais de port public.
+- **Tailscale uniquement :** Serve HTTPS vers le service local sur `127.0.0.1:<port configuré>` ; mapping actuel observé `:8790` → `127.0.0.1:8791` (D019) ; **jamais** `tailscale funnel`, jamais de port public.
 - Accès personnel défini par **Tailscale ACL/grants** ; pas d'identité ni d'autorisation applicative pour cette release. Toute connexion autorisée au service peut appeler les routes de lecture et d'action. Voir [SECURITY_MODEL.md](SECURITY_MODEL.md).
 - Vérifier l'hôte, l'origine des requêtes mutantes et les limites de ressources HTTP/SSE ; commandes autorisées par liste blanche.
 - Ne pas exposer les secrets, clés API, variables d'environnement ni le contenu complet des fichiers sans action explicite ; limiter les logs.
