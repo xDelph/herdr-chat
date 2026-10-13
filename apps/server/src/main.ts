@@ -22,6 +22,7 @@ import { toAgentViews } from "./agents/AgentRegistry.ts";
 import { PromptSender } from "./send/PromptSender.ts";
 import { makeRoutes } from "./http/Api.ts";
 import type { Routes } from "./http/Reply.ts";
+import { makePushNotifications } from "./notifications/PushNotifications.ts";
 
 const startedAt = Date.now();
 
@@ -52,11 +53,27 @@ export const makeStaticHandler = (distDir: string) => {
       const asset = await resolveAsset(distDir, url.pathname);
       if (asset !== undefined) {
         const file = Bun.file(asset);
-        if (await file.exists()) return new Response(file);
+        if (await file.exists()) {
+          const volatileAsset = [
+            "/index.html",
+            "/sw.js",
+            "/push-sw.js",
+            "/manifest.webmanifest",
+          ].includes(url.pathname);
+          return new Response(
+            file,
+            volatileAsset
+              ? { headers: { "cache-control": "no-cache, no-store, must-revalidate" } }
+              : undefined,
+          );
+        }
       }
     }
     return new Response(Bun.file(indexPath), {
-      headers: { "content-type": "text/html; charset=utf-8" },
+      headers: {
+        "cache-control": "no-cache, no-store, must-revalidate",
+        "content-type": "text/html; charset=utf-8",
+      },
     });
   };
 };
@@ -76,13 +93,24 @@ export const program = Effect.gen(function* () {
   );
 
   const sender = yield* PromptSender.make(herdr, config.duplicateWindowMs);
+  const notifications = makePushNotifications(
+    process.env["HERDR_REMOTE_PUSH_STORE"] ?? join(process.cwd(), ".herdr-remote", "push.json"),
+  );
 
   // Veille : c'est ce qui produit le direct. Sans elle, le flux n'émettait que
   // les actions de l'utilisateur et jamais ce que font les agents.
-  const watcher = yield* AgentWatcher.make(hub);
+  const watcher = yield* AgentWatcher.make(hub, notifications);
   const watch = yield* startWatchLoop(herdr, watcher, toAgentViews);
 
-  const routes: Routes = makeRoutes({ config, herdr, hub, sender, startedAt, watch });
+  const routes: Routes = makeRoutes({
+    config,
+    herdr,
+    hub,
+    sender,
+    startedAt,
+    watch,
+    notifications,
+  });
   // `Bun.serve` donne un gestionnaire par chemin : la méthode n'y figure pas.
   // On l'attache donc ici, sans quoi un 405 serait impossible (S02). Voir
   // `AvecMethode.ts` : un simple spread viderait la requête.

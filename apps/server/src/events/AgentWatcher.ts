@@ -23,6 +23,7 @@ import type { EventHubApi } from "../events/EventHub.ts";
 import type { HerdrApi } from "../herdr/HerdrClient.ts";
 import { namingFrom } from "../agents/AgentRegistry.ts";
 import type { AgentView, NamingContext } from "../agents/AgentRegistry.ts";
+import type { PushNotificationsApi } from "../notifications/PushNotifications.ts";
 
 /** Ce qu'on mémorise d'un agent pour détecter un changement. */
 const signatureOf = (agent: AgentView): string =>
@@ -52,7 +53,7 @@ export interface AgentWatcherApi {
 export class AgentWatcher extends Context.Service<AgentWatcher, AgentWatcherApi>()(
   "herdr-remote/AgentWatcher",
 ) {
-  static readonly make = (hub: EventHubApi) =>
+  static readonly make = (hub: EventHubApi, notifications?: PushNotificationsApi) =>
     Effect.gen(function* () {
       const previous = yield* Ref.make<ReadonlyMap<string, { signature: string; status: string }>>(
         new Map(),
@@ -113,6 +114,24 @@ export class AgentWatcher extends Context.Service<AgentWatcher, AgentWatcherApi>
                 }),
               { discard: true },
             ),
+          ),
+          Effect.tap((result) =>
+            Effect.sync(() => {
+              for (const change of result.changes) {
+                if (change.from !== "working" || change.to === "working" || change.to === "gone")
+                  continue;
+                const agent = result.agents.find((candidate) => candidate.paneId === change.paneId);
+                void (async () => {
+                  try {
+                    await notifications?.agentFinished(agent?.title ?? "", change.paneId);
+                  } catch (cause: unknown) {
+                    console.error(
+                      `[push] unable to notify about agent status change: ${String(cause)}`,
+                    );
+                  }
+                })();
+              }
+            }),
           ),
         );
 

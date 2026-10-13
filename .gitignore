@@ -21,6 +21,7 @@ coverage/
 
 # Données locales
 .tailscale/
+.herdr-remote/
 *.sqlite
 *.sqlite-journal
 *.db

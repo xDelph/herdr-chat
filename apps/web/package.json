@@ -13,7 +13,8 @@
     "effect": "4.0.2",
     "marked": "18.1.0",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "workbox-window": "^7.4.1"
   },
   "devDependencies": {
     "@types/react": "19.3.0",

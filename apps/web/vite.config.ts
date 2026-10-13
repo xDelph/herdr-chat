@@ -4,9 +4,15 @@ import { defineConfig } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
+  define: {
+    __HERDR_PWA_BUILD_ID__: JSON.stringify(new Date().toISOString()),
+  },
   plugins: [
     react(),
     VitePWA({
+      // Registration is explicit in main.tsx so an installed app checks for a
+      // new worker whenever it returns to the foreground.
+      injectRegister: null,
       /**
        * `autoUpdate` et non `prompt`.
        *
@@ -23,6 +29,7 @@ export default defineConfig({
       registerType: "autoUpdate",
       workbox: {
         clientsClaim: true,
+        importScripts: ["/push-sw.js"],
         skipWaiting: true,
       },
       manifest: {
