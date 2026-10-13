@@ -109,6 +109,7 @@ export interface HerdrApi {
   readonly readAgent: (
     target: string,
     lines?: number,
+    source?: "recent" | "visible",
   ) => Effect.Effect<{ readonly text: string; readonly truncated: boolean }, HerdrError>;
 
   readonly promptAgent: (target: string, text: string) => Effect.Effect<ResultPayload, HerdrError>;
@@ -231,12 +232,27 @@ export class HerdrClient extends Context.Service<HerdrClient, HerdrApi>()(
 
     const getAgent = (target: string) => request(Method.agentGet, { target });
 
-    const readAgent = (target: string, lines = 200) =>
+    /**
+     * Lit l'écran d'un pane.
+     *
+     * ⚠️ **`source` n'est pas un détail.** Un agent qui attend une réponse passe
+     * en **écran alternatif**, et Herdr refuse alors de relire l'historique :
+     *
+     * > cannot read 200 lines while wB:p16 is blocked: its alternate-screen
+     * > history can only be captured by scrolling while idle.
+     * > Wait and retry, or use `--source visible`
+     *
+     * Autrement dit, la lecture qui sert à **détecter** une invite est justement
+     * celle qui échoue quand l'invite est affichée. `visible` lit l'écran
+     * courant, sans historique — ce qui est précisément ce qu'on veut pour une
+     * question, et suffisant pour un agent au repos.
+     */
+    const readAgent = (target: string, lines = 200, source: "recent" | "visible" = "recent") =>
       pipe(
         request(Method.agentRead, {
           target,
-          source: "recent",
-          lines,
+          source,
+          ...(source === "visible" ? {} : { lines }),
           strip_ansi: true,
         }),
         Effect.map((payload) => {

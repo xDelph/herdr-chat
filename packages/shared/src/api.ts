@@ -386,6 +386,24 @@ export type SessionState = typeof SessionState.Type;
  * aperçu ni date, et le champ reste absent plutôt que nul pour que l'absence
  * soit visible plutôt que simulée.
  */
+/** Un choix proposé par une question affichée à l'écran. */
+export const Choix = Schema.Struct({
+  detail: Schema.optional(Schema.String),
+  libelle: Schema.String,
+  numero: Schema.Number,
+  selectionne: Schema.Boolean,
+});
+
+/** Une question affichée à l'écran d'un pane, avec ses choix. */
+export const Question = Schema.Struct({
+  choix: Schema.Array(Choix),
+  contexte: Schema.Array(Schema.String),
+  invite: Schema.optional(Schema.String),
+  texte: Schema.String,
+});
+export type Question = typeof Question.Type;
+export type Choix = typeof Choix.Type;
+
 export const ConversationSummary = Schema.Struct({
   /**
    * Branche git du dossier de travail, quand il y en a une.
@@ -413,6 +431,15 @@ export const ConversationSummary = Schema.Struct({
   model: Schema.optional(Schema.String),
   /** Aperçu : dernier message texte de l'agent. Absent s'il n'y en a pas. */
   preview: Schema.optional(Schema.String),
+  /**
+   * Question posée à l'écran, quand l'agent en attend une.
+   *
+   * ⚠️ Elle ne vient **pas** de la session : une invite n'est écrite nulle part
+   * dans le JSONL. Elle se lit sur le terminal (`agent.read`). Un agent bloqué
+   * sans question lisible garde donc ce champ **absent** — l'état est connu, la
+   * question ne l'est pas.
+   */
+  question: Schema.optional(Question),
   /** Niveau de raisonnement en vigueur (`thinking_level_change`). */
   thinking: Schema.optional(Schema.String),
   sessionState: SessionState,

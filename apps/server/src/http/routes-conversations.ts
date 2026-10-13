@@ -23,6 +23,7 @@
 import { Effect, Option, Result } from "effect";
 import { decoderOf, respond } from "./Reply.ts";
 import { defaultRead, summaryOf, type RawPane } from "../conversations/Summary.ts";
+import { questionDeLEcran } from "@herdr-remote/shared";
 import { brancheDe as branchOf } from "../git/Branche.ts";
 import { sessionLisible } from "../agents/Lisibilite.ts";
 import { sessionPathOf } from "./routes-sessions.ts";
@@ -179,8 +180,33 @@ export const makeConversationRoutes = (config: ServerConfig, herdr: HerdrApi) =>
       return Effect.runPromise(summaryOf(paneBrut, lire));
     });
 
+    /*
+      La question posée à l'écran, pour les seuls panes **bloqués**.
+
+      ⚠️ **Pourquoi ici, et pas dans la session.** Une invite n'est écrite nulle
+      part dans le JSONL : elle n'existe que sur le terminal. `agent.read` la
+      donne. On ne la lit que pour les panes bloqués : c'est le seul état où
+      quelqu'un attend une réponse, et lire 200 lignes d'écran pour un agent au
+      repos serait une dépense sans contrepartie.
+    */
+    const avecQuestion = await Promise.all(
+      lignes.map(async (ligne) => {
+        if (ligne.status !== "blocked") return ligne;
+        const lecture = // `visible` : un agent bloqué est en écran alternatif, où l'historique
+          // est illisible — seule la vue courante l'est.
+          await Effect.runPromise(Effect.result(herdr.readAgent(ligne.paneId, 200, "visible")));
+        if (Result.isFailure(lecture)) return ligne;
+        const ecran = (Option.getOrUndefined(Result.getSuccess(lecture))?.text ?? "").trim();
+        if (ecran.length === 0) return ligne;
+        const question = questionDeLEcran(ecran);
+        // Pas de `{ ...ligne, question }` : la recopie d'objet dans un `map`
+        // est le motif que le lint refuse ici (no-map-spread).
+        return question === undefined ? ligne : Object.assign({}, ligne, { question });
+      }),
+    );
+
     return respond(config.logPath, decoderOf(ConversationsResponse), {
-      conversations: lignes,
+      conversations: avecQuestion,
     });
   };
 

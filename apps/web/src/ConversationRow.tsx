@@ -93,7 +93,16 @@ const ConversationRowInner = ({ conversation, maintenant, onglet, onOpen, projet
         La demande occupe **deux lignes au plus**. Au-delà, une ligne de liste
         prend la moitié de l'écran et la liste cesse d'être parcourable.
       */}
-      <span className="conv__demande">{conversation.lastPrompt ?? conversation.preview ?? ""}</span>
+      {/*
+        ⚠️ Pour un agent **bloqué**, la question passe avant tout : c'est ce
+        qu'on doit lire pour savoir s'il faut y aller. La demande précédente
+        (« ouvre le navigateur ») est déjà satisfaite et n'apprend plus rien.
+      */}
+      <span className="conv__demande">
+        {conversation.question === undefined
+          ? (conversation.lastPrompt ?? conversation.preview ?? "")
+          : `❓ ${conversation.question.texte}`}
+      </span>
 
       {morceaux.length > 0 ? <span className="conv__details">{morceaux.join(" · ")}</span> : null}
     </button>
