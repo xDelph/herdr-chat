@@ -95,6 +95,48 @@ describe("aperçu et horodatage — jamais inventés", () => {
     expect("preview" in line).toBe(false);
   });
 
+  /**
+   * ⚠️ Le cas d'un agent **bloqué**. Mesuré sur un agent codex en attente
+   * d'approbation : dans la fenêtre lue, il n'avait rien *dit* — que des appels
+   * d'outils. Sans repli, sa ligne dans « À traiter » restait **vide** : on
+   * voyait qu'il fallait agir, sans voir sur quoi.
+   */
+  test("un agent qui n'a rien dit montre son dernier appel d'outil", async () => {
+    const path = join(dir, "outil.jsonl");
+    await writeFile(
+      path,
+      [
+        ligne("user", "ouvre le navigateur"),
+        JSON.stringify({
+          message: {
+            content: [
+              {
+                arguments: {
+                  code: "await cua.getState();",
+                  title: "Inspect available browser window",
+                },
+                name: "js",
+                type: "toolCall",
+              },
+            ],
+            role: "assistant",
+          },
+          timestamp: "2026-10-09T15:09:00.000Z",
+          type: "message",
+        }),
+      ].join("\n") + "\n",
+    );
+    const line = await Effect.runPromise(summaryOf(pane({ sessionPath: path }), defaultRead(dir)));
+    expect(line.preview).toBe("js · Inspect available browser window");
+  });
+
+  test("sans rien à montrer, l'aperçu reste ABSENT — on n'invente pas", async () => {
+    const path = join(dir, "muet.jsonl");
+    await writeFile(path, ligne("assistant", [{ text: "  " }]));
+    const line = await Effect.runPromise(summaryOf(pane({ sessionPath: path }), defaultRead(dir)));
+    expect("preview" in line).toBe(false);
+  });
+
   test("session existante et vide : `available`, pas `absent`", () => {
     const vide = Effect.runSync(
       summaryOf(pane({ sessionPath: "/x" }), () => Effect.succeed(neverRead())),

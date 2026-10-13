@@ -93,7 +93,7 @@ export const titleOf = (pane: RawPane): string => {
  * n'a rien dit, on renvoie `undefined`, pas une phrase plausible (D017.1).
  */
 export const previewOf = (tailed: TailedSession): string | undefined =>
-  texteDeRole(tailed, "assistant");
+  texteDeRole(tailed, "assistant") ?? dernierOutilDeRole(tailed, "assistant");
 
 /**
  * Dernier **message de l'utilisateur**, pour la ligne de la liste.
@@ -113,6 +113,56 @@ const texteDeRole = (tailed: TailedSession, role: string): string | undefined =>
     if (roleDeLigne(entry.raw) !== role) continue;
     const texte = extractText(entry.raw);
     if (texte !== undefined && texte.length > 0) return texte;
+  }
+  return undefined;
+};
+
+/**
+ * Dernier **appel d'outil** de l'agent, résumé en une ligne.
+ *
+ * ⚠️ **Pourquoi ce repli existe.** Un agent bloqué n'a souvent rien *dit* : il a
+ * appelé un outil et attend. Sans ce repli, sa ligne dans la liste — celle de la
+ * section « À traiter », justement — restait **vide**, alors que les autres
+ * montraient leur dernière demande. L'utilisateur voyait qu'il fallait agir sans
+ * voir sur quoi. Mesuré sur un agent codex en attente d'approbation : la fenêtre
+ * lue ne contenait que des appels d'outils, donc aucun texte.
+ *
+ * On ne fabrique toujours rien : sans appel d'outil lisible, `undefined`.
+ */
+const dernierOutilDeRole = (tailed: TailedSession, role: string): string | undefined => {
+  for (let index = tailed.entries.length - 1; index >= 0; index -= 1) {
+    const entry = tailed.entries[index];
+    if (entry === undefined) continue;
+    if (roleDeLigne(entry.raw) !== role) continue;
+
+    const contenu = lire(corpsDeLigne(entry.raw) ?? {}, "content");
+    if (!Array.isArray(contenu)) continue;
+
+    for (const bloc of contenu) {
+      if (!isRecord(bloc)) continue;
+      if (lire(bloc, "type") !== "toolCall") continue;
+
+      const nom = lire(bloc, "name");
+      if (typeof nom !== "string" || nom.length === 0) continue;
+
+      const indice = indiceDArguments(lire(bloc, "arguments"));
+      return indice === undefined ? nom : `${nom} · ${indice}`;
+    }
+  }
+  return undefined;
+};
+
+/** Indice lisible dans les arguments d'un outil — jamais de JSON déversé. */
+const indiceDArguments = (args: unknown): string | undefined => {
+  if (typeof args === "string") {
+    const premiere = args.split("\n")[0]?.trim() ?? "";
+    return premiere.length === 0 ? undefined : premiere.slice(0, 80);
+  }
+  if (!isRecord(args)) return undefined;
+  // `title` d'abord : c'est le libellé que l'agent donne lui-même à son action.
+  for (const cle of ["title", "cmd", "command", "path", "code"]) {
+    const valeur = lire(args, cle);
+    if (typeof valeur === "string" && valeur.trim().length > 0) return valeur.trim().slice(0, 80);
   }
   return undefined;
 };

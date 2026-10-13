@@ -159,6 +159,83 @@ describe("codex → pi", () => {
     expect(enteteSansBalise?.message).toBeDefined();
   });
 
+  test("un appel d'outil devient un appel pi, arguments décodés", () => {
+    const ligne = ligneCodexVersPi(
+      item({
+        arguments: '{"code":"await cua.getState();","title":"Check"}',
+        call_id: "call_1",
+        name: "js",
+        type: "function_call",
+      }),
+    );
+    expect(ligne?.message).toEqual({
+      content: [
+        {
+          arguments: { code: "await cua.getState();", title: "Check" },
+          id: "call_1",
+          name: "js",
+          type: "toolCall",
+        },
+      ],
+      role: "assistant",
+    });
+  });
+
+  test("un `custom_tool_call` garde son script BRUT — ce n'est pas du JSON", () => {
+    // L'inventer en objet serait pire que de l'afficher tel quel.
+    const ligne = ligneCodexVersPi(
+      item({
+        input: 'const r = await tools.exec_command({cmd:"ls"});',
+        name: "exec",
+        type: "custom_tool_call",
+      }),
+    );
+    expect(ligne?.message).toEqual({
+      content: [
+        {
+          arguments: 'const r = await tools.exec_command({cmd:"ls"});',
+          name: "exec",
+          type: "toolCall",
+        },
+      ],
+      role: "assistant",
+    });
+  });
+
+  test("une sortie d'outil en LISTE de blocs est concaténée", () => {
+    // Mesuré : `output` est une liste pour `function_call_output`, une chaîne
+    // ailleurs. Les deux formes vivent dans le même fichier.
+    const enListe = ligneCodexVersPi(
+      item({
+        call_id: "call_1",
+        output: [
+          { text: "Wall time: 0.8s", type: "input_text" },
+          { text: "## Output", type: "input_text" },
+        ],
+        type: "function_call_output",
+      }),
+    );
+    expect(enListe?.message).toMatchObject({
+      content: [{ text: "Wall time: 0.8s## Output", type: "text" }],
+      role: "toolResult",
+      toolName: "outil",
+    });
+  });
+
+  test("une sortie d'outil en chaîne simple passe aussi", () => {
+    const ligne = ligneCodexVersPi(item({ output: "ok", type: "custom_tool_call_output" }));
+    expect(ligne?.message.content).toEqual([{ text: "ok", type: "text" }]);
+  });
+
+  test("la réflexion de codex est MASQUÉE, jamais inventée", () => {
+    // `encrypted_content` est chiffré et `summary` est vide : il n'y a rien à
+    // lire. Le dire masqué est fidèle ; fabriquer un raisonnement ne le serait pas.
+    const ligne = ligneCodexVersPi(
+      item({ encrypted_content: "gAAAA…", summary: [], type: "reasoning" }),
+    );
+    expect(ligne?.message.content).toEqual([{ redacted: true, type: "thinking" }]);
+  });
+
   test("un message sans texte ne fabrique pas de bulle vide", () => {
     expect(ligneCodexVersPi(item({ content: [], role: "user" }))).toBeUndefined();
     expect(
@@ -192,7 +269,9 @@ describe("codex → pi", () => {
       { type: "session_meta" },
       { type: "response_item" },
       { payload: { role: "user", type: "message" }, type: "response_item" },
-      { payload: { content: [], type: "reasoning" }, type: "response_item" },
+      // ⚠️ `reasoning` n'est plus dans cette liste : il est désormais traduit en
+      // réflexion masquée. Un type **inconnu** reste, lui, écarté.
+      { payload: { content: [], type: "type_inexistant" }, type: "response_item" },
     ]) {
       expect(ligneCodexVersPi(entree)).toBeUndefined();
     }

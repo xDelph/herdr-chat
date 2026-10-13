@@ -33,6 +33,59 @@
  *    un vrai message long n'a pas à être filtré.
  */
 
+/**
+ * Arguments d'un appel d'outil, quelle que soit sa famille.
+ *
+ * `function_call` donne du JSON dans `arguments` ; `custom_tool_call` donne un
+ * script brut dans `input`. On ne convertit pas le script en objet : ce n'est
+ * pas du JSON, et l'inventer serait pire que de l'afficher tel quel.
+ */
+const argumentsDe = (payload: Record<string, unknown>): unknown => {
+  const args = payload["arguments"];
+  if (typeof args === "string") {
+    try {
+      return JSON.parse(args) as unknown;
+    } catch {
+      return args;
+    }
+  }
+  if (args !== undefined) return args;
+  const entree = payload["input"];
+  return typeof entree === "string" ? entree : undefined;
+};
+
+/**
+ * Texte d'une sortie d'outil.
+ *
+ * Mesuré : `output` est une **liste** de blocs `{type:"input_text", text}` pour
+ * `function_call_output`, mais une simple chaîne ailleurs. Les deux formes
+ * existent dans le même fichier.
+ */
+const texteDeSortie = (sortie: unknown): string => {
+  if (typeof sortie === "string") return sortie;
+  if (!Array.isArray(sortie)) return "";
+  return sortie
+    .filter((bloc): bloc is Record<string, unknown> => estObjet(bloc))
+    .map((bloc) => (typeof bloc["text"] === "string" ? bloc["text"] : ""))
+    .join("");
+};
+
+/**
+ * Forme pi produite par l'adaptateur.
+ *
+ * `message` est typé assez précisément pour être **lu sans assertion** — un test
+ * qui doit caster pour vérifier ne vérifie plus grand-chose.
+ */
+export interface LignePi {
+  readonly type: string;
+  readonly timestamp?: string;
+  readonly message: {
+    readonly content: unknown;
+    readonly role?: string;
+    readonly toolName?: string;
+  };
+}
+
 /** Rôles qui font partie de la conversation. Le reste est de la configuration. */
 const ROLES_CONVERSATION: ReadonlySet<string> = new Set(["user", "assistant"]);
 
@@ -73,16 +126,55 @@ const estObjet = (v: unknown): v is Record<string, unknown> =>
  * Renvoie `undefined` si la ligne n'est pas un message de conversation — auquel
  * cas l'appelant garde la ligne brute, comme pour tout type inconnu.
  */
-export const ligneCodexVersPi = (
-  parsed: unknown,
-):
-  | { readonly type: string; readonly timestamp?: string; readonly message: unknown }
-  | undefined => {
+export const ligneCodexVersPi = (parsed: unknown): LignePi | undefined => {
   if (!estObjet(parsed)) return undefined;
   if (parsed["type"] !== "response_item") return undefined;
 
   const payload = parsed["payload"];
-  if (!estObjet(payload) || payload["type"] !== "message") return undefined;
+  if (!estObjet(payload)) return undefined;
+
+  const horodatage = parsed["timestamp"];
+  const enveloppe = (message: LignePi["message"]): LignePi => ({
+    ...(typeof horodatage === "string" ? { timestamp: horodatage } : {}),
+    message,
+    type: "message",
+  });
+
+  // ⚠️ Les appels d'outils et la réflexion passent par le **même** adaptateur.
+  // Les ignorer laissait la conversation muette : on ne voyait que les messages
+  // dits, alors que tout le travail de codex — et l'appel en attente
+  // d'approbation qui le bloque — est dans ces types-là.
+  switch (payload["type"]) {
+    case "function_call":
+    case "custom_tool_call":
+      return enveloppe({
+        content: [
+          {
+            arguments: argumentsDe(payload),
+            id: payload["call_id"],
+            name: typeof payload["name"] === "string" ? payload["name"] : "outil",
+            type: "toolCall",
+          },
+        ],
+        role: "assistant",
+      });
+    case "function_call_output":
+    case "custom_tool_call_output":
+      return enveloppe({
+        content: [{ text: texteDeSortie(payload["output"]), type: "text" }],
+        role: "toolResult",
+        toolName: "outil",
+      });
+    case "reasoning":
+      // Codex chiffre sa réflexion (`encrypted_content`) et son `summary` est
+      // vide : il n'y a **rien** à lire. On le dit masqué plutôt que d'inventer
+      // un raisonnement, exactement comme pi pour ses tours masqués.
+      return enveloppe({ content: [{ redacted: true, type: "thinking" }], role: "assistant" });
+    case "message":
+      break;
+    default:
+      return undefined;
+  }
 
   const role = payload["role"];
   if (typeof role !== "string" || !ROLES_CONVERSATION.has(role)) return undefined;
@@ -109,10 +201,5 @@ export const ligneCodexVersPi = (
   // blocs normaux, donc il survit.
   if (role === "user" && blocs.every((bloc) => estBlocDeContexte(bloc.text))) return undefined;
 
-  const horodatage = parsed["timestamp"];
-  return {
-    ...(typeof horodatage === "string" ? { timestamp: horodatage } : {}),
-    message: { content: blocs, role },
-    type: "message",
-  };
+  return enveloppe({ content: blocs, role });
 };
