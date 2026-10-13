@@ -79,10 +79,10 @@ const useHashRoute = (): [Route, (next: Route) => void] => {
 export type Connexion = "live" | "reconnexion" | "hors-ligne" | "inconnu";
 
 export const LIBELLE_CONNEXION: Record<Connexion, string> = {
-  live: "connecté",
-  reconnexion: "en reconnexion",
-  "hors-ligne": "hors ligne",
-  inconnu: "état inconnu",
+  live: "connected",
+  reconnexion: "reconnecting",
+  "hors-ligne": "offline",
+  inconnu: "unknown status",
 };
 
 export const App = () => {
@@ -91,6 +91,45 @@ export const App = () => {
   const [health, setHealth] = useState<Health | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState<"live" | "down">("down");
+
+  // iOS standalone PWAs can keep the layout viewport at its pre-keyboard
+  // height. Track the visual viewport so the composer stays above the keyboard
+  // and the chat header remains anchored while the field is focused.
+  useEffect(() => {
+    const viewport = window.visualViewport;
+    const syncViewport = () => {
+      const focusedInput =
+        document.activeElement instanceof HTMLElement &&
+        document.activeElement.matches("input, textarea, [contenteditable='true']");
+      const keyboardOpen =
+        focusedInput && viewport !== null && viewport.height < window.innerHeight - 100;
+
+      // In an installed iOS app, visualViewport can report a shorter height
+      // with the keyboard closed. Keep the shell anchored to the layout
+      // viewport normally; constrain it to visualViewport while typing.
+      if (keyboardOpen && viewport) {
+        document.documentElement.style.setProperty("--app-viewport-height", `${viewport.height}px`);
+        document.documentElement.style.setProperty("--app-viewport-top", `${viewport.offsetTop}px`);
+      } else {
+        document.documentElement.style.removeProperty("--app-viewport-height");
+        document.documentElement.style.removeProperty("--app-viewport-top");
+      }
+    };
+
+    syncViewport();
+    viewport?.addEventListener("resize", syncViewport);
+    viewport?.addEventListener("scroll", syncViewport);
+    window.addEventListener("resize", syncViewport);
+    window.addEventListener("orientationchange", syncViewport);
+    return () => {
+      viewport?.removeEventListener("resize", syncViewport);
+      viewport?.removeEventListener("scroll", syncViewport);
+      window.removeEventListener("resize", syncViewport);
+      window.removeEventListener("orientationchange", syncViewport);
+      document.documentElement.style.removeProperty("--app-viewport-height");
+      document.documentElement.style.removeProperty("--app-viewport-top");
+    };
+  }, []);
 
   /**
    * Lignes de la liste, servies par `/api/conversations`.
@@ -395,7 +434,11 @@ export const App = () => {
           } else {
             const message = cause instanceof Error ? cause.message : String(cause);
             setLaunchError(message);
-            reportError("échec du lancement d'agent", { message, workspaceId, kind });
+            reportError("échec du lancement d'agent", {
+              message,
+              workspaceId,
+              kind,
+            });
           }
         } finally {
           setLaunching(null);
@@ -461,7 +504,7 @@ export const App = () => {
       <div className="app">
         {agentPerime ? (
           <Notice ton="avertissement">
-            Cet agent n'apparaît plus dans Herdr. Ce qui suit est le dernier état connu.
+            This agent is no longer visible in Herdr. Showing its last known state.
           </Notice>
         ) : null}
         <ChatScreen
@@ -489,9 +532,9 @@ export const App = () => {
         <header className="topbar">
           <h1>Herdr Remote</h1>
         </header>
-        <Notice ton="erreur">Cet agent n'existe plus dans Herdr. Il a peut-être été fermé.</Notice>
+        <Notice ton="erreur">This agent no longer exists in Herdr. It may have been closed.</Notice>
         <button type="button" className="back" onClick={closeAgent}>
-          ‹ Retour
+          ‹ Back
         </button>
       </div>
     );
@@ -521,17 +564,30 @@ export const App = () => {
           <button
             type="button"
             className="ghost topbar__engrenage"
-            aria-label="Réglages"
+            aria-label="Settings"
             onClick={ouvrirReglages}
           >
-            ⚙
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <path
+                d="M12 8.25a3.75 3.75 0 1 0 0 7.5 3.75 3.75 0 0 0 0-7.5Z"
+                stroke="currentColor"
+                strokeWidth="1.8"
+              />
+              <path
+                d="m19.4 15 .05.05a1.8 1.8 0 0 1-2.55 2.55l-.05-.05a1.8 1.8 0 0 0-3.06 1.27v.14a1.8 1.8 0 0 1-3.6 0v-.08a1.8 1.8 0 0 0-3.06-1.27l-.05.05a1.8 1.8 0 0 1-2.55-2.55l.05-.05A1.8 1.8 0 0 0 3.25 12H3.1a1.8 1.8 0 0 1 0-3.6h.08a1.8 1.8 0 0 0 1.27-3.06l-.05-.05a1.8 1.8 0 0 1 2.55-2.55l.05.05a1.8 1.8 0 0 0 3.06-1.27v-.14a1.8 1.8 0 0 1 3.6 0v.08a1.8 1.8 0 0 0 3.06 1.27l.05-.05a1.8 1.8 0 0 1 2.55 2.55l-.05.05A1.8 1.8 0 0 0 20.55 9h.14a1.8 1.8 0 0 1 0 3.6h-.08A1.8 1.8 0 0 0 19.4 15Z"
+                stroke="currentColor"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
           </button>
         </div>
       </header>
 
       <BandeauEtat
         etat={etat}
-        libelleVide="Aucune conversation dans Herdr pour l'instant."
+        libelleVide="No conversations in Herdr yet."
         onReessayer={reessayer}
       />
 
@@ -586,16 +642,12 @@ export const App = () => {
             <button
               type="button"
               className="ordre__bascule"
+              aria-label={ordre === "nom" ? "Sort by date" : "Sort by name"}
               aria-pressed={ordre === "nom"}
               onClick={basculerOrdre}
               title={ORDRE_LABEL[ordre]}
             >
               <span aria-hidden="true">{ordre === "nom" ? "A→Z" : "⏱"}</span>
-              <span className="visually-hidden">
-                {ordre === "nom"
-                  ? "Trié par nom, appuyer pour trier par date"
-                  : "Trié par date, appuyer pour trier par nom"}
-              </span>
             </button>
           </div>
           {sections.map(({ lignes, section }) => (
@@ -614,15 +666,17 @@ export const App = () => {
             </section>
           ))}
           {conversations.length === 0 && etat.phase === "pret" ? (
-            <p className="muted liste__rien">Aucun agent dans Herdr pour l'instant.</p>
+            <p className="muted liste__rien">No agents in Herdr yet.</p>
           ) : null}
         </section>
       ) : null}
 
       {route.kind === "liste" ? (
-        <button type="button" className="fab" onClick={() => setProjetChoisi(true)}>
-          + Nouvel agent
-        </button>
+        <footer className="app__footer">
+          <button type="button" className="fab" onClick={() => setProjetChoisi(true)}>
+            + New agent
+          </button>
+        </footer>
       ) : null}
 
       {projetChoisi ? (

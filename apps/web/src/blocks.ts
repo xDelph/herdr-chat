@@ -27,7 +27,11 @@ import { Option, Schema } from "effect";
 
 export type Block =
   | { readonly kind: "text"; readonly text: string }
-  | { readonly kind: "thinking"; readonly redacted: boolean; readonly thinking: string }
+  | {
+      readonly kind: "thinking";
+      readonly redacted: boolean;
+      readonly thinking: string;
+    }
   | {
       readonly kind: "toolCall";
       readonly arguments: Readonly<Record<string, unknown>>;
@@ -41,7 +45,10 @@ export type Block =
   | { readonly kind: "imageUrl"; readonly url: string }
   | {
       readonly kind: "toolResult";
-      readonly images: ReadonlyArray<{ readonly data: string; readonly mimeType: string }>;
+      readonly images: ReadonlyArray<{
+        readonly data: string;
+        readonly mimeType: string;
+      }>;
       readonly isError: boolean;
       readonly text: string;
       readonly toolName: string;
@@ -108,7 +115,10 @@ export interface RenderedMessage {
 // Schémas de décodage
 // ---------------------------------------------------------------------------
 
-const TextBlock = Schema.Struct({ text: Schema.String, type: Schema.Literal("text") });
+const TextBlock = Schema.Struct({
+  text: Schema.String,
+  type: Schema.Literal("text"),
+});
 
 const ThinkingBlock = Schema.Struct({
   redacted: Schema.optional(Schema.Boolean),
@@ -133,11 +143,17 @@ const ImageBlockSchema = Schema.Struct({
 const AnyBlock = Schema.Union([TextBlock, ThinkingBlock, ToolCallBlock, ImageBlockSchema]);
 
 const MessageBody = Schema.Struct({
+  cancelled: Schema.optional(Schema.Boolean),
   content: Schema.optional(Schema.Unknown),
+  command: Schema.optional(Schema.String),
+  exitCode: Schema.optional(Schema.NullOr(Schema.Number)),
   isError: Schema.optional(Schema.Boolean),
   model: Schema.optional(Schema.String),
+  output: Schema.optional(Schema.String),
+  phase: Schema.optional(Schema.String),
   role: Schema.optional(Schema.String),
   stopReason: Schema.optional(Schema.String),
+  truncated: Schema.optional(Schema.Boolean),
   toolName: Schema.optional(Schema.String),
   usage: Schema.optional(
     Schema.Struct({
@@ -194,6 +210,97 @@ const decodeSessionLine = Schema.decodeUnknownOption(SessionLine);
 const decodeBlock = Schema.decodeUnknownOption(AnyBlock);
 const decodeBash = Schema.decodeUnknownOption(BashExecution);
 const decodeCompaction = Schema.decodeUnknownOption(Compaction);
+
+/** Normalise les arguments Codex : ils arrivent souvent comme une chaîne JSON. */
+const toolArgumentsOf = (value: unknown): Readonly<Record<string, unknown>> => {
+  if (typeof value === "string") {
+    try {
+      const parsed: unknown = JSON.parse(value);
+      const object = Option.getOrUndefined(
+        Schema.decodeUnknownOption(Schema.Record(Schema.String, Schema.Unknown))(parsed),
+      );
+      if (object !== undefined) return object;
+      if (Array.isArray(parsed) && parsed.every((part) => typeof part === "string"))
+        return { argv: parsed };
+    } catch {
+      // Codex `exec` may provide the shell script directly, not as JSON.
+    }
+    return { command: value };
+  }
+  return (
+    Option.getOrUndefined(
+      Schema.decodeUnknownOption(Schema.Record(Schema.String, Schema.Unknown))(value),
+    ) ?? {}
+  );
+};
+
+export interface PatchFileChange {
+  readonly kind: "add" | "delete" | "update";
+  readonly path: string;
+  readonly edits: ReadonlyArray<{ readonly newText: string; readonly oldText: string }>;
+}
+
+/** Commande shell portée par un appel Codex, sous ses différentes formes. */
+export const commandTextOf = (args: Readonly<Record<string, unknown>>): string | undefined => {
+  for (const key of ["command", "cmd", "code", "argv"] as const) {
+    const value = args[key];
+    if (typeof value === "string") return value;
+    if (Array.isArray(value) && value.every((part) => typeof part === "string"))
+      return key === "cmd" && value.length > 0 ? (value.at(-1) ?? "") : value.join(" ");
+  }
+  return undefined;
+};
+
+/** Découpe un `apply_patch` Codex en changements de fichiers mesurables. */
+export const patchFilesOf = (command: string): ReadonlyArray<PatchFileChange> => {
+  if (!command.includes("*** Begin Patch")) return [];
+  const result: PatchFileChange[] = [];
+  let kind: PatchFileChange["kind"] | undefined;
+  let path: string | undefined;
+  let edits: Array<{ newText: string; oldText: string }> = [];
+  let oldLines: string[] = [];
+  let newLines: string[] = [];
+  const flushEdit = () => {
+    if (oldLines.length > 0 || newLines.length > 0) {
+      edits.push({ newText: newLines.join("\n"), oldText: oldLines.join("\n") });
+      oldLines = [];
+      newLines = [];
+    }
+  };
+  const flushFile = () => {
+    flushEdit();
+    if (kind !== undefined && path !== undefined) result.push({ edits, kind, path });
+    kind = undefined;
+    path = undefined;
+    edits = [];
+  };
+
+  for (const line of command.split(/\r?\n/)) {
+    const header = /^\*\*\* (Update|Add|Delete) File: (.+)$/.exec(line);
+    if (header !== null) {
+      flushFile();
+      kind = header[1] === "Add" ? "add" : header[1] === "Delete" ? "delete" : "update";
+      path = header[2]?.trim();
+      continue;
+    }
+    if (line === "*** End Patch") {
+      flushFile();
+      continue;
+    }
+    if (kind === undefined) continue;
+    if (line.startsWith("@@")) {
+      flushEdit();
+    } else if (line.startsWith("+") && !line.startsWith("+++")) {
+      newLines.push(line.slice(1));
+    } else if (line.startsWith("-") && !line.startsWith("---")) {
+      oldLines.push(line.slice(1));
+    } else if (line.startsWith(" ")) {
+      flushEdit();
+    }
+  }
+  flushFile();
+  return result;
+};
 
 /** Extrait les images d'un contenu, sans passer par un bloc texte. */
 const imagesOf = (content: unknown): ReadonlyArray<{ data: string; mimeType: string }> => {
@@ -355,18 +462,13 @@ export const toBlocks = (content: unknown): ReadonlyArray<Block> => {
       case "thinking": {
         const thinking = decoded.thinking ?? "";
         const redacted = decoded.redacted === true;
-        // Un bloc masqué n'a pas de texte visible : on l'annonce sans inventer.
-        if (thinking.trim().length === 0 && !redacted) return [];
+        // Une réflexion vide ou masquée n'apporte rien à la conversation.
+        if (thinking.trim().length === 0 || redacted) return [];
         return [{ kind: "thinking", redacted, thinking }];
       }
 
       case "toolCall": {
-        const args =
-          Option.getOrUndefined(
-            Schema.decodeUnknownOption(Schema.Record(Schema.String, Schema.Unknown))(
-              decoded.arguments,
-            ),
-          ) ?? {};
+        const args = toolArgumentsOf(decoded.arguments);
         return [
           {
             arguments: args,
@@ -406,6 +508,7 @@ const metaOf = (body: typeof MessageBody.Type | undefined): Readonly<Record<stri
   if (body === undefined) return {};
   const meta: Record<string, string> = {};
   if (body.model !== undefined) meta["model"] = body.model;
+  if (body.phase !== undefined) meta["phase"] = body.phase;
   if (body.stopReason !== undefined) meta["stopReason"] = body.stopReason;
   if (body.usage?.totalTokens !== undefined) meta["tokens"] = String(body.usage.totalTokens);
   const cost = body.usage?.cost?.total;
@@ -456,14 +559,16 @@ export const toRenderedMessage = (entry: {
         return undefined;
       }
     })();
-    if (parsed === undefined) return undefined;
+    if (parsed === undefined && body?.command === undefined) return undefined;
+    const command = parsed?.command ?? body?.command ?? "";
+    const output = parsed?.output ?? body?.output ?? "";
     const block: Block = {
-      cancelled: parsed.cancelled === true,
-      command: parsed.command,
-      exitCode: parsed.exitCode ?? null,
+      cancelled: parsed?.cancelled === true || body?.cancelled === true,
+      command,
+      exitCode: parsed?.exitCode ?? body?.exitCode ?? null,
       kind: "bashExecution",
-      output: parsed.output ?? "",
-      truncated: parsed.truncated === true,
+      output,
+      truncated: parsed?.truncated === true || body?.truncated === true,
     };
     return {
       at: entry.timestamp ?? null,
@@ -471,7 +576,7 @@ export const toRenderedMessage = (entry: {
       id: entry.id ?? "bash",
       meta: {},
       role: "bashExecution",
-      text: `${parsed.command}\n${parsed.output ?? ""}`,
+      text: `${command}\n${output}`,
     };
   }
 
@@ -514,7 +619,7 @@ export const toRenderedMessage = (entry: {
   // telle plutôt que de déverser sa sortie brute.
   const subagent = isToolResult ? toSubagent(rawDetailsOf(entry.raw)) : undefined;
 
-  const blocks: ReadonlyArray<Block> =
+  let blocks: ReadonlyArray<Block> =
     subagent !== undefined
       ? [{ kind: "subagent", mode: subagent.mode, results: subagent.results }]
       : isToolResult
@@ -528,6 +633,15 @@ export const toRenderedMessage = (entry: {
             },
           ]
         : toBlocks(body?.content);
+  if (role === "assistant" && entry.id?.startsWith("codex:") === true) {
+    blocks = blocks.filter((block) => {
+      if (block.kind !== "toolCall" || block.name !== "exec") return true;
+      const command = commandTextOf(block.arguments);
+      // Codex's outer JS wrapper often only calls tools.exec_command; the
+      // native CommandExecution event below carries the actual shell command.
+      return command === undefined || !/tools\.exec_command\s*\(/.test(command);
+    });
+  }
 
   if (blocks.length === 0) return undefined;
 
@@ -546,7 +660,7 @@ export const toRenderedMessage = (entry: {
   return {
     at: entry.timestamp ?? null,
     blocks: withImages,
-    id: entry.id ?? `${role}:${contentToText(body?.content).slice(0, 24)}`,
+    id: entry.id ?? `entry:${stableHash(entry.raw)}`,
     meta: metaOf(body),
     role,
     text: withImages
@@ -554,6 +668,15 @@ export const toRenderedMessage = (entry: {
       .join("\n")
       .trim(),
   };
+};
+
+const stableHash = (value: string): string => {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
 };
 
 /** Texte cherchable d'un bloc — sert à l'aperçu et à la recherche. */
@@ -592,10 +715,56 @@ export const toMessages = (
     readonly type: string;
   }>,
 ): ReadonlyArray<RenderedMessage> =>
-  entries.flatMap((entry) => {
+  entries.reduce<RenderedMessage[]>((messages, entry) => {
+    if (entry.type === "token_usage_record") {
+      try {
+        const parsed: unknown = JSON.parse(entry.raw);
+        if (typeof parsed === "object" && parsed !== null) {
+          const payload = Reflect.get(parsed, "payload");
+          if (typeof payload === "object" && payload !== null) {
+            const turn = Reflect.get(payload, "turn_token_usage");
+            const usage = Reflect.get(payload, "usage");
+            const total =
+              typeof turn === "object" && turn !== null
+                ? Reflect.get(turn, "total_tokens")
+                : undefined;
+            const fallback =
+              typeof usage === "object" && usage !== null
+                ? Reflect.get(usage, "total_tokens")
+                : undefined;
+            const last = messages.at(-1);
+            const tokens = typeof total === "number" ? total : fallback;
+            if (last?.role === "assistant" && typeof tokens === "number" && tokens > 0) {
+              messages[messages.length - 1] = {
+                ...last,
+                meta: { ...last.meta, tokens: String(tokens) },
+              };
+            }
+          }
+        }
+      } catch {
+        // Un enregistrement d'usage illisible ne doit pas faire perdre le fil.
+      }
+      return messages;
+    }
     const message = toRenderedMessage(entry);
-    return message === undefined ? [] : [message];
-  });
+    if (message !== undefined) {
+      // Codex may record the same text in an event and a response item. Keep
+      // one copy when adjacent records for the same role match.
+      const plainText =
+        (message.role === "assistant" || message.role === "user") &&
+        message.blocks.length > 0 &&
+        message.blocks.every((block) => block.kind === "text");
+      const previousSameRole = messages.findLast((candidate) => candidate.role === message.role);
+      const sameTimestamp =
+        previousSameRole?.at !== null && previousSameRole?.at !== undefined && message.at !== null
+          ? Math.abs(Date.parse(message.at) - Date.parse(previousSameRole.at)) <= 10_000
+          : true;
+      if (!(plainText && previousSameRole?.text === message.text && sameTimestamp))
+        messages.push(message);
+    }
+    return messages;
+  }, []);
 
 // ---------------------------------------------------------------------------
 // Regroupement des appels d'outils
@@ -609,9 +778,20 @@ export type Item =
       readonly id: string;
       readonly messages: ReadonlyArray<RenderedMessage>;
       /** Outils utilisés, avec leur nombre — pour un résumé lisible. */
-      readonly tools: ReadonlyArray<{ readonly name: string; readonly count: number }>;
+      readonly tools: ReadonlyArray<{
+        readonly name: string;
+        readonly count: number;
+      }>;
       readonly callCount: number;
     };
+
+/** Raccourcit un chemin uniquement quand il appartient au workspace affiché. */
+export const relativeWorkspacePath = (path: string, cwd: string | null | undefined): string => {
+  if (!cwd) return path;
+  const root = cwd.endsWith("/") ? cwd : `${cwd}/`;
+  if (path === cwd) return ".";
+  return path.startsWith(root) ? path.slice(root.length) : path;
+};
 
 const toolNamesOf = (
   messages: ReadonlyArray<RenderedMessage>,
@@ -664,21 +844,26 @@ const toolNamesOf = (
  * réponse : elle se lit hors du bloc, sinon il faudrait déplier pour lire ce
  * qu'on est venu chercher.
  */
-export const toItems = (messages: ReadonlyArray<RenderedMessage>): ReadonlyArray<Item> => {
+export const toItems = (
+  messages: ReadonlyArray<RenderedMessage>,
+  lastTurnInProgress = false,
+): ReadonlyArray<Item> => {
   const items: Item[] = [];
   let tour: RenderedMessage[] = [];
 
-  const flush = () => {
+  const flush = (inProgress = lastTurnInProgress) => {
     if (tour.length === 0) return;
 
     /*
       La réponse = la **dernière** prose du tour.
     */
     let indexReponse = -1;
-    for (let index = tour.length - 1; index >= 0; index -= 1) {
-      if (aDeLaProse(tour[index])) {
-        indexReponse = index;
-        break;
+    if (!inProgress) {
+      for (let index = tour.length - 1; index >= 0; index -= 1) {
+        if (aDeLaProse(tour[index])) {
+          indexReponse = index;
+          break;
+        }
       }
     }
 
@@ -712,7 +897,9 @@ export const toItems = (messages: ReadonlyArray<RenderedMessage>): ReadonlyArray
     if (travail.length > 0) {
       items.push({
         callCount: travail.length,
-        id: `travail:${travail[0]?.id ?? "?"}:${String(travail.length)}`,
+        // L'identité du groupe suit son premier message. Le nombre de messages
+        // augmente pendant le streaming et ne doit pas remonter son composant.
+        id: `travail:${travail[0]?.id ?? "?"}`,
         kind: "tools",
         messages: travail,
         tools: toolNamesOf(travail),
@@ -725,7 +912,7 @@ export const toItems = (messages: ReadonlyArray<RenderedMessage>): ReadonlyArray
 
   for (const message of messages) {
     if (message.role === "user") {
-      flush();
+      flush(false);
       items.push({ kind: "single", message });
       continue;
     }
@@ -788,7 +975,10 @@ export interface TouchedFile {
   /** Nombre de lignes retirées. */
   readonly removed: number;
   /** Éditions successives, dans l'ordre de la session. */
-  readonly edits: ReadonlyArray<{ readonly newText: string; readonly oldText: string }>;
+  readonly edits: ReadonlyArray<{
+    readonly newText: string;
+    readonly oldText: string;
+  }>;
   readonly path: string;
 }
 
@@ -804,12 +994,34 @@ export const touchedFilesOf = (
 ): ReadonlyArray<TouchedFile> => {
   const byPath = new Map<
     string,
-    { added: number; edits: { newText: string; oldText: string }[]; removed: number }
+    {
+      added: number;
+      edits: { newText: string; oldText: string }[];
+      removed: number;
+    }
   >();
 
   for (const message of messages) {
     for (const block of message.blocks) {
       if (block.kind !== "toolCall") continue;
+      if (["exec", "exec_command", "apply_patch"].includes(block.name)) {
+        const command = commandTextOf(block.arguments);
+        if (command === undefined) continue;
+        for (const patch of patchFilesOf(command)) {
+          const entry = byPath.get(patch.path) ?? {
+            added: 0,
+            edits: [] as { newText: string; oldText: string }[],
+            removed: 0,
+          };
+          for (const edit of patch.edits) {
+            entry.edits.push(edit);
+            if (edit.newText.length > 0) entry.added += edit.newText.split("\n").length;
+            if (edit.oldText.length > 0) entry.removed += edit.oldText.split("\n").length;
+          }
+          byPath.set(patch.path, entry);
+        }
+        continue;
+      }
 
       const path = block.arguments["path"];
       if (typeof path !== "string") continue;

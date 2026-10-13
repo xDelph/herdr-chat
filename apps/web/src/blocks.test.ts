@@ -15,10 +15,21 @@ import {
   blockToText,
   contentToText,
   lastAssistantText,
+  relativeWorkspacePath,
   toBlocks,
   toItems,
   toMessages,
 } from "./blocks.ts";
+
+describe("chemins du workspace", () => {
+  test("les chemins internes sont relatifs et ceux hors du workspace restent explicites", () => {
+    expect(relativeWorkspacePath("/repo/apps/web/src/App.tsx", "/repo")).toBe(
+      "apps/web/src/App.tsx",
+    );
+    expect(relativeWorkspacePath("/other/file.ts", "/repo")).toBe("/other/file.ts");
+    expect(relativeWorkspacePath("file.ts", null)).toBe("file.ts");
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Fabriques
@@ -77,10 +88,9 @@ describe("toBlocks", () => {
     }
   });
 
-  test("réflexion masquée : conservée même sans texte visible", () => {
+  test("réflexion masquée : pas de bloc vide", () => {
     const blocks = toBlocks([{ redacted: true, type: "thinking" }]);
-    expect(blocks).toHaveLength(1);
-    if (blocks[0]?.kind === "thinking") expect(blocks[0].redacted).toBe(true);
+    expect(blocks).toHaveLength(0);
   });
 
   test("appel d'outil : arguments décodés en objet", () => {
@@ -318,6 +328,24 @@ describe("toMessages", () => {
     ).toHaveLength(1);
   });
 
+  test("Codex wrapper JS is hidden when it only launches a shell command", () => {
+    const entry = JSON.stringify({
+      id: "codex:1:item",
+      message: {
+        content: [
+          {
+            arguments: 'const r = await tools.exec_command({cmd:"bun run build"});',
+            name: "exec",
+            type: "toolCall",
+          },
+        ],
+        role: "assistant",
+      },
+      type: "message",
+    });
+    expect(toMessages([{ id: "codex:1:item", raw: entry, type: "message" }])).toEqual([]);
+  });
+
   test("un appel d'outil SANS nom est écarté — il n'y a rien à afficher", () => {
     expect(
       toMessages([
@@ -353,6 +381,21 @@ describe("toMessages", () => {
 });
 
 describe("toItems — regroupement des appels d'outils", () => {
+  test("pendant un tour actif, la progression reste dans le bloc de travail", () => {
+    const items = toItems(
+      messages([
+        { raw: assistantText("progress", "I found the issue.") },
+        { raw: toolCall("run", "bash") },
+        { raw: toolResult("result", "bash") },
+      ]),
+      true,
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0]?.kind).toBe("tools");
+    if (items[0]?.kind === "tools")
+      expect(items[0].messages[0]?.text).toContain("I found the issue.");
+  });
+
   test("une suite d'outils devient un seul groupe", () => {
     const items = toItems(
       messages([

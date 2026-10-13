@@ -11,15 +11,15 @@
  * (D016.2).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { AgentView, AnswerResult, SendResult, SessionEntry } from "./api.ts";
-import { answerQuestion, fetchSession, sendPrompt, reportError } from "./api.ts";
+import type { AgentView, AnswerResult, SessionEntry } from "./api.ts";
+import { answerQuestion, fetchSession, sendPrompt, stopAgent, reportError } from "./api.ts";
 import type { Question } from "@herdr-remote/shared";
 import type { RenderedMessage } from "./blocks.ts";
 import { toItems, toMessages, touchedFilesOf } from "./blocks.ts";
-import { agentName, headerContext } from "./labels.tsx";
+import { agentName, headerContext, statusClass } from "./labels.tsx";
 import { FileOpenerContext, ItemsView, UrlOpenerContext } from "./Blocks.tsx";
 import { FilesSheet } from "./Files.tsx";
-import { ModelSheet, describeSend } from "./ModelSheet.tsx";
+import { ModelSheet } from "./ModelSheet.tsx";
 import { FileViewer } from "./Viewer.tsx";
 import { Notice } from "./Notice.tsx";
 
@@ -39,6 +39,14 @@ export const ChatScreen = ({
   /** Question posée à l'écran, quand l'agent en attend une. */
   question?: Question | undefined;
 }) => {
+  type EnvoiLocal = {
+    readonly baseline: number;
+    readonly detail: string | null;
+    readonly failureState: "attente" | "erreur" | "inconnu" | null;
+    readonly id: string;
+    readonly state: "queued" | "sending" | "delivered" | "uncertain" | "failed";
+    readonly text: string;
+  };
   const [entries, setEntries] = useState<readonly SessionEntry[]>([]);
   /**
    * Messages déjà analysés.
@@ -48,6 +56,9 @@ export const ChatScreen = ({
    * n'analyse que ce qui arrive.
    */
   const [messages, setMessages] = useState<readonly RenderedMessage[]>([]);
+  const [previousCursor, setPreviousCursor] = useState<string | null>(null);
+  const [loadingPrevious, setLoadingPrevious] = useState(false);
+  const [previousError, setPreviousError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   /**
    * Phase du chargement — nécessaire pour distinguer « vide » de « pas encore
@@ -56,12 +67,19 @@ export const ChatScreen = ({
    */
   const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading");
   const [draft, setDraft] = useState("");
+  const [composerFocused, setComposerFocused] = useState(false);
   /** Champ de saisie, pour lui rendre sa taille après un envoi. */
   const champRef = useRef<HTMLTextAreaElement | null>(null);
-  const [lastSend, setLastSend] = useState<SendResult | null>(null);
   const [sending, setSending] = useState(false);
+  const [envoisLocaux, setEnvoisLocaux] = useState<readonly EnvoiLocal[]>([]);
+  const [messageOuvert, setMessageOuvert] = useState<string | null>(null);
+  const [stopping, setStopping] = useState(false);
+  const [stopFeedback, setStopFeedback] = useState<string | null>(null);
+  const sendTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const nextLocalId = useRef(0);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
-  const placeholder = `Message à ${agentName(agent)}…`;
+  const contentRef = useRef<HTMLDivElement | null>(null);
+  const placeholder = `Message ${agentName(agent)}…`;
   const files = touchedFilesOf(messages);
   const [showFiles, setShowFiles] = useState(false);
   const [fichierEnAttente, setFichierEnAttente] = useState<string | null>(null);
@@ -130,6 +148,7 @@ export const ChatScreen = ({
    */
   const cursor = useRef<{ cursor: string | undefined; path: string } | null>(null);
   const loading = useRef(false);
+  const autoLoadedPrevious = useRef(false);
 
   const load = useCallback(
     async (mode: "initial" | "incremental") => {
@@ -144,6 +163,9 @@ export const ChatScreen = ({
             : await fetchSession(agent.paneId, { tail: 524_288 });
 
         cursor.current = { cursor: session.cursor, path: session.sessionPath };
+        if (!session.incremental || session.reset) {
+          setPreviousCursor(session.previousCursor ?? null);
+        }
 
         if (session.incremental) {
           if (session.entries.length > 0) {
@@ -172,7 +194,10 @@ export const ChatScreen = ({
         const message = cause instanceof Error ? cause.message : String(cause);
         setError(message);
         setPhase("error");
-        reportError("échec du chargement de session", { message, paneId: agent.paneId });
+        reportError("échec du chargement de session", {
+          message,
+          paneId: agent.paneId,
+        });
       } finally {
         loading.current = false;
       }
@@ -182,12 +207,78 @@ export const ChatScreen = ({
 
   useEffect(() => {
     cursor.current = null;
+    autoLoadedPrevious.current = false;
+    setPreviousCursor(null);
     void load("initial");
+    const refreshEveryMs = agent.status === "working" ? 750 : 2000;
     const timer = setInterval(() => {
       void load("incremental");
-    }, 2000);
+    }, refreshEveryMs);
     return () => clearInterval(timer);
-  }, [load]);
+  }, [agent.status, load]);
+
+  const chargerPrecedents = useCallback(async () => {
+    const before = previousCursor;
+    if (before === null || loadingPrevious || loading.current) return;
+    setLoadingPrevious(true);
+    loading.current = true;
+    setPreviousError(null);
+    try {
+      let pageCursor: string | null = before;
+      const pagesAnterieures: Array<typeof entries> = [];
+      // Codex logs work as many short events. The prompt can sit over ten
+      // pages behind the live tail even when the tail itself loads quickly.
+      while (pageCursor !== null) {
+        // Pages are cursor dependent; each next cursor is returned by this fetch.
+        // oxlint-disable-next-line no-await-in-loop
+        const session = await fetchSession(agent.paneId, { before: pageCursor });
+        if (session.reset) {
+          setEntries(session.entries);
+          setMessages(toMessages(session.entries));
+          cursor.current = { cursor: session.cursor, path: session.sessionPath };
+          setPreviousCursor(session.previousCursor ?? null);
+          return;
+        }
+        pagesAnterieures.push(session.entries);
+        const nextCursor = session.previousCursor ?? null;
+        const hasPrompt = toMessages(session.entries).some((message) => message.role === "user");
+        if (nextCursor === pageCursor || session.entries.length === 0 || hasPrompt) {
+          pageCursor = nextCursor === pageCursor ? null : nextCursor;
+          break;
+        }
+        pageCursor = nextCursor;
+      }
+      const entriesAnterieures = pagesAnterieures.toReversed().flat();
+      if (entriesAnterieures.length > 0) {
+        const precedents = toMessages(entriesAnterieures);
+        setEntries((current) => [...entriesAnterieures, ...current]);
+        setMessages((current) => [...precedents, ...current]);
+      }
+      setPreviousCursor(pageCursor);
+    } catch (cause) {
+      setPreviousError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      loading.current = false;
+      setLoadingPrevious(false);
+    }
+  }, [agent.paneId, loadingPrevious, previousCursor]);
+
+  useEffect(() => {
+    if (previousCursor === null || autoLoadedPrevious.current) return undefined;
+    let timer = 0;
+    const loadWhenIdle = () => {
+      // A poll can begin between the initial page arriving and this effect
+      // running. Keep waiting instead of consuming the one automatic attempt.
+      if (loading.current) {
+        timer = window.setTimeout(loadWhenIdle, 100);
+        return;
+      }
+      autoLoadedPrevious.current = true;
+      void chargerPrecedents();
+    };
+    timer = window.setTimeout(loadWhenIdle, 0);
+    return () => window.clearTimeout(timer);
+  }, [chargerPrecedents, previousCursor]);
 
   /**
    * Défilement automatique — **conditionnel**.
@@ -206,10 +297,17 @@ export const ChatScreen = ({
   }, []);
 
   useEffect(() => {
-    if (!atBottom.current) return;
-    const el = scrollerRef.current;
-    if (el !== null) el.scrollTop = el.scrollHeight;
-  }, [entries.length]);
+    const content = contentRef.current;
+    const scroller = scrollerRef.current;
+    if (content === null || scroller === null) return undefined;
+    const suivreLeBas = () => {
+      if (atBottom.current) scroller.scrollTop = scroller.scrollHeight;
+    };
+    const observer = new ResizeObserver(suivreLeBas);
+    observer.observe(content);
+    suivreLeBas();
+    return () => observer.disconnect();
+  }, []);
 
   /**
    * Champ grandissant, borné à cinq lignes.
@@ -245,37 +343,172 @@ export const ChatScreen = ({
     ajusterHauteur(event.target);
   }, []);
 
+  const transmettre = useCallback(
+    async (id: string, text: string) => {
+      setEnvoisLocaux((current) =>
+        current.map((message) =>
+          message.id === id
+            ? { ...message, detail: null, failureState: null, state: "sending" }
+            : message,
+        ),
+      );
+      try {
+        const result = await sendPrompt(agent.paneId, text);
+        setEnvoisLocaux((current) =>
+          current.map((message) => {
+            if (message.id !== id) return message;
+            if (result.kind === "suppressed") {
+              return {
+                ...message,
+                detail: `Herdr avait déjà confirmé un envoi identique : ${result.reason}`,
+                state: "delivered",
+              };
+            }
+            if (result.kind === "sent") {
+              return {
+                ...message,
+                detail:
+                  result.confirmation === "confirmed"
+                    ? "Herdr confirmed that it received the message."
+                    : "Herdr did not confirm whether it received the message.",
+                state: result.confirmation === "confirmed" ? "delivered" : "uncertain",
+              };
+            }
+            return {
+              ...message,
+              detail: result.message,
+              failureState: result.state,
+              state: "failed",
+            };
+          }),
+        );
+        if (result.kind === "failed") {
+          reportError("échec de l'envoi du message", {
+            message: result.message,
+            paneId: agent.paneId,
+            state: result.state,
+          });
+        }
+      } catch (cause) {
+        const detail = cause instanceof Error ? cause.message : String(cause);
+        setEnvoisLocaux((current) =>
+          current.map((message) =>
+            message.id === id
+              ? { ...message, detail, failureState: "inconnu", state: "failed" }
+              : message,
+          ),
+        );
+        reportError("échec de l'envoi du message", {
+          detail,
+          paneId: agent.paneId,
+        });
+      } finally {
+        setSending(false);
+      }
+    },
+    [agent.paneId],
+  );
+
   const submit = useCallback(async () => {
     const text = draft.trim();
     if (text.length === 0 || sending) return;
+    const id = `local-${String(Date.now())}-${String(++nextLocalId.current)}`;
+    const baseline = messages.filter(
+      (message) => message.role === "user" && message.text === text,
+    ).length;
+    setEnvoisLocaux((current) => [
+      ...current,
+      { baseline, detail: null, failureState: null, id, state: "queued", text },
+    ]);
     setSending(true);
-    try {
-      const result = await sendPrompt(agent.paneId, text);
-      setLastSend(result);
-      if (result.kind === "sent") {
-        setDraft("");
-        // Le champ est vide : il doit retrouver sa hauteur d'une ligne. Sans
-        // cela, il gardait la hauteur du message qu'on vient d'envoyer.
-        if (champRef.current !== null) {
-          champRef.current.value = "";
-          ajusterHauteur(champRef.current);
-        }
-      }
-    } catch (cause) {
-      /*
-        ⚠️ `sendPrompt` ne capture que les réponses illisibles : un `fetch` qui
-        ne part pas lève, et le message resterait bloqué dans le composeur sans
-        qu'aucune erreur ne s'affiche. La cause est montrée et journalisée.
-      */
-      const message = cause instanceof Error ? cause.message : String(cause);
-      // Un `fetch` qui ne part pas est un état `inconnu` : rien ne prouve
-      // que le message n'a pas atteint le serveur (B05).
-      setLastSend({ kind: "failed", message, state: "inconnu" });
-      reportError("échec de l'envoi du message", { message, paneId: agent.paneId });
-    } finally {
-      setSending(false);
+    setMessageOuvert(null);
+    setDraft("");
+    if (champRef.current !== null) {
+      champRef.current.value = "";
+      ajusterHauteur(champRef.current);
     }
-  }, [agent.paneId, draft, sending]);
+    // La bulle apparaît immédiatement et reste annulable avant tout appel réseau.
+    sendTimer.current = setTimeout(() => {
+      sendTimer.current = null;
+      void transmettre(id, text);
+    }, 900);
+  }, [draft, messages, sending, transmettre]);
+
+  useEffect(
+    () => () => {
+      if (sendTimer.current !== null) clearTimeout(sendTimer.current);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    const messagesUtilisateur = messages.filter((message) => message.role === "user");
+    setEnvoisLocaux((current) => {
+      const restants = new Map<string, number>();
+      for (const message of messagesUtilisateur) {
+        restants.set(message.text, (restants.get(message.text) ?? 0) + 1);
+      }
+      const next: EnvoiLocal[] = [];
+      for (const local of current) {
+        const count = restants.get(local.text) ?? 0;
+        if (count > local.baseline) {
+          restants.set(local.text, count - 1);
+          continue;
+        }
+        next.push(local);
+      }
+      return next;
+    });
+  }, [messages]);
+
+  const annulerEnvoi = useCallback((message: EnvoiLocal) => {
+    if (message.state !== "queued") return;
+    if (sendTimer.current !== null) clearTimeout(sendTimer.current);
+    sendTimer.current = null;
+    setEnvoisLocaux((current) => current.filter((candidate) => candidate.id !== message.id));
+    setMessageOuvert(null);
+    setDraft(message.text);
+    setSending(false);
+    requestAnimationFrame(() => {
+      if (champRef.current !== null) {
+        champRef.current.value = message.text;
+        ajusterHauteur(champRef.current);
+      }
+    });
+  }, []);
+
+  const reessayerEnvoi = useCallback(
+    (message: EnvoiLocal) => {
+      if (message.state !== "failed" && message.state !== "uncertain") return;
+      setMessageOuvert(null);
+      setSending(true);
+      void transmettre(message.id, message.text);
+    },
+    [transmettre],
+  );
+
+  const interrompreAgent = useCallback(async () => {
+    if (stopping) return;
+    setStopping(true);
+    setStopFeedback(null);
+    try {
+      const result = await stopAgent(agent.paneId);
+      setStopFeedback(
+        result.status === "interrupt-sent"
+          ? "Ctrl+C sent to Herdr. The agent has not confirmed stopping yet."
+          : "Herdr reports that the agent is no longer working.",
+      );
+    } catch (cause) {
+      const detail = cause instanceof Error ? cause.message : String(cause);
+      setStopFeedback(`Stop request failed: ${detail}`);
+      reportError("échec de l'interruption d'un agent", {
+        detail,
+        paneId: agent.paneId,
+      });
+    } finally {
+      setStopping(false);
+    }
+  }, [agent.paneId, stopping]);
 
   /** État de la dernière réponse à une question, pour ne jamais mentir dessus. */
   const [reponse, setReponse] = useState<AnswerResult | null>(null);
@@ -290,7 +523,7 @@ export const ChatScreen = ({
       } catch (cause) {
         // Jamais d'échec muet : la cause est nommée à l'écran.
         setReponse({
-          detail: cause instanceof Error ? cause.message : "échec inconnu",
+          detail: cause instanceof Error ? cause.message : "Unknown error",
           state: "refusee",
         });
       } finally {
@@ -324,9 +557,19 @@ export const ChatScreen = ({
       <FileOpenerContext.Provider value={openPathFromBlock}>
         <section className="chat">
           <header className="screen__head">
-            <button type="button" className="back" onClick={onBack} aria-label="Retour">
+            <button type="button" className="back" onClick={onBack} aria-label="Back">
               ‹
             </button>
+            {agent.status === "working" ? (
+              <span className="working-dots" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+                <span />
+              </span>
+            ) : (
+              <span className={statusClass(agent.status)} aria-hidden="true" />
+            )}
             <div className="screen__title">
               {/*
                 Le titre de la conversation, pas le nom de l'agent : c'est ce
@@ -351,9 +594,12 @@ export const ChatScreen = ({
                 type="button"
                 className="row__action row__action--icone"
                 onClick={onToggleFiles}
-                aria-label={`Fichiers touchés (${String(files.length)})`}
+                aria-label={`Files changed (${String(files.length)})`}
               >
-                <span aria-hidden="true">🗂</span>
+                <svg aria-hidden="true" viewBox="0 0 24 24">
+                  <path d="M4 5.5h6l2 2h8v11H4z" />
+                  <path d="M4 9h16" />
+                </svg>
               </button>
             ) : null}
             {/*
@@ -365,20 +611,23 @@ export const ChatScreen = ({
             <button
               type="button"
               className="row__action row__action--icone"
-              aria-label="Modèle et raisonnement"
+              aria-label="Model and thinking"
               onClick={() => {
                 setShowFiles(false);
                 setShowModel((value) => !value);
               }}
             >
-              <span aria-hidden="true">⚙</span>
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M12 3v2m0 14v2M3 12h2m14 0h2M5.64 5.64l1.42 1.42m9.88 9.88 1.42 1.42m0-12.72-1.42 1.42m-9.88 9.88-1.42 1.42" />
+                <circle cx="12" cy="12" r="4" />
+              </svg>
             </button>
           </header>
 
           {agent.sessionPath === null ? (
             <Notice ton="avertissement">
-              Aucun chemin de session exposé par Herdr pour cet agent. Le contenu n'est pas
-              affichable — et il n'est pas reconstruit artificiellement.
+              Herdr does not expose a session path for this agent. Its conversation cannot be
+              displayed or reconstructed.
             </Notice>
           ) : null}
 
@@ -402,21 +651,111 @@ export const ChatScreen = ({
           {phase === "ready" &&
           error === null &&
           agent.sessionPath !== null &&
-          messages.length === 0 ? (
+          messages.length === 0 &&
+          envoisLocaux.length === 0 ? (
             <div className="messages__empty">
-              <strong>Aucun message</strong>
+              <strong>No messages</strong>
               <p>
-                Rien à afficher pour cet agent. Une session est créée par Pi au premier
-                message&nbsp;: envoyez-en un pour la démarrer.
+                Nothing to show for this agent. Pi creates a session when it receives its first
+                message.
               </p>
               <p className="muted small">
-                Si cet agent a déjà travaillé, son fichier de session n'est plus exposé par Herdr.
+                If this agent has worked before, Herdr no longer exposes its session file.
               </p>
             </div>
           ) : null}
 
           <div className="messages" ref={scrollerRef} onScroll={onScroll}>
-            <ItemsView enCours={agent.status === "working"} items={toItems(messages)} />
+            <div className="messages__content" ref={contentRef}>
+              {previousCursor === null ? null : (
+                <div className="history__older">
+                  <button
+                    type="button"
+                    onClick={() => void chargerPrecedents()}
+                    disabled={loadingPrevious}
+                  >
+                    {loadingPrevious ? "Loading history…" : "Load earlier messages"}
+                  </button>
+                  {previousError === null ? null : <p role="alert">{previousError}</p>}
+                </div>
+              )}
+              <ItemsView
+                enCours={agent.status === "working"}
+                items={toItems(messages, agent.status === "working")}
+                cwd={agent.cwd}
+              />
+              {envoisLocaux.map((message) => {
+                const status =
+                  message.state === "queued"
+                    ? "Queued…"
+                    : message.state === "sending"
+                      ? "Sending"
+                      : message.state === "delivered"
+                        ? "Received by Herdr"
+                        : message.state === "uncertain"
+                          ? "Delivery unconfirmed"
+                          : "Send failed";
+                const interactive = message.state !== "delivered";
+                const open = messageOuvert === message.id;
+                return (
+                  <article
+                    key={message.id}
+                    className={`bubble bubble--user optimistic optimistic--${message.state}`}
+                  >
+                    {interactive ? (
+                      <button
+                        type="button"
+                        className="optimistic__tap"
+                        aria-label={`${message.text}. Status: ${status}. Tap for options.`}
+                        aria-expanded={open}
+                        onClick={() => setMessageOuvert(open ? null : message.id)}
+                      >
+                        <span className="optimistic__text">{message.text}</span>
+                        <span className="optimistic__status" aria-hidden="true">
+                          {message.state === "queued" || message.state === "sending"
+                            ? "◌"
+                            : message.state === "failed"
+                              ? "!"
+                              : "?"}
+                        </span>
+                      </button>
+                    ) : (
+                      <>
+                        <span className="optimistic__text">{message.text}</span>
+                        <span className="optimistic__status" aria-label={status} title={status}>
+                          ✓
+                        </span>
+                      </>
+                    )}
+                    {open ? (
+                      <fieldset className="optimistic__menu" aria-label="Message status">
+                        <strong>{status}</strong>
+                        {message.detail === null ? null : (
+                          <p className={message.state === "failed" ? "optimistic__error" : ""}>
+                            {message.detail}
+                          </p>
+                        )}
+                        {message.state === "queued" ? (
+                          <button type="button" onClick={() => annulerEnvoi(message)}>
+                            Cancel send
+                          </button>
+                        ) : null}
+                        {message.state === "failed" || message.state === "uncertain" ? (
+                          <button type="button" onClick={() => reessayerEnvoi(message)}>
+                            {message.failureState === "inconnu"
+                              ? "Retry (may send a duplicate)"
+                              : "Retry"}
+                          </button>
+                        ) : null}
+                        <button type="button" onClick={() => setMessageOuvert(null)}>
+                          Cancel
+                        </button>
+                      </fieldset>
+                    ) : null}
+                  </article>
+                );
+              })}
+            </div>
           </div>
 
           {openFile !== null ? (
@@ -441,6 +780,7 @@ export const ChatScreen = ({
           ) : showFiles ? (
             <FilesSheet
               files={files}
+              cwd={agent.cwd}
               fermeture={fichierEnAttente !== null}
               onClose={fermerFichiers}
               onOpenFile={setFichierEnAttente}
@@ -468,7 +808,7 @@ export const ChatScreen = ({
             lus à l'écran. Le serveur revalide de son côté.
           */}
           {question === undefined ? null : (
-            <section className="question" aria-label="Question de l'agent">
+            <section className="question" aria-label="Agent question">
               <p className="question__texte">❓ {question.texte}</p>
               {question.contexte.length > 0 ? (
                 <p className="question__contexte">{question.contexte.join(" · ")}</p>
@@ -507,6 +847,17 @@ export const ChatScreen = ({
               onChange={onDraftChange}
               placeholder={placeholder}
               rows={1}
+              onFocus={() => setComposerFocused(true)}
+              onBlur={() =>
+                window.setTimeout(() => {
+                  setComposerFocused(false);
+                  const field = champRef.current;
+                  if (field) {
+                    field.style.height = "";
+                    field.style.overflowY = "auto";
+                  }
+                }, 0)
+              }
             />
             {/*
               Bouton d'envoi **rond, avec une flèche** — la forme standard d'iOS.
@@ -516,18 +867,30 @@ export const ChatScreen = ({
               envoyer. Un bouton actif qui ne fait rien laisse croire à une panne.
               Le libellé disparaît de l'écran mais reste lu : `aria-label`.
             */}
-            <button
-              type="button"
-              className="send"
-              onClick={onSubmit}
-              disabled={sending || draft.trim().length === 0}
-              aria-label="Envoyer"
-            >
-              <span aria-hidden="true">↑</span>
-            </button>
+            {agent.status === "working" && !composerFocused ? (
+              <button
+                type="button"
+                className="send send--stop"
+                onClick={() => void interrompreAgent()}
+                disabled={stopping}
+                aria-label="Stop agent"
+                title="Stop agent"
+              >
+                <span aria-hidden="true">■</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="send"
+                onClick={onSubmit}
+                disabled={phase !== "ready" || sending || draft.trim().length === 0}
+                aria-label="Send"
+              >
+                <span aria-hidden="true">↑</span>
+              </button>
+            )}
           </div>
-
-          {lastSend !== null ? <p className="sendState">{describeSend(lastSend)}</p> : null}
+          {stopFeedback === null ? null : <output className="sendState">{stopFeedback}</output>}
         </section>
       </FileOpenerContext.Provider>
     </UrlOpenerContext.Provider>

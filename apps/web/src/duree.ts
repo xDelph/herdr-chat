@@ -16,17 +16,17 @@
 export const dureeRelative = (depuisMs: number): string => {
   // ⚠️ Un horodatage dans le futur ne doit pas produire « il y a -3 s ».
   const secondes = Math.max(0, Math.floor(depuisMs / 1000));
-  if (secondes < 60) return "à l'instant";
+  if (secondes < 60) return "just now";
   // ⚠️ **Plancher, jamais arrondi.** Un âge arrondi vers le haut exagère : 1 min
   // 59 arrondi donnerait « 2 min », et c'est précisément la donnée que
   // l'utilisateur compare avec son propre souvenir. Le plancher sous-estime
   // d'au plus une unité, ce qui est sans conséquence ; l'autre exagère.
   const minutes = Math.floor(secondes / 60);
-  if (minutes < 60) return minutes === 1 ? "il y a 1 min" : `il y a ${String(minutes)} min`;
+  if (minutes < 60) return minutes === 1 ? "1 min ago" : `${String(minutes)} min ago`;
   const heures = Math.floor(minutes / 60);
-  if (heures < 24) return heures === 1 ? "il y a 1 h" : `il y a ${String(heures)} h`;
+  if (heures < 24) return heures === 1 ? "1 hr ago" : `${String(heures)} hr ago`;
   const jours = Math.floor(heures / 24);
-  return jours === 1 ? "il y a 1 j" : `il y a ${String(jours)} j`;
+  return jours === 1 ? "1 day ago" : `${String(jours)} days ago`;
 };
 
 /**

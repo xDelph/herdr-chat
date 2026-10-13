@@ -17,9 +17,11 @@ import {
   estBlocDeTravail,
   jetonsCourts,
   lignesDeTravail,
+  regrouperCommandes,
 } from "./actions.ts";
-import type { LigneTravail } from "./actions.ts";
+import type { LigneAffichee, LigneTravail } from "./actions.ts";
 import { fileUrl } from "./api.ts";
+import { relativeWorkspacePath } from "./blocks.ts";
 
 /**
  * Ouvre un fichier dans la visionneuse.
@@ -90,10 +92,8 @@ const ThinkingBlock = ({ block }: { block: Extract<Block, { kind: "thinking" }> 
       onToggle={(e) => setOpen(e.currentTarget.open)}
     >
       <summary>
-        <span className="blk__tag">réflexion</span>
-        {block.redacted ? (
-          <span className="blk__hint">contenu masqué par le fournisseur</span>
-        ) : null}
+        <span className="blk__tag">Thinking</span>
+        {block.redacted ? <span className="blk__hint">Hidden by provider</span> : null}
         {!block.redacted && !open ? (
           <span className="blk__preview">{block.thinking.slice(0, 90).replace(/\n/g, " ")}</span>
         ) : null}
@@ -210,7 +210,7 @@ const EditCall = ({ args }: { args: Readonly<Record<string, unknown>> }) => {
             <span className="stat stat--add">+{String(added)}</span>
             <span className="stat stat--del">−{String(removed)}</span>
           </span>
-          <span>{open ? "masquer la différence" : "voir la différence"}</span>
+          <span>{open ? "hide diff" : "view diff"}</span>
         </button>
       ) : null}
       {open
@@ -246,7 +246,7 @@ const EditCall = ({ args }: { args: Readonly<Record<string, unknown>> }) => {
             </div>
           ))
         : null}
-      {edits.length === 0 ? <p className="blk__hint">édition sans contenu lisible</p> : null}
+      {edits.length === 0 ? <p className="blk__hint">Edit contains no readable content</p> : null}
     </div>
   );
 };
@@ -259,7 +259,7 @@ const WriteCall = ({ args }: { args: Readonly<Record<string, unknown>> }) => {
     <div className="blk blk--tool blk--write">
       <ToolHead name="write" target={decoded?.path ?? null} />
       <button type="button" className="blk__toggle" onClick={() => setOpen((v) => !v)}>
-        {open ? "masquer" : `voir le contenu (${content.split("\n").length} lignes)`}
+        {open ? "Hide content" : `View content (${content.split("\n").length} lines)`}
       </button>
       {open ? (
         <pre className="term term--file">
@@ -274,7 +274,7 @@ const ReadCall = ({ args }: { args: Readonly<Record<string, unknown>> }) => {
   const decoded = decodeArgs(ReadArgs, args);
   const range =
     decoded?.offset !== undefined || decoded?.limit !== undefined
-      ? `lignes ${decoded.offset ?? 0}${decoded.limit !== undefined ? `–${String((decoded.offset ?? 0) + decoded.limit)}` : "+"}`
+      ? `Lines ${decoded.offset ?? 0}${decoded.limit !== undefined ? `–${String((decoded.offset ?? 0) + decoded.limit)}` : "+"}`
       : null;
   return (
     <div className="blk blk--tool">
@@ -337,9 +337,9 @@ const ToolResultBlock = ({ block }: { block: Extract<Block, { kind: "toolResult"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
       >
-        <ToolHead name={block.toolName} target={block.isError ? "échec" : null} />
+        <ToolHead name={block.toolName} target={block.isError ? "Failed" : null} />
         {!open && preview.length > 0 ? <span className="blk__preview">{preview}</span> : null}
-        {!open ? <span className="blk__hint">{lines.length} lignes</span> : null}
+        {!open ? <span className="blk__hint">{lines.length} lines</span> : null}
       </button>
 
       {open ? (
@@ -348,7 +348,7 @@ const ToolResultBlock = ({ block }: { block: Extract<Block, { kind: "toolResult"
             <code>{block.text}</code>
           </pre>
         ) : (
-          <p className="blk__hint">aucune sortie</p>
+          <p className="blk__hint">No output</p>
         )
       ) : null}
 
@@ -357,7 +357,7 @@ const ToolResultBlock = ({ block }: { block: Extract<Block, { kind: "toolResult"
           key={`${image.mimeType}:${image.data.slice(0, 32)}:${String(index)}`}
           className="blk__image"
           src={`data:${image.mimeType};base64,${image.data}`}
-          alt="contenu renvoyé par l'outil"
+          alt="content returned by tool"
         />
       ))}
     </div>
@@ -412,14 +412,14 @@ const SubagentBlock = ({ block }: { block: Extract<Block, { kind: "subagent" }> 
 
         {result.digest?.verified !== null && result.digest?.verified !== undefined ? (
           <p className="sa__verified">
-            <span className="blk__tag">vérifié</span> {result.digest.verified}
+            <span className="blk__tag">Verified</span> {result.digest.verified}
           </p>
         ) : null}
 
         {result.digest?.questions !== null &&
         result.digest?.questions !== undefined &&
         result.digest.questions !== "none" ? (
-          <p className="sa__questions">question : {result.digest.questions}</p>
+          <p className="sa__questions">Question: {result.digest.questions}</p>
         ) : null}
 
         {result.errorMessage !== null ? <Notice ton="erreur">{result.errorMessage}</Notice> : null}
@@ -432,9 +432,9 @@ const SubagentBlock = ({ block }: { block: Extract<Block, { kind: "subagent" }> 
 const CompactionBlock = ({ block }: { block: Extract<Block, { kind: "compaction" }> }) => (
   <details className="blk blk--compaction">
     <summary>
-      <span className="blk__tag">contexte résumé</span>
+      <span className="blk__tag">Context summarized</span>
       {block.tokensBefore !== null ? (
-        <span className="blk__hint">{block.tokensBefore.toLocaleString("fr-FR")} jetons</span>
+        <span className="blk__hint">{block.tokensBefore.toLocaleString("en-US")} tokens</span>
       ) : null}
       <span className="blk__preview">{block.summary.slice(0, 80)}</span>
     </summary>
@@ -458,8 +458,8 @@ const BashExecutionBlock = ({ block }: { block: Extract<Block, { kind: "bashExec
         <code>{block.output}</code>
       </pre>
     ) : null}
-    {block.cancelled ? <p className="blk__hint">commande interrompue</p> : null}
-    {block.truncated ? <p className="blk__hint">sortie tronquée</p> : null}
+    {block.cancelled ? <p className="blk__hint">Command interrupted</p> : null}
+    {block.truncated ? <p className="blk__hint">Output truncated</p> : null}
   </div>
 );
 
@@ -637,7 +637,11 @@ const timeOf = (iso: string | null): string => {
   const date = new Date(iso);
   return Number.isNaN(date.getTime())
     ? ""
-    : date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+    : date.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
 };
 
 /** Une bulle : rôle, métadonnées, blocs. Mémoïsée. */
@@ -699,6 +703,7 @@ const Reflexion = ({
   readonly pensee: Extract<Block, { kind: "thinking" }>;
 }) => {
   const [open, setOpen] = useState(false);
+  if (pensee.redacted || pensee.thinking.trim().length === 0) return null;
   return (
     <div className="reflexion">
       <button
@@ -710,18 +715,14 @@ const Reflexion = ({
         <span className="ligne__icone" aria-hidden="true">
           {icone}
         </span>
-        <span>Réflexion</span>
+        <span>Thinking</span>
         <span className="group__chevron" aria-hidden="true">
           {open ? "▾" : "›"}
         </span>
       </button>
       {open ? (
         <div className="reflexion__texte">
-          {pensee.redacted ? (
-            <p>contenu masqué par le fournisseur</p>
-          ) : (
-            <Markdown source={pensee.thinking} />
-          )}
+          <Markdown source={pensee.thinking} />
         </div>
       ) : null}
     </div>
@@ -735,7 +736,13 @@ const Reflexion = ({
  * édition et une sortie dépliées d'office noient la ligne de résumé ; elles
  * s'ouvrent à la demande, une par une.
  */
-const LigneDeTravail = ({ ligne }: { ligne: LigneTravail }) => {
+const LigneDeTravail = ({
+  ligne,
+  cwd,
+}: {
+  ligne: LigneTravail;
+  cwd?: string | null | undefined;
+}) => {
   const [open, setOpen] = useState(false);
 
   /*
@@ -760,7 +767,29 @@ const LigneDeTravail = ({ ligne }: { ligne: LigneTravail }) => {
     const pensee = details[0];
     return <Reflexion icone={action.icone} pensee={pensee} />;
   }
-  const cible = action.cible;
+  const sortie = details.find((block) => block.kind === "toolResult");
+  const apercuSortie =
+    sortie?.kind === "toolResult"
+      ? (sortie.text
+          .split("\n")
+          .find((line) => line.trim().length > 0)
+          ?.trim()
+          .slice(0, 72) ?? null)
+      : null;
+  const cibleBrute = action.cible ?? apercuSortie;
+  const cible =
+    cibleBrute === null
+      ? null
+      : action.estFichier
+        ? relativeWorkspacePath(cibleBrute, cwd)
+        : cibleBrute;
+  // La ligne résume déjà les appels shell/script; répéter leurs arguments en
+  // JSON dans le détail ne donne aucune information supplémentaire.
+  const detailsAffiches = details.filter(
+    (block) =>
+      block.kind !== "toolCall" ||
+      !new Set(["bash", "shell", "exec", "exec_command", "js"]).has(block.name.toLowerCase()),
+  );
 
   return (
     <div className="ligne">
@@ -769,7 +798,7 @@ const LigneDeTravail = ({ ligne }: { ligne: LigneTravail }) => {
         className="ligne__head"
         aria-expanded={open}
         onClick={() => setOpen((valeur) => !valeur)}
-        disabled={details.length === 0}
+        disabled={detailsAffiches.length === 0}
       >
         <span className="ligne__icone" aria-hidden="true">
           {action.icone}
@@ -795,14 +824,40 @@ const LigneDeTravail = ({ ligne }: { ligne: LigneTravail }) => {
           </span>
         )}
       </button>
-      {open && details.length > 0 ? (
+      {open && detailsAffiches.length > 0 ? (
         <div className="ligne__body">
-          {details.map((block, index) => (
+          {detailsAffiches.map((block, index) => (
             <VueDetail key={`${String(index)}-${block.kind}`} block={block} />
           ))}
         </div>
       ) : null}
     </div>
+  );
+};
+
+const CommandGroup = ({
+  ligne,
+  cwd,
+}: {
+  ligne: Extract<LigneAffichee, { kind: "commands" }>;
+  cwd?: string | null | undefined;
+}) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <details
+      className="command-group"
+      open={open}
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+    >
+      <summary>
+        Ran commands <span className="muted small">{ligne.commands.length}</span>
+      </summary>
+      <div className="command-group__items">
+        {ligne.commands.map((command) => (
+          <LigneDeTravail key={command.cle} ligne={command} cwd={cwd} />
+        ))}
+      </div>
+    </details>
   );
 };
 
@@ -821,20 +876,22 @@ const LigneDeTravail = ({ ligne }: { ligne: LigneTravail }) => {
 const ToolGroup = ({
   item,
   enCours,
+  cwd,
 }: {
   item: Extract<Item, { kind: "tools" }>;
   enCours: boolean;
+  cwd?: string | null | undefined;
 }) => {
   /*
-    ⚠️ **Replié par défaut, toujours.** Le travail n'est pas ce qu'on vient lire :
-    c'est la réponse. Un bloc qui s'ouvrirait seul pendant le travail, puis se
-    refermerait, changerait la hauteur du fil sous le doigt — et pousserait la
-    réponse hors de l'écran au moment précis où elle arrive.
+    Le groupe reste ouvert pendant le travail pour montrer les mises à jour, puis
+    se replie à la fin afin de mettre la réponse finale en avant. L'état ne se
+    resynchronise que lorsque `enCours` change : les nouvelles données ne
+    réinitialisent pas le choix d'ouverture.
   */
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(enCours);
   const basculer = useCallback(() => setOpen((valeur) => !valeur), []);
 
-  const lignes = lignesDeTravail(item.messages);
+  const lignes = regrouperCommandes(lignesDeTravail(item.messages));
   const cout = coutDuGroupe(item.messages);
   const duree = dureeEnMots(cout.dureeMs ?? 0);
   const jetons = cout.jetons === null ? "" : jetonsCourts(cout.jetons);
@@ -851,7 +908,7 @@ const ToolGroup = ({
       <button type="button" className="group__head" onClick={basculer} aria-expanded={open}>
         <span className="group__ligne">
           <span className="group__titre">
-            {enCours ? "En cours" : "A travaillé"}
+            {enCours ? "Working" : "Worked"}
             {duree.length > 0 ? ` ${duree}` : ""}
           </span>
           {/*
@@ -884,10 +941,14 @@ const ToolGroup = ({
 
       {open ? (
         <div className="group__body">
-          {lignes.map((ligne) => (
-            <LigneDeTravail key={ligne.cle} ligne={ligne} />
-          ))}
-          {lignes.length === 0 ? <p className="blk__hint">aucun appel enregistré</p> : null}
+          {lignes.map((ligne) =>
+            ligne.kind === "commands" ? (
+              <CommandGroup key={ligne.cle} ligne={ligne} cwd={cwd} />
+            ) : (
+              <LigneDeTravail key={ligne.cle} ligne={ligne} cwd={cwd} />
+            ),
+          )}
+          {lignes.length === 0 ? <p className="blk__hint">No calls recorded</p> : null}
         </div>
       ) : null}
     </div>
@@ -898,18 +959,28 @@ const ToolGroup = ({
 export const ItemsView = ({
   items,
   enCours = false,
+  cwd,
 }: {
   readonly items: ReadonlyArray<Item>;
   /** L'agent travaille-t-il en ce moment ? Décide du dépliage du dernier groupe. */
   readonly enCours?: boolean;
-}) => (
-  <>
-    {items.map((item) =>
-      item.kind === "single" ? (
-        <MessageBubble key={item.message.id} message={item.message} />
-      ) : (
-        <ToolGroup key={item.id} item={item} enCours={enCours && item === items.at(-1)} />
-      ),
-    )}
-  </>
-);
+  readonly cwd?: string | null;
+}) => {
+  const latestWork = items.findLast((item) => item.kind === "tools");
+  return (
+    <>
+      {items.map((item) =>
+        item.kind === "single" ? (
+          <MessageBubble key={item.message.id} message={item.message} />
+        ) : (
+          <ToolGroup
+            key={item === latestWork ? `latest-work-${enCours && item === items.at(-1)}` : item.id}
+            item={item}
+            enCours={enCours && item === items.at(-1)}
+            cwd={cwd}
+          />
+        ),
+      )}
+    </>
+  );
+};

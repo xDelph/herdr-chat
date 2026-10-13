@@ -178,10 +178,13 @@ describe("U07 — le fil prend la place restante, et seulement celle-là", () =>
     expect(bloc(".chat .sendState")["flex"]).toBe("0 0 auto");
   });
 
-  test("l'application ne défile pas en dehors d'elle-même", () => {
-    // `100dvh` + `overflow: hidden` : quand le clavier s'ouvre, c'est
-    // l'application qui rétrécit. Sinon la page entière remontait.
-    expect(bloc(".app")["height"]).toBe("100dvh");
+  test("le shell utilise le flux viewport et seule sa liste défile", () => {
+    // Éviter fixed/sticky sur le shell dans les PWA iOS autonomes : WebKit
+    // peut les déplacer au scroll. Le flex garde le footer hors du scroller.
+    expect(bloc("#root")["height"]).toBe("100dvh");
+    expect(bloc(".app")["position"]).toBe("relative");
+    expect(bloc(".app")["height"]).toBe("var(--app-viewport-height, 100dvh)");
+    expect(bloc(".app")["top"]).toBe("var(--app-viewport-top, 0px)");
     expect(bloc(".app")["overflow"]).toBe("hidden");
   });
 });
@@ -213,14 +216,10 @@ describe("U07 — le clavier ne déclenche ni zoom ni chevauchement", () => {
     expect(bloc(".composer textarea")["resize"]).toBe("none");
   });
 
-  test("le composeur garde la zone sûre du bas", () => {
-    // ⚠️ U19 : la pastille flottante porte désormais la marge, donc c'est la
-    // **marge** qui porte la zone sûre. Peu importe laquelle des deux, à
-    // condition que l'une des deux la porte : sans elle, le champ passe sous la
-    // barre d'accueil de l'iPhone.
+  test("le composeur garde un retrait simple en bas", () => {
     const composeur = bloc(".composer");
-    const porteur = `${composeur["margin"] ?? ""} ${composeur["padding"] ?? ""}`;
-    expect(porteur).toContain("env(safe-area-inset-bottom)");
+    expect(composeur["margin"]).toBe("6px 12px 10px");
+    expect(composeur["padding"]).not.toContain("safe-area-inset-bottom");
   });
 
   test("les actions de l'en-tête restent au minimum tactile", () => {
@@ -279,10 +278,10 @@ describe("U07 — 320 px de large", () => {
       lu par un lecteur d'écran, et l'écran de fichiers le montre.
     */
     const ecran = readFileSync(join(import.meta.dir, "ChatScreen.tsx"), "utf8");
-    expect(ecran).toContain("aria-label={`Fichiers touchés (${String(files.length)})`}");
+    expect(ecran).toContain("aria-label={`Files changed (${String(files.length)})`}");
     expect(ecran).not.toContain("chat__files-count");
-    expect(ecran).toContain('aria-label="Modèle et raisonnement"');
-    expect(ecran).not.toContain(">Modèle<");
+    expect(ecran).toContain('aria-label="Model and thinking"');
+    expect(ecran).not.toContain(">Model<");
   });
 
   test("le composeur se resserre aussi", () => {
@@ -344,8 +343,8 @@ describe("U19 — la conversation se lit comme un document", () => {
   test("la flèche de retour est un glyphe, avec un nom accessible", () => {
     // « ‹ Retour » en toutes lettres occupait la largeur du titre à 320 px.
     const ecran = readFileSync(join(import.meta.dir, "ChatScreen.tsx"), "utf8");
-    expect(ecran).toContain('aria-label="Retour"');
-    expect(ecran).not.toContain("‹ Retour");
+    expect(ecran).toContain('aria-label="Back"');
+    expect(ecran).not.toContain("‹ Back");
     // La cible tactile reste au minimum, même sans texte.
     expect(bloc(".chat .back")["min-width"]).toBe("var(--tap-min)");
     expect(bloc(".chat .back")["border"]).toBe("none");
@@ -374,14 +373,14 @@ describe("U20 — le bouton d'envoi suit la forme d'iOS", () => {
   });
 
   test("le libellé disparaît de l'écran mais reste lu", () => {
-    expect(ecran).toContain('aria-label="Envoyer"');
+    expect(ecran).toContain('aria-label="Send"');
     expect(ecran).toContain('aria-hidden="true"');
   });
 
   test("il est éteint quand le champ est vide", () => {
     // Comportement d'iOS : il dit avant l'appui qu'il n'y a rien à envoyer. Un
     // bouton actif qui ne fait rien laisse croire à une panne.
-    expect(ecran).toContain("disabled={sending || draft.trim().length === 0}");
+    expect(ecran).toContain('phase !== "ready" || sending || draft.trim().length === 0');
     expect(bloc(".composer .send:disabled").background).toBe("var(--surface)");
   });
 });
@@ -389,15 +388,9 @@ describe("U20 — le bouton d'envoi suit la forme d'iOS", () => {
 describe("U21 — un travail se raconte, puis se replie", () => {
   const blocs = readFileSync(join(import.meta.dir, "Blocks.tsx"), "utf8");
 
-  test("un bloc de travail est replié par défaut, tout le temps", () => {
-    /*
-      ⚠️ Le travail n'est pas ce qu'on vient lire : c'est la réponse. Un bloc qui
-      s'ouvrirait seul pendant le travail, puis se refermerait, changerait la
-      hauteur du fil sous le doigt — et pousserait la réponse hors de l'écran au
-      moment précis où elle arrive.
-    */
-    expect(blocs).toContain("const [open, setOpen] = useState(false);");
-    expect(blocs).not.toContain("setOpen(enCours || item.hasError)");
+  test("un bloc de travail s'ouvre pendant l'activité et se replie à la réponse finale", () => {
+    expect(blocs).toContain("const [open, setOpen] = useState(enCours);");
+    expect(blocs).toContain("`latest-work-${enCours && item === items.at(-1)}`");
   });
 
   test("l'échec annoncé par le badge a un répondant visible", () => {
@@ -431,7 +424,7 @@ describe("U21 — un travail se raconte, puis se replie", () => {
 
   test("les lignes internes ont leurs styles", () => {
     // Une ligne compacte, pas un cadre : c'est tout l'objet du changement.
-    expect(bloc(".ligne__head")["min-height"]).toBe("var(--tap-min)");
+    expect(bloc(".ligne__head")["min-height"]).toBe("36px");
     expect(bloc(".ligne__cible--lien")["text-decoration"]).toBe("underline");
     expect(bloc(".group__jetons").color).toBe("var(--muted)");
   });
@@ -462,7 +455,7 @@ describe("U22 — le changement se mesure sur la ligne", () => {
     // appel d'édition laissait « Fichier modifié » sans rien à déplier.
     const actions = readFileSync(join(import.meta.dir, "actions.ts"), "utf8");
     expect(actions).toContain("details: [block]");
-    expect(blocs2).toContain("details.length === 0");
+    expect(blocs2).toContain("detailsAffiches.length > 0");
   });
 });
 
@@ -504,6 +497,6 @@ describe("U23 — la ligne compacte s'applique PAR BLOC, pas par message", () =>
   test("la réflexion garde son icône et son verbe", () => {
     const actions = readFileSync(join(import.meta.dir, "actions.ts"), "utf8");
     expect(actions).toContain('icone: "✻"');
-    expect(actions).toContain('singulier: "Réflexion"');
+    expect(actions).toContain('singulier: "Thinking"');
   });
 });

@@ -13,6 +13,7 @@ import {
   dureeEnMots,
   jetonsCourts,
   lignesDeTravail,
+  regrouperCommandes,
   resumeDuGroupe,
 } from "./actions.ts";
 
@@ -32,7 +33,7 @@ describe("U21 — un appel se raconte en une ligne", () => {
   test("une commande : son icône, son verbe, sa première ligne", () => {
     const action = actionDe("bash", { command: "npm test\nnpm run build" });
     expect(action.icone).toBe("🖥");
-    expect(action.singulier).toBe("Commande lancée");
+    expect(action.singulier).toBe("Ran");
     // ⚠️ Une commande peut contenir un script entier : l'afficher en entier
     // défait la ligne compacte.
     expect(action.cible).toBe("npm test");
@@ -48,14 +49,14 @@ describe("U21 — un appel se raconte en une ligne", () => {
 
   test("une création se distingue d'une modification", () => {
     // « Créé » et « modifié » ne se relisent pas de la même façon.
-    expect(actionDe("write", { path: "a.ts" }).singulier).toBe("Fichier créé");
-    expect(actionDe("edit", { path: "a.ts" }).singulier).toBe("Fichier modifié");
+    expect(actionDe("write", { path: "a.ts" }).singulier).toBe("Create");
+    expect(actionDe("edit", { path: "a.ts" }).singulier).toBe("Edit");
   });
 
   test("une suppression a sa propre famille", () => {
     const action = actionDe("rm", { path: "vieux.ts" });
     expect(action.icone).toBe("✕");
-    expect(action.singulier).toBe("Fichier supprimé");
+    expect(action.singulier).toBe("Delete");
     expect(action.estFichier).toBe(true);
   });
 
@@ -68,8 +69,8 @@ describe("U21 — un appel se raconte en une ligne", () => {
   });
 
   test("la casse du nom ne change pas la reconnaissance", () => {
-    expect(actionDe("BASH", { command: "ls" }).singulier).toBe("Commande lancée");
-    expect(actionDe(" Edit ", { path: "a" }).singulier).toBe("Fichier modifié");
+    expect(actionDe("BASH", { command: "ls" }).singulier).toBe("Ran");
+    expect(actionDe(" Edit ", { path: "a" }).singulier).toBe("Edit");
   });
 
   test("un chemin vide ne devient pas une cible cliquable", () => {
@@ -83,12 +84,12 @@ describe("U21 — le résumé dit ce qui a été fait", () => {
     // « 7 appels » ne dit pas **ce qui a été fait** — la seule question qu'on se
     // pose devant un groupe replié.
     expect(resumeDuGroupe(["bash", "edit", "read", "bash"])).toBe(
-      "Fichiers modifiés, commandes lancées, fichiers lus",
+      "Edits, ran commands, files read",
     );
   });
 
   test("une famille répétée n'apparaît qu'une fois", () => {
-    expect(resumeDuGroupe(["bash", "bash", "bash"])).toBe("Commandes lancées");
+    expect(resumeDuGroupe(["bash", "bash", "bash"])).toBe("Ran commands");
   });
 
   test("un groupe vide ne produit pas de résumé", () => {
@@ -316,5 +317,25 @@ describe("U22 — l'appel lui-même est son détail", () => {
     if (seule?.kind === "action") {
       expect(seule.details.map((bloc) => bloc.kind)).toEqual(["toolCall", "toolResult"]);
     }
+  });
+
+  test("les commandes consécutives sont regroupées, les éditions restent séparées", () => {
+    const appels = [
+      { arguments: { command: "pwd" }, id: "c1", kind: "toolCall" as const, name: "bash" },
+      {
+        arguments: { command: "bun run build" },
+        id: "c2",
+        kind: "toolCall" as const,
+        name: "bash",
+      },
+      { arguments: { path: "src/app.ts" }, id: "c3", kind: "toolCall" as const, name: "edit" },
+      { arguments: { command: "git status" }, id: "c4", kind: "toolCall" as const, name: "bash" },
+    ];
+    const lines = lignesDeTravail([
+      { at: null, blocks: appels, id: "m1", meta: {}, role: "assistant", text: "" },
+    ]);
+    const visible = regrouperCommandes(lines);
+    expect(visible.map((line) => line.kind)).toEqual(["commands", "action", "action"]);
+    expect(visible[0]?.kind === "commands" ? visible[0].commands : []).toHaveLength(2);
   });
 });

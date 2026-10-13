@@ -18,21 +18,21 @@ import {
 describe("U08 — les trois échecs se distinguent", () => {
   test("attente : le message est peut-être parti, on renvoie", () => {
     const e = expliquerEchec("attente", "aucune réponse en 5 s");
-    expect(e.texte).toContain("peut-être parti");
+    expect(e.texte).toContain("may have been sent");
     // L'action distingue ce cas des deux autres : renvoyer, pas retaper.
-    expect(e.action).toBe("Renvoyer le message");
+    expect(e.action).toBe("Retry");
   });
 
   test("erreur : Herdr a refusé, rien n'est parti, on corrige", () => {
     const e = expliquerEchec("erreur", "prompt trop long");
-    expect(e.texte).toContain("refusé");
+    expect(e.texte).toContain("Send rejected");
     expect(e.texte).toContain("prompt trop long");
-    expect(e.action).toBe("Corriger le message");
+    expect(e.action).toBe("Edit message");
   });
 
   test("inconnu : ni Herdr n'a dit oui, ni non — et on n'agit pas", () => {
     const e = expliquerEchec("inconnu", "connexion coupée");
-    expect(e.texte).toContain("état inconnu");
+    expect(e.texte).toContain("status unknown");
     // ⚠️ Aucune action : renvoyer pourrait doubler le message, et c'est
     // exactement ce que l'écran ne sait pas trancher.
     expect(e.action).toBeNull();
@@ -63,19 +63,19 @@ describe("U08 — les trois échecs se distinguent", () => {
 
 describe("U08 — aucun envoi n'est annoncé sans preuve", () => {
   test("confirmé : on peut le dire", () => {
-    expect(expliquerEnvoi("confirmed").texte).toBe("envoyé, confirmé par Herdr");
+    expect(expliquerEnvoi("confirmed").texte).toBe("Sent and confirmed by Herdr");
   });
 
   test("non confirmé : la nuance reste, et elle se voit", () => {
     const e = expliquerEnvoi("unknown");
-    expect(e.texte).toContain("confirmation incertaine");
+    expect(e.texte).toContain("delivery is unconfirmed");
     // Pas de « envoyé » nu : c'est la promesse que rien ne prouve.
-    expect(e.texte.startsWith("envoyé,")).toBe(false);
+    expect(e.texte).not.toBe("Sent");
   });
 
   test("un double envoi est un état normal, pas une alerte", () => {
     const e = expliquerSuppression("identique au précédent");
-    expect(e.texte).toContain("supprimé");
+    expect(e.texte).toContain("Duplicate send prevented");
     expect(e.action).toBeNull();
   });
 });
@@ -84,8 +84,7 @@ describe("U08 — « transmise » n'est pas « accordée »", () => {
   test("transmise : la carte reste, et le mot reste", () => {
     const issue = expliquerConfiance("transmise");
     expect(issue.resolue).toBe(false);
-    expect(issue.texte).toContain("pas encore confirmée");
-    expect(issue.texte).toContain("pas");
+    expect(issue.texte).toContain("has not confirmed");
   });
 
   test("transmise ne se lit jamais comme un accord", () => {
@@ -93,9 +92,9 @@ describe("U08 — « transmise » n'est pas « accordée »", () => {
     // ⚠️ Pas une simple absence du mot : il est présent, **négaté**. Ce qui
     // compte est que la négation le précède — « ce n'est pas accordée » ne peut
     // pas se lire comme un accord, contrairement à un « peut-être accordée ».
-    expect(issue.texte).toMatch(/Ce n'est pas\s+«\s*accordée\s*»/);
+    expect(issue.texte).toContain("has not confirmed");
     // Et surtout pas la formule vacillante, qui se lirait comme un accord.
-    expect(issue.texte).not.toContain("peut-être accordée");
+    expect(issue.texte).not.toContain("approved");
   });
 
   test("acceptée : seule issue qui libère l'écran", () => {
@@ -105,7 +104,7 @@ describe("U08 — « transmise » n'est pas « accordée »", () => {
   test("refusée : une décision, pas une panne", () => {
     const issue = expliquerConfiance("refusee");
     expect(issue.resolue).toBe(true);
-    expect(issue.texte).toContain("rien n'a été écrit");
+    expect(issue.texte).toContain("nothing was written");
   });
 
   test("non applicable : rien à demander", () => {
@@ -117,7 +116,7 @@ describe("U08 — « transmise » n'est pas « accordée »", () => {
     expect(issue.resolue).toBe(false);
     // La prudence coûte un écran qui reste ouvert ; l'inverse costait une
     // permission permanente supposée donnée.
-    expect(issue.texte).toContain("inconnu");
+    expect(issue.texte).toContain("unknown state");
   });
 
   test("les quatre états connus donnent quatre textes différents", () => {

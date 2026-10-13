@@ -35,19 +35,19 @@ export const expliquerEchec = (
   switch (etat) {
     case "attente":
       return {
-        texte: `Herdr n'a pas confirmé à temps — le message est peut-être parti. ${message}`,
+        texte: `Herdr did not confirm in time — the message may have been sent. ${message}`,
         // Renvoyer plutôt que retaper : la saisie est encore là, et Herdr
         // ignorera un doublon identique.
-        action: "Renvoyer le message",
+        action: "Retry",
       };
     case "erreur":
       return {
-        texte: `Envoi refusé — ${message}`,
-        action: "Corriger le message",
+        texte: `Send rejected — ${message}`,
+        action: "Edit message",
       };
     case "inconnu":
       return {
-        texte: `Envoi sans réponse de Herdr — état inconnu. ${message}`,
+        texte: `No response from Herdr — delivery status unknown. ${message}`,
         // Aucune action : renvoyer pourrait doubler le message, et c'est
         // précisément ce que l'écran ne peut pas trancher.
         action: null,
@@ -59,7 +59,7 @@ export const expliquerEchec = (
     préfère le montrer que le masquer : un état qu'on ne sait pas nommer doit
     se voir, pas disparaître en silence.
   */
-  return { texte: `échec d'envoi dans un état inconnu : ${String(etat)}`, action: null };
+  return { texte: `Send failed in an unknown state: ${String(etat)}`, action: null };
 };
 
 /**
@@ -71,12 +71,12 @@ export const expliquerEchec = (
  */
 export const expliquerEnvoi = (confirmation: "confirmed" | "unknown"): Explication =>
   confirmation === "confirmed"
-    ? { texte: "envoyé, confirmé par Herdr", action: null }
-    : { texte: "envoi effectué, confirmation incertaine — état inconnu", action: null };
+    ? { texte: "Sent and confirmed by Herdr", action: null }
+    : { texte: "Sent, but delivery is unconfirmed", action: null };
 
 /** Un double envoi supprimé : un état **normal**, jamais une alerte rouge. */
 export const expliquerSuppression = (raison: string): Explication => ({
-  texte: `double envoi supprimé — ${raison}`,
+  texte: `Duplicate send prevented — ${raison}`,
   action: null,
 });
 
@@ -98,26 +98,26 @@ export const expliquerConfiance = (state: string): IssueConfiance => {
   switch (state) {
     case "acceptee":
       // Seule issue favorable : la permission est écrite, l'agent démarre.
-      return { resolue: true, texte: "confiance accordée — l'agent peut démarrer" };
+      return { resolue: true, texte: "Folder access approved — the agent can start" };
     case "refusee":
       // Un refus est une décision, pas une panne : rien n'est écrit, et
       // l'agent reste bloqué. L'écran peut se séparer.
-      return { resolue: true, texte: "confiance refusée — rien n'a été écrit" };
+      return { resolue: true, texte: "Folder access denied — nothing was written" };
     case "transmise":
       return {
         resolue: false,
-        texte: "décision transmise — Herdr ne l'a pas encore confirmée. Ce n'est pas « accordée ».",
+        texte: "Decision sent — Herdr has not confirmed it yet.",
       };
     case "inconnu":
       // Le transport n'a rien dit. Ni Herdr n'a dit oui, ni non.
       return {
         resolue: false,
-        texte: "la décision n'a pas été confirmée par Herdr — état inconnu",
+        texte: "Herdr has not confirmed the decision — status unknown",
       };
     case "non-applicable":
       return {
         resolue: true,
-        texte: "aucune confiance à donner pour cet agent",
+        texte: "No folder access decision is needed for this agent",
       };
     default:
       /*
@@ -125,6 +125,6 @@ export const expliquerConfiance = (state: string): IssueConfiance => {
         accord. Le retour prudent est « pas résolue » : la carte reste, et
         l'utilisateur voit qu'on ne sait pas.
       */
-      return { resolue: false, texte: `décision de confiance dans un état inconnu : ${state}` };
+      return { resolue: false, texte: `Folder access decision in an unknown state: ${state}` };
   }
 };

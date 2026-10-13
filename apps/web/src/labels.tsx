@@ -14,11 +14,11 @@ import type { AgentStatus, AgentView } from "@herdr-remote/shared";
  * impossible d'oublier un libellé en ajoutant un état à l'union (A04).
  */
 export const STATUS_LABEL: Record<AgentStatus, string> = {
-  blocked: "attend une réponse",
-  done: "terminé",
-  idle: "disponible",
-  unknown: "état inconnu",
-  working: "en cours",
+  blocked: "waiting for input",
+  done: "finished",
+  idle: "idle",
+  unknown: "unknown status",
+  working: "working",
 };
 
 /** Tous les états, dans l'ordre d'affichage du filtre. */
@@ -68,7 +68,7 @@ export const agentName = (agent: AgentView): string =>
   basename(agent.sessionCwd) ??
   agent.title ??
   agent.agent ??
-  "Agent sans nom";
+  "Unnamed agent";
 
 /**
  * Contexte d'un agent : onglet, type, dossier.
@@ -83,7 +83,7 @@ export const agentContext = (agent: AgentView): string => {
   } else if (agent.tabNumber !== null && agent.tabNumber !== undefined) {
     // ⚠️ Plusieurs agents dans un même projet portent le même nom. Sans le
     // numéro d'onglet, les lignes sont **indistinguables**.
-    parts.push(`onglet ${agent.tabNumber}`);
+    parts.push(`tab ${agent.tabNumber}`);
   }
   if (agent.agent !== null) parts.push(agent.agent);
   const folder = basename(agent.cwd);

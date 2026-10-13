@@ -128,17 +128,17 @@ describe("U10 — une coupure ne sort pas de la conversation", () => {
   });
 
   test("un agent jamais vu ne retombe pas silencieusement sur les onglets", () => {
-    expect(app).toContain("Cet agent n'existe plus dans Herdr");
+    expect(app).toContain("This agent no longer exists in Herdr");
     // Le fragment disait « agent » et l'écran disait « liste » : rien ne
     // signalait la perte.
-    expect(app.indexOf("Cet agent n'existe plus dans Herdr")).toBeGreaterThan(
+    expect(app.indexOf("This agent no longer exists in Herdr")).toBeGreaterThan(
       app.indexOf('route.kind === "agent" && agentAffiche !== null'),
     );
   });
 
   test("l'état périmé est annoncé, pas tu en silence", () => {
     expect(app).toContain("agentPerime");
-    expect(app).toContain("Ce qui suit est le dernier état connu");
+    expect(app).toContain("Showing its last known state");
   });
 
   test("le bandeau d'état remplace l'avis d'erreur brut", () => {
