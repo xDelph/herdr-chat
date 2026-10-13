@@ -2573,3 +2573,29 @@ button:disabled {
   font-size: 13px;
   margin-left: auto;
 }
+
+/* ---------------------------------------------------------------------------
+   Sélecteur d'ordre de la liste
+   --------------------------------------------------------------------------- */
+
+.ordre {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  padding: 4px 0 8px;
+}
+
+.ordre__label {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.ordre__choix {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text);
+  font-size: 13px;
+  padding: 6px 8px;
+}

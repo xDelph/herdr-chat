@@ -33,7 +33,8 @@ import { ProjectAgentsOf } from "./ProjectDetail.tsx";
 import type { LaunchChoice } from "./launch.ts";
 import { TrustCard } from "./TrustCard.tsx";
 import { parseRoute, routeToHash } from "./routing.ts";
-import { SECTIONS, SECTION_LABEL, sectionOf } from "./sections.ts";
+import { ORDRES, ORDRE_LABEL, SECTION_LABEL, sectionConversations } from "./sections.ts";
+import type { Ordre } from "./sections.ts";
 import { ConversationRow } from "./ConversationRow.tsx";
 import { SectionTitle } from "./SectionTitle.tsx";
 import { ProjectPicker } from "./ProjectPicker.tsx";
@@ -295,13 +296,20 @@ export const App = () => {
    * Les sections sont celles de la référence, et elles répondent à la seule
    * question qu'on se pose en ouvrant l'application : **qu'est-ce qui m'attend ?**
    */
+  /** Ordre choisi. Défaut « récent » : le contrat U04. */
+  const [ordre, setOrdre] = useState<Ordre>("recent");
+  const onOrdreChange = useCallback((event: React.ChangeEvent<HTMLSelectElement>) => {
+    // Décodage plutôt qu'assertion : une valeur inattendue retombe sur le défaut.
+    setOrdre(event.target.value === "nom" ? "nom" : "recent");
+  }, []);
+
   const sections = useMemo(
     () =>
-      SECTIONS.map((section) => ({
-        lignes: conversations.filter((conversation) => sectionOf(conversation.status) === section),
+      sectionConversations(conversations, ordre).map(({ conversations: lignes, section }) => ({
+        lignes,
         section,
       })),
-    [conversations],
+    [conversations, ordre],
   );
 
   /** Nom du projet et libellé d'onglet — absents de `ConversationSummary`. */
@@ -544,6 +552,23 @@ export const App = () => {
         écrans réels coûtaient un geste à chaque ouverture.
       */}
       <section className="screen screen--liste">
+        {/*
+          Sélecteur d'ordre. ⚠️ Le défaut reste « plus récentes » : à
+          l'ouverture on veut voir ce qui vient de bouger. « Par nom » sert à
+          retrouver une conversation précise.
+        */}
+        <div className="ordre">
+          <label className="ordre__label" htmlFor="ordre">
+            Trier
+          </label>
+          <select id="ordre" className="ordre__choix" value={ordre} onChange={onOrdreChange}>
+            {ORDRES.map((valeur) => (
+              <option key={valeur} value={valeur}>
+                {ORDRE_LABEL[valeur]}
+              </option>
+            ))}
+          </select>
+        </div>
         {sections.map(({ lignes, section }) => (
           <section key={section}>
             <SectionTitle count={lignes.length}>{SECTION_LABEL[section]}</SectionTitle>

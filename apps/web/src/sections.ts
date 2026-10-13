@@ -10,9 +10,11 @@
  *
  * 1. un pane apparaît **une fois** et une seule — `À traiter` si `blocked`,
  *    `En cours` si `working`, `Récents` sinon ;
- * 2. dans chaque section : dernier message Pi **décroissant** ;
+ * 2. dans chaque section, l'ordre est **choisi** : dernier message décroissant
+ *    (défaut) ou nom croissant ;
  * 3. à horodatage absent : **en dernier** ;
- * 4. à horodatage égal : `paneId` **croissant**.
+ * 4. à valeur égale : `paneId` **croissant**, pour que deux rafraîchissements ne
+ *    réordonnent pas la même liste.
  *
  * Le point 3 est le contrepied du point 2 : une ligne sans horodatage n'est
  * pas « la plus ancienne », elle est **hors classement**, donc en bas. La
@@ -60,7 +62,12 @@ export const sectionOf = (status: AgentStatus): Section => {
  * `null` pour un horodatage absent : `null` est traité comme **infini** dans le
  * tri décroissant, donc ces lignes atterrissent en bas — sans être exclues.
  */
-const comparer = (a: ConversationSummary, b: ConversationSummary): number => {
+/** Comparateur par nom, avec repli sur `paneId` : l'ordre reste déterministe. */
+const comparerParNom = (a: ConversationSummary, b: ConversationSummary): number =>
+  nomDe(a).localeCompare(nomDe(b), "fr", { sensitivity: "base" }) ||
+  a.paneId.localeCompare(b.paneId);
+
+const comparerParDate = (a: ConversationSummary, b: ConversationSummary): number => {
   const dateA = a.timestamp ?? null;
   const dateB = b.timestamp ?? null;
 
@@ -74,6 +81,31 @@ const comparer = (a: ConversationSummary, b: ConversationSummary): number => {
   // pourraient réordonner la même liste.
   return a.paneId.localeCompare(b.paneId);
 };
+
+/**
+ * Ordre d'affichage dans une section.
+ *
+ * ⚠️ Le défaut reste `recent` : c'est le contrat U04, et c'est aussi ce qui a du
+ * sens à l'ouverture — on veut voir ce qui vient de bouger. `nom` sert à
+ * retrouver une conversation précise quand on sait comment elle s'appelle.
+ */
+export const ORDRES = ["recent", "nom"] as const;
+export type Ordre = (typeof ORDRES)[number];
+
+/** Libellés exacts, utilisés par le sélecteur. */
+export const ORDRE_LABEL: Record<Ordre, string> = {
+  recent: "Plus récentes",
+  nom: "Par nom",
+};
+
+/**
+ * Titre utilisé pour le tri alphabétique.
+ *
+ * ⚠️ On trie sur le **libellé affiché**, pas sur `title` seul : la cascade de
+ * titre retombe sur le libellé d'onglet, puis de projet. Trier sur un champ
+ * vide placerait toutes ces lignes au même rang.
+ */
+const nomDe = (conversation: ConversationSummary): string => conversation.title ?? "";
 
 /** Une section de la liste, prête à afficher. */
 export interface Sectioned {
@@ -89,11 +121,12 @@ export interface Sectioned {
  */
 export const sectionConversations = (
   conversations: ReadonlyArray<ConversationSummary>,
+  ordre: Ordre = "recent",
 ): ReadonlyArray<Sectioned> =>
   SECTIONS.map((section) => ({
     conversations: conversations
       .filter((conversation) => sectionOf(conversation.status) === section)
-      .toSorted(comparer),
+      .toSorted(ordre === "nom" ? comparerParNom : comparerParDate),
     section,
   }));
 

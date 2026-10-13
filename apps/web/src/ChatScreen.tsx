@@ -40,6 +40,8 @@ export const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => 
    */
   const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading");
   const [draft, setDraft] = useState("");
+  /** Champ de saisie, pour lui rendre sa taille après un envoi. */
+  const champRef = useRef<HTMLTextAreaElement | null>(null);
   const [lastSend, setLastSend] = useState<SendResult | null>(null);
   const [sending, setSending] = useState(false);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
@@ -158,15 +160,28 @@ export const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => 
    * La hauteur est remise à `auto` **avant** de mesurer — sinon `scrollHeight`
    * ne fait que croître et le champ ne redescend jamais quand on efface.
    */
-  const onDraftChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    const field = event.target;
-    setDraft(field.value);
-
+  /** Hauteur d'une ligne — doit suivre le `line-height` du CSS. */
+  const LINE_HEIGHT = 22;
+  /** Au-delà, on écrit un document, pas un message. */
+  const MAX_LIGNES = 5;
+  /**
+   * Ajuste la hauteur du champ à son contenu.
+   *
+   * ⚠️ La hauteur est remise à `auto` **avant** de mesurer : sinon
+   * `scrollHeight` ne fait que croître et le champ ne redescend jamais.
+   * Appelée aussi **après l'envoi**, sans quoi le champ restait à la hauteur du
+   * message précédent alors qu'il est vide.
+   */
+  const ajusterHauteur = (field: HTMLTextAreaElement): void => {
     field.style.height = "auto";
-    const LINE_HEIGHT = 22;
-    const maximum = LINE_HEIGHT * 5;
+    const maximum = LINE_HEIGHT * MAX_LIGNES;
     field.style.height = `${String(Math.min(field.scrollHeight, maximum))}px`;
     field.style.overflowY = field.scrollHeight > maximum ? "auto" : "hidden";
+  };
+
+  const onDraftChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setDraft(event.target.value);
+    ajusterHauteur(event.target);
   }, []);
 
   const submit = useCallback(async () => {
@@ -176,7 +191,15 @@ export const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => 
     try {
       const result = await sendPrompt(agent.paneId, text);
       setLastSend(result);
-      if (result.kind === "sent") setDraft("");
+      if (result.kind === "sent") {
+        setDraft("");
+        // Le champ est vide : il doit retrouver sa hauteur d'une ligne. Sans
+        // cela, il gardait la hauteur du message qu'on vient d'envoyer.
+        if (champRef.current !== null) {
+          champRef.current.value = "";
+          ajusterHauteur(champRef.current);
+        }
+      }
     } catch (cause) {
       /*
         ⚠️ `sendPrompt` ne capture que les réponses illisibles : un `fetch` qui
@@ -353,7 +376,13 @@ export const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => 
           ) : null}
 
           <div className="composer">
-            <textarea value={draft} onChange={onDraftChange} placeholder={placeholder} rows={1} />
+            <textarea
+              ref={champRef}
+              value={draft}
+              onChange={onDraftChange}
+              placeholder={placeholder}
+              rows={1}
+            />
             {/*
               Bouton d'envoi **rond, avec une flèche** — la forme standard d'iOS.
 
