@@ -19,6 +19,8 @@
   --radius-md: 10px;
   --radius-lg: 12px;
   --radius-pill: 999px;
+  /* Rayon d'un champ de saisie : la forme d'iOS Messages, ni galet ni rectangle. */
+  --radius-field: 22px;
   /* Fonds qui n'appartiennent pas a la palette de surfaces : code, terminal,
      ligne numero, voile. Ils etaient repetes et copies dans le CSS. */
   --code-bg: #05080f;
@@ -470,14 +472,23 @@ button:disabled {
 
   `env(safe-area-inset-bottom)` garde le champ au-dessus de la barre iOS.
 */
+/*
+  Composeur : la forme d'iOS Messages.
+
+  ⚠️ Trois corrections par rapport à la version « pastille » :
+  `align-items: center` centre le texte sur une ligne (le `flex-end` le collait en
+  bas), le rayon descend à 22 px au lieu d'un galet, et le rembourrage vertical
+  est divisé par deux — la pastille mesurait 56 px de haut pour un champ d'une
+  ligne.
+*/
 .composer {
-  align-items: flex-end;
+  align-items: center;
   background: var(--surface-2);
-  border-radius: var(--radius-pill);
+  border-radius: var(--radius-field);
   display: flex;
-  gap: 8px;
-  margin: 6px 12px calc(8px + env(safe-area-inset-bottom));
-  padding: 6px 8px 6px 14px;
+  gap: 6px;
+  margin: 6px 12px calc(6px + env(safe-area-inset-bottom));
+  padding: 3px 4px 3px 14px;
 }
 
 /* Le champ lui-même n'a plus de cadre : la pastille est autour de lui. */
@@ -2301,8 +2312,15 @@ button:disabled {
   édition et sa sortie dépliées d'office noient le résumé ; elles s'ouvrent une
   par une, à la demande.
 */
+/*
+  ⚠️ **Aucun filet.** Chaque ligne portait un `border-top`, ce qui dessinait une
+  règle entre deux blocs que l'espacement suffisait déjà à séparer — et donnait
+  l'impression d'un tableau.
+*/
 .ligne {
-  border-top: 1px solid color-mix(in srgb, var(--border) 55%, transparent);
+  border: none;
+  /* Espacement **identique** entre toutes les lignes : une valeur unique, ici. */
+  padding: 2px 0;
 }
 
 .ligne__head {
@@ -2315,7 +2333,7 @@ button:disabled {
   font-size: 13px;
   gap: 8px;
   min-height: var(--tap-min);
-  padding: 6px 0;
+  padding: 4px 0;
   text-align: left;
   width: 100%;
 }
@@ -2448,14 +2466,28 @@ button:disabled {
 */
 .reflexion {
   color: var(--muted);
+  font-size: 13px;
+  padding: 2px 0;
+}
+
+.reflexion__head {
+  align-items: baseline;
+  background: none;
+  border: none;
+  color: inherit;
+  cursor: pointer;
   display: flex;
   font-size: 13px;
   gap: 8px;
+  min-height: var(--tap-min);
   padding: 4px 0;
+  text-align: left;
+  width: 100%;
 }
 
 .reflexion__texte {
   min-width: 0;
+  padding: 0 0 6px 26px;
 }
 
 .reflexion__texte p {

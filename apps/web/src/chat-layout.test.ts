@@ -322,7 +322,9 @@ describe("U19 — la conversation se lit comme un document", () => {
 
   test("le composeur est une pastille flottante, pas une barre", () => {
     const composeur = bloc(".composer");
-    expect(composeur["border-radius"]).toBe("var(--radius-pill)");
+    // ⚠️ U26 : `--radius-field` (22 px) et non `--radius-pill`. Un galet de
+    // 56 px de haut pour un champ d'une ligne, ce n'est pas iOS.
+    expect(composeur["border-radius"]).toBe("var(--radius-field)");
     expect(composeur.background).toBe("var(--surface-2)");
     // Pas de filet de séparation : la pastille se détache déjà.
     expect(composeur["border-top"]).toBeUndefined();

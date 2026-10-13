@@ -17,7 +17,6 @@ import {
   estBlocDeTravail,
   jetonsCourts,
   lignesDeTravail,
-  resumeDuGroupe,
 } from "./actions.ts";
 import type { LigneTravail } from "./actions.ts";
 import { fileUrl } from "./api.ts";
@@ -685,6 +684,51 @@ MessageBubble.displayName = "MessageBubble";
  * derrière un résumé reviendrait à le cacher.
  */
 /**
+ * Réflexion interne : **repliée par défaut**, une ligne qui s'ouvre.
+ *
+ * ⚠️ Le raisonnement d'un agent est long, en anglais, et souvent plus bavard que
+ * la réponse elle-même. Le laisser déplié noie le fil ; le résumer mentirait sur
+ * son contenu. Une ligne qui dit « Réflexion » et s'ouvre au toucher est le seul
+ * compromis honnête.
+ */
+const Reflexion = ({
+  icone,
+  pensee,
+}: {
+  readonly icone: string;
+  readonly pensee: Extract<Block, { kind: "thinking" }>;
+}) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="reflexion">
+      <button
+        type="button"
+        className="reflexion__head"
+        aria-expanded={open}
+        onClick={() => setOpen((valeur) => !valeur)}
+      >
+        <span className="ligne__icone" aria-hidden="true">
+          {icone}
+        </span>
+        <span>Réflexion</span>
+        <span className="group__chevron" aria-hidden="true">
+          {open ? "▾" : "›"}
+        </span>
+      </button>
+      {open ? (
+        <div className="reflexion__texte">
+          {pensee.redacted ? (
+            <p>contenu masqué par le fournisseur</p>
+          ) : (
+            <Markdown source={pensee.thinking} />
+          )}
+        </div>
+      ) : null}
+    </div>
+  );
+};
+
+/**
  * Une ligne de travail : un appel, dépliable.
  *
  * ⚠️ **Repliée par défaut**, même quand le groupe est ouvert. Une commande, une
@@ -714,20 +758,7 @@ const LigneDeTravail = ({ ligne }: { ligne: LigneTravail }) => {
   */
   if (details.length === 1 && details[0]?.kind === "thinking") {
     const pensee = details[0];
-    return (
-      <div className="reflexion">
-        <span className="ligne__icone" aria-hidden="true">
-          {action.icone}
-        </span>
-        {pensee.redacted ? (
-          <p className="reflexion__texte">contenu masqué par le fournisseur</p>
-        ) : (
-          <div className="reflexion__texte">
-            <Markdown source={pensee.thinking} />
-          </div>
-        )}
-      </div>
-    );
+    return <Reflexion icone={action.icone} pensee={pensee} />;
   }
   const cible = action.cible;
 
@@ -807,7 +838,6 @@ const ToolGroup = ({
   const cout = coutDuGroupe(item.messages);
   const duree = dureeEnMots(cout.dureeMs ?? 0);
   const jetons = cout.jetons === null ? "" : jetonsCourts(cout.jetons);
-  const resume = resumeDuGroupe(item.tools.map((outil) => outil.name));
   const diff =
     cout.added > 0 || cout.removed > 0 ? (
       <span className="group__diff">
@@ -817,15 +847,21 @@ const ToolGroup = ({
     ) : null;
 
   return (
-    <div className={item.hasError ? "group group--error" : "group"}>
+    <div className="group">
       <button type="button" className="group__head" onClick={basculer} aria-expanded={open}>
         <span className="group__ligne">
           <span className="group__titre">
             {enCours ? "En cours" : "A travaillé"}
             {duree.length > 0 ? ` ${duree}` : ""}
           </span>
-          {resume.length > 0 ? <span className="group__resume">{resume}</span> : null}
-          {item.hasError ? <span className="group__flag">échec</span> : null}
+          {/*
+            ⚠️ **Ni résumé, ni badge d'échec.**
+
+            Le résumé répétait le verbe de chaque ligne juste en dessous : il ne
+            servait à rien. Et « échec » sur le travail entier était faux — une
+            commande qui échoue au milieu de vingt n'invalide pas le travail.
+            L'échec se marque **sur sa ligne**, là où il se produit.
+          */}
           {/* Le chevron vit **dans** la première ligne : en `::after` du bouton,
               il tombait sur une troisième ligne depuis que l'en-tête est une
               colonne de deux lignes. */}

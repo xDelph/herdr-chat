@@ -610,8 +610,6 @@ export type Item =
       readonly messages: ReadonlyArray<RenderedMessage>;
       /** Outils utilisés, avec leur nombre — pour un résumé lisible. */
       readonly tools: ReadonlyArray<{ readonly name: string; readonly count: number }>;
-      /** `true` si un résultat du groupe est en échec. */
-      readonly hasError: boolean;
       readonly callCount: number;
     };
 
@@ -636,11 +634,6 @@ const toolNamesOf = (
     .map(([name, count]) => ({ count, name }))
     .toSorted((a, b) => b.count - a.count);
 };
-
-const hasErrorIn = (messages: ReadonlyArray<RenderedMessage>): boolean =>
-  messages.some((message) =>
-    message.blocks.some((block) => block.kind === "toolResult" && block.isError),
-  );
 
 /**
  * Regroupe les messages **consécutifs** qui ne contiennent que des outils.
@@ -679,30 +672,52 @@ export const toItems = (messages: ReadonlyArray<RenderedMessage>): ReadonlyArray
     if (tour.length === 0) return;
 
     /*
-      La réponse = la **dernière** prose du tour. Les prosences précédentes font
-      partie du travail : l'agent dit où il en est, puis continue.
+      La réponse = la **dernière** prose du tour.
     */
     let indexReponse = -1;
     for (let index = tour.length - 1; index >= 0; index -= 1) {
-      const message = tour[index];
-      if (message !== undefined && aDeLaProse(message)) {
+      if (aDeLaProse(tour[index])) {
         indexReponse = index;
         break;
       }
     }
 
-    const travail = tour.filter((_, index) => index !== indexReponse);
+    /*
+      ⚠️ **Le message-réponse est DÉCOUPÉ.**
+
+      Un tour réel finit sur `thinking + text` : la réponse et le raisonnement
+      vivent dans le **même** message. Le prendre entier laissait la réponse dans
+      le bloc ; le refuser entièrement faisait sortir sa réflexion, en sous-bloc
+      orphelin hors d'un bloc refermé.
+
+      Sa prose sort — c'est la réponse — et son travail reste dedans.
+    */
+    const travail: RenderedMessage[] = [];
+    let reponse: RenderedMessage | undefined;
+    for (const [index, message] of tour.entries()) {
+      if (index !== indexReponse) {
+        travail.push(message);
+        continue;
+      }
+      const prose = message.blocks.filter(
+        (block) => block.kind === "text" || block.kind === "image",
+      );
+      const reste = message.blocks.filter(
+        (block) => block.kind !== "text" && block.kind !== "image",
+      );
+      if (reste.length > 0) travail.push({ ...message, blocks: reste });
+      if (prose.length > 0) reponse = { ...message, blocks: prose };
+    }
+
     if (travail.length > 0) {
       items.push({
         callCount: travail.length,
-        hasError: hasErrorIn(travail),
         id: `travail:${travail[0]?.id ?? "?"}:${String(travail.length)}`,
         kind: "tools",
         messages: travail,
         tools: toolNamesOf(travail),
       });
     }
-    const reponse = indexReponse >= 0 ? tour[indexReponse] : undefined;
     if (reponse !== undefined) items.push({ kind: "single", message: reponse });
 
     tour = [];
@@ -733,16 +748,10 @@ export const toItems = (messages: ReadonlyArray<RenderedMessage>): ReadonlyArray
  * compter comme telle ferait passer la dernière sortie de commande pour la
  * conclusion du tour.
  */
-const aDeLaProse = (message: RenderedMessage): boolean =>
+const aDeLaProse = (message: RenderedMessage | undefined): boolean =>
+  message !== undefined &&
   message.role === "assistant" &&
-  message.blocks.some((block) => block.kind === "text") &&
-  !message.blocks.some(
-    (block) =>
-      block.kind === "thinking" ||
-      block.kind === "toolCall" ||
-      block.kind === "toolResult" ||
-      block.kind === "bashExecution",
-  );
+  message.blocks.some((block) => block.kind === "text");
 
 // ---------------------------------------------------------------------------
 // Question en attente

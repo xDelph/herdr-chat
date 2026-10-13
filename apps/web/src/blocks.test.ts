@@ -368,7 +368,6 @@ describe("toItems — regroupement des appels d'outils", () => {
       expect(items[0].callCount).toBe(4);
       expect(items[0].tools.map((tool) => tool.name)).toContain("bash");
       expect(items[0].tools.map((tool) => tool.name)).toContain("edit");
-      expect(items[0].hasError).toBe(false);
     } else {
       throw new Error("groupe attendu");
     }
@@ -420,7 +419,13 @@ describe("toItems — regroupement des appels d'outils", () => {
     expect(items[0]?.kind).toBe("tools");
   });
 
-  test("une erreur dans le groupe est signalée", () => {
+  test("un échec ne condamne pas le travail entier", () => {
+    /*
+      ⚠️ Le groupe portait un drapeau `hasError` qui allumait un badge « échec »
+      sur tout le travail. C'était faux : une commande qui échoue au milieu de
+      vingt n'invalide pas le travail. L'échec se marque **sur sa ligne** —
+      c'est `lignesDeTravail` qui s'en charge, et c'est testé là-bas.
+    */
     const items = toItems(
       messages([
         { raw: toolCall("1", "bash") },
@@ -430,10 +435,8 @@ describe("toItems — regroupement des appels d'outils", () => {
       ]),
     );
 
-    // L'interface s'en sert pour déplier d'office : un échec ne doit pas
-    // rester caché derrière un résumé.
-    if (items[0]?.kind === "tools") expect(items[0].hasError).toBe(true);
-    else throw new Error("groupe attendu");
+    expect(items[0]?.kind).toBe("tools");
+    expect("hasError" in (items[0] ?? {})).toBe(false);
   });
 
   test("les textes de l'assistant restent toujours visibles", () => {
