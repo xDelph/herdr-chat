@@ -56,14 +56,15 @@ describe("U09 — filtrer ne choisit pas", () => {
   });
 
   test("la sélection se fait en cliquant un modèle, pas en écrivant", () => {
-    expect(model).toContain("setChosen(");
+    expect(model).toContain("onClick={() => choisirModele(candidate.id)}");
+    expect(model).toContain("setModeleChoisi(value)");
   });
 
   test("le filtre porte sur l'identifiant, en minuscules", () => {
     // Le filtre de la feuille de lancement cherche aussi dans le libellé ; celui
     // d'un agent déjà lancé cherche dans l'identifiant. Deux règles, deux
     // écrans : c'est assumé, et chacune est vérifiée.
-    expect(model).toContain("model.id.toLowerCase().includes(filter.trim().toLowerCase())");
+    expect(model).toContain("candidate.id.toLowerCase().includes(filter.trim().toLowerCase())");
   });
 });
 
@@ -113,13 +114,11 @@ describe("U09 — ouvrir une feuille ne perd ni le fil ni le brouillon", () => {
 });
 
 describe("U09 — le retour d'un fichier mène à la liste", () => {
-  test("le drapeau n'est levé que depuis la liste de fichiers", () => {
-    const leve = chat.split("setFromFiles(true)").length - 1;
-    expect(leve).toBe(1);
-    // Lever le drapeau ailleurs rendrait le bouton « ‹ Fichiers » présent alors
-    // que l'utilisateur n'est jamais passé par la liste.
-    const apres = chat.indexOf("setFromFiles(true)");
-    expect(chat.slice(apres, apres + 120)).toContain("setOpenFile(path)");
+  test("la visionneuse s'ouvre depuis la liste après sa fermeture animée", () => {
+    expect(chat).toContain("onOpenFile={setFichierEnAttente}");
+    expect(chat).toContain("fermeture={fichierEnAttente !== null}");
+    expect(chat).toContain("setFromFiles(true)");
+    expect(chat).toContain("setOpenFile(fichierEnAttente)");
   });
 
   test("le bouton de retour n'existe que si l'on vient de la liste", () => {

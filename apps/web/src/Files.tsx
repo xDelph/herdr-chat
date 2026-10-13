@@ -16,6 +16,7 @@ import { Feuille } from "./Feuille.tsx";
 
 interface Props {
   readonly files: ReadonlyArray<TouchedFile>;
+  readonly fermeture?: boolean;
 }
 
 /** Diff compact, tel qu'il a été appliqué. */
@@ -50,7 +51,11 @@ export const FilesSheet = ({
   files,
   onClose,
   onOpenFile,
-}: Props & { readonly onClose: () => void; readonly onOpenFile: (path: string) => void }) => {
+  fermeture,
+}: Props & {
+  readonly onClose: () => void;
+  readonly onOpenFile: (path: string) => void;
+}) => {
   if (files.length === 0) return null;
 
   // Les modifications les plus lourdes d'abord.
@@ -60,6 +65,7 @@ export const FilesSheet = ({
     <Feuille
       ariaLabel="Fichiers touchés"
       onClose={onClose}
+      {...(fermeture === undefined ? {} : { fermeture })}
       titre={
         <>
           Fichiers touchés

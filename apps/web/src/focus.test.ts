@@ -198,8 +198,7 @@ describe("U11 — une seule coquille, une seule annonce", () => {
   });
 
   test("la feuille ne ment pas sur sa nature modale", () => {
-    // `aria-modal` sans piège natif promet un comportement que le dialogue n'a
-    // pas. Le piège est fait à la main, et c'est `focus.test.ts` qui le vérifie.
-    expect(lire("Feuille.tsx")).not.toContain("aria-modal");
+    // Le dialogue annonce sa modalité ; le piège clavier personnalisé la respecte.
+    expect(lire("Feuille.tsx")).toContain('aria-modal="true"');
   });
 });

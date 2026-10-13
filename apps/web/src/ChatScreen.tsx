@@ -25,10 +25,16 @@ import { Notice } from "./Notice.tsx";
 
 export const ChatScreen = ({
   agent,
+  currentModel,
+  currentProvider,
+  currentThinking,
   onBack,
   question,
 }: {
   agent: AgentView;
+  currentModel: string | undefined;
+  currentProvider: string | undefined;
+  currentThinking: string | undefined;
   onBack: () => void;
   /** Question posée à l'écran, quand l'agent en attend une. */
   question?: Question | undefined;
@@ -58,6 +64,7 @@ export const ChatScreen = ({
   const placeholder = `Message à ${agentName(agent)}…`;
   const files = touchedFilesOf(messages);
   const [showFiles, setShowFiles] = useState(false);
+  const [fichierEnAttente, setFichierEnAttente] = useState<string | null>(null);
   const [showModel, setShowModel] = useState(false);
   /** Fichier ouvert dans la visionneuse plein écran. */
   const [openFile, setOpenFile] = useState<string | null>(null);
@@ -67,6 +74,15 @@ export const ChatScreen = ({
     setShowFiles((value) => !value);
     setShowModel(false);
   }, []);
+
+  const fermerFichiers = useCallback(() => {
+    setShowFiles(false);
+    if (fichierEnAttente !== null) {
+      setFromFiles(true);
+      setOpenFile(fichierEnAttente);
+      setFichierEnAttente(null);
+    }
+  }, [fichierEnAttente]);
 
   /**
    * Chargement **incrémental** de la conversation.
@@ -390,19 +406,17 @@ export const ChatScreen = ({
           ) : showFiles ? (
             <FilesSheet
               files={files}
-              onClose={onToggleFiles}
-              onOpenFile={(path) => {
-                setShowFiles(false);
-                // ⚠️ Sans ce drapeau, la visionneuse n'a pas de retour : « Fermer »
-                // ferme tout et on perd la liste qu'on parcourait.
-                setFromFiles(true);
-                setOpenFile(path);
-              }}
+              fermeture={fichierEnAttente !== null}
+              onClose={fermerFichiers}
+              onOpenFile={setFichierEnAttente}
             />
           ) : showModel ? (
             <ModelSheet
               agentName={agentName(agent)}
               kind={agent.agent ?? "pi"}
+              currentModel={currentModel}
+              currentProvider={currentProvider}
+              currentThinking={currentThinking}
               paneId={agent.paneId}
               onClose={() => setShowModel(false)}
             />

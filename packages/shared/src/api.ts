@@ -228,6 +228,8 @@ export const LaunchAgentRequest = Schema.Struct({
    * de l'agent, pas un modèle « par défaut » choisi par cette application.
    */
   model: Schema.optional(Schema.String),
+  /** Fournisseur du modèle, quand la session l'a déclaré (notamment pour Pi). */
+  provider: Schema.optional(Schema.String),
   name: Schema.optional(Schema.String),
   /**
    * Niveau de raisonnement, au lancement.
@@ -445,6 +447,8 @@ export const ConversationSummary = Schema.Struct({
    * modèle supposé.
    */
   model: Schema.optional(Schema.String),
+  /** Fournisseur explicite pour les modèles Pi (`model_change`). */
+  provider: Schema.optional(Schema.String),
   /** Aperçu : dernier message texte de l'agent. Absent s'il n'y en a pas. */
   preview: Schema.optional(Schema.String),
   /**

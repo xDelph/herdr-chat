@@ -428,6 +428,10 @@ export const App = () => {
   // fragment `#/agent/<paneId>` rouvre le même agent.
   const selectedAgent =
     route.kind === "agent" ? (agents.find((a) => a.paneId === route.paneId) ?? null) : null;
+  const selectedConversation =
+    route.kind === "agent"
+      ? conversations.find((conversation) => conversation.paneId === route.paneId)
+      : undefined;
 
   /**
    * Repli sur la dernière observation, le temps que l'agent revienne.
@@ -460,7 +464,14 @@ export const App = () => {
             Cet agent n'apparaît plus dans Herdr. Ce qui suit est le dernier état connu.
           </Notice>
         ) : null}
-        <ChatScreen agent={agentAffiche} onBack={closeAgent} question={questionAffichee} />
+        <ChatScreen
+          agent={agentAffiche}
+          currentModel={selectedConversation?.model}
+          currentProvider={selectedConversation?.provider}
+          currentThinking={selectedConversation?.thinking}
+          onBack={closeAgent}
+          question={questionAffichee}
+        />
       </div>
     );
   }
@@ -561,8 +572,9 @@ export const App = () => {
         « Réglages » est passé derrière l'engrenage. Trois onglets pour deux
         écrans réels coûtaient un geste à chaque ouverture.
       */}
-      <section className="screen screen--liste">
-        {/*
+      {route.kind !== "projet" ? (
+        <section className="screen screen--liste">
+          {/*
           Un **basculement**, pas une liste déroulante : deux états, un seul
           geste, et la place d'une icône. Une liste déroulante pour deux choix
           coûtait une ligne entière et deux gestes.
@@ -570,50 +582,48 @@ export const App = () => {
           ⚠️ Le défaut reste « récent » : à l'ouverture on veut voir ce qui vient
           de bouger. « Par nom » sert à retrouver une conversation précise.
         */}
-        <div className="ordre">
-          <button
-            type="button"
-            className="ordre__bascule"
-            aria-pressed={ordre === "nom"}
-            onClick={basculerOrdre}
-            title={ORDRE_LABEL[ordre]}
-          >
-            <span aria-hidden="true">{ordre === "nom" ? "A→Z" : "⏱"}</span>
-            <span className="visually-hidden">
-              {ordre === "nom"
-                ? "Trié par nom, appuyer pour trier par date"
-                : "Trié par date, appuyer pour trier par nom"}
-            </span>
-          </button>
-        </div>
-        {sections.map(({ lignes, section }) => (
-          <section key={section}>
-            <SectionTitle count={lignes.length}>{SECTION_LABEL[section]}</SectionTitle>
-            {lignes.map((conversation) => (
-              <ConversationRow
-                conversation={conversation}
-                key={conversation.paneId}
-                maintenant={maintenant}
-                onglet={ongletDe(conversation.paneId)}
-                onOpen={onOpenAgent}
-                projet={projetDe(conversation.workspaceId)}
-              />
-            ))}
-          </section>
-        ))}
-        {conversations.length === 0 && etat.phase === "pret" ? (
-          <p className="muted liste__rien">Aucun agent dans Herdr pour l'instant.</p>
-        ) : null}
-      </section>
+          <div className="ordre">
+            <button
+              type="button"
+              className="ordre__bascule"
+              aria-pressed={ordre === "nom"}
+              onClick={basculerOrdre}
+              title={ORDRE_LABEL[ordre]}
+            >
+              <span aria-hidden="true">{ordre === "nom" ? "A→Z" : "⏱"}</span>
+              <span className="visually-hidden">
+                {ordre === "nom"
+                  ? "Trié par nom, appuyer pour trier par date"
+                  : "Trié par date, appuyer pour trier par nom"}
+              </span>
+            </button>
+          </div>
+          {sections.map(({ lignes, section }) => (
+            <section key={section}>
+              <SectionTitle count={lignes.length}>{SECTION_LABEL[section]}</SectionTitle>
+              {lignes.map((conversation) => (
+                <ConversationRow
+                  conversation={conversation}
+                  key={conversation.paneId}
+                  maintenant={maintenant}
+                  onglet={ongletDe(conversation.paneId)}
+                  onOpen={onOpenAgent}
+                  projet={projetDe(conversation.workspaceId)}
+                />
+              ))}
+            </section>
+          ))}
+          {conversations.length === 0 && etat.phase === "pret" ? (
+            <p className="muted liste__rien">Aucun agent dans Herdr pour l'instant.</p>
+          ) : null}
+        </section>
+      ) : null}
 
-      <button
-        type="button"
-        className="fab"
-        disabled={conversations.length === 0}
-        onClick={() => setProjetChoisi(true)}
-      >
-        + Nouvel agent
-      </button>
+      {route.kind === "liste" ? (
+        <button type="button" className="fab" onClick={() => setProjetChoisi(true)}>
+          + Nouvel agent
+        </button>
+      ) : null}
 
       {projetChoisi ? (
         <ProjectPicker

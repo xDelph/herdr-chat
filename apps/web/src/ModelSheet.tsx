@@ -79,19 +79,58 @@ interface Props {
   /** Type d'agent (`pi`, `claude`…) : c'est lui qui décide du catalogue. */
   readonly kind: string;
   readonly paneId: string;
+  readonly currentModel: string | undefined;
+  readonly currentProvider: string | undefined;
+  readonly currentThinking: string | undefined;
   readonly onClose: () => void;
 }
 
-export const ModelSheet = ({ agentName, kind, paneId, onClose }: Props) => {
+const providerOf = (modelId: string): string | null => {
+  const separator = modelId.indexOf("/");
+  return separator < 0 ? null : modelId.slice(0, separator);
+};
+
+const currentModelInCatalog = (
+  models: ReadonlyArray<AgentModel>,
+  kind: string,
+  model: string | undefined,
+  provider: string | undefined,
+): string | null => {
+  if (model === undefined) return null;
+  if (models.some((candidate) => candidate.id === model)) return model;
+  if (kind !== "pi") return null;
+  if (provider !== undefined) {
+    const qualified = `${provider}/${model}`;
+    if (models.some((candidate) => candidate.id === qualified)) return qualified;
+  }
+  const suffixMatches = models.filter((candidate) => candidate.id.endsWith(`/${model}`));
+  return suffixMatches.length === 1 ? (suffixMatches[0]?.id ?? null) : null;
+};
+
+export const ModelSheet = ({
+  agentName,
+  currentModel,
+  currentProvider,
+  currentThinking,
+  kind,
+  paneId,
+  onClose,
+}: Props) => {
   /** Catalogue mesuré de cet agent, son absence comprise. */
   const [catalog, setCatalog] = useState<ModelCatalogResponse | null>(null);
   const [catalogError, setCatalogError] = useState<string | null>(null);
-  /** Modèle choisi : il **pilote** les niveaux de pensée proposés. */
-  const [chosen, setChosen] = useState<AgentModel | null>(null);
-  /** Saisie libre : seulement quand le catalogue n'a rien donné. */
-  const [modelPattern, setModelPattern] = useState("");
+  /** `undefined` garde la valeur courante présélectionnée ; `null` = choix effacé. */
+  const [modeleChoisi, setModeleChoisi] = useState<string | null | undefined>(undefined);
+  const [fournisseurChoisi, setFournisseurChoisi] = useState<string | null | undefined>(undefined);
+  const [penseeChoisie, setPenseeChoisie] = useState<string | null | undefined>(undefined);
   /** Filtre sur la liste : les identifiants sont longs et innombrables. */
   const [filter, setFilter] = useState("");
+  const [resultats, setResultats] = useState<
+    ReadonlyArray<{ readonly command: string; readonly result: SendResult }>
+  >([]);
+  const [busy, setBusy] = useState(false);
+  const [modeleTransmis, setModeleTransmis] = useState<string | undefined>(undefined);
+  const [penseeTransmise, setPenseeTransmise] = useState<string | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
@@ -111,34 +150,99 @@ export const ModelSheet = ({ agentName, kind, paneId, onClose }: Props) => {
       cancelled = true;
     };
   }, [kind]);
-  /** Dernier envoi, commande comprise : on montre **ce qui** a été transmis. */
-  const [lastSend, setLastSend] = useState<{
-    readonly command: string;
-    readonly result: SendResult;
-  } | null>(null);
-  /** Commande en vol : on désactive la feuille pendant l'envoi. */
-  const [busy, setBusy] = useState(false);
+  const modeleActuel =
+    catalog === null
+      ? null
+      : currentModelInCatalog(catalog.models, kind, currentModel, currentProvider);
+  const modelId = modeleChoisi === undefined ? modeleActuel : modeleChoisi;
+  const modele = catalog?.models.find((candidate) => candidate.id === modelId) ?? null;
+  const providerActuel =
+    currentProvider ?? (modeleActuel === null ? null : providerOf(modeleActuel));
+  const provider = fournisseurChoisi === undefined ? providerActuel : fournisseurChoisi;
+  const providers =
+    kind === "pi" && catalog !== null
+      ? [
+          ...new Set(
+            catalog.models
+              .map((candidate) => providerOf(candidate.id))
+              .filter((value) => value !== null),
+          ),
+        ]
+      : [];
+  const modelesVisibles =
+    catalog?.models.filter((candidate) => {
+      const appartient =
+        kind !== "pi" || provider === null || providerOf(candidate.id) === provider;
+      return appartient && candidate.id.toLowerCase().includes(filter.trim().toLowerCase());
+    }) ?? [];
+  const pensee = penseeChoisie === undefined ? (currentThinking ?? null) : penseeChoisie;
+  const modeleBase = modeleTransmis ?? modeleActuel;
+  const penseeBase = penseeTransmise ?? currentThinking ?? null;
+  const modeleChange = modele !== null && modele.id !== modeleBase;
+  const penseeChange = pensee !== null && pensee !== penseeBase;
+  const changementsDisponibles = modeleChange || penseeChange;
 
-  const apply = async (command: string) => {
-    if (busy) return;
+  const choisirFournisseur = (value: string) => {
+    setFournisseurChoisi(value);
+    setModeleChoisi(null);
+    setPenseeChoisie(null);
+    setFilter("");
+  };
+
+  const choisirModele = (value: string) => {
+    const suivant = catalog?.models.find((candidate) => candidate.id === value) ?? null;
+    setModeleChoisi(value);
+    setFournisseurChoisi(kind === "pi" ? providerOf(value) : null);
+    setPenseeChoisie((precedent) => {
+      const conserve = precedent === undefined ? currentThinking : precedent;
+      return conserve !== undefined &&
+        conserve !== null &&
+        suivant?.thinkingLevels.includes(conserve)
+        ? conserve
+        : null;
+    });
+  };
+
+  const appliquer = async () => {
+    if (busy || modele === null) return;
+    const commands: Array<{
+      readonly command: string;
+      readonly type: "model" | "thinking";
+      readonly value: string;
+    }> = [];
+    if (modeleChange)
+      commands.push({ command: `/model ${modele.id}`, type: "model", value: modele.id });
+    if (penseeChange && pensee !== null) {
+      commands.push({ command: `/thinking ${pensee}`, type: "thinking", value: pensee });
+    }
+    if (commands.length === 0) return;
+
     setBusy(true);
-    try {
-      setLastSend({ command, result: await sendPrompt(paneId, command) });
-    } catch (cause) {
-      /*
-        ⚠️ `sendPrompt` ne capture que les **réponses** illisibles : un `fetch`
-        qui ne part pas (réseau coupé, serveur arrêté) lève, et rien ne
-        s'afficherait. On montre la cause réelle plutôt que de laisser un
-        bouton qui semble ne rien faire.
-      */
-      setLastSend({
-        command,
-        result: {
+    const sent: Array<{ readonly command: string; readonly result: SendResult }> = [];
+    const transmettre = async (index: number): Promise<void> => {
+      const entry = commands[index];
+      if (entry === undefined) return;
+      const { command, type, value } = entry;
+      let result: SendResult;
+      try {
+        result = await sendPrompt(paneId, command);
+      } catch (cause) {
+        result = {
           kind: "failed",
           message: cause instanceof Error ? cause.message : String(cause),
           state: "inconnu",
-        },
-      });
+        };
+      }
+      sent.push({ command, result });
+      setResultats([...sent]);
+      if (result.kind !== "sent") return;
+      if (type === "model") setModeleTransmis(value);
+      else setPenseeTransmise(value);
+      await transmettre(index + 1);
+    };
+    try {
+      // Sequential by design: a failed model command stops the thinking command.
+      await transmettre(0);
     } finally {
       setBusy(false);
     }
@@ -148,38 +252,21 @@ export const ModelSheet = ({ agentName, kind, paneId, onClose }: Props) => {
     <Feuille
       ariaLabel={`Modèle et pensée de ${agentName}`}
       onClose={onClose}
-      titre={
-        <>
-          Modèle et pensée
-          <span className="muted small">{agentName}</span>
-        </>
-      }
+      titre={`Modèle · ${agentName}`}
     >
-      {lastSend !== null ? (
-        <p className="sendState">
-          {busy ? (
-            "envoi…"
-          ) : (
-            <>
-              <code>{lastSend.command}</code> — {describeSend(lastSend.result)}
-            </>
-          )}
-        </p>
+      {resultats.length > 0 ? (
+        <div className="model__results" aria-live="polite">
+          {resultats.map(({ command, result }) => (
+            <p className="sendState" key={command}>
+              <code>{command}</code> — {busy ? "envoi…" : describeSend(result)}
+            </p>
+          ))}
+        </div>
       ) : null}
 
       <p className="muted small">
-        Chaque réglage est envoyé à l'agent comme une commande qu'il exécute dans sa session.
+        Les choix sont préparés ici. Rien n'est envoyé avant « Appliquer ».
       </p>
-
-      {/*
-        Modèle **d'abord**.
-
-        Les identifiants sont longs et innombrables : `pi --list-models`
-        renvoie `opencode-go/deepseek-v4.1-flash`, personne ne le retient. La
-        saisie libre demandait de connaître le nom exact, et une faute de
-        frappe partait dans la conversation comme un message ordinaire.
-      */}
-      <h3 className="model__title">Modèle</h3>
 
       {catalogError !== null ? (
         <Notice ton="erreur">
@@ -188,120 +275,135 @@ export const ModelSheet = ({ agentName, kind, paneId, onClose }: Props) => {
       ) : catalog === null ? (
         <p className="muted small">Lecture du catalogue…</p>
       ) : catalog.models.length === 0 ? (
-        /*
-          Aucune liste, et on ne la comble pas : la raison vient du serveur et
-          est affichée telle quelle (AGENTS.md — « ne pas exposer un état qu'on
-          ne peut pas vérifier »).
-        */
         <Notice ton="avertissement">
-          {catalog.error ?? "Ce type d'agent ne déclare pas ses modèles."} Source :{" "}
-          <code>{catalog.source}</code>
+          {catalog.error ?? `Aucun catalogue vérifié pour ${kind}.`}
         </Notice>
       ) : (
         <>
-          <input
-            type="search"
-            className="model__search"
-            value={filter}
-            placeholder={`filtrer ${String(catalog.models.length)} modèles`}
-            aria-label="Filtrer les modèles"
-            onChange={(event) => setFilter(event.target.value)}
-          />
-          <ul className="model__list">
-            {catalog.models
-              .filter((model) => model.id.toLowerCase().includes(filter.trim().toLowerCase()))
-              .map((model) => (
-                <li key={model.id}>
+          {kind === "pi" ? (
+            <section className="model__step" aria-labelledby="model-provider-title">
+              <h3 id="model-provider-title" className="model__title">
+                1 · Fournisseur
+              </h3>
+              <div className="model__providers">
+                {providers.map((candidate) => (
                   <button
+                    key={candidate}
                     type="button"
                     className={
-                      chosen?.id === model.id ? "model__pick model__pick--on" : "model__pick"
+                      provider === candidate
+                        ? "model__provider model__provider--on"
+                        : "model__provider"
                     }
+                    aria-pressed={provider === candidate}
                     disabled={busy}
-                    onClick={() => {
-                      setChosen(model);
-                      void apply(`/model ${model.id}`);
-                    }}
+                    onClick={() => choisirFournisseur(candidate)}
                   >
-                    <span className="model__pick-id">{model.id}</span>
-                    {model.label !== undefined ? (
-                      <span className="muted small">{model.label}</span>
-                    ) : null}
+                    {candidate}
+                    <span className="muted small">
+                      {catalog.models.filter((model) => providerOf(model.id) === candidate).length}
+                    </span>
                   </button>
-                </li>
-              ))}
-          </ul>
-          <p className="muted small">
-            Liste venue de <code>{catalog.source}</code> — mesurée, pas écrite en dur.
-          </p>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
+          {kind !== "pi" || provider !== null ? (
+            <section className="model__step" aria-labelledby="model-choice-title">
+              <h3 id="model-choice-title" className="model__title">
+                {kind === "pi" ? "2 · Modèle" : "Modèle"}
+              </h3>
+              <input
+                type="search"
+                className="model__search"
+                value={filter}
+                placeholder={`Filtrer parmi ${String(modelesVisibles.length)} modèles`}
+                aria-label="Filtrer les modèles"
+                onChange={(event) => setFilter(event.target.value)}
+              />
+              <ul className="model__list">
+                {modelesVisibles.map((candidate) => {
+                  const label =
+                    kind === "pi" && provider !== null
+                      ? candidate.id.slice(provider.length + 1)
+                      : (candidate.label ?? candidate.id);
+                  const selected = candidate.id === modelId;
+                  return (
+                    <li key={candidate.id}>
+                      <button
+                        type="button"
+                        className={selected ? "model__pick model__pick--on" : "model__pick"}
+                        aria-pressed={selected}
+                        disabled={busy}
+                        onClick={() => choisirModele(candidate.id)}
+                      >
+                        <span className="model__pick-id">{label}</span>
+                        <span className="model__pick-meta">
+                          {candidate.id === modeleActuel
+                            ? "Actuel"
+                            : (candidate.label ?? candidate.id)}
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+              {modelesVisibles.length === 0 ? (
+                <p className="muted small">Aucun modèle ne correspond à ce filtre.</p>
+              ) : null}
+            </section>
+          ) : (
+            <p className="muted small">Choisissez un fournisseur pour afficher ses modèles.</p>
+          )}
         </>
       )}
 
-      {/*
-        Saisie libre : seulement si le catalogue n'a rien fourni. Sinon elle
-        ferait doublon avec une liste déjà présente.
-      */}
-      {catalog !== null && catalog.models.length === 0 ? (
-        <div className="model__field">
-          <input
-            type="text"
-            value={modelPattern}
-            placeholder="identifiant du modèle"
-            aria-label="Modèle à saisir"
-            enterKeyHint="send"
-            disabled={busy}
-            onChange={(event) => setModelPattern(event.target.value)}
-            onKeyDown={(event) => {
-              const value = modelPattern.trim();
-              if (event.key === "Enter" && value.length > 0) {
-                event.preventDefault();
-                void apply(`/model ${value}`);
-              }
-            }}
-          />
-          <button
-            type="button"
-            className="row__action row__action--primary"
-            disabled={busy || modelPattern.trim().length === 0}
-            onClick={() => void apply(`/model ${modelPattern.trim()}`)}
-          >
-            Changer
-          </button>
-        </div>
-      ) : null}
-
-      {/*
-        Pensée **après** le modèle, et **filtrée par** lui.
-
-        Le niveau supporté dépend du modèle : `AgentModel` expose
-        `thinkingLevels` par modèle précisément pour cela. Proposer « max » à un
-        modèle qui ne l'a pas, c'est envoyer une commande que l'agent refuse.
-      */}
-      <h3 className="model__title">Niveau de pensée</h3>
-      {chosen === null ? (
-        <p className="muted small">
-          Choisissez d'abord un modèle : les niveaux proposés dépendent de celui-ci.
-        </p>
-      ) : (
-        <>
+      {modele !== null && modele.thinkingLevels.length > 0 ? (
+        <section className="model__step" aria-labelledby="thinking-title">
+          <h3 id="thinking-title" className="model__title">
+            {kind === "pi" ? "3 · Pensée" : "Niveau de pensée"}
+          </h3>
           <p className="muted small">
-            Pour <code>{chosen.id}</code>. Commande : <code>/thinking &lt;niveau&gt;</code>.
+            {currentThinking === undefined
+              ? "Niveau actuel inconnu."
+              : `Actuellement : ${thinkingLabel(currentThinking)}.`}
           </p>
           <div className="model__chips">
-            {chosen.thinkingLevels.map((level) => (
-              <button
-                key={level}
-                type="button"
-                className="model__chip"
-                disabled={busy}
-                onClick={() => void apply(`/thinking ${level}`)}
-              >
-                {thinkingLabel(level)}
-              </button>
-            ))}
+            {modele.thinkingLevels.map((level) => {
+              const selected = pensee === level;
+              return (
+                <button
+                  key={level}
+                  type="button"
+                  className={selected ? "model__chip model__chip--on" : "model__chip"}
+                  aria-pressed={selected}
+                  disabled={busy}
+                  onClick={() => setPenseeChoisie(level)}
+                >
+                  {thinkingLabel(level)}
+                </button>
+              );
+            })}
           </div>
-        </>
-      )}
+        </section>
+      ) : modele !== null ? (
+        <p className="muted small">Ce modèle ne déclare pas de niveau de pensée séparé.</p>
+      ) : null}
+
+      <div className="model__actions">
+        <button
+          type="button"
+          className="row__action row__action--primary"
+          disabled={busy || modele === null || !changementsDisponibles}
+          onClick={() => void appliquer()}
+        >
+          {busy ? "Envoi…" : "Appliquer les changements"}
+        </button>
+        <p className="muted small">
+          La confirmation indique la transmission à l'agent, pas l'application du réglage.
+        </p>
+      </div>
     </Feuille>
   );
 };

@@ -42,7 +42,10 @@ interface Props {
 }
 
 export const LaunchSheet = ({ kinds, launching, onClose, onLaunch, titre, workspaceId }: Props) => {
-  const [kind, setKind] = useState<string>(kinds[0]?.kind ?? "pi");
+  const [kind, setKind] = useState<string>(
+    kinds.find((candidate) => candidate.kind === "pi")?.kind ?? kinds[0]?.kind ?? "pi",
+  );
+  const [provider, setProvider] = useState<string | null>(null);
   const [filtre, setFiltre] = useState("");
   const [model, setModel] = useState("");
   const [thinking, setThinking] = useState("");
@@ -81,6 +84,7 @@ export const LaunchSheet = ({ kinds, launching, onClose, onLaunch, titre, worksp
    */
   const onKind = useCallback((value: string) => {
     setKind(value);
+    setProvider(null);
     setFiltre("");
     setModel("");
     setThinking("");
@@ -103,7 +107,23 @@ export const LaunchSheet = ({ kinds, launching, onClose, onLaunch, titre, worksp
   const choisi = catalog?.models.find((candidat) => candidat.id === model);
   const niveaux = choisi?.thinkingLevels ?? [];
   const niveauAccepte = thinking.length === 0 || niveaux.includes(thinking);
-  const visibles = catalog === null ? [] : modelesVisibles(catalog, filtre);
+  const providers =
+    kind === "pi" && catalog !== null
+      ? [
+          ...new Set(
+            catalog.models
+              .map((candidate) => candidate.id.split("/", 1)[0])
+              .filter((value): value is string => value !== undefined && value.length > 0),
+          ),
+        ]
+      : [];
+  const visibles =
+    catalog === null
+      ? []
+      : modelesVisibles(catalog, filtre).filter(
+          (candidate) =>
+            kind !== "pi" || (provider !== null && candidate.id.startsWith(`${provider}/`)),
+        );
 
   const lancer = useCallback(() => {
     if (!verdict.envoyable || launching) return;
@@ -148,17 +168,47 @@ export const LaunchSheet = ({ kinds, launching, onClose, onLaunch, titre, worksp
         </p>
       ) : (
         <>
-          <label className="launch__label" htmlFor="launch-filtre">
-            Rechercher un modèle
-          </label>
-          {filtreUtile(catalog) ? (
-            <input
-              id="launch-filtre"
-              type="search"
-              className="launch__filter"
-              placeholder={`filtrer ${String(catalog.models.length)} modèles…`}
-              onChange={(event) => setFiltre(event.currentTarget.value)}
-            />
+          {kind === "pi" ? (
+            <>
+              <label className="launch__label" htmlFor="launch-provider">
+                Fournisseur
+              </label>
+              <select
+                id="launch-provider"
+                className="launch__model"
+                value={provider ?? ""}
+                onChange={(event) => {
+                  setProvider(event.currentTarget.value || null);
+                  setModel("");
+                  setThinking("");
+                  setFiltre("");
+                }}
+              >
+                <option value="">modèle par défaut de Pi</option>
+                {providers.map((candidate) => (
+                  <option key={candidate} value={candidate}>
+                    {candidate}
+                  </option>
+                ))}
+              </select>
+            </>
+          ) : null}
+
+          {kind !== "pi" || provider !== null ? (
+            <>
+              <label className="launch__label" htmlFor="launch-filtre">
+                Rechercher un modèle
+              </label>
+              {filtreUtile(catalog) ? (
+                <input
+                  id="launch-filtre"
+                  type="search"
+                  className="launch__filter"
+                  placeholder={`filtrer ${String(catalog.models.length)} modèles…`}
+                  onChange={(event) => setFiltre(event.currentTarget.value)}
+                />
+              ) : null}
+            </>
           ) : null}
 
           <label className="launch__label" htmlFor="launch-model">
@@ -178,7 +228,11 @@ export const LaunchSheet = ({ kinds, launching, onClose, onLaunch, titre, worksp
             <option value="">modèle par défaut de l'agent</option>
             {visibles.slice(0, MAX_MODELES_AFFICHES).map((candidat) => (
               <option key={candidat.id} value={candidat.id}>
-                {candidat.label === undefined ? candidat.id : `${candidat.label} · ${candidat.id}`}
+                {kind === "pi" && provider !== null
+                  ? candidat.id.slice(provider.length + 1)
+                  : candidat.label === undefined
+                    ? candidat.id
+                    : `${candidat.label} · ${candidat.id}`}
               </option>
             ))}
           </select>

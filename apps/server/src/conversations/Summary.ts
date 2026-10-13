@@ -179,9 +179,11 @@ export const reglagesOf = (
   tailed: TailedSession,
 ): {
   readonly model?: string;
+  readonly provider?: string;
   readonly thinking?: string;
 } => {
   let model: string | undefined;
+  let provider: string | undefined;
   let thinking: string | undefined;
   for (let index = tailed.entries.length - 1; index >= 0; index -= 1) {
     const entry = tailed.entries[index];
@@ -190,7 +192,10 @@ export const reglagesOf = (
     // lorsque les deux sont connus, pour ne pas relire la session deux fois.
     if (model === undefined && entry.type === "model_change") {
       const lu = lireChamp(entry.raw, "modelId");
-      if (lu !== undefined) model = lu;
+      if (lu !== undefined) {
+        model = lu;
+        provider = lireChamp(entry.raw, "provider");
+      }
     }
     if (thinking === undefined && entry.type === "thinking_level_change") {
       const lu = lireChamp(entry.raw, "thinkingLevel");
@@ -200,6 +205,7 @@ export const reglagesOf = (
   }
   return {
     ...(model === undefined ? {} : { model }),
+    ...(provider === undefined ? {} : { provider }),
     ...(thinking === undefined ? {} : { thinking }),
   };
 };

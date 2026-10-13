@@ -15,7 +15,7 @@
  * historique d'onglet à Safari, ce qui casserait le retour à la conversation.
  * Le modal reste à U12, mesuré sur un iPhone réel.
  */
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { cibleSuivante, ciblesVisibles, toucheDeFermeture } from "./focus.ts";
 
@@ -28,6 +28,8 @@ interface Props {
   readonly onRetour?: (() => void) | undefined;
   readonly children: ReactNode;
   readonly onClose: () => void;
+  /** Fermeture pilotée par un passage vers une autre feuille. */
+  readonly fermeture?: boolean;
   /** Titre, et information secondaire éventuelle. */
   readonly titre: ReactNode;
 }
@@ -53,11 +55,21 @@ export const Feuille = ({
   ariaLabel,
   children,
   onClose,
+  fermeture = false,
   onRetour,
   retourLibelle,
   titre,
 }: Props) => {
   const racine = useRef<HTMLDialogElement | null>(null);
+  const [fermetureInterne, setFermetureInterne] = useState(false);
+  const [phase, setPhase] = useState<"entree" | "ouverte" | "sortie">("entree");
+  const fermetureFaite = useRef(false);
+  const onCloseRef = useRef(onClose);
+  const fermetureDemandee = fermetureInterne || fermeture;
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   /**
    * Où rendre le focus à la fermeture.
@@ -69,6 +81,7 @@ export const Feuille = ({
   const avantOuverture = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setPhase("ouverte"));
     const ouverture = document.activeElement;
     avantOuverture.current = ouverture instanceof HTMLElement ? ouverture : null;
     // Le focus entre dans la feuille : sans cela, un lecteur d'écran annonce encore
@@ -78,11 +91,28 @@ export const Feuille = ({
       element.focus({ preventScroll: true });
     }
     return () => {
+      window.cancelAnimationFrame(frame);
       const destination = avantOuverture.current;
       if (destination !== null && destination.isConnected) {
         destination.focus({ preventScroll: true });
       }
     };
+  }, []);
+
+  useEffect(() => {
+    if (!fermetureDemandee) return undefined;
+    setPhase("sortie");
+    const duree = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : 240;
+    const timer = window.setTimeout(() => {
+      if (fermetureFaite.current) return;
+      fermetureFaite.current = true;
+      onCloseRef.current();
+    }, duree);
+    return () => window.clearTimeout(timer);
+  }, [fermetureDemandee]);
+
+  const fermer = useCallback(() => {
+    setFermetureInterne(true);
   }, []);
 
   /**
@@ -97,7 +127,7 @@ export const Feuille = ({
     (event: React.KeyboardEvent<HTMLDialogElement>) => {
       if (toucheDeFermeture(event)) {
         event.preventDefault();
-        onClose();
+        fermer();
         return;
       }
       if (event.key !== "Tab") return;
@@ -121,13 +151,14 @@ export const Feuille = ({
       event.preventDefault();
       suivante.focus({ preventScroll: true });
     },
-    [onClose],
+    [fermer],
   );
 
   return (
     <dialog
       aria-label={ariaLabel}
-      className="sheet"
+      aria-modal="true"
+      className={`sheet sheet--${phase}`}
       // `tabIndex` négatif : la feuille reçoit le focus sans entrer dans le
       // parcours au `Tab`. Sans cela, le cycle s'arrêterait sur elle.
       onKeyDown={onKeyDown}
@@ -142,7 +173,7 @@ export const Feuille = ({
           </button>
         )}
         <span className="sheet__name">{titre}</span>
-        <button type="button" className="ghost" onClick={onClose}>
+        <button type="button" className="ghost" onClick={fermer}>
           Fermer
         </button>
       </header>

@@ -62,16 +62,6 @@ export const ProjectDetail = memo(
     const ouvrirSheet = useCallback(() => setSheetOpen(true), []);
     const fermerSheet = useCallback(() => setSheetOpen(false), []);
 
-    /**
-     * Type retenu quand on lance sans passer par la feuille.
-     *
-     * `pi` quand il est installé — c'est l'agent réellement utilisé, donc le
-     * premier installé n'est pas forcément le bon. Sinon celui que Herdr
-     * connaît.
-     */
-    const kindParDefaut =
-      kinds.find((candidat) => candidat.kind === "pi")?.kind ?? kinds[0]?.kind ?? "pi";
-
     // Pas de stabilisation ici : `ProjectDetail` est mémoïsé avec un
     // comparateur de contenu (`memesProps` plus bas), et c'est lui — pas
     // l'identité du tableau — qui décide du rendu. Une clé calculée ici
@@ -92,22 +82,6 @@ export const ProjectDetail = memo(
     }
 
     const titre = workspace.label ?? workspace.workspaceId;
-
-    /**
-     * Lancement immédiat, **sans choix**.
-     *
-     * « Nouvel agent » doit rester à une seule frappe (D019.2) : c'est la
-     * manœuvre la plus courante, et la feuille est à côté, pas dessus. Un choix
-     * omis n'est pas un choix raté — l'agent démarre avec ses propres valeurs,
-     * et la feuille le dit.
-     *
-     * Fonction simple et non `useCallback` : elle est définie **après** le garde
-     * d'existence du projet, donc `workspace` y est déjà affirmé. Un hook ne
-     * peut pas vivre après un retour anticipé.
-     */
-    const lancer = () => {
-      onLaunch(workspace.workspaceId, kindParDefaut, {});
-    };
 
     return (
       <section className="screen">
@@ -138,12 +112,9 @@ export const ProjectDetail = memo(
             type="button"
             className="row__action row__action--primary"
             disabled={launching}
-            onClick={lancer}
+            onClick={ouvrirSheet}
           >
             {launching ? "Lancement…" : "Nouvel agent"}
-          </button>
-          <button type="button" className="ghost" onClick={ouvrirSheet}>
-            Options
           </button>
         </div>
 

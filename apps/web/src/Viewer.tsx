@@ -109,25 +109,26 @@ const CodeView = ({ path }: { path: string }) => {
     };
   }, [path]);
 
-  if (error !== null) return <Notice ton="erreur">{error}</Notice>;
-  if (text === null) return <p className="muted small">Lecture…</p>;
-
-  // Le HTML est calculé **une fois par texte**, pas à chaque rendu : sans cela
-  // chaque ligne créait un objet `{ __html }` neuf, et React jetait puis
-  // réappliquait le HTML de toutes les lignes à chaque frappe dans le chat.
+  // Toutes les hooks restent avant les retours de chargement/erreur : le
+  // premier rendu n'a pas encore le texte, mais le suivant garde le même ordre.
   const rows = useMemo(
     () =>
-      text
-        .split("\n")
-        .slice(0, MAX_LINES)
-        .map((line, index) => ({
-          // Balisage échappé dans `highlight`, donc sans injection possible.
-          html: { __html: highlight(line) },
-          key: `${String(index)}-${line.slice(0, 24)}`,
-          number: index + 1,
-        })),
+      text === null
+        ? []
+        : text
+            .split("\n")
+            .slice(0, MAX_LINES)
+            .map((line, index) => ({
+              // Balisage échappé dans `highlight`, donc sans injection possible.
+              html: { __html: highlight(line) },
+              key: `${String(index)}-${line.slice(0, 24)}`,
+              number: index + 1,
+            })),
     [text],
   );
+
+  if (error !== null) return <Notice ton="erreur">{error}</Notice>;
+  if (text === null) return <p className="muted small">Lecture…</p>;
 
   return (
     <div className="code">
