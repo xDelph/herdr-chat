@@ -10,7 +10,8 @@
  * On ne lit donc **que** `HERDR_SOCKET_PATH`, jamais l'autre.
  */
 import { DEFAULT_BACKEND_PORT, DUPLICATE_WINDOW_MS } from "@herdr-remote/shared";
-import { Context, Effect, Layer, Schema } from "effect";
+import { Context, Effect, Layer, Option, Schema } from "effect";
+import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { defaultLogPath } from "./logging/LogFile.ts";
@@ -73,6 +74,60 @@ export interface ServerConfig {
   readonly extraFileRoots: ReadonlyArray<string>;
 }
 
+/**
+ * Origines HTTPS de la machine sur son tailnet.
+ *
+ * ⚠️ Tailscale Serve expose la PWA en `https://<machine>.<tailnet>.ts.net`, et
+ * le navigateur envoie **cette** origine. La liste blanche ne la connaissant
+ * pas, toute requête mutante était refusée en 403 — l'envoi de message ne
+ * fonctionnait plus.
+ *
+ * On interroge `tailscale` une seule fois, au démarrage. Son absence n'est pas
+ * une erreur : la liste locale suffit alors.
+ */
+const tailscaleOrigins = (port: number): string[] => {
+  try {
+    const json = execFileSync("tailscale", ["serve", "status", "--json"], {
+      encoding: "utf8",
+      timeout: 5000,
+    });
+    const parsed: unknown = JSON.parse(json);
+
+    const status = Option.getOrUndefined(
+      Schema.decodeUnknownOption(
+        Schema.Struct({
+          Web: Schema.optional(
+            Schema.Record(
+              Schema.String,
+              Schema.Struct({
+                Handlers: Schema.Record(
+                  Schema.String,
+                  Schema.Struct({ Proxy: Schema.optional(Schema.String) }),
+                ),
+              }),
+            ),
+          ),
+        }),
+      )(parsed),
+    );
+    if (status?.Web === undefined) return [];
+
+    const expected = `http://127.0.0.1:${String(port)}`;
+    return (
+      Object.entries(status.Web)
+        // On ne retient que l'entrée qui pointe vers **notre** backend : une autre
+        // machine ou un autre service proxifié n'a pas à être autorisé.
+        .filter(([, entry]) =>
+          Object.values(entry.Handlers).some((handler) => handler.Proxy === expected),
+        )
+        .map(([hostPort]) => `https://${hostPort}`)
+    );
+  } catch {
+    // Tailscale absent ou Serve non configuré : la liste locale suffit.
+    return [];
+  }
+};
+
 export class ServerConfigTag extends Context.Service<ServerConfigTag, ServerConfig>()(
   "herdr-remote/Config",
 ) {
@@ -134,15 +189,19 @@ export class ServerConfigTag extends Context.Service<ServerConfigTag, ServerConf
         hostname: bind,
         duplicateWindowMs: DUPLICATE_WINDOW_MS,
         logPath: env["HERDR_REMOTE_LOG_PATH"] ?? defaultLogPath(),
-        publicOrigins: (
-          env["HERDR_REMOTE_PUBLIC_ORIGINS"] ??
-          env["HERDR_REMOTE_PUBLIC_ORIGIN"] ??
-          ""
-        )
-          .split(",")
-          .map((origine) => origine.trim())
-          .filter((origine) => origine.length > 0)
-          .concat([`http://${bind === "127.0.0.1" ? "127.0.0.1" : bind}:${String(port)}`]),
+        publicOrigins: [
+          ...(env["HERDR_REMOTE_PUBLIC_ORIGINS"] ?? env["HERDR_REMOTE_PUBLIC_ORIGIN"] ?? "")
+            .split(",")
+            .map((origine) => origine.trim())
+            .filter((origine) => origine.length > 0),
+          // Origine locale, toujours légitime.
+          `http://127.0.0.1:${String(port)}`,
+          // Origines HTTPS de Tailscale Serve, **lues dans sa configuration**.
+          // Sans elles, l'envoi d'un message est refusé en 403 dès qu'on passe
+          // par Serve : le navigateur envoie l'origine du proxy, pas celle du
+          // backend. Le port compte : Serve peut écouter ailleurs (8790 → 8791).
+          ...tailscaleOrigins(port),
+        ],
         extraFileRoots,
       });
     }),
