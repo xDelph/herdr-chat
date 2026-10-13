@@ -281,6 +281,8 @@ describe("identité des routes — A01", () => {
 
     expect(Object.keys(routes).toSorted()).toEqual([
       "/api/agents/:kind/models",
+      // Répondre à une question lue à l'écran (choix validé contre l'affiché).
+      "/api/agents/:paneId/answer",
       "/api/agents/:paneId/prompt",
       "/api/agents/:paneId/session",
       "/api/agents/:paneId/trust",

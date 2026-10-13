@@ -27,6 +27,7 @@ import {
   PromptSentResponse,
   PromptFailedResponse,
   PromptSuppressedResponse,
+  QuestionAnsweredResponse,
   SessionResponse as SessionResponseSchema,
   TrustRequiredResponse,
   TrustResolvedResponse,
@@ -54,6 +55,7 @@ export type {
   PromptSentResponse,
   PromptFailedResponse,
   PromptSuppressedResponse,
+  QuestionAnsweredResponse,
   SessionEntry,
   SessionResponse,
   TrustRequiredResponse as TrustRequired,
@@ -490,4 +492,50 @@ export const isTextPath = (path: string): boolean =>
 export const baseName = (path: string): string => {
   const parts = path.split("/").filter((part) => part.length > 0);
   return parts[parts.length - 1] ?? path;
+};
+
+/** Ce que la réponse à une question a donné. Mêmes nuances que l'envoi (B06). */
+export interface AnswerResult {
+  readonly state: "appliquee" | "transmise" | "refusee";
+  readonly detail: string;
+}
+
+/**
+ * Répond à la question affichée sur un pane.
+ *
+ * ⚠️ Le serveur **valide le numéro contre les choix réellement à l'écran** : un
+ * numéro qui n'est pas offert ne part jamais. L'interface n'a donc pas à
+ * protéger cette décision — elle ne peut offrir que ce qui existe.
+ */
+export const answerQuestion = async (paneId: string, numero: number): Promise<AnswerResult> => {
+  const response = await fetch(`/api/agents/${encodeURIComponent(paneId)}/answer`, {
+    body: JSON.stringify({ numero }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+
+  let payload: unknown;
+  try {
+    payload = await readJson(response);
+  } catch {
+    return { detail: `réponse illisible (${response.status})`, state: "refusee" };
+  }
+
+  if (response.status !== 200) {
+    // Le refus porte toujours sa cause : le serveur n'en produit jamais de vide.
+    const message =
+      typeof payload === "object" && payload !== null && "error" in payload
+        ? String((payload as { error?: unknown }).error)
+        : `échec (${response.status})`;
+    return {
+      detail: message.length > 0 ? message : `échec (${response.status})`,
+      state: "refusee",
+    };
+  }
+
+  const decode = Schema.decodeUnknownOption(QuestionAnsweredResponse);
+  const valeur = Option.getOrUndefined(decode(payload));
+  return valeur === undefined
+    ? { detail: "réponse illisible : l'état n'a pas pu être lu", state: "refusee" }
+    : { detail: valeur.detail, state: valeur.state };
 };

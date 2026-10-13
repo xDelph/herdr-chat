@@ -355,6 +355,22 @@ export const TrustResolvedResponse = Schema.Struct({
 });
 export type TrustResolvedResponse = typeof TrustResolvedResponse.Type;
 
+/** Réponse à une question posée par un agent. */
+export const QuestionAnsweredResponse = Schema.Struct({
+  /** Texte lisible, y compris en cas de refus — jamais une chaîne vide. */
+  detail: Schema.String,
+  /**
+   * État réel de la réponse.
+   *
+   * ⚠️ `transmise` n'est **pas** « appliquée » : la frappe est partie, mais la
+   * question est toujours à l'écran. Même règle que pour la confiance (B06) —
+   * un succès de transport n'est pas un succès d'application.
+   */
+  state: Schema.Literals(["appliquee", "transmise", "refusee"]),
+  status: Schema.Literal("question-answered"),
+});
+export type QuestionAnsweredResponse = typeof QuestionAnsweredResponse.Type;
+
 /** Erreur d'API. */
 export const ApiErrorResponse = Schema.Struct({
   /** Cause nommée quand elle est connue (B03). Absente = cause non qualifiée. */

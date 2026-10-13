@@ -441,6 +441,17 @@ export const App = () => {
   const agentAffiche = selectedAgent ?? agentMemorise;
   const agentPerime = selectedAgent === null && agentMemorise !== null;
 
+  /*
+    La question posée par cet agent, lue à l'écran — pas dans la session.
+
+    ⚠️ Elle vient de la **liste**, donc elle suit le même rafraîchissement : dès
+    que l'agent reprend, la question disparaît de l'écran sans code de mon côté.
+  */
+  const questionAffichee =
+    agentAffiche === null
+      ? undefined
+      : conversations.find((ligne) => ligne.paneId === agentAffiche.paneId)?.question;
+
   if (route.kind === "agent" && agentAffiche !== null) {
     return (
       <div className="app">
@@ -449,7 +460,7 @@ export const App = () => {
             Cet agent n'apparaît plus dans Herdr. Ce qui suit est le dernier état connu.
           </Notice>
         ) : null}
-        <ChatScreen agent={agentAffiche} onBack={closeAgent} />
+        <ChatScreen agent={agentAffiche} onBack={closeAgent} question={questionAffichee} />
       </div>
     );
   }

@@ -21,6 +21,7 @@ import {
   ModelCatalogResponse,
   OverviewResponse,
   TrustRequiredResponse,
+  QuestionAnsweredResponse,
   TrustResolvedResponse,
   PromptFailedResponse,
   PromptSentResponse,
@@ -30,6 +31,7 @@ import { buildOverview, checkoutPathOf, composerOverview } from "../agents/Agent
 import { buildModelArgs, checkThinkingSupported } from "../agents/ModelArgs.ts";
 import { catalogOf } from "../agents/ModelCatalog.ts";
 import { isTrustPrompt, respondToTrust } from "../agents/TrustPrompt.ts";
+import { repondreQuestion } from "../agents/AnswerQuestion.ts";
 import type { ServerConfig } from "../config.ts";
 import type { WatchLoop } from "../events/AgentWatcher.ts";
 import type { EventHubApi } from "../events/EventHub.ts";
@@ -110,6 +112,8 @@ const decodeTrustBody = Schema.decodeUnknownOption(TrustBody);
  * refusée et **aucune touche n'est envoyée**. Répondre à la place de
  * l'utilisateur à un autre dialogue serait pire que de ne rien faire.
  */
+const decodeAnswerBody = Schema.decodeUnknownOption(Schema.Struct({ numero: Schema.Number }));
+
 const makeAnswerTrust =
   (logPath: string, publicOrigins: ReadonlyArray<string>, herdr: HerdrApi) =>
   async (request: RouteRequest): Promise<Response> => {
@@ -146,6 +150,54 @@ const makeAnswerTrust =
     return respond(logPath, decoderOf(TrustResolvedResponse), {
       accepted: outcome.accepted,
       status: "trust-resolved",
+    });
+  };
+
+/**
+ * Réponse à une question d'agent, avec **le choix** retenu.
+ *
+ * ⚠️ Le numéro est **validé contre les choix réellement affichés** dans
+ * `repondreQuestion`, pas ici : une route qui se contenterait de vérifier
+ * « entier positif » laisserait passer un `7` sur une liste de quatre.
+ */
+const makeAnswerQuestion =
+  (logPath: string, publicOrigins: ReadonlyArray<string>, herdr: HerdrApi) =>
+  async (request: RouteRequest): Promise<Response> => {
+    const refused = refuseIfCrossSite(logPath, request, publicOrigins);
+    if (refused !== undefined) return refused;
+
+    const raw: unknown = await request.json().catch(() => undefined);
+    const body = Option.getOrUndefined(decodeAnswerBody(raw));
+    if (body === undefined) {
+      return respond(
+        logPath,
+        decoderOf(ApiErrorResponse),
+        { error: "corps invalide : `numero` (entier) requis" },
+        400,
+      );
+    }
+
+    const paneId = request.params["paneId"] ?? "";
+    const result = await Effect.runPromise(
+      Effect.result(repondreQuestion(herdr, paneId, body.numero)),
+    );
+    if (Result.isFailure(result)) {
+      const failure = failureOf(result);
+      return respond(
+        logPath,
+        decoderOf(ApiErrorResponse),
+        { error: failure === undefined ? "échec inconnu" : describe(failure) },
+        502,
+      );
+    }
+    const outcome = Option.getOrUndefined(Result.getSuccess(result));
+    if (outcome === undefined) {
+      return respond(logPath, decoderOf(ApiErrorResponse), { error: "réponse illisible" }, 500);
+    }
+    return respond(logPath, decoderOf(QuestionAnsweredResponse), {
+      detail: outcome.detail,
+      state: outcome.state,
+      status: "question-answered",
     });
   };
 
@@ -285,6 +337,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
   const { config, herdr, hub, sender, watch, startedAt } = deps;
 
   const answerTrust = makeAnswerTrust(config.logPath, config.publicOrigins, herdr);
+  const answerQuestion = makeAnswerQuestion(config.logPath, config.publicOrigins, herdr);
   const sessionRoutes = makeSessionRoutes(config, herdr);
   const fileRoutes = makeFileRoutes(config, herdr);
   const eventRoutes = makeEventRoutes(hub);
@@ -828,6 +881,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     "/api/agents/:paneId/session": sessionRoutes.session,
     "/api/agents/kinds": agentKinds,
     "/api/agents/:kind/models": (request) => modelCatalog(config.logPath, request),
+    "/api/agents/:paneId/answer": answerQuestion,
     "/api/agents/:paneId/trust": answerTrust,
     "/api/log": (request) => clientLog(config.logPath, config.publicOrigins, request),
     "/api/events": eventRoutes.events,

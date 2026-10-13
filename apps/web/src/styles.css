@@ -2606,3 +2606,95 @@ button:disabled {
   color: var(--accent);
   font-weight: 600;
 }
+
+/* ---------------------------------------------------------------------------
+   Question de l'agent — ses choix sont des actions, pas du texte
+   --------------------------------------------------------------------------- */
+
+/* Hors du fil défilant, collé au composeur : c'est ici qu'on agit. */
+.question {
+  background: var(--surface-2);
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+}
+
+.question__texte {
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.question__contexte {
+  color: var(--muted);
+  font-size: 12px;
+  margin: 0;
+}
+
+/* Une colonne : chaque choix reste une cible large, atteignable au pouce. */
+.question__choix {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.question__choix-bouton {
+  align-items: baseline;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  display: grid;
+  gap: 2px 10px;
+  grid-template-columns: auto 1fr;
+  min-height: 44px;
+  padding: 10px 12px;
+  text-align: left;
+}
+
+.question__choix-bouton:disabled {
+  opacity: 0.55;
+}
+
+/* Le numéro est ce qu'on envoie au terminal : il est visible, pas décoratif. */
+.question__numero {
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  grid-row: span 2;
+}
+
+.question__libelle {
+  font-size: 14px;
+}
+
+.question__detail {
+  color: var(--muted);
+  font-size: 12px;
+  grid-column: 2;
+}
+
+/*
+  ⚠️ « transmise » n'est PAS « appliquée ». La couleur suit le mot : une réponse
+  transmise mais non prouvée ne doit pas se lire comme un succès.
+*/
+.question__reponse {
+  font-size: 12px;
+  margin: 0;
+}
+
+.question__reponse--appliquee {
+  color: var(--ok);
+}
+
+.question__reponse--transmise {
+  color: var(--warn);
+}
+
+.question__reponse--refusee {
+  color: var(--err);
+}

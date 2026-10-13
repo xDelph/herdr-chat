@@ -11,8 +11,9 @@
  * (D016.2).
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { AgentView, SendResult, SessionEntry } from "./api.ts";
-import { fetchSession, sendPrompt, reportError } from "./api.ts";
+import type { AgentView, AnswerResult, SendResult, SessionEntry } from "./api.ts";
+import { answerQuestion, fetchSession, sendPrompt, reportError } from "./api.ts";
+import type { Question } from "@herdr-remote/shared";
 import type { RenderedMessage } from "./blocks.ts";
 import { toItems, toMessages, touchedFilesOf } from "./blocks.ts";
 import { agentName, headerContext } from "./labels.tsx";
@@ -22,7 +23,16 @@ import { ModelSheet, describeSend } from "./ModelSheet.tsx";
 import { FileViewer } from "./Viewer.tsx";
 import { Notice } from "./Notice.tsx";
 
-export const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => void }) => {
+export const ChatScreen = ({
+  agent,
+  onBack,
+  question,
+}: {
+  agent: AgentView;
+  onBack: () => void;
+  /** Question posée à l'écran, quand l'agent en attend une. */
+  question?: Question | undefined;
+}) => {
   const [entries, setEntries] = useState<readonly SessionEntry[]>([]);
   /**
    * Messages déjà analysés.
@@ -216,6 +226,29 @@ export const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => 
     }
   }, [agent.paneId, draft, sending]);
 
+  /** État de la dernière réponse à une question, pour ne jamais mentir dessus. */
+  const [reponse, setReponse] = useState<AnswerResult | null>(null);
+  const [envoiReponse, setEnvoiReponse] = useState(false);
+
+  const choisir = useCallback(
+    async (numero: number) => {
+      if (envoiReponse) return;
+      setEnvoiReponse(true);
+      try {
+        setReponse(await answerQuestion(agent.paneId, numero));
+      } catch (cause) {
+        // Jamais d'échec muet : la cause est nommée à l'écran.
+        setReponse({
+          detail: cause instanceof Error ? cause.message : "échec inconnu",
+          state: "refusee",
+        });
+      } finally {
+        setEnvoiReponse(false);
+      }
+    },
+    [agent.paneId, envoiReponse],
+  );
+
   const onSubmit = useCallback(() => {
     void submit();
   }, [submit]);
@@ -374,6 +407,49 @@ export const ChatScreen = ({ agent, onBack }: { agent: AgentView; onBack: () => 
               onClose={() => setShowModel(false)}
             />
           ) : null}
+
+          {/*
+            La question de l'agent, avec ses choix.
+
+            ⚠️ **Hors du fil défilant**, comme le composeur : c'est une action à
+            faire, pas un message à relire. Un agent bloqué qui attend une
+            réponse doit l'avoir sous les yeux, pas au-dessus de 200 lignes.
+
+            ⚠️ On ne fabrique aucun choix : les boutons sont **exactement** ceux
+            lus à l'écran. Le serveur revalide de son côté.
+          */}
+          {question === undefined ? null : (
+            <section className="question" aria-label="Question de l'agent">
+              <p className="question__texte">❓ {question.texte}</p>
+              {question.contexte.length > 0 ? (
+                <p className="question__contexte">{question.contexte.join(" · ")}</p>
+              ) : null}
+              <div className="question__choix">
+                {question.choix.map((choix) => (
+                  <button
+                    key={choix.numero}
+                    type="button"
+                    className="question__choix-bouton"
+                    disabled={envoiReponse}
+                    onClick={() => {
+                      void choisir(choix.numero);
+                    }}
+                  >
+                    <span className="question__numero">{choix.numero}</span>
+                    <span className="question__libelle">{choix.libelle}</span>
+                    {choix.detail === undefined ? null : (
+                      <span className="question__detail">{choix.detail}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              {reponse === null ? null : (
+                <p className={`question__reponse question__reponse--${reponse.state}`}>
+                  {reponse.detail}
+                </p>
+              )}
+            </section>
+          )}
 
           <div className="composer">
             <textarea
