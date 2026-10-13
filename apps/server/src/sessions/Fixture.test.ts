@@ -21,7 +21,7 @@ import { appendFileSync, readFileSync } from "node:fs";
 import { Effect } from "effect";
 import { SESSION_TAIL_BYTES, SESSION_TAIL_HARD_CAP } from "@herdr-remote/shared";
 import { ecrireFixture, TAILLE_REFERENCE } from "./Fixture.ts";
-import { fileSize, readTail, tailFrom } from "./SessionReader.ts";
+import { fileSize, readBefore, readTail, tailFrom } from "./SessionReader.ts";
 
 let repertoire: string;
 let session: string;
@@ -110,6 +110,19 @@ describe("P01 — la charge initiale reste dans la fenêtre", () => {
   test("ce qui est tronqué est **dit**, jamais tronqué en silence", async () => {
     expect((await lire(readTail(session, SESSION_TAIL_BYTES))).hasMore).toBe(true);
     expect((await lire(readTail(session, 8 * 1024 * 1024))).hasMore).toBe(false);
+  });
+
+  test("le curseur de page précédente précède la fenêtre initiale sans la répéter", async () => {
+    const latest = await lire(readTail(session, SESSION_TAIL_BYTES));
+    expect(latest.startOffset).toBeDefined();
+    const older = await lire(
+      readBefore(session, latest.startOffset ?? latest.offset, SESSION_TAIL_BYTES),
+    );
+    expect(older.entries.length).toBeGreaterThan(0);
+    expect(older.entries.at(-1)?.raw).not.toBe(latest.entries[0]?.raw);
+    expect(Date.parse(older.entries.at(-1)?.timestamp ?? "")).toBeLessThan(
+      Date.parse(latest.entries[0]?.timestamp ?? ""),
+    );
   });
 });
 

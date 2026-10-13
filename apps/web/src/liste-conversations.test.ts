@@ -156,15 +156,16 @@ describe("U16 — la liste garde sa structure", () => {
   });
 
   test("les réglages sont derrière un engrenage, plus dans un onglet", () => {
-    expect(app).toContain('aria-label="Réglages"');
+    expect(app).toContain('aria-label="Settings"');
     expect(app).toContain("SettingsSheet");
   });
 
-  test("le bouton flottant est fixe, pas dans le flux", () => {
+  test("le bouton nouvel agent reste dans le pied de page de l'écran", () => {
+    const footer = bloc(".app__footer");
+    expect(footer.display).toBe("flex");
+    expect(footer.flex).toBe("0 0 auto");
+    expect(footer.padding).toBe("0 16px 10px");
     const fab = bloc(".fab");
-    expect(fab.position).toBe("fixed");
-    // La barre du téléphone ne doit pas le recouvrir.
-    expect(fab.bottom).toContain("safe-area-inset-bottom");
     expect(fab["min-height"]).toBe("var(--tap-min)");
   });
 
@@ -174,9 +175,9 @@ describe("U16 — la liste garde sa structure", () => {
       n'existe plus, et l'écart ne servait qu'à faire flotter le bouton dans le
       vide. Ce test empêche le retour d'un décalage fantôme.
     */
-    const fab = bloc(".fab");
-    expect(fab.bottom).not.toContain("tabs-height");
-    expect(fab.bottom).toContain("safe-area-inset-bottom");
+    const footer = bloc(".app__footer");
+    expect(footer.padding).toBe("0 16px 10px");
+    expect(cssNu).not.toContain("safe-area-inset-bottom");
     // Et la barre elle-même ne doit plus exister, ni en style ni en balise.
     expect(cssNu).not.toContain(".tabs {");
     expect(app).not.toContain('className="tabs"');
@@ -186,7 +187,7 @@ describe("U16 — la liste garde sa structure", () => {
     // « Nouvel agent » exige une cible : sans elle, le bouton ne ferait pas ce
     // qu'il annonce.
     expect(app).toContain("ProjectPicker");
-    expect(app).toContain("+ Nouvel agent");
+    expect(app).toContain("+ New agent");
   });
 });
 
@@ -196,8 +197,7 @@ describe("U18 — l'en-tête reste en haut", () => {
     // et l'engrenage sortent de l'écran en défilant.
     const barre = bloc(".topbar");
     expect(barre["flex"]).toBe("0 0 auto");
-    expect(barre["position"]).toBe("sticky");
-    expect(barre.top).toBe("0");
+    expect(barre["flex"]).toBe("0 0 auto");
   });
 
   test("l'en-tête est hors du conteneur défilant", () => {

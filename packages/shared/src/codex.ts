@@ -17,9 +17,11 @@
  *
  * Deux pièges, tous deux mesurés :
  *
- * 1. **`event_msg` duplique les messages.** Le même tour apparaît en
- *    `payload.type: "item_completed"` avec un `item.type: "UserMessage"`. On ne
- *    lit que `response_item` : sinon chaque message s'afficherait deux fois.
+ * 1. **Les prompts utilisateur vivent dans `event_msg`.** Sur les sessions
+ *    mesurées, `item.type: "UserMessage"` n'a pas de `response_item` associé :
+ *    l'ignorer vide le chat de ses prompts. Les événements utilisateur et les
+ *    messages `response_item` sont donc tous deux adaptés, avec déduplication
+ *    des textes identiques adjacents.
  * 2. **Le rôle `developer` est le prompt système.** Il est présent trois fois
  *    dès l'ouverture. Le traduire vers `user` remplirait le chat de consignes
  *    système. Il est donc **écarté**, comme pi écarte ses propres tours système.
@@ -78,11 +80,18 @@ const texteDeSortie = (sortie: unknown): string => {
  */
 export interface LignePi {
   readonly type: string;
+  readonly id?: string;
   readonly timestamp?: string;
   readonly message: {
     readonly content: unknown;
     readonly role?: string;
     readonly toolName?: string;
+    readonly phase?: string;
+    readonly command?: string;
+    readonly output?: string;
+    readonly exitCode?: number | null;
+    readonly cancelled?: boolean;
+    readonly truncated?: boolean;
   };
 }
 
@@ -128,17 +137,116 @@ const estObjet = (v: unknown): v is Record<string, unknown> =>
  */
 export const ligneCodexVersPi = (parsed: unknown): LignePi | undefined => {
   if (!estObjet(parsed)) return undefined;
+  const horodatage = parsed["timestamp"];
+  const timestampId = typeof horodatage === "string" ? horodatage : "entry";
+  const ordinal = typeof parsed["ordinal"] === "number" ? parsed["ordinal"] : undefined;
+  const enveloppe = (message: LignePi["message"], id?: string): LignePi => ({
+    ...(typeof horodatage === "string" ? { timestamp: horodatage } : {}),
+    id: `codex:${ordinal ?? timestampId}:${id ?? "item"}`,
+    message,
+    type: "message",
+  });
+
+  if (parsed["type"] === "event_msg") {
+    const payload = parsed["payload"];
+    if (!estObjet(payload) || payload["type"] !== "item_completed") return undefined;
+    const item = payload["item"];
+    if (!estObjet(item)) return undefined;
+    const id = typeof item["id"] === "string" ? item["id"] : undefined;
+    if (item["type"] === "UserMessage") {
+      const content = item["content"];
+      const text =
+        typeof content === "string"
+          ? content
+          : Array.isArray(content)
+            ? content
+                .filter(estObjet)
+                .map((part) => (typeof part["text"] === "string" ? part["text"] : ""))
+                .join("")
+            : "";
+      return text.trim().length === 0
+        ? undefined
+        : enveloppe({ content: [{ text, type: "text" }], role: "user" }, id);
+    }
+    if (item["type"] === "AgentMessage") {
+      const text = Array.isArray(item["content"])
+        ? item["content"]
+            .filter(estObjet)
+            .map((part) => (typeof part["text"] === "string" ? part["text"] : ""))
+            .join("")
+        : "";
+      if (!text.trim()) return undefined;
+      const phase = typeof item["phase"] === "string" ? item["phase"] : undefined;
+      return enveloppe(
+        {
+          content: [{ text, type: "text" }],
+          ...(phase === undefined ? {} : { phase }),
+          role: "assistant",
+        },
+        id,
+      );
+    }
+    if (item["type"] === "CommandExecution") {
+      const command = Array.isArray(item["command"])
+        ? item["command"].findLast((part): part is string => typeof part === "string")
+        : undefined;
+      if (!command) return undefined;
+      const status = item["status"];
+      return enveloppe(
+        {
+          cancelled: status === "cancelled",
+          command,
+          content: [],
+          exitCode: typeof item["exit_code"] === "number" ? item["exit_code"] : null,
+          output: typeof item["aggregated_output"] === "string" ? item["aggregated_output"] : "",
+          role: "bashExecution",
+          truncated: false,
+        },
+        id,
+      );
+    }
+    if (item["type"] === "FileChange" && estObjet(item["changes"])) {
+      const content = Object.entries(item["changes"]).flatMap(([path, change]) => {
+        if (!estObjet(change)) return [];
+        const diff = typeof change["unified_diff"] === "string" ? change["unified_diff"] : "";
+        const edits: Array<{ oldText: string; newText: string }> = [];
+        let oldLines: string[] = [];
+        let newLines: string[] = [];
+        const flush = () => {
+          if (oldLines.length || newLines.length)
+            edits.push({ oldText: oldLines.join("\n"), newText: newLines.join("\n") });
+          oldLines = [];
+          newLines = [];
+        };
+        for (const line of diff.split(/\r?\n/)) {
+          if (line.startsWith("@@")) flush();
+          else if (line.startsWith("+") && !line.startsWith("+++")) newLines.push(line.slice(1));
+          else if (line.startsWith("-") && !line.startsWith("---")) oldLines.push(line.slice(1));
+          else if (!line.startsWith("\\")) flush();
+        }
+        flush();
+        return [
+          {
+            arguments: {
+              edits,
+              path,
+              ...(typeof change["move_path"] === "string" ? { movePath: change["move_path"] } : {}),
+              changeType: change["type"],
+            },
+            id: `${id ?? "file"}:${path}`,
+            name: "edit",
+            type: "toolCall",
+          },
+        ];
+      });
+      return content.length ? enveloppe({ content, role: "assistant" }, id) : undefined;
+    }
+    return undefined;
+  }
   if (parsed["type"] !== "response_item") return undefined;
 
   const payload = parsed["payload"];
   if (!estObjet(payload)) return undefined;
-
-  const horodatage = parsed["timestamp"];
-  const enveloppe = (message: LignePi["message"]): LignePi => ({
-    ...(typeof horodatage === "string" ? { timestamp: horodatage } : {}),
-    message,
-    type: "message",
-  });
 
   // ⚠️ Les appels d'outils et la réflexion passent par le **même** adaptateur.
   // Les ignorer laissait la conversation muette : on ne voyait que les messages

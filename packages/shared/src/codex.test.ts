@@ -18,6 +18,98 @@ const item = (payload: Record<string, unknown>): unknown => ({
 });
 
 describe("codex → pi", () => {
+  test("Codex UserMessage events restore the user's prompt", () => {
+    const line = ligneCodexVersPi({
+      ordinal: 45,
+      payload: {
+        type: "item_completed",
+        item: {
+          type: "UserMessage",
+          id: "user_1",
+          content: [{ type: "text", text: "Show the earlier messages" }],
+        },
+      },
+      timestamp: "2026-10-13T07:44:03.616Z",
+      type: "event_msg",
+    });
+    expect(line?.message).toMatchObject({
+      content: [{ text: "Show the earlier messages", type: "text" }],
+      role: "user",
+    });
+  });
+
+  test("a Codex command execution preserves the real command and output", () => {
+    const line = ligneCodexVersPi({
+      ordinal: 42,
+      payload: {
+        type: "item_completed",
+        item: {
+          type: "CommandExecution",
+          id: "cmd_1",
+          command: ["/bin/zsh", "-lc", "bun run build"],
+          aggregated_output: "Build complete",
+          exit_code: 0,
+          status: "completed",
+        },
+      },
+      timestamp: "2026-10-13T07:44:03.616Z",
+      type: "event_msg",
+    });
+    expect(line?.message).toMatchObject({
+      command: "bun run build",
+      output: "Build complete",
+      exitCode: 0,
+      role: "bashExecution",
+    });
+  });
+
+  test("Codex file changes become file edit tool calls", () => {
+    const line = ligneCodexVersPi({
+      ordinal: 43,
+      payload: {
+        type: "item_completed",
+        item: {
+          type: "FileChange",
+          id: "edit_1",
+          changes: {
+            "src/app.ts": { type: "update", unified_diff: "@@ -1 +1 @@\n-old\n+new\n" },
+          },
+        },
+      },
+      timestamp: "2026-10-13T07:44:03.616Z",
+      type: "event_msg",
+    });
+    expect(line?.message.content).toMatchObject([
+      {
+        arguments: { path: "src/app.ts", edits: [{ oldText: "old", newText: "new" }] },
+        name: "edit",
+        type: "toolCall",
+      },
+    ]);
+  });
+
+  test("Codex progress messages retain their commentary phase", () => {
+    const line = ligneCodexVersPi({
+      ordinal: 44,
+      payload: {
+        type: "item_completed",
+        item: {
+          type: "AgentMessage",
+          id: "msg_1",
+          phase: "commentary",
+          content: [{ type: "Text", text: "I found the issue." }],
+        },
+      },
+      timestamp: "2026-10-13T07:44:03.616Z",
+      type: "event_msg",
+    });
+    expect(line?.message).toMatchObject({
+      content: [{ text: "I found the issue.", type: "text" }],
+      phase: "commentary",
+      role: "assistant",
+    });
+  });
+
   test("un message utilisateur devient un message pi", () => {
     const ligne = ligneCodexVersPi(
       item({ content: [{ text: "hello", text_elements: [], type: "input_text" }], role: "user" }),
@@ -59,19 +151,11 @@ describe("codex → pi", () => {
     ).toBeUndefined();
   });
 
-  /**
-   * ⚠️ Le second piège : `event_msg`/`item_completed` porte la **même**
-   * conversation. Le lire en plus de `response_item` afficherait chaque message
-   * deux fois.
-   */
-  test("`event_msg` est écarté : response_item porte déjà le message", () => {
+  test("a UserMessage without readable content is skipped", () => {
     expect(
       ligneCodexVersPi({
         ordinal: 9,
-        payload: {
-          item: { content: [{ text: "hello", type: "text" }], type: "UserMessage" },
-          type: "item_completed",
-        },
+        payload: { item: { content: [], type: "UserMessage" }, type: "item_completed" },
         timestamp: "2026-10-13T07:44:01.470Z",
         type: "event_msg",
       }),

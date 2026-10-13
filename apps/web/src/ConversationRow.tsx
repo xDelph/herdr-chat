@@ -35,17 +35,17 @@ const CLASSE_ETAT: Record<ConversationSummary["status"], string> = {
  *
  * « Inconnu » devient « état inconnu » : le mot seul laisserait croire à un
  * défaut de l'application plutôt qu'à une information qu'Herdr ne donne pas.
- * `done` affiche **quand** ça s'est terminé — c'est ce qu'on cherche en ouvrant
- * la liste, pas l'état lui-même.
+ * `done` et `idle` affichent **quand** le dernier travail s'est terminé, si la
+ * session fournit son horodatage. `idle` sans historique reste simplement idle.
  */
 const motDEtat = (conversation: ConversationSummary, maintenant: number): string => {
-  if (conversation.status === "unknown") return "état inconnu";
-  if (conversation.status === "done") {
+  if (conversation.status === "unknown") return "unknown status";
+  if (conversation.status === "done" || conversation.status === "idle") {
     const quand = dureeDepuis(conversation.timestamp ?? null, maintenant);
-    return quand === null ? "terminé" : `terminé ${quand}`;
+    if (quand !== null) return `finished ${quand}`;
+    return conversation.status === "done" ? "finished" : "idle";
   }
-  if (conversation.status === "idle") return "au repos";
-  return "en cours";
+  return "working";
 };
 
 /**
@@ -93,16 +93,9 @@ const ConversationRowInner = ({ conversation, maintenant, onglet, onOpen, projet
         La demande occupe **deux lignes au plus**. Au-delà, une ligne de liste
         prend la moitié de l'écran et la liste cesse d'être parcourable.
       */}
-      {/*
-        ⚠️ Pour un agent **bloqué**, la question passe avant tout : c'est ce
-        qu'on doit lire pour savoir s'il faut y aller. La demande précédente
-        (« ouvre le navigateur ») est déjà satisfaite et n'apprend plus rien.
-      */}
-      <span className="conv__demande">
-        {conversation.question === undefined
-          ? (conversation.lastPrompt ?? conversation.preview ?? "")
-          : `❓ ${conversation.question.texte}`}
-      </span>
+      {conversation.lastPrompt === undefined ? null : (
+        <span className="conv__demande">{conversation.lastPrompt}</span>
+      )}
 
       {morceaux.length > 0 ? <span className="conv__details">{morceaux.join(" · ")}</span> : null}
     </button>

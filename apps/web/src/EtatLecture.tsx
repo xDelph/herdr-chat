@@ -26,7 +26,7 @@ export const BandeauEtat = ({ etat, libelleVide, onReessayer }: Props) => {
       return null;
 
     case "chargement":
-      return <Notice>Lecture…</Notice>;
+      return <Notice>Loading…</Notice>;
 
     case "vide":
       // Jamais en rouge : un parc sans agent n'est pas une panne.
@@ -36,7 +36,7 @@ export const BandeauEtat = ({ etat, libelleVide, onReessayer }: Props) => {
       return (
         <Notice ton="erreur">
           <p>{etat.cause}</p>
-          <Bouton onReessayer={onReessayer}>Réessayer</Bouton>
+          <Bouton onReessayer={onReessayer}>Retry</Bouton>
         </Notice>
       );
 
@@ -44,18 +44,17 @@ export const BandeauEtat = ({ etat, libelleVide, onReessayer }: Props) => {
       return (
         <Notice ton="avertissement">
           <p>
-            Connexion perdue. Dernière lecture réussie{" "}
-            {heureLue(etat.dernierSucces) ?? "à une heure inconnue"}.
+            Connection lost. Last successful read{" "}
+            {heureLue(etat.dernierSucces) ?? "at an unknown time"}.
           </p>
-          <Bouton onReessayer={onReessayer}>Réessayer</Bouton>
+          <Bouton onReessayer={onReessayer}>Retry</Bouton>
         </Notice>
       );
 
     case "reconnexion":
       return (
         <Notice ton="avertissement">
-          Flux temps réel interrompu — reconnexion en cours. L'affichage se met à jour à la lecture
-          suivante.
+          Live updates interrupted — reconnecting. The display will update on the next read.
         </Notice>
       );
   }
@@ -65,7 +64,7 @@ export const BandeauEtat = ({ etat, libelleVide, onReessayer }: Props) => {
     théorie. On affiche quand même quelque chose : un état qu'on ne sait pas
     nommer ne doit pas disparaître en silence, il doit se voir.
   */
-  return <Notice ton="erreur">état de lecture inconnu — rechargez la page</Notice>;
+  return <Notice ton="erreur">Unknown reading state — reload the page</Notice>;
 };
 
 /**

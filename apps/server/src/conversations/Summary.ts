@@ -13,7 +13,13 @@
  */
 import { Effect, Option, Result } from "effect";
 import type { AgentStatus, ConversationSummary } from "@herdr-remote/shared";
-import { readTail, type TailedSession } from "../sessions/SessionReader.ts";
+import {
+  fileSize,
+  readBefore,
+  readTail,
+  tailFrom,
+  type TailedSession,
+} from "../sessions/SessionReader.ts";
 
 /** Un agent tel que Herdr le décrit, sans ce que le serveur en sait. */
 export interface RawPane {
@@ -325,7 +331,7 @@ import { PREVIEW_BYTES as PREVIEW } from "@herdr-remote/shared";
  */
 export const summaryOf = (
   pane: RawPane,
-  read: (path: string) => Effect.Effect<TailedSession, unknown>,
+  read: (path: string) => Effect.Effect<SummaryRead, unknown>,
 ): Effect.Effect<ConversationSummary> =>
   Effect.gen(function* () {
     const base = {
@@ -352,27 +358,157 @@ export const summaryOf = (
     if (value === undefined) {
       return { ...base, sessionState: "error" as const };
     }
-    if (value.entries.length === 0) {
+    if (value.entries.length === 0 && value.summaryMetadata === undefined) {
       // Le fichier existe mais ne contient rien : `absent` est réservé au
       // fichier qui n'existe pas, donc l'état reste « disponible et vide ».
       return { ...base, sessionState: "available" as const };
     }
 
-    const preview = previewOf(value);
-    const lastPrompt = lastPromptOf(value);
-    const timestamp = timestampOf(value);
+    const metadata = value.summaryMetadata ?? metadataOf(value);
     return {
       ...base,
-      ...(preview === undefined ? {} : { preview }),
-      ...(lastPrompt === undefined ? {} : { lastPrompt }),
-      ...reglagesOf(value),
+      ...(metadata.preview === undefined ? {} : { preview: metadata.preview }),
+      ...(metadata.lastPrompt === undefined ? {} : { lastPrompt: metadata.lastPrompt }),
+      ...(metadata.model === undefined ? {} : { model: metadata.model }),
+      ...(metadata.provider === undefined ? {} : { provider: metadata.provider }),
+      ...(metadata.thinking === undefined ? {} : { thinking: metadata.thinking }),
       sessionState: "available" as const,
-      ...(timestamp === undefined ? {} : { timestamp }),
+      ...(metadata.timestamp === undefined ? {} : { timestamp: metadata.timestamp }),
     };
   });
 
-/** Lecteur par défaut : la fin du fichier, bornée. */
-export const defaultRead =
-  (root: string | ReadonlyArray<string>) =>
-  (path: string): Effect.Effect<TailedSession, unknown> =>
-    readTail(path, PREVIEW, root);
+interface SummaryMetadata {
+  readonly lastPrompt?: string;
+  readonly model?: string;
+  readonly preview?: string;
+  readonly provider?: string;
+  readonly thinking?: string;
+  readonly timestamp?: number;
+}
+
+interface SummaryRead extends TailedSession {
+  readonly summaryMetadata?: SummaryMetadata;
+}
+
+interface SummaryCacheEntry {
+  readonly identity: TailedSession["identity"];
+  readonly metadata: SummaryMetadata;
+  readonly offset: number;
+  readonly pending: string;
+  readonly size: number;
+}
+
+const CACHE_MAX_ENTRIES = 256;
+
+const metadataOf = (tailed: TailedSession): SummaryMetadata => {
+  const preview = previewOf(tailed);
+  const lastPrompt = lastPromptOf(tailed);
+  const timestamp = timestampOf(tailed);
+  return {
+    ...(preview === undefined ? {} : { preview }),
+    ...(lastPrompt === undefined ? {} : { lastPrompt }),
+    ...reglagesOf(tailed),
+    ...(timestamp === undefined ? {} : { timestamp }),
+  };
+};
+
+const metadataWithNewEntries = (
+  previous: SummaryMetadata,
+  newEntries: TailedSession,
+): SummaryMetadata => {
+  const next = metadataOf(newEntries);
+  const preview = next.preview ?? previous.preview;
+  const lastPrompt = next.lastPrompt ?? previous.lastPrompt;
+  const model = next.model ?? previous.model;
+  const provider = next.model === undefined ? previous.provider : next.provider;
+  const thinking = next.thinking ?? previous.thinking;
+  const timestamp = next.timestamp ?? previous.timestamp;
+  return {
+    ...(preview === undefined ? {} : { preview }),
+    ...(lastPrompt === undefined ? {} : { lastPrompt }),
+    ...(model === undefined ? {} : { model }),
+    ...(provider === undefined ? {} : { provider }),
+    ...(thinking === undefined ? {} : { thinking }),
+    ...(timestamp === undefined ? {} : { timestamp }),
+  };
+};
+
+/**
+ * Lecteur de résumé avec cache incrémental par session.
+ *
+ * Le prompt peut se trouver bien avant les derniers messages quand l'agent
+ * produit beaucoup d'outils ou de texte. On remonte donc une seule fois par
+ * fichier jusqu'au dernier prompt utilisateur, puis on ne lit que les ajouts.
+ * Le cache est en mémoire du serveur et borné en nombre de sessions.
+ */
+export const defaultRead = (root: string | ReadonlyArray<string>) => {
+  const cache = new Map<string, SummaryCacheEntry>();
+
+  const remember = (path: string, value: SummaryCacheEntry): void => {
+    cache.delete(path);
+    cache.set(path, value);
+    if (cache.size > CACHE_MAX_ENTRIES) {
+      const oldest = cache.keys().next().value;
+      if (oldest !== undefined) cache.delete(oldest);
+    }
+  };
+
+  return (path: string): Effect.Effect<SummaryRead, unknown> =>
+    Effect.gen(function* () {
+      const current = yield* fileSize(path, root);
+      const previous = cache.get(path);
+      if (
+        previous !== undefined &&
+        previous.identity.dev === current.identity.dev &&
+        previous.identity.ino === current.identity.ino &&
+        current.size >= previous.size
+      ) {
+        if (current.size === previous.size) {
+          remember(path, previous);
+          return {
+            entries: [],
+            hasMore: false,
+            identity: previous.identity,
+            offset: previous.offset,
+            pending: previous.pending,
+            summaryMetadata: previous.metadata,
+          };
+        }
+
+        const appended = yield* tailFrom(path, previous.offset, previous.pending, root);
+        const metadata = metadataWithNewEntries(previous.metadata, appended);
+        const size = appended.offset + Buffer.byteLength(appended.pending, "utf8");
+        const next: SummaryCacheEntry = {
+          identity: appended.identity,
+          metadata,
+          offset: appended.offset,
+          pending: appended.pending,
+          size,
+        };
+        remember(path, next);
+        return { ...appended, summaryMetadata: metadata };
+      }
+
+      const initial = yield* readTail(path, PREVIEW, root);
+      const metadata = metadataOf(initial);
+      let beforeOffset = initial.startOffset ?? 0;
+      while (metadata.lastPrompt === undefined && beforeOffset > 0) {
+        const older = yield* readBefore(path, beforeOffset, PREVIEW, root);
+        const lastPrompt = lastPromptOf({ ...older, pending: "" });
+        if (lastPrompt !== undefined) Object.assign(metadata, { lastPrompt });
+        if (older.offset >= beforeOffset) break;
+        beforeOffset = older.offset;
+      }
+
+      const size = initial.offset + Buffer.byteLength(initial.pending, "utf8");
+      const next: SummaryCacheEntry = {
+        identity: initial.identity,
+        metadata,
+        offset: initial.offset,
+        pending: initial.pending,
+        size,
+      };
+      remember(path, next);
+      return { ...initial, summaryMetadata: metadata };
+    });
+};

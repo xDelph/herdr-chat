@@ -134,6 +134,8 @@ export interface TailedSession {
    * ligne à jamais.
    */
   readonly offset: number;
+  /** Début de la fenêtre, pour produire un curseur de pagination antérieure. */
+  readonly startOffset?: number;
   /** Ligne incomplète conservée (sera recollée au prochain appel). */
   readonly pending: string;
   /**
@@ -174,7 +176,13 @@ const toRawEntry = (parsed: unknown, line: string): RawEntry => {
   if (decoded === undefined) {
     // Une ligne illisible est conservée brute plutôt que perdue : la fidélité
     // au format source prime sur la normalisation (principe produit n°2).
-    return { id: undefined, parentId: null, raw: line, timestamp: undefined, type: "unknown" };
+    return {
+      id: undefined,
+      parentId: null,
+      raw: line,
+      timestamp: undefined,
+      type: "unknown",
+    };
   }
   return {
     id: decoded.id,
@@ -325,10 +333,17 @@ export const readTail = (
         let text = buffer.subarray(0, bytesRead).toString("utf8");
 
         let truncated = false;
+        let alignedStart = start;
         if (start > 0) {
           // La première ligne est très probablement coupée en plein milieu.
           const firstNewline = text.indexOf("\n");
-          text = firstNewline === -1 ? "" : text.slice(firstNewline + 1);
+          if (firstNewline !== -1) {
+            const prefix = text.slice(0, firstNewline + 1);
+            alignedStart += Buffer.byteLength(prefix, "utf8");
+            text = text.slice(firstNewline + 1);
+          } else {
+            text = "";
+          }
           truncated = true;
         }
 
@@ -341,9 +356,76 @@ export const readTail = (
           entries: lines.map(parseEntry),
           hasMore: truncated,
           identity: { dev: stats.dev, ino: stats.ino },
-          offset: start + Math.max(0, completeBytes),
+          offset: alignedStart + Math.max(0, completeBytes),
+          startOffset: alignedStart,
           pending,
           truncated,
+        };
+      } finally {
+        await handle.close();
+      }
+    },
+    catch: (cause) =>
+      cause instanceof SessionPathRejected
+        ? cause
+        : new SessionReadError({
+            cause,
+            detail: cause instanceof Error ? cause.message : String(cause),
+            path,
+          }),
+  });
+
+/** Lit la page de session qui précède un curseur opaque. */
+export const readBefore = (
+  path: string,
+  beforeOffset: number,
+  maxBytes: number,
+  root: string | ReadonlyArray<string> = "",
+) =>
+  Effect.tryPromise({
+    try: async () => {
+      const handle = await openGuarded(root, path);
+      try {
+        const stats = await handle.stat();
+        const end = Math.min(beforeOffset, stats.size);
+        const start = Math.max(0, end - maxBytes);
+        const buffer = Buffer.alloc(end - start);
+        const { bytesRead } = await handle.read(buffer, 0, buffer.length, start);
+        let text = buffer.subarray(0, bytesRead).toString("utf8");
+        let firstLineOffset = start;
+
+        if (start > 0) {
+          const firstNewline = text.indexOf("\n");
+          if (firstNewline === -1) {
+            return {
+              entries: [],
+              hasMore: start > 0,
+              identity: { dev: stats.dev, ino: stats.ino },
+              offset: start,
+            };
+          }
+          firstLineOffset += Buffer.byteLength(text.slice(0, firstNewline + 1), "utf8");
+          text = text.slice(firstNewline + 1);
+        }
+
+        const { lines } = splitCompleteLines(text);
+        // Un seul saut de ligne en fin de fenêtre peut appartenir à une
+        // entrée plus longue que `maxBytes`. La ligne est tronquée : ne la
+        // renvoie pas et recule au début de la fenêtre pour que l'appelant
+        // puisse continuer à chercher dans les octets précédents.
+        if (lines.length === 0 && start > 0) {
+          return {
+            entries: [],
+            hasMore: true,
+            identity: { dev: stats.dev, ino: stats.ino },
+            offset: start,
+          };
+        }
+        return {
+          entries: lines.map(parseEntry),
+          hasMore: firstLineOffset > 0,
+          identity: { dev: stats.dev, ino: stats.ino },
+          offset: firstLineOffset,
         };
       } finally {
         await handle.close();

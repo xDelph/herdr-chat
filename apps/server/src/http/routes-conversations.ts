@@ -16,9 +16,9 @@
  *    (`sessionState: "error"`). Perdre toute la liste pour un fichier
  *    corrompu serait bien pire que le fichier corrompu.
  *
- * La lecture est **bornée** (64 Kio par session) et **concurrente** (4 à la
- * fois) : sans borne, 50 agents aux sessions de 1,8 Mo satellite le Mac ; sans
- * concurrence, la liste met 50 × la durée d'un `stat` à s'afficher.
+ * La lecture est **par tranches de 64 Kio** et **concurrente** (4 à la fois).
+ * Le premier passage remonte jusqu'au dernier prompt utilisateur, puis le cache
+ * ne lit que les lignes ajoutées. Il ne charge jamais un gros JSONL entier.
  */
 import { Effect, Option, Result } from "effect";
 import { decoderOf, respond } from "./Reply.ts";
@@ -27,7 +27,6 @@ import { questionDeLEcran } from "@herdr-remote/shared";
 import { brancheDe as branchOf } from "../git/Branche.ts";
 import { sessionLisible } from "../agents/Lisibilite.ts";
 import { sessionPathOf } from "./routes-sessions.ts";
-import type { TailedSession } from "../sessions/SessionReader.ts";
 import { decodeSnapshot } from "./Reply.ts";
 import { ConversationsResponse } from "@herdr-remote/shared";
 import type { HerdrApi } from "../herdr/HerdrClient.ts";
@@ -111,6 +110,11 @@ const toRawPane = (
 };
 
 export const makeConversationRoutes = (config: ServerConfig, herdr: HerdrApi) => {
+  // Gardé au niveau du routeur pour que le résumé réutilise son cache entre
+  // deux rafraîchissements de la liste.
+  const read = defaultRead(config.sessionRoots);
+  const lire = (path: string) => read(path);
+
   const conversations = async (): Promise<Response> => {
     const payload = await Effect.runPromise(Effect.result(herdr.snapshot()));
     if (Result.isFailure(payload)) {
@@ -142,9 +146,6 @@ export const makeConversationRoutes = (config: ServerConfig, herdr: HerdrApi) =>
     const workspaces = new Map(
       decoded.workspaces.map((workspace) => [workspace.workspace_id, workspace.label ?? ""]),
     );
-
-    const read = defaultRead(config.sessionRoots);
-    const lire = (path: string): Effect.Effect<TailedSession, unknown> => read(path);
 
     /*
       ⚠️ **Seuls les panes dont la session est lisible** (U14, U17).

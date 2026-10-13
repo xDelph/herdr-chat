@@ -173,9 +173,9 @@ describe("U04 — structure et libellés", () => {
   });
 
   test("chaque section a un libellé exact", () => {
-    expect(SECTION_LABEL["a-traiter"]).toBe("À traiter");
-    expect(SECTION_LABEL["en-cours"]).toBe("En cours");
-    expect(SECTION_LABEL["recents"]).toBe("Récents");
+    expect(SECTION_LABEL["a-traiter"]).toBe("Needs attention");
+    expect(SECTION_LABEL["en-cours"]).toBe("In progress");
+    expect(SECTION_LABEL["recents"]).toBe("Recent");
   });
 
   test("la réponse est stable à conversation identique", () => {

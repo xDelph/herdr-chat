@@ -31,6 +31,7 @@ import type { HerdrApi } from "../herdr/HerdrClient.ts";
 import {
   fileSize,
   isMissingFile,
+  readBefore,
   readTail,
   SessionPathRejected,
   tailFrom,
@@ -94,6 +95,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
   const session = async (request: RouteRequest): Promise<Response> => {
     const url = new URL(request.url);
     const tailParam = url.searchParams.get("tail");
+    const beforeParam = url.searchParams.get("before");
     // B01 : le curseur est **opaque** et remplace `?since=`. Un offset nu ne
     // dit pas quel fichier il désigne : après rotation, il pointerait ailleurs,
     // sans erreur visible. Un curseur malformé est un 400, jamais un 0 deviné.
@@ -104,6 +106,18 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
         config.logPath,
         decoderOf(ApiErrorResponse),
         { error: "curseur invalide" },
+        400,
+      );
+    }
+    const before = beforeParam === null ? undefined : decodeCursor(beforeParam);
+    if (
+      (beforeParam !== null && before === undefined) ||
+      (before !== undefined && cursor !== undefined)
+    ) {
+      return respond(
+        config.logPath,
+        decoderOf(ApiErrorResponse),
+        { error: "curseur de lecture précédente invalide" },
         400,
       );
     }
@@ -134,6 +148,49 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
             pending: "",
           };
 
+          if (before !== undefined) {
+            const taille = yield* Effect.result(fileSize(path, config.sessionRoots));
+            if (Result.isFailure(taille)) {
+              const failure = Result.getFailure(taille);
+              if (isMissingFile(failure)) return { kind: "cursor-stale" as const };
+              return yield* Effect.fail(failure);
+            }
+            const current = taille.success;
+            if (
+              before.dev !== current.identity.dev ||
+              before.ino !== current.identity.ino ||
+              before.offset > current.size
+            ) {
+              return { kind: "cursor-stale" as const };
+            }
+            const page = yield* Effect.result(
+              readBefore(path, before.offset, SESSION_TAIL_BYTES, config.sessionRoots),
+            );
+            if (Result.isFailure(page)) return yield* Effect.fail(Result.getFailure(page));
+            const older = Option.getOrUndefined(Result.getSuccess(page));
+            if (older === undefined) return { kind: "cursor-stale" as const };
+            return {
+              kind: "ok" as const,
+              path,
+              reset: false,
+              tailed: {
+                entries: older.entries,
+                hasMore: older.hasMore,
+                identity: older.identity,
+                offset: before.offset,
+                pending: "",
+              },
+              truncated: older.hasMore,
+              previousCursor: older.hasMore
+                ? encodeCursor({
+                    dev: older.identity.dev,
+                    ino: older.identity.ino,
+                    offset: older.offset,
+                  })
+                : undefined,
+            };
+          }
+
           if (cursor !== undefined) {
             // Rotation ou troncature : le curseur ne décrit plus ce fichier.
             // Le client doit **remplacer** sa vue, pas y ajouter — sinon il
@@ -144,7 +201,13 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
               if (isMissingFile(failure)) {
                 // Absente : le JSONL naît au premier message. Ce n'est pas une
                 // panne, et l'annoncer comme telle fit crier tout nouvel agent.
-                return { kind: "ok" as const, path, reset: true, tailed: empty, truncated: false };
+                return {
+                  kind: "ok" as const,
+                  path,
+                  reset: true,
+                  tailed: empty,
+                  truncated: false,
+                };
               }
               return yield* Effect.fail(failure);
             }
@@ -189,13 +252,25 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
             const failure = failureOf(tailed);
             // Absence de fichier → session vide. Autre erreur → vraie panne.
             if (isMissingFile(failure)) {
-              return { kind: "ok" as const, path, reset: false, tailed: empty, truncated: false };
+              return {
+                kind: "ok" as const,
+                path,
+                reset: false,
+                tailed: empty,
+                truncated: false,
+              };
             }
             return yield* Effect.fail(failure);
           }
           const value = Option.getOrUndefined(Result.getSuccess(tailed));
           if (value === undefined) {
-            return { kind: "ok" as const, path, reset: false, tailed: empty, truncated: false };
+            return {
+              kind: "ok" as const,
+              path,
+              reset: false,
+              tailed: empty,
+              truncated: false,
+            };
           }
           return {
             kind: "ok" as const,
@@ -206,6 +281,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
               hasMore: value.hasMore,
               identity: value.identity,
               offset: value.offset,
+              startOffset: value.startOffset,
               pending: value.pending,
             },
             truncated: value.truncated,
@@ -245,7 +321,10 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
         return respond(
           config.logPath,
           decoderOf(ApiErrorResponse),
-          { cause: "invalide", error: invalidSession("résultat illisible").message },
+          {
+            cause: "invalide",
+            error: invalidSession("résultat illisible").message,
+          },
           422,
         );
       }
@@ -257,6 +336,16 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
           404,
         );
       }
+      if (value.kind === "cursor-stale") {
+        return respond(
+          config.logPath,
+          decoderOf(ApiErrorResponse),
+          {
+            error: "la session a changé; recharge la conversation pour continuer",
+          },
+          409,
+        );
+      }
       // Le curseur repart toujours de l'identité **lue**, pas de celle
       // demandée : c'est la seule qui décrit le fichier réellement ouvert.
       const cursorOut = encodeCursor({
@@ -264,6 +353,17 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
         ino: value.tailed.identity.ino,
         offset: value.tailed.offset,
       });
+      const previousCursor =
+        value.previousCursor ??
+        (value.tailed.hasMore
+          ? encodeCursor({
+              dev: value.tailed.identity.dev,
+              ino: value.tailed.identity.ino,
+              offset:
+                ("startOffset" in value.tailed ? value.tailed.startOffset : undefined) ??
+                value.tailed.offset,
+            })
+          : undefined);
       // Une session sans aucune entrée se distingue d'une session absente :
       // les deux sont benignes, mais seule la seconde mérite d'être rejouée
       // sans alarme et sans bannière d'erreur.
@@ -275,6 +375,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
           entries: [],
           hasMore: false,
           incremental: cursor !== undefined,
+          previousCursor,
           reset: value.reset,
           sessionPath: value.path,
         });
@@ -285,6 +386,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
         entries: value.tailed.entries,
         hasMore: value.tailed.hasMore || value.truncated,
         incremental: cursor !== undefined,
+        previousCursor,
         reset: value.reset,
         sessionPath: value.path,
       });

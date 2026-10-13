@@ -27,9 +27,9 @@ export type Section = (typeof SECTIONS)[number];
 
 /** Libellés exacts, utilisés par l'interface. */
 export const SECTION_LABEL: Record<Section, string> = {
-  "a-traiter": "À traiter",
-  "en-cours": "En cours",
-  recents: "Récents",
+  "a-traiter": "Needs attention",
+  "en-cours": "In progress",
+  recents: "Recent",
 };
 
 /**
@@ -94,8 +94,8 @@ export type Ordre = (typeof ORDRES)[number];
 
 /** Libellés exacts, utilisés par le sélecteur. */
 export const ORDRE_LABEL: Record<Ordre, string> = {
-  recent: "Plus récentes",
-  nom: "Par nom",
+  recent: "Most recent",
+  nom: "By name",
 };
 
 /**
