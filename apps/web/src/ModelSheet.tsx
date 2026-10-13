@@ -123,7 +123,7 @@ export const ModelSheet = ({
   const [modeleChoisi, setModeleChoisi] = useState<string | null | undefined>(undefined);
   const [fournisseurChoisi, setFournisseurChoisi] = useState<string | null | undefined>(undefined);
   const [penseeChoisie, setPenseeChoisie] = useState<string | null | undefined>(undefined);
-  /** Filtre sur la liste : les identifiants sont longs et innombrables. */
+  /** Réduit les options du menu quand le catalogue est volumineux. */
   const [filter, setFilter] = useState("");
   const [resultats, setResultats] = useState<
     ReadonlyArray<{ readonly command: string; readonly result: SendResult }>
@@ -322,33 +322,36 @@ export const ModelSheet = ({
                 aria-label="Filtrer les modèles"
                 onChange={(event) => setFilter(event.target.value)}
               />
-              <ul className="model__list">
+              <label className="model__label" htmlFor="model-choice">
+                Modèle
+              </label>
+              <select
+                id="model-choice"
+                className="model__select"
+                value={modelId ?? ""}
+                disabled={busy}
+                onChange={(event) => choisirModele(event.currentTarget.value)}
+              >
+                <option value="">Choisir un modèle…</option>
                 {modelesVisibles.map((candidate) => {
                   const label =
                     kind === "pi" && provider !== null
                       ? candidate.id.slice(provider.length + 1)
                       : (candidate.label ?? candidate.id);
-                  const selected = candidate.id === modelId;
                   return (
-                    <li key={candidate.id}>
-                      <button
-                        type="button"
-                        className={selected ? "model__pick model__pick--on" : "model__pick"}
-                        aria-pressed={selected}
-                        disabled={busy}
-                        onClick={() => choisirModele(candidate.id)}
-                      >
-                        <span className="model__pick-id">{label}</span>
-                        <span className="model__pick-meta">
-                          {candidate.id === modeleActuel
-                            ? "Actuel"
-                            : (candidate.label ?? candidate.id)}
-                        </span>
-                      </button>
-                    </li>
+                    <option key={candidate.id} value={candidate.id}>
+                      {candidate.id === modeleActuel ? `${label} · Actuel` : label}
+                    </option>
                   );
                 })}
-              </ul>
+              </select>
+              {modeleActuel === null ? (
+                <p className="muted small">Modèle actuel non déclaré dans la session.</p>
+              ) : (
+                <p className="muted small">
+                  Modèle actuel : <code>{modeleActuel}</code>
+                </p>
+              )}
               {modelesVisibles.length === 0 ? (
                 <p className="muted small">Aucun modèle ne correspond à ce filtre.</p>
               ) : null}

@@ -1436,8 +1436,7 @@ button:disabled {
   margin: 0;
   max-height: none;
   max-width: none;
-  overflow-x: hidden;
-  overflow-y: auto;
+  overflow: hidden;
   padding: max(12px, env(safe-area-inset-top)) 16px max(12px, env(safe-area-inset-bottom));
   position: fixed;
   transition:
@@ -1457,13 +1456,24 @@ button:disabled {
 
 .sheet__head {
   align-items: center;
+  background: var(--bg);
   display: flex;
   gap: 10px;
   justify-content: space-between;
   padding-bottom: 10px;
-  position: sticky;
-  top: 0;
-  background: var(--bg);
+  position: relative;
+  z-index: 1;
+}
+
+.sheet__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
 }
 
 .screen__title {
@@ -1745,9 +1755,8 @@ button:disabled {
 /* ---------------------------------------------------------------------------
    Catalogue de modèles
 
-   Une **liste**, pas une saisie : les identifiants (`opencode-go/deepseek-
-   v4.1-flash`) ne sont pas tapables de mémoire depuis un téléphone. Le filtre
-   reste nécessaire — le catalogue de `pi` dépasse la largeur d'un écran.
+   Un **menu déroulant** pour choisir sans faire défiler des dizaines de lignes.
+   Le filtre reste disponible — le catalogue de `pi` dépasse la largeur d'un écran.
    --------------------------------------------------------------------------- */
 
 .model__search {
@@ -1767,46 +1776,15 @@ button:disabled {
   outline: none;
 }
 
-.model__list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
-.model__pick {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: inherit;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-bottom: 6px;
-  min-height: var(--tap-min);
-  padding: 8px 10px;
-  text-align: left;
-  width: 100%;
-}
-
-.model__pick--on {
-  border-color: var(--accent);
-}
-
-/* L'identifiant peut être long : il doit se couper, pas déborder. */
-.model__pick-id {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 13px;
-  overflow-wrap: anywhere;
-}
-
-.model__pick-meta {
+.model__label {
   color: var(--muted);
-  font-size: 12px;
-  overflow-wrap: anywhere;
+  font-size: 13px;
+  margin: 2px 0 6px;
 }
 
-.model__pick:disabled {
-  opacity: 0.5;
+.model__select {
+  margin-bottom: 8px;
+  width: 100%;
 }
 
 .model__actions {
@@ -1917,8 +1895,8 @@ button:disabled {
   gap: 10px;
   justify-content: space-between;
   padding-bottom: 6px;
-  position: sticky;
-  top: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .sheet__name {

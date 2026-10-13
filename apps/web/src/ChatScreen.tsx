@@ -10,7 +10,7 @@
  * défile, composeur compris, et le clavier iOS se bat avec le défilement
  * (D016.2).
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentView, AnswerResult, SendResult, SessionEntry } from "./api.ts";
 import { answerQuestion, fetchSession, sendPrompt, reportError } from "./api.ts";
 import type { Question } from "@herdr-remote/shared";
@@ -70,6 +70,41 @@ export const ChatScreen = ({
   const [openFile, setOpenFile] = useState<string | null>(null);
   /** `true` quand la visionneuse a été ouverte depuis la liste des fichiers. */
   const [fromFiles, setFromFiles] = useState(false);
+
+  const réglagesSession = useMemo(() => {
+    let model: string | undefined;
+    let provider: string | undefined;
+    let thinking: string | undefined;
+    for (let index = entries.length - 1; index >= 0; index -= 1) {
+      const entry = entries[index];
+      if (entry === undefined) continue;
+      if (
+        (model === undefined && entry.type === "model_change") ||
+        (thinking === undefined && entry.type === "thinking_level_change")
+      ) {
+        try {
+          const raw: unknown = JSON.parse(entry.raw);
+          if (typeof raw !== "object" || raw === null) continue;
+          if (model === undefined && entry.type === "model_change") {
+            const modelId: unknown = Reflect.get(raw, "modelId");
+            if (typeof modelId === "string") {
+              model = modelId;
+              const providerId: unknown = Reflect.get(raw, "provider");
+              if (typeof providerId === "string") provider = providerId;
+            }
+          }
+          if (thinking === undefined && entry.type === "thinking_level_change") {
+            const thinkingLevel: unknown = Reflect.get(raw, "thinkingLevel");
+            if (typeof thinkingLevel === "string") thinking = thinkingLevel;
+          }
+        } catch {
+          // Une ligne malformée n'empêche pas de lire les autres réglages.
+        }
+      }
+      if (model !== undefined && thinking !== undefined) break;
+    }
+    return { model, provider, thinking };
+  }, [entries]);
   const onToggleFiles = useCallback(() => {
     setShowFiles((value) => !value);
     setShowModel(false);
@@ -414,9 +449,9 @@ export const ChatScreen = ({
             <ModelSheet
               agentName={agentName(agent)}
               kind={agent.agent ?? "pi"}
-              currentModel={currentModel}
-              currentProvider={currentProvider}
-              currentThinking={currentThinking}
+              currentModel={currentModel ?? réglagesSession.model}
+              currentProvider={currentProvider ?? réglagesSession.provider}
+              currentThinking={currentThinking ?? réglagesSession.thinking}
               paneId={agent.paneId}
               onClose={() => setShowModel(false)}
             />

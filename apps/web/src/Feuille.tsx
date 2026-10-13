@@ -177,7 +177,7 @@ export const Feuille = ({
           Fermer
         </button>
       </header>
-      {children}
+      <div className="sheet__body">{children}</div>
     </dialog>
   );
 };

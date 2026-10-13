@@ -55,8 +55,8 @@ describe("U09 — filtrer ne choisit pas", () => {
     expect(gestionnaire).not.toContain("setChosen");
   });
 
-  test("la sélection se fait en cliquant un modèle, pas en écrivant", () => {
-    expect(model).toContain("onClick={() => choisirModele(candidate.id)}");
+  test("la sélection se fait dans le menu, pas dans le filtre", () => {
+    expect(model).toContain("onChange={(event) => choisirModele(event.currentTarget.value)}");
     expect(model).toContain("setModeleChoisi(value)");
   });
 
