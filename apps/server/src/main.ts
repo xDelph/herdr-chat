@@ -23,7 +23,7 @@ import { PromptSender } from "./send/PromptSender.ts";
 import { makeRoutes } from "./http/Api.ts";
 import type { Routes } from "./http/Reply.ts";
 import { makePushNotifications } from "./notifications/PushNotifications.ts";
-import { defaultPushStorePath } from "./logging/LogFile.ts";
+import { defaultPushStorePath, rapatrierStorePush } from "./logging/LogFile.ts";
 
 const startedAt = Date.now();
 
@@ -94,12 +94,23 @@ export const program = Effect.gen(function* () {
   );
 
   const sender = yield* PromptSender.make(herdr, config.duplicateWindowMs);
+  /*
+    ⚠️ Avant d'ouvrir le store, on rapatrie celui de l'ancien emplacement : le
+    déplacement a orpheliné les abonnements déjà enregistrés, et sans cela les
+    notifications s'arrêtent sans le moindre message. Voir `rapatrierStorePush`.
+  */
+  const pushStore = process.env["HERDR_REMOTE_PUSH_STORE"] ?? defaultPushStorePath();
+  const rapatrie = rapatrierStorePush(pushStore, join(process.cwd(), ".herdr-remote", "push.json"));
+  if (rapatrie !== null) {
+    console.warn(`[herdr-remote] abonnements Web Push rapatriés depuis ${rapatrie}`);
+  }
+
   const notifications = makePushNotifications(
     // ⚠️ `process.cwd()` plaçait les abonnements dans le dépôt : lancé depuis un
     // autre dossier, le serveur repartait d'un store vide, et les abonnements
     // disparaissaient **sans un mot**. Le dossier du journal est le bon voisin —
     // c'est déjà là que vivent les données de cette instance.
-    process.env["HERDR_REMOTE_PUSH_STORE"] ?? defaultPushStorePath(),
+    pushStore,
   );
 
   // Veille : c'est ce qui produit le direct. Sans elle, le flux n'émettait que

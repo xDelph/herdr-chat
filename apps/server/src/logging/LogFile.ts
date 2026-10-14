@@ -15,6 +15,7 @@
  * remplir le disque.
  */
 import { Effect } from "effect";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { appendFile, mkdir, rename, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
@@ -125,3 +126,52 @@ export const writeLog = (logPath: string, entry: LogEntry): Effect.Effect<void> 
 /** Écrit plusieurs entrées d'un coup. */
 export const writeLogs = (logPath: string, entries: ReadonlyArray<LogEntry>): Effect.Effect<void> =>
   Effect.forEach(entries, (entry) => writeLog(logPath, entry), { discard: true });
+
+/**
+ * Rapatrie le store Web Push laissé à l'ancien emplacement.
+ *
+ * ⚠️ **Pourquoi cette fonction existe, et pourquoi elle ne peut pas être
+ * supprimée par confort.** Le store vivait dans `process.cwd()/.herdr-remote/` ;
+ * il a été déplacé à côté du journal. Ce déménagement a **orpheliné les
+ * abonnements déjà enregistrés** : le serveur repartait d'un store vide, sans
+ * un mot — c'est-à-dire exactement le défaut que le déménagement prétendait
+ * corriger. Les notifications ont simplement cessé d'arriver.
+ *
+ * ⚠️ On rapatrie le fichier **entier**, VAPID compris. Les abonnements sont liés
+ * à la clé publique qui les a créés : recopier les seuls abonnements sur un
+ * store régénéré les rendrait invalides, et les notifications échoueraient
+ * encore — en silence, puisqu'un envoi qui échoue ne se voit nulle part.
+ *
+ * On ne rapatrie que si le nouveau store est **absent ou vide** : un store déjà
+ * peuplé est la vérité, on n'y touche pas.
+ */
+/** Nombre d'abonnements d'un store lu, sans supposer sa forme. */
+const nombreDAbonnements = (valeur: unknown): number => {
+  if (typeof valeur !== "object" || valeur === null) return 0;
+  const abonnements: unknown = Reflect.get(valeur, "subscriptions");
+  return Array.isArray(abonnements) ? abonnements.length : 0;
+};
+
+export const rapatrierStorePush = (storePath: string, ancienChemin: string): string | null => {
+  if (storePath === ancienChemin) return null;
+  try {
+    const ancien: unknown = JSON.parse(readFileSync(ancienChemin, "utf8"));
+    if (nombreDAbonnements(ancien) === 0) return null;
+
+    let dejaPeuple = false;
+    try {
+      dejaPeuple = nombreDAbonnements(JSON.parse(readFileSync(storePath, "utf8"))) > 0;
+    } catch {
+      dejaPeuple = false;
+    }
+    if (dejaPeuple) return null;
+
+    mkdirSync(dirname(storePath), { recursive: true, mode: 0o700 });
+    writeFileSync(storePath, `${JSON.stringify(ancien, null, 2)}\n`, { mode: 0o600 });
+    return ancienChemin;
+  } catch {
+    // Pas d'ancien store, ou illisible : il n'y a rien à rapatrier, et ce n'est
+    // pas une panne — c'est le cas de toute installation neuve.
+    return null;
+  }
+};
