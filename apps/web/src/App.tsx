@@ -93,38 +93,27 @@ export const App = () => {
   const [live, setLive] = useState<"live" | "down">("down");
 
   /*
-    Hauteur de la coquille, pendant que le clavier va et vient.
+    La coquille **est** le viewport visuel. Rien à deviner.
 
-    ⚠️ **Le défaut que ce bloc corrige, et pourquoi il est écrit ainsi.**
+    ⚠️ **Ce que ce bloc a fait de mal, deux fois.**
 
-    Le composeur **remontait en haut de l'écran** à la mise au point. Ce n'est
-    pas un problème d'ancrage : c'est que la coquille se retrouvait **trop
-    courte**. Un shell de 60 px, c'est un en-tête, un fil écrasé, et un
-    composeur collé sous l'en-tête — donc tout en haut. La cause : la hauteur
-    était prise dans `window.innerHeight`, et iOS **rétrécit aussi cette
-    valeur** quand le clavier s'ouvre, dans certaines configurations. La
-    détection « clavier ouvert ? » comparait alors deux nombres déjà rétrécis,
-    ne le voyait pas, et gardait la petite valeur.
+    1. Il prenait la hauteur dans `100dvh`, que WebKit calcule court en mode
+       installé — bande blanche en bas de l'écran.
+    2. Puis dans `Math.max(window.innerHeight, visualViewport.height)` retenu hors
+       saisie. Ce maximum est le défaut : `innerHeight` est la hauteur de **mise
+       en page**, qui en mode installé dépasse la zone réellement visible. La
+       coquille grandissait donc de la hauteur de la barre d'accueil, et le
+       composeur comme le bouton flottant tombaient à moitié sous le bord.
 
-    ⚠️ **On ne devine donc plus : on retient.** `hauteurPleine` est la plus
-    grande hauteur observée **hors saisie** — celle que le clavier ne peut pas
-    avoir rétrécie. C'est la référence stable qui manquait.
+    `visualViewport.height` est la seule valeur dont le **contrat** est « ce qui
+    est visible ». Elle tient compte du clavier toute seule, donc la détection
+    « clavier ouvert ? » disparaît avec le reste : il n'y avait rien à détecter,
+    seulement une valeur à lire.
 
-    Les trois cas, et ce qu'ils donnent :
-
-    | situation                  | hauteur retenue          |
-    |----------------------------|--------------------------|
-    | clavier fermé              | `hauteurPleine`          |
-    | clavier ouvert             | `visualViewport.height`  |
-    | clavier ouvert, `innerHeight` rétréci aussi | `visualViewport.height` |
-
-    ⚠️ **On préfère toujours une coquille trop haute à une trop courte.** Trop
-    haute, le composeur passe sous le clavier et iOS le ramène — c'est le
-    comportement normal. Trop courte, il flotte au milieu de l'écran et plus
-    rien n'a de sens. L'erreur n'est pas symétrique, donc le choix ne l'est pas
-    non plus.
+    ⚠️ Une règle précédente disait « on préfère une coquille trop haute à une trop
+    courte ». Elle est fausse : trop haute, le bas est **coupé** — c'est-à-dire
+    invisible, donc pire qu'un vide qu'on voit.
   */
-  const hauteurPleine = useRef(0);
   const coquille = useRef({ hauteur: 0, haut: 0 });
 
   useEffect(() => {
@@ -138,40 +127,24 @@ export const App = () => {
     };
 
     const syncViewport = () => {
-      const champActif =
-        document.activeElement instanceof HTMLElement &&
-        document.activeElement.matches("input, textarea, [contenteditable='true']");
-
-      if (!champActif) {
-        // Hors saisie, tout ce qu'on observe est la vraie hauteur : on retient
-        // la plus grande, sans jamais la laisser rétrécir par un clavier.
-        hauteurPleine.current = Math.max(
-          hauteurPleine.current,
-          window.innerHeight,
-          viewport?.height ?? 0,
-        );
-      }
-
-      const clavierOuvert =
-        champActif && viewport !== null && viewport.height < hauteurPleine.current - 100;
-
-      if (clavierOuvert && viewport) applique(viewport.height, viewport.offsetTop);
-      else applique(hauteurPleine.current, 0);
+      /*
+        ⚠️ `visualViewport` absent (navigateurs anciens) : `innerHeight` est un
+        repli, pas une préférence. Et on ne retient rien d'un tour à l'autre —
+        retenir, c'est exactement ce qui a produit une coquille trop haute qui ne
+        redescendait jamais.
+      */
+      applique(viewport?.height ?? window.innerHeight, viewport?.offsetTop ?? 0);
     };
 
     syncViewport();
     viewport?.addEventListener("resize", syncViewport);
     viewport?.addEventListener("scroll", syncViewport);
-    // ⚠️ La mise au point est un signal direct, plus sûr que la seule variation
-    // de taille : c'est elle qui décide de ce qu'on affiche.
+    // ⚠️ `focusin`/`focusout` restent écoutés : iOS ne redimensionne pas toujours
+    // le viewport visuel de façon fiable au premier instant de la saisie.
     document.addEventListener("focusin", syncViewport);
     document.addEventListener("focusout", syncViewport);
     window.addEventListener("resize", syncViewport);
-    window.addEventListener("orientationchange", () => {
-      // Rotation : la hauteur change légitimement, la référence doit suivre.
-      hauteurPleine.current = 0;
-      syncViewport();
-    });
+    window.addEventListener("orientationchange", syncViewport);
     return () => {
       viewport?.removeEventListener("resize", syncViewport);
       viewport?.removeEventListener("scroll", syncViewport);

@@ -1,19 +1,21 @@
 /**
- * La coquille ne peut pas se retrouver **trop courte**.
+ * La coquille **est** le viewport visuel — et rien n'est retenu d'un tour à l'autre.
  *
- * ⚠️ **Pourquoi ce test lit la source.** Le défaut qu'il encadre — le composeur
- * qui remonte en haut de l'écran à la mise au point — dépend du comportement du
- * clavier iOS, qu'aucun test ne peut simuler ici. Mais sa **cause** est une
- * règle de code, et une règle de code se vérifie.
+ * ⚠️ **Pourquoi ce test lit la source, et pourquoi il a été réécrit.**
  *
- * La règle : la hauteur de référence est **retenue hors saisie**. Prendre
- * directement `window.innerHeight` quand le clavier semble fermé échoue, parce
- * qu'iOS rétrécit aussi cette valeur : la détection compare alors deux nombres
- * déjà rétrécis, ne voit rien, et garde la petite valeur. Un shell trop court
- * met le composeur sous l'en-tête — donc tout en haut de l'écran.
+ * Le défaut qu'il encadre ne se voit que sur un iPhone installé. Mais sa cause
+ * est une règle de code, et une règle de code se vérifie.
  *
- * Le dépôt vérifie de cette façon ce qui ne se teste pas autrement (la coquille
- * des feuilles, les dépendances de l'effet de chargement). Même méthode.
+ * La règle précédente était : « on retient la plus grande hauteur observée hors
+ * saisie, et on préfère une coquille trop haute à une trop courte ». Elle a
+ * produit **une coquille trop haute** : `window.innerHeight` est la hauteur de
+ * mise en page, qui en mode installé dépasse la zone visible. Le composeur et le
+ * bouton flottant tombaient à moitié sous le bord.
+ *
+ * « Trop haute » n'est pas le camp sûr : c'est le camp où le bas est **coupé**,
+ * donc invisible — pire qu'un vide qu'on voit. La seule valeur dont le contrat
+ * est « ce qui est visible » est `visualViewport.height`, et elle tient compte du
+ * clavier toute seule.
  */
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
@@ -21,48 +23,54 @@ import { join } from "node:path";
 
 const source = readFileSync(join(import.meta.dir, "App.tsx"), "utf8");
 
-describe("hauteur du shell au clavier", () => {
-  test("la hauteur de référence est retenue hors saisie", () => {
-    // C'est LA ligne qui empêche la coquille de rétrécir sous le clavier.
-    expect(source).toContain("const hauteurPleine = useRef(0);");
-    expect(source).toContain("hauteurPleine.current = Math.max(");
+/** Corps de l'effet qui écrit la hauteur de la coquille. */
+const effet = (): string => {
+  const debut = source.indexOf("const coquille = useRef(");
+  expect(debut).toBeGreaterThan(-1);
+  const fin = source.indexOf("}, []);", debut);
+  expect(fin).toBeGreaterThan(debut);
+  return source.slice(debut, fin);
+};
+
+describe("hauteur de la coquille", () => {
+  test("elle vient du viewport visuel", () => {
+    expect(effet()).toContain("viewport?.height ?? window.innerHeight");
   });
 
-  test("elle n'est mise à jour que hors saisie", () => {
-    // Si elle était mise à jour pendant la saisie, le clavier la rétrécirait et
-    // on retrouverait exactement le défaut.
-    const miseAJour = source.indexOf("hauteurPleine.current = Math.max(");
-    const garde = source.lastIndexOf("if (!champActif) {", miseAJour);
-    expect(garde).toBeGreaterThan(-1);
-    expect(miseAJour - garde).toBeLessThan(300);
+  test("elle suit aussi le décalage du viewport", () => {
+    expect(effet()).toContain("viewport?.offsetTop ?? 0");
   });
 
-  test("la coquille prend la hauteur retenue quand le clavier est fermé", () => {
-    expect(source).toContain("else applique(hauteurPleine.current, 0);");
+  test("`innerHeight` n'est qu'un repli, jamais une préférence", () => {
+    // Le défaut précédent : `innerHeight` gagnait parce qu'on prenait le maximum.
+    // Une seule occurrence, et jamais retenue : c'est le repli, pas le choix.
+    expect(effet().split("window.innerHeight").length - 1).toBe(1);
   });
 
-  test("elle suit le viewport visuel quand le clavier est ouvert", () => {
-    expect(source).toContain(
-      "if (clavierOuvert && viewport) applique(viewport.height, viewport.offsetTop);",
-    );
+  test("aucune hauteur n'est RETENUE d'un tour à l'autre", () => {
+    // Retenir, c'est ce qui faisait qu'une coquille trop haute ne redescendait
+    // jamais — même après rotation.
+    expect(source).not.toContain("hauteurPleine");
+    expect(effet()).not.toContain("Math.max");
   });
 
-  test("la mise au point est écoutée directement, pas seulement la taille", () => {
-    expect(source).toContain('document.addEventListener("focusin", syncViewport);');
-    expect(source).toContain('document.addEventListener("focusout", syncViewport);');
-  });
-
-  test("une rotation remet la référence à zéro", () => {
-    // Sans cela, la hauteur portrait resterait la référence en paysage.
-    expect(source).toContain("hauteurPleine.current = 0;");
-    expect(source).toContain('window.addEventListener("orientationchange"');
+  test("rien ne se croit plus malin que le viewport", () => {
+    // Pas de détection « clavier ouvert ? », pas de seuil en pixels : le
+    // viewport visuel sait déjà tout cela.
+    expect(effet()).not.toContain("clavierOuvert");
+    expect(effet()).not.toContain("- 100");
   });
 
   test("on n'écrit dans le DOM que si la valeur change", () => {
     // Écrire à chaque `scroll` du viewport peut relancer la mise en page et
     // faire boucler la synchronisation pendant l'animation du clavier.
-    expect(source).toContain(
+    expect(effet()).toContain(
       "if (coquille.current.hauteur === hauteur && coquille.current.haut === haut) return;",
     );
+  });
+
+  test("la mise au point reste écoutée : iOS ne redimensionne pas toujours à temps", () => {
+    expect(effet()).toContain('document.addEventListener("focusin", syncViewport);');
+    expect(effet()).toContain('document.addEventListener("focusout", syncViewport);');
   });
 });
