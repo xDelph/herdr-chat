@@ -400,6 +400,29 @@ interface SummaryCacheEntry {
 
 const CACHE_MAX_ENTRIES = 256;
 
+/**
+ * Budget de remontée pour retrouver les réglages en vigueur.
+ *
+ * ⚠️ **Borné, et c'est un choix assumé.** Sans plafond, ouvrir une session de
+ * 31 Mo coûterait jusqu'à 31 Mo de lecture pour un réglage qui peut ne pas y
+ * être. Le budget est de **2 Mo** (32 fenêtres de 64 Ko), payé **une fois** par
+ * session — l'entrée est mise en cache ensuite.
+ *
+ * Mesuré le 2026-10-14 sur deux sessions réelles :
+ *
+ * | session        | taille | `model_change` | `thinking_level_change` |
+ * |----------------|--------|----------------|-------------------------|
+ * | prusa-pi-setup | 31 Mo  | 608 Ko         | 641 Ko                  |
+ * | herdr-pwa      | 9 Mo   | dans la queue  | ~9 Mo (9 octobre)       |
+ *
+ * ⚠️ **La dernière ligne est la limite, et elle est réelle** : un niveau de
+ * pensée inchangé depuis des jours peut être plus loin que le budget. Il reste
+ * alors **absent**, et l'interface dit déjà qu'un réglage non déclaré n'est pas
+ * connu — c'est honnête. La solution exacte serait de lire la barre d'état de
+ * l'agent plutôt que son journal, ce qui est un autre travail.
+ */
+const FENETRES_REGLAGES = 32;
+
 const metadataOf = (tailed: TailedSession): SummaryMetadata => {
   const preview = previewOf(tailed);
   const lastPrompt = lastPromptOf(tailed);
@@ -491,13 +514,49 @@ export const defaultRead = (root: string | ReadonlyArray<string>) => {
 
       const initial = yield* readTail(path, PREVIEW, root);
       const metadata = metadataOf(initial);
+
+      /*
+        ⚠️ **Remonter le fil pour les réglages en vigueur.**
+
+        Le modèle et le niveau de pensée ne sont écrits qu'en **changements**
+        (`model_change`, `thinking_level_change`) : la session ne les répète pas.
+        Dans une longue conversation, le dernier est donc loin de la fin —
+        mesuré à **369 Ko du bord** sur une session de 31 Mo, alors que l'aperçu
+        n'en lit que 64 Ko. Conséquence visible : l'agent ne déclarait aucun
+        modèle, et la feuille de changement s'ouvrait **sans rien
+        présélectionner** — ce qui se lisait comme un défaut d'interface alors
+        que l'information existait.
+
+        ⚠️ La **première** occurrence rencontrée en remontant est la plus
+        récente : c'est elle qui vaut. Une fenêtre plus ancienne ne doit donc
+        jamais écraser une valeur déjà trouvée — d'où les `=== undefined`.
+      */
       let beforeOffset = initial.startOffset ?? 0;
-      while (metadata.lastPrompt === undefined && beforeOffset > 0) {
+      let fenetres = 0;
+      const incomplet = (): boolean =>
+        (metadata.model === undefined ||
+          metadata.thinking === undefined ||
+          metadata.lastPrompt === undefined) &&
+        beforeOffset > 0 &&
+        fenetres < FENETRES_REGLAGES;
+      while (incomplet()) {
         const older = yield* readBefore(path, beforeOffset, PREVIEW, root);
-        const lastPrompt = lastPromptOf({ ...older, pending: "" });
-        if (lastPrompt !== undefined) Object.assign(metadata, { lastPrompt });
+        const plus = metadataOf({ ...older, pending: "" });
+        if (metadata.model === undefined && plus.model !== undefined) {
+          Object.assign(metadata, { model: plus.model });
+        }
+        if (metadata.provider === undefined && plus.provider !== undefined) {
+          Object.assign(metadata, { provider: plus.provider });
+        }
+        if (metadata.thinking === undefined && plus.thinking !== undefined) {
+          Object.assign(metadata, { thinking: plus.thinking });
+        }
+        if (metadata.lastPrompt === undefined && plus.lastPrompt !== undefined) {
+          Object.assign(metadata, { lastPrompt: plus.lastPrompt });
+        }
         if (older.offset >= beforeOffset) break;
         beforeOffset = older.offset;
+        fenetres += 1;
       }
 
       const size = initial.offset + Buffer.byteLength(initial.pending, "utf8");

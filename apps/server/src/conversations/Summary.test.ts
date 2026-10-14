@@ -137,6 +137,57 @@ describe("aperçu et horodatage — jamais inventés", () => {
     expect("preview" in line).toBe(false);
   });
 
+  /**
+   * ⚠️ **Le réglage est loin, et c'est le cas normal des longues sessions.**
+   * Le modèle et le niveau de pensée ne sont écrits qu'en *changements* : la
+   * session ne les répète pas. Sur une session réelle de 31 Mo, le dernier
+   * `model_change` était à 608 Ko de la fin, alors que l'aperçu n'en lit que 64.
+   * Sans remontée, la ligne ne déclarait aucun modèle — et la feuille de
+   * changement s'ouvrait sans rien présélectionner.
+   */
+  test("un réglage plus ancien que la fenêtre est retrouvé", async () => {
+    const path = join(dir, "reglages-loin.jsonl");
+    const remplissage = Array.from({ length: 900 }, (_, index) =>
+      ligne("assistant", [{ text: `${String(index)} ${"x".repeat(80)}` }]),
+    ).join("\n");
+    await writeFile(
+      path,
+      [
+        changement("model_change", "modelId", "modele-ancien"),
+        changement("thinking_level_change", "thinkingLevel", "high"),
+        remplissage,
+        ligne("assistant", [{ text: "dernier" }]),
+      ].join("\n") + "\n",
+    );
+    const line = await Effect.runPromise(summaryOf(pane({ sessionPath: path }), defaultRead(dir)));
+    expect(line.model).toBe("modele-ancien");
+    expect(line.thinking).toBe("high");
+  });
+
+  /**
+   * ⚠️ On remonte de la fin vers le début : la **première** occurrence trouvée
+   * est la plus récente. Une fenêtre plus ancienne ne doit jamais écraser une
+   * valeur déjà trouvée, sinon on afficherait un modèle que l'agent a quitté.
+   */
+  test("le réglage le PLUS RÉCENT gagne, même hors de la fenêtre", async () => {
+    const path = join(dir, "reglages-recents.jsonl");
+    const bloc = Array.from({ length: 900 }, (_, index) =>
+      ligne("assistant", [{ text: `${String(index)} ${"y".repeat(80)}` }]),
+    ).join("\n");
+    await writeFile(
+      path,
+      [
+        changement("model_change", "modelId", "modele-ancien"),
+        bloc,
+        changement("model_change", "modelId", "modele-recent"),
+        bloc,
+        ligne("assistant", [{ text: "dernier" }]),
+      ].join("\n") + "\n",
+    );
+    const line = await Effect.runPromise(summaryOf(pane({ sessionPath: path }), defaultRead(dir)));
+    expect(line.model).toBe("modele-recent");
+  });
+
   test("session existante et vide : `available`, pas `absent`", () => {
     const vide = Effect.runSync(
       summaryOf(pane({ sessionPath: "/x" }), () => Effect.succeed(neverRead())),

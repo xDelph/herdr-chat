@@ -205,17 +205,40 @@ export const ChatScreen = ({
     [agent.paneId],
   );
 
+  /**
+   * Cadence de rafraîchissement, lue sans relancer le chargement.
+   *
+   * ⚠️ **`agent.status` ne doit PAS être une dépendance de l'effet ci-dessous.**
+   * Il l'était, et chaque changement d'état relançait tout : le curseur remis à
+   * zéro, la session relue depuis la fin, et le chargement automatique des pages
+   * précédentes qui **préfixait de vieux messages en haut de la conversation**.
+   *
+   * Ce n'est pas un cas rare : appliquer un modèle ou un niveau de pensée envoie
+   * `/model` ou `/thinking`, l'agent passe `working` → `idle`, et l'écran sautait.
+   * Le statut ne choisit que la **cadence** ; il n'a rien à dire sur ce qui est
+   * affiché. Un rafraîchissement doit s'ajouter, jamais repartir de zéro.
+   */
+  const statutRef = useRef(agent.status);
+  useEffect(() => {
+    statutRef.current = agent.status;
+  }, [agent.status]);
+
   useEffect(() => {
     cursor.current = null;
     autoLoadedPrevious.current = false;
     setPreviousCursor(null);
     void load("initial");
-    const refreshEveryMs = agent.status === "working" ? 750 : 2000;
-    const timer = setInterval(() => {
+    // `setTimeout` en cascade plutôt que `setInterval` : la cadence est relue à
+    // chaque tour, donc elle suit le statut sans que l'effet en dépende.
+    const cadence = () => (statutRef.current === "working" ? 750 : 2000);
+    let timer = 0;
+    const tour = () => {
       void load("incremental");
-    }, refreshEveryMs);
-    return () => clearInterval(timer);
-  }, [agent.status, load]);
+      timer = window.setTimeout(tour, cadence());
+    };
+    timer = window.setTimeout(tour, cadence());
+    return () => window.clearTimeout(timer);
+  }, [load]);
 
   const chargerPrecedents = useCallback(async () => {
     const before = previousCursor;
