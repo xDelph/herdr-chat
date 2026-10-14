@@ -574,19 +574,22 @@ export const answerQuestion = async (paneId: string, numero: number): Promise<An
 };
 
 /**
- * Déclare qu'on regarde — ou non — cet agent.
+ * Acquitte la réponse d'un agent en posant le focus sur son pane.
  *
- * ⚠️ C'est ce qui fait passer un agent de `done` à `idle` : Herdr répute une
- * réponse lue dès qu'un client regarde le pane. Sans cet appel, la liste garde
- * « terminé » pour une réponse qu'on vient de lire.
+ * ⚠️ **C'est le focus qui acquitte, et rien d'autre.** `agent.view.set` répond
+ * `{active: true}` sans changer le statut — mesuré deux fois. Sans cet appel,
+ * la liste garde « terminé » pour une réponse qu'on vient de lire.
+ *
+ * ⚠️ L'effet est réel sur le Mac : le pane prend le focus dans Herdr. C'est le
+ * prix de l'acquittement, et il n'y a pas d'autre chemin.
  *
  * ⚠️ Ne lève **jamais** : l'acquittement est un confort d'affichage, il ne doit
- * pas empêcher d'ouvrir une conversation. Un échec est ignoré, pas remonté.
+ * pas empêcher d'ouvrir une conversation.
  */
-export const viewAgent = async (paneId: string, active: boolean): Promise<void> => {
+export const focusAgent = async (paneId: string): Promise<void> => {
   try {
-    await fetch(`/api/agents/${encodeURIComponent(paneId)}/view`, {
-      body: JSON.stringify({ active }),
+    await fetch(`/api/agents/${encodeURIComponent(paneId)}/focus`, {
+      body: JSON.stringify({}),
       headers: { "content-type": "application/json" },
       method: "POST",
     });

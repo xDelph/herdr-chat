@@ -70,7 +70,7 @@ const herdrWith = (screen: string, sent: string[][], apres?: string): HerdrApi =
     listAgents: unused,
     ping: unused,
     promptAgent: unused,
-    viewAgent: () => Effect.succeed({}),
+    focusAgent: () => Effect.succeed({}),
     readAgent: () => {
       lu += 1;
       const texte = lu === 1 ? screen : (apres ?? "");

@@ -21,7 +21,7 @@ import {
   ModelCatalogResponse,
   OverviewResponse,
   TrustRequiredResponse,
-  AgentViewResponse,
+  AgentFocusedResponse,
   QuestionAnsweredResponse,
   TrustResolvedResponse,
   PromptFailedResponse,
@@ -120,8 +120,6 @@ const decodeTrustBody = Schema.decodeUnknownOption(TrustBody);
 const decodeAnswerBody = Schema.decodeUnknownOption(Schema.Struct({ numero: Schema.Number }));
 
 /** Corps de l'acquittement d'affichage : on regarde, ou on ne regarde plus. */
-const decodeViewBody = Schema.decodeUnknownOption(Schema.Struct({ active: Schema.Boolean }));
-
 /**
  * Déclare qu'un client regarde — ou ne regarde plus — un agent.
  *
@@ -134,24 +132,14 @@ const decodeViewBody = Schema.decodeUnknownOption(Schema.Struct({ active: Schema
  * « regardant » empêcherait l'agent de redevenir `done` à la fin suivante —
  * l'application ne verrait plus jamais un agent se terminer.
  */
-const makeAgentView =
+const makeAgentFocus =
   (logPath: string, publicOrigins: ReadonlyArray<string>, herdr: HerdrApi) =>
   async (request: RouteRequest): Promise<Response> => {
     const refused = refuseIfCrossSite(logPath, request, publicOrigins);
     if (refused !== undefined) return refused;
 
-    const raw: unknown = await request.json().catch(() => undefined);
-    const body = Option.getOrUndefined(decodeViewBody(raw));
-    if (body === undefined) {
-      return respond(
-        logPath,
-        decoderOf(ApiErrorResponse),
-        { error: "invalid body: `active` (boolean) required" },
-        400,
-      );
-    }
     const paneId = request.params["paneId"] ?? "";
-    const result = await Effect.runPromise(Effect.result(herdr.viewAgent(paneId, body.active)));
+    const result = await Effect.runPromise(Effect.result(herdr.focusAgent(paneId)));
     /*
       ⚠️ **Journalisé exprès, alors qu'aucun succès ne l'est ailleurs.**
 
@@ -165,18 +153,16 @@ const makeAgentView =
     await Effect.runPromise(
       writeLog(logPath, {
         level: "info",
-        message: `view ${body.active ? "set" : "clear"} ${paneId} (${
-          Result.isSuccess(result) ? "ok" : "échec"
-        })`,
+        message: `focus ${paneId} (${Result.isSuccess(result) ? "ok" : "échec"})`,
         source: "server",
       }),
     );
     // ⚠️ Un échec ici n'est **pas** remonté comme une panne : l'affichage du
     // statut est un confort, il ne doit pas faire échouer l'ouverture d'une
     // conversation. On répond 200 avec l'état réellement obtenu.
-    return respond(logPath, decoderOf(AgentViewResponse), {
-      active: Result.isSuccess(result) ? body.active : false,
-      status: "agent-view",
+    return respond(logPath, decoderOf(AgentFocusedResponse), {
+      focused: Result.isSuccess(result),
+      status: "agent-focused",
     });
   };
 
@@ -405,7 +391,7 @@ const refuseIfCrossSite = (
 export const makeRoutes = (deps: ApiDeps): Routes => {
   const { config, herdr, hub, sender, watch, startedAt, notifications } = deps;
 
-  const agentView = makeAgentView(config.logPath, config.publicOrigins, herdr);
+  const agentFocus = makeAgentFocus(config.logPath, config.publicOrigins, herdr);
   const answerTrust = makeAnswerTrust(config.logPath, config.publicOrigins, herdr);
   const answerQuestion = makeAnswerQuestion(config.logPath, config.publicOrigins, herdr);
   const sessionRoutes = makeSessionRoutes(config, herdr);
@@ -1110,7 +1096,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     "/api/agents/kinds": agentKinds,
     "/api/agents/:kind/models": (request) => modelCatalog(config.logPath, request),
     "/api/agents/:paneId/answer": answerQuestion,
-    "/api/agents/:paneId/view": agentView,
+    "/api/agents/:paneId/focus": agentFocus,
     "/api/agents/:paneId/trust": answerTrust,
     "/api/log": (request) => clientLog(config.logPath, config.publicOrigins, request),
     "/api/events": eventRoutes.events,

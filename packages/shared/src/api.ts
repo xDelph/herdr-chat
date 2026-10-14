@@ -381,18 +381,24 @@ export const QuestionAnsweredResponse = Schema.Struct({
 });
 export type QuestionAnsweredResponse = typeof QuestionAnsweredResponse.Type;
 
-/** Acquittement d'affichage : ce client regarde (ou non) cet agent. */
-export const AgentViewResponse = Schema.Struct({
+/**
+ * Acquittement : le pane a pris le focus, donc la réponse est réputée lue.
+ *
+ * ⚠️ Le champ dit `focused`, pas `seen` : c'est **ce qui a réellement eu lieu**.
+ * `agent.view.set` prétendait acquitter sans focaliser, et ne changeait rien au
+ * statut — mesuré deux fois. Nommer l'effet obtenu plutôt que l'intention évite
+ * de recréer la même illusion.
+ */
+export const AgentFocusedResponse = Schema.Struct({
   /**
-   * `true` quand Herdr a bien enregistré la vue.
-   *
-   * ⚠️ `false` **n'est pas une erreur** : l'acquittement est un confort
-   * d'affichage, il ne doit jamais faire échouer l'ouverture d'une conversation.
+   * `false` quand le focus n'a pas pu être posé. **Ce n'est pas une erreur** :
+   * l'acquittement est un confort, il ne doit pas empêcher d'ouvrir une
+   * conversation.
    */
-  active: Schema.Boolean,
-  status: Schema.Literal("agent-view"),
+  focused: Schema.Boolean,
+  status: Schema.Literal("agent-focused"),
 });
-export type AgentViewResponse = typeof AgentViewResponse.Type;
+export type AgentFocusedResponse = typeof AgentFocusedResponse.Type;
 
 /** Erreur d'API. */
 export const ApiErrorResponse = Schema.Struct({

@@ -18,7 +18,7 @@ import {
   sendPrompt,
   stopAgent,
   reportError,
-  viewAgent,
+  focusAgent,
 } from "./api.ts";
 import type { Question } from "@herdr-remote/shared";
 import type { RenderedMessage } from "./blocks.ts";
@@ -248,43 +248,19 @@ export const ChatScreen = ({
   }, [load]);
 
   /*
-    On **regarde** cet agent tant qu'on est dessus.
+    On **acquitte** la réponse en posant le focus sur le pane.
 
-    ⚠️ Sans cet acquittement, un agent terminé restait `done` dans la liste
-    indéfiniment, même après lecture de sa réponse — alors qu'Herdr le remet au
-    repos dès qu'on regarde son pane. Le statut n'est pas recalculé par la PWA :
-    il vient de Herdr, donc c'est à nous de dire qu'on a vu.
+    ⚠️ **Un seul effet, et rien à relâcher** — le mécanisme est une action, pas
+    un état. `agent.focus` fait passer un `done` à `idle` ; il n'existe aucun
+    « je ne regarde plus » à envoyer. Toute la mécanique de relâchement qui
+    précédait n'existait que parce que `agent.view.set` était un état — et elle
+    pouvait relâcher après avoir acquitté, laissant l'agent `done` pour toujours.
 
-    ⚠️ On le refait à chaque changement de statut : une réponse qui arrive
-    **pendant** qu'on la regarde doit être acquittée aussi. Et on **relâche** en
-    quittant, sinon l'agent ne pourrait plus jamais redevenir `done` — la liste
-    ne signalerait plus aucune fin.
+    ⚠️ On la refait à chaque changement de statut : une réponse qui arrive
+    **pendant** qu'on regarde la conversation doit être acquittée aussi.
   */
   useEffect(() => {
-    void viewAgent(agent.paneId, true);
-    return () => {
-      void viewAgent(agent.paneId, false);
-    };
-  }, [agent.paneId]);
-
-  /*
-    ⚠️ **Rien à nettoyer ici, et c'est le point.**
-
-    Ce second effet ne fait que **réaffirmer** qu'on regarde l'agent quand son
-    statut change — pour qu'une réponse arrivant pendant qu'on la lit soit
-    acquittée aussi.
-
-    Il ne doit surtout pas relâcher en sortie. Les deux appels partent sans être
-    attendus : un `false` émis au nettoyage puis un `true` émis juste après
-    peuvent **arriver dans l'autre ordre**, et l'agent resterait marqué comme non
-    regardé — donc `done` pour toujours. C'était le défaut : la paire
-    relâcher/réaffirmer se déclenchait à chaque changement d'état.
-
-    Un seul propriétaire du cycle de vie, l'effet au-dessus ; celui-ci ne fait
-    que redire la même chose.
-  */
-  useEffect(() => {
-    void viewAgent(agent.paneId, true);
+    void focusAgent(agent.paneId);
   }, [agent.paneId, agent.status]);
 
   const chargerPrecedents = useCallback(async () => {

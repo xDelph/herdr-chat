@@ -114,18 +114,27 @@ export interface HerdrApi {
 
   readonly promptAgent: (target: string, text: string) => Effect.Effect<ResultPayload, HerdrError>;
   /**
-   * Déclare (ou non) qu'un client **regarde** cet agent.
+   * Met le focus sur un agent — et c'est **ainsi qu'un `done` repasse `idle`**.
    *
-   * ⚠️ C'est ce qui fait passer un agent de `done` à `idle`. Sans cet appel, la
-   * PWA affiche indéfiniment « terminé » pour un agent dont la réponse a été
-   * lue et acquittée — Herdr, lui, le remet au repos parce qu'on regarde son
-   * pane. Mesuré : un `agent.view.set` sur un pane `done` le fait basculer
-   * `idle` immédiatement.
+   * ⚠️ **Mesuré, deux fois, parce que je m'étais trompé.** `agent.view.set`
+   * répond `{active: true}` et ne change **rien** au statut : ma première
+   * conclusion était une corrélation. Relevé sur un pane `done` :
    *
-   * `active: false` doit être envoyé en quittant : un client qui resterait
-   * « regardant » empêcherait l'agent de redevenir `done` à la fin suivante.
+   * ```text
+   * agent.view.set  -> {"active": true}      statut inchangé : done
+   * agent.focus     -> {"agent_status":"idle","focused":true}
+   * ```
+   *
+   * ⚠️ **Ce n'est pas un effet de bord, c'est le mécanisme.** Herdr répute une
+   * réponse lue quand le pane prend le focus — c'est ce qu'il fait quand on
+   * clique l'agent chez lui. Il n'existe pas d'autre chemin : acquitter sans
+   * focaliser est ce que `view.set` prétend faire, et ne fait pas.
+   *
+   * ⚠️ Conséquence assumée, et elle doit être dite : ouvrir une conversation
+   * depuis le téléphone **déplace le focus dans Herdr sur le Mac**. C'est le
+   * prix de l'acquittement, et le seul.
    */
-  readonly viewAgent: (target: string, active: boolean) => Effect.Effect<ResultPayload, HerdrError>;
+  readonly focusAgent: (target: string) => Effect.Effect<ResultPayload, HerdrError>;
 
   /**
    * Crée un onglet et renvoie son pane racine.
@@ -150,14 +159,6 @@ export interface HerdrApi {
    */
   readonly closeTab: (tabId: string) => Effect.Effect<ResultPayload, HerdrError>;
 
-  /**
-   * Envoie des touches à l'interface d'un agent.
-   *
-   * Seul chemin documenté pour répondre à une **boîte de dialogue** : un
-   * agent `blocked` refuse `agent.prompt` (`agent_blocked`) mais accepte des
-   * touches. C'est ce qui permet de répondre à l'invite de confiance de
-   * codex sans écrire dans le terminal à l'aveugle.
-   */
   readonly sendKeys: (
     target: string,
     keys: ReadonlyArray<string>,
@@ -331,11 +332,7 @@ export class HerdrClient extends Context.Service<HerdrClient, HerdrApi>()(
 
     const closeTab = (tabId: string) => request(Method.tabClose, { tab_id: tabId });
 
-    const viewAgent = (target: string, active: boolean) =>
-      request(active ? Method.agentViewSet : Method.agentViewClear, {
-        source: "herdr-remote",
-        target,
-      });
+    const focusAgent = (target: string) => request(Method.agentFocus, { target });
 
     const sendKeys = (target: string, keys: ReadonlyArray<string>) =>
       request(Method.agentSendKeys, { keys: [...keys], target });
@@ -352,7 +349,7 @@ export class HerdrClient extends Context.Service<HerdrClient, HerdrApi>()(
       sendKeys,
       snapshot,
       startAgent,
-      viewAgent,
+      focusAgent,
     });
   };
 

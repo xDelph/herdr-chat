@@ -146,7 +146,7 @@ const failUnused = <A>(): Effect.Effect<A, HerdrError> =>
 const fakeHerdr = (payload: Readonly<Record<string, unknown>>): HerdrApi => ({
   closeTab: failUnused,
   sendKeys: failUnused,
-  viewAgent: () => Effect.succeed({}),
+  focusAgent: () => Effect.succeed({}),
   createTab: failUnused,
   startAgent: failUnused,
   getAgent: failUnused,
