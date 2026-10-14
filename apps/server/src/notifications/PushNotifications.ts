@@ -51,6 +51,51 @@ const isPushSubscription = (value: unknown): value is PushSubscription => {
 const isVapidKeys = (value: unknown): value is VapidKeys =>
   isRecord(value) && typeof value.publicKey === "string" && typeof value.privateKey === "string";
 
+/**
+ * Contenu d'une notification.
+ *
+ * ⚠️ **`blocked` n'est pas `done`.** Les deux arrivent ici — l'événement est
+ * « l'agent a arrêté de travailler » — mais l'un attend un humain et l'autre
+ * non. Annoncer la même chose pour les deux rend la notification inutile
+ * précisément quand elle compte le plus.
+ *
+ * ⚠️ **`url` mène à l'agent, pas à l'accueil.** Une notification qui ouvre
+ * l'application sur la liste oblige à retrouver soi-même l'agent concerné, au
+ * moment où l'on ne sait plus lequel c'était. Le service worker sait déjà
+ * naviguer une fenêtre existante vers cette adresse (`push-sw.js`) : il
+ * suffisait de lui donner la bonne.
+ *
+ * ⚠️ Le fragment est **encodé** : un `paneId` contient `:` (`wB:p16`), et une
+ * adresse non encodée serait relue de travers au retour.
+ */
+export const payloadDeNotification = (
+  titre: string,
+  paneId: string | undefined,
+  statut: string | null | undefined,
+): {
+  readonly body: string;
+  readonly tag: string;
+  readonly title: string;
+  readonly url: string;
+} => {
+  const attend = statut === "blocked";
+  const connu = titre.length > 0;
+  return {
+    body: attend
+      ? connu
+        ? `${titre} is waiting for your answer.`
+        : "An agent is waiting for your answer."
+      : connu
+        ? `${titre} has finished working.`
+        : "Your agent has finished working.",
+    // Deux étiquettes distinctes : une question en attente ne doit pas être
+    // remplacée en silence par un « finished » plus tardif pour le même pane.
+    tag: paneId === undefined ? "herdr-agent" : `${attend ? "waiting" : "done"}-${paneId}`,
+    title: attend ? "Agent needs you" : "Agent finished",
+    url: paneId === undefined ? "/" : `/#/agent/${encodeURIComponent(paneId)}`,
+  };
+};
+
 /** Persistent Web Push subscriptions and VAPID keys for this Herdr instance. */
 export const makePushNotifications = (
   storePath: string,
@@ -156,27 +201,7 @@ export const makePushNotifications = (
       withKeys(async (store, keys) => {
         webpush.setVapidDetails(subject, keys.publicKey, keys.privateKey);
 
-        /*
-          ⚠️ `blocked` is NOT `done`. Both arrive here — the event is "stopped
-          working" — but one of them needs a human and the other does not.
-          Announcing the same thing for both makes the notification useless
-          precisely when it matters most.
-        */
-        const waiting = status === "blocked";
-        const payload = JSON.stringify({
-          title: waiting ? "Agent needs you" : "Agent finished",
-          body: waiting
-            ? title.length > 0
-              ? `${title} is waiting for your answer.`
-              : "An agent is waiting for your answer."
-            : title.length > 0
-              ? `${title} has finished working.`
-              : "Your agent has finished working.",
-          // Two different tags: a pending question must not be silently replaced
-          // by a later "finished" notification for the same pane.
-          tag: tag === undefined ? "herdr-agent" : `${waiting ? "waiting" : "done"}-${tag}`,
-          url: "/",
-        });
+        const payload = JSON.stringify(payloadDeNotification(title, tag, status));
         const expired = new Set<string>();
         const results = await Promise.allSettled(
           store.subscriptions.map(async (subscription) => {
