@@ -12,7 +12,14 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentView, AnswerResult, SessionEntry } from "./api.ts";
-import { answerQuestion, fetchSession, sendPrompt, stopAgent, reportError } from "./api.ts";
+import {
+  answerQuestion,
+  fetchSession,
+  sendPrompt,
+  stopAgent,
+  reportError,
+  viewAgent,
+} from "./api.ts";
 import type { Question } from "@herdr-remote/shared";
 import type { RenderedMessage } from "./blocks.ts";
 import { toItems, toMessages, touchedFilesOf } from "./blocks.ts";
@@ -239,6 +246,26 @@ export const ChatScreen = ({
     timer = window.setTimeout(tour, cadence());
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  /*
+    On **regarde** cet agent tant qu'on est dessus.
+
+    ⚠️ Sans cet acquittement, un agent terminé restait `done` dans la liste
+    indéfiniment, même après lecture de sa réponse — alors qu'Herdr le remet au
+    repos dès qu'on regarde son pane. Le statut n'est pas recalculé par la PWA :
+    il vient de Herdr, donc c'est à nous de dire qu'on a vu.
+
+    ⚠️ On le refait à chaque changement de statut : une réponse qui arrive
+    **pendant** qu'on la regarde doit être acquittée aussi. Et on **relâche** en
+    quittant, sinon l'agent ne pourrait plus jamais redevenir `done` — la liste
+    ne signalerait plus aucune fin.
+  */
+  useEffect(() => {
+    void viewAgent(agent.paneId, true);
+    return () => {
+      void viewAgent(agent.paneId, false);
+    };
+  }, [agent.paneId, agent.status]);
 
   const chargerPrecedents = useCallback(async () => {
     const before = previousCursor;

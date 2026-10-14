@@ -21,6 +21,7 @@ import {
   ModelCatalogResponse,
   OverviewResponse,
   TrustRequiredResponse,
+  AgentViewResponse,
   QuestionAnsweredResponse,
   TrustResolvedResponse,
   PromptFailedResponse,
@@ -117,6 +118,48 @@ const decodeTrustBody = Schema.decodeUnknownOption(TrustBody);
  * l'utilisateur à un autre dialogue serait pire que de ne rien faire.
  */
 const decodeAnswerBody = Schema.decodeUnknownOption(Schema.Struct({ numero: Schema.Number }));
+
+/** Corps de l'acquittement d'affichage : on regarde, ou on ne regarde plus. */
+const decodeViewBody = Schema.decodeUnknownOption(Schema.Struct({ active: Schema.Boolean }));
+
+/**
+ * Déclare qu'un client regarde — ou ne regarde plus — un agent.
+ *
+ * ⚠️ **C'est ce qui fait passer un agent de `done` à `idle`.** Sans cet appel,
+ * la PWA affiche « terminé » pour une réponse déjà lue, alors qu'Herdr la remet
+ * au repos dès qu'on regarde son pane. Mesuré : `agent.view.set` sur un pane
+ * `done` le bascule `idle` immédiatement.
+ *
+ * ⚠️ `active: false` compte autant que `true`. Un client qui resterait
+ * « regardant » empêcherait l'agent de redevenir `done` à la fin suivante —
+ * l'application ne verrait plus jamais un agent se terminer.
+ */
+const makeAgentView =
+  (logPath: string, publicOrigins: ReadonlyArray<string>, herdr: HerdrApi) =>
+  async (request: RouteRequest): Promise<Response> => {
+    const refused = refuseIfCrossSite(logPath, request, publicOrigins);
+    if (refused !== undefined) return refused;
+
+    const raw: unknown = await request.json().catch(() => undefined);
+    const body = Option.getOrUndefined(decodeViewBody(raw));
+    if (body === undefined) {
+      return respond(
+        logPath,
+        decoderOf(ApiErrorResponse),
+        { error: "invalid body: `active` (boolean) required" },
+        400,
+      );
+    }
+    const paneId = request.params["paneId"] ?? "";
+    const result = await Effect.runPromise(Effect.result(herdr.viewAgent(paneId, body.active)));
+    // ⚠️ Un échec ici n'est **pas** remonté comme une panne : l'affichage du
+    // statut est un confort, il ne doit pas faire échouer l'ouverture d'une
+    // conversation. On répond 200 avec l'état réellement obtenu.
+    return respond(logPath, decoderOf(AgentViewResponse), {
+      active: Result.isSuccess(result) ? body.active : false,
+      status: "agent-view",
+    });
+  };
 
 const makeAnswerTrust =
   (logPath: string, publicOrigins: ReadonlyArray<string>, herdr: HerdrApi) =>
@@ -343,6 +386,7 @@ const refuseIfCrossSite = (
 export const makeRoutes = (deps: ApiDeps): Routes => {
   const { config, herdr, hub, sender, watch, startedAt, notifications } = deps;
 
+  const agentView = makeAgentView(config.logPath, config.publicOrigins, herdr);
   const answerTrust = makeAnswerTrust(config.logPath, config.publicOrigins, herdr);
   const answerQuestion = makeAnswerQuestion(config.logPath, config.publicOrigins, herdr);
   const sessionRoutes = makeSessionRoutes(config, herdr);
@@ -1047,6 +1091,7 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     "/api/agents/kinds": agentKinds,
     "/api/agents/:kind/models": (request) => modelCatalog(config.logPath, request),
     "/api/agents/:paneId/answer": answerQuestion,
+    "/api/agents/:paneId/view": agentView,
     "/api/agents/:paneId/trust": answerTrust,
     "/api/log": (request) => clientLog(config.logPath, config.publicOrigins, request),
     "/api/events": eventRoutes.events,

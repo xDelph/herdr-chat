@@ -113,6 +113,19 @@ export interface HerdrApi {
   ) => Effect.Effect<{ readonly text: string; readonly truncated: boolean }, HerdrError>;
 
   readonly promptAgent: (target: string, text: string) => Effect.Effect<ResultPayload, HerdrError>;
+  /**
+   * Déclare (ou non) qu'un client **regarde** cet agent.
+   *
+   * ⚠️ C'est ce qui fait passer un agent de `done` à `idle`. Sans cet appel, la
+   * PWA affiche indéfiniment « terminé » pour un agent dont la réponse a été
+   * lue et acquittée — Herdr, lui, le remet au repos parce qu'on regarde son
+   * pane. Mesuré : un `agent.view.set` sur un pane `done` le fait basculer
+   * `idle` immédiatement.
+   *
+   * `active: false` doit être envoyé en quittant : un client qui resterait
+   * « regardant » empêcherait l'agent de redevenir `done` à la fin suivante.
+   */
+  readonly viewAgent: (target: string, active: boolean) => Effect.Effect<ResultPayload, HerdrError>;
 
   /**
    * Crée un onglet et renvoie son pane racine.
@@ -318,6 +331,12 @@ export class HerdrClient extends Context.Service<HerdrClient, HerdrApi>()(
 
     const closeTab = (tabId: string) => request(Method.tabClose, { tab_id: tabId });
 
+    const viewAgent = (target: string, active: boolean) =>
+      request(active ? Method.agentViewSet : Method.agentViewClear, {
+        source: "herdr-remote",
+        target,
+      });
+
     const sendKeys = (target: string, keys: ReadonlyArray<string>) =>
       request(Method.agentSendKeys, { keys: [...keys], target });
 
@@ -333,6 +352,7 @@ export class HerdrClient extends Context.Service<HerdrClient, HerdrApi>()(
       sendKeys,
       snapshot,
       startAgent,
+      viewAgent,
     });
   };
 

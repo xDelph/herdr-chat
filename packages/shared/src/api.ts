@@ -381,6 +381,19 @@ export const QuestionAnsweredResponse = Schema.Struct({
 });
 export type QuestionAnsweredResponse = typeof QuestionAnsweredResponse.Type;
 
+/** Acquittement d'affichage : ce client regarde (ou non) cet agent. */
+export const AgentViewResponse = Schema.Struct({
+  /**
+   * `true` quand Herdr a bien enregistré la vue.
+   *
+   * ⚠️ `false` **n'est pas une erreur** : l'acquittement est un confort
+   * d'affichage, il ne doit jamais faire échouer l'ouverture d'une conversation.
+   */
+  active: Schema.Boolean,
+  status: Schema.Literal("agent-view"),
+});
+export type AgentViewResponse = typeof AgentViewResponse.Type;
+
 /** Erreur d'API. */
 export const ApiErrorResponse = Schema.Struct({
   /** Cause nommée quand elle est connue (B03). Absente = cause non qualifiée. */

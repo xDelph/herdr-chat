@@ -82,6 +82,7 @@ const fakeHerdr = (options: { healthy: boolean; listFails?: boolean }): HerdrApi
   return {
     closeTab: fail,
     sendKeys: fail,
+    viewAgent: () => Effect.succeed({}),
     createTab: () => {
       createTabCalls += 1;
       return options.healthy ? Effect.succeed({ paneId: "w1:p9", tabId: "w1:t9" }) : fail();
@@ -287,6 +288,8 @@ describe("identité des routes — A01", () => {
       "/api/agents/:paneId/session",
       "/api/agents/:paneId/stop",
       "/api/agents/:paneId/trust",
+      // Acquittement d'affichage : on regarde l'agent, il repasse au repos.
+      "/api/agents/:paneId/view",
       "/api/agents/kinds",
       "/api/conversations",
       "/api/events",

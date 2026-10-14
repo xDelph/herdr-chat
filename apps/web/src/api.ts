@@ -572,3 +572,25 @@ export const answerQuestion = async (paneId: string, numero: number): Promise<An
       }
     : { detail: valeur.detail, state: valeur.state };
 };
+
+/**
+ * Déclare qu'on regarde — ou non — cet agent.
+ *
+ * ⚠️ C'est ce qui fait passer un agent de `done` à `idle` : Herdr répute une
+ * réponse lue dès qu'un client regarde le pane. Sans cet appel, la liste garde
+ * « terminé » pour une réponse qu'on vient de lire.
+ *
+ * ⚠️ Ne lève **jamais** : l'acquittement est un confort d'affichage, il ne doit
+ * pas empêcher d'ouvrir une conversation. Un échec est ignoré, pas remonté.
+ */
+export const viewAgent = async (paneId: string, active: boolean): Promise<void> => {
+  try {
+    await fetch(`/api/agents/${encodeURIComponent(paneId)}/view`, {
+      body: JSON.stringify({ active }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+    });
+  } catch {
+    // Volontairement muet : voir le commentaire ci-dessus.
+  }
+};

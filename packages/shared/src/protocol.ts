@@ -186,6 +186,8 @@ export const Method = {
   agentPrompt: "agent.prompt",
   agentRead: "agent.read",
   agentSendKeys: "agent.send_keys",
+  agentViewSet: "agent.view.set",
+  agentViewClear: "agent.view.clear",
   agentStart: "agent.start",
   eventsSubscribe: "events.subscribe",
   eventsWait: "events.wait",
