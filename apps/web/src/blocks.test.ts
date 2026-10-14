@@ -13,6 +13,7 @@
 import { describe, expect, test } from "bun:test";
 import {
   blockToText,
+  commandeSansCd,
   contentToText,
   lastAssistantText,
   relativeWorkspacePath,
@@ -20,6 +21,82 @@ import {
   toItems,
   toMessages,
 } from "./blocks.ts";
+
+describe("le `cd` d'entrée vers le projet", () => {
+  const RACINE = "/Users/thomas/projets/demo";
+
+  test("le `cd` vers le projet disparaît, la commande reste", () => {
+    // Le motif de tous les jours : c'est la partie qui compte qui doit rester
+    // visible, et elle seule.
+    expect(commandeSansCd(`cd ${RACINE} && npm test`, RACINE)).toBe("npm test");
+    expect(commandeSansCd(`cd ${RACINE} && bun run verify`, RACINE)).toBe("bun run verify");
+  });
+
+  test("les trois écritures du chemin sont reconnues", () => {
+    expect(commandeSansCd(`cd "${RACINE}" && ls`, RACINE)).toBe("ls");
+    expect(commandeSansCd(`cd '${RACINE}' && ls`, RACINE)).toBe("ls");
+    expect(commandeSansCd(`cd ${RACINE}/ && ls`, RACINE)).toBe("ls");
+  });
+
+  test("`;` sépare aussi", () => {
+    expect(commandeSansCd(`cd ${RACINE}; ls`, RACINE)).toBe("ls");
+  });
+
+  test("une commande étalée sur plusieurs lignes garde sa vraie première ligne", () => {
+    // Très fréquent : le `cd` occupe la première ligne, la commande la seconde.
+    expect(commandeSansCd(`cd ${RACINE} &&\nnpm test --silent`, RACINE)).toBe("npm test --silent");
+  });
+
+  test("un `cd` suivi d'un RETOUR À LA LIGNE est reconnu", () => {
+    // ⚠️ La forme la plus fréquente des scripts : pas de `&&` du tout.
+    expect(commandeSansCd(`cd ${RACINE}\ncat > /tmp/x.mjs <<'EOF'`, RACINE)).toBe(
+      "cat > /tmp/x.mjs <<'EOF'",
+    );
+    expect(commandeSansCd(`cd ${RACINE}\necho bonjour`, RACINE)).toBe("echo bonjour");
+  });
+
+  test("un `cd` chaîné vers le projet part en entier", () => {
+    expect(commandeSansCd(`cd ${RACINE} && cd ${RACINE} && ls`, RACINE)).toBe("ls");
+  });
+
+  /**
+   * ⚠️ Le cas qui interdit de retirer plus large. `cd apps/web` **change** le
+   * sens de la commande : la retirer ferait mentir la ligne sur ce qui a tourné.
+   */
+  test("un `cd` vers un SOUS-dossier est conservé", () => {
+    const commande = `cd ${RACINE}/apps/web && npm test`;
+    expect(commandeSansCd(commande, RACINE)).toBe(commande);
+  });
+
+  test("un `cd` vers un dossier SANS RAPPORT est conservé", () => {
+    const commande = "cd /tmp/ailleurs && ls";
+    expect(commandeSansCd(commande, RACINE)).toBe(commande);
+  });
+
+  test("un chemin qui commence pareil n'est pas confondu", () => {
+    // `/Users/thomas/projets/demo-bis` n'est pas `/Users/thomas/projets/demo`.
+    const commande = `cd ${RACINE}-bis && ls`;
+    expect(commandeSansCd(commande, RACINE)).toBe(commande);
+  });
+
+  test("un `cd` seul est conservé : retirer tout donnerait une ligne vide", () => {
+    const commande = `cd ${RACINE}`;
+    expect(commandeSansCd(commande, RACINE)).toBe(commande);
+  });
+
+  test("sans dossier de travail connu, rien n'est touché", () => {
+    const commande = `cd ${RACINE} && ls`;
+    expect(commandeSansCd(commande, null)).toBe(commande);
+    expect(commandeSansCd(commande, undefined)).toBe(commande);
+    expect(commandeSansCd(commande, "")).toBe(commande);
+  });
+
+  test("une commande sans `cd` n'est jamais modifiée", () => {
+    for (const commande of ["npm test", "ls -la", "echo cd", "grep -r 'cd /' ."]) {
+      expect(commandeSansCd(commande, RACINE)).toBe(commande);
+    }
+  });
+});
 
 describe("chemins du workspace", () => {
   test("les chemins internes sont relatifs et ceux hors du workspace restent explicites", () => {

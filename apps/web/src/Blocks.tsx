@@ -21,7 +21,7 @@ import {
 } from "./actions.ts";
 import type { LigneAffichee, LigneTravail } from "./actions.ts";
 import { fileUrl } from "./api.ts";
-import { relativeWorkspacePath } from "./blocks.ts";
+import { commandeSansCd, relativeWorkspacePath } from "./blocks.ts";
 
 /**
  * Ouvre un fichier dans la visionneuse.
@@ -782,7 +782,9 @@ const LigneDeTravail = ({
       ? null
       : action.estFichier
         ? relativeWorkspacePath(cibleBrute, cwd)
-        : cibleBrute;
+        : // Une commande qui commence par `cd <projet>` le dit deux fois : le
+          // dossier est déjà celui qu'on affiche. On ne retire que ce cas-là.
+          commandeSansCd(cibleBrute, cwd);
   // La ligne résume déjà les appels shell/script; répéter leurs arguments en
   // JSON dans le détail ne donne aucune information supplémentaire.
   const detailsAffiches = details.filter(

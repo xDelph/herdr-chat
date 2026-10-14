@@ -793,6 +793,57 @@ export const relativeWorkspacePath = (path: string, cwd: string | null | undefin
   return path.startsWith(root) ? path.slice(root.length) : path;
 };
 
+/**
+ * `cd <racine>` en tête d'une commande, suivi de la vraie commande.
+ *
+ * Trois écritures du chemin sortent d'agents réels : nue, entre guillemets
+ * simples, entre guillemets doubles.
+ *
+ * ⚠️ Trois séparateurs aussi, et le troisième n'est pas théorique : un agent
+ * écrit souvent `cd /projet` **puis un retour à la ligne**, sans `&&`. Relevé
+ * dans une session réelle, c'est même la forme la plus fréquente des scripts.
+ * Ne reconnaître que `&&` laissait passer la majorité des cas.
+ */
+const CD_ENTREE = /^cd\s+(?:"([^"]*)"|'([^']*)'|(\S+))(?:\s*&&|\s*;|\s*\n)\s*([\s\S]+)$/u;
+
+/** Retire la barre finale, sauf sur une racine (`/`). */
+const sansBarreFinale = (chemin: string): string =>
+  chemin.length > 1 && chemin.endsWith("/") ? chemin.slice(0, -1) : chemin;
+
+/** Deux chemins désignent-ils le même dossier ? */
+const memeDossier = (a: string, b: string): boolean => sansBarreFinale(a) === sansBarreFinale(b);
+
+/**
+ * Retire un `cd` d'entrée vers le **dossier de travail**.
+ *
+ * ⚠️ **Pourquoi.** Presque chaque commande d'agent commence par `cd <projet> &&`.
+ * Afficher « Ran `cd /Users/…/projet && npm test` » met un chemin que
+ * l'utilisateur connaît déjà devant la seule partie qui compte, et repousse
+ * celle-ci hors de la ligne. Le bruit n'est pas neutre : il masque l'information.
+ *
+ * ⚠️ **Seulement vers le dossier de travail lui-même.** `cd apps/web && …` change
+ * réellement le sens de la commande : le retirer ferait mentir la ligne. On
+ * compare donc le chemin à la racine, barre finale ignorée, et on ne touche à
+ * rien si l'on n'est pas sûr.
+ *
+ * ⚠️ Rien n'est retiré s'il ne reste **rien** à montrer : une ligne « Ran » sans
+ * cible serait pire que le `cd` qu'elle remplace.
+ */
+export const commandeSansCd = (commande: string, cwd: string | null | undefined): string => {
+  if (!cwd) return commande;
+  let reste = commande;
+  // Un enchaînement `cd projet && cd projet && …` arrive : on retire tant qu'il
+  // y a un `cd` à retirer, sans boucler à l'infini (chaque tour raccourcit).
+  for (;;) {
+    const trouve = CD_ENTREE.exec(reste.trimStart());
+    if (trouve === null) return reste;
+    const chemin = trouve[1] ?? trouve[2] ?? trouve[3] ?? "";
+    const suite = (trouve[4] ?? "").trim();
+    if (!memeDossier(chemin, cwd) || suite.length === 0) return reste;
+    reste = suite;
+  }
+};
+
 const toolNamesOf = (
   messages: ReadonlyArray<RenderedMessage>,
 ): { name: string; count: number }[] => {
