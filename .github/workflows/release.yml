@@ -1,0 +1,55 @@
+# Construit la PWA et attache l'arborescence au tag.
+#
+# ⚠️ **Pourquoi compiler ici plutôt que dans la formule.** `apps/web/dist` est
+# dans `.gitignore` : un tarball de source ne contient donc PAS la PWA. Faire
+# compiler l'utilisateur à l'installation déplacerait chez lui une toolchain
+# entière (vite, oxlint…) et ses échecs possibles. On compile une fois, ici, et
+# le tarball livré est prêt à tourner.
+#
+# ⚠️ **L'arborescence doit survivre telle quelle.** Le serveur résout ses assets
+# depuis `apps/server/src/../../web/dist`. Si l'archive aplatit ou déplace les
+# dossiers, la PWA ne se charge plus — sans que l'erreur le dise.
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  tarball:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - run: bun install --frozen-lockfile
+      - run: bun run verify
+
+      # La PWA doit exister avant l'archive : c'est tout l'objet de ce workflow.
+      - run: bun run --cwd apps/web build
+      - name: le build a bien produit la PWA
+        run: test -f apps/web/dist/index.html
+
+      - name: archive
+        run: |
+          tag="${GITHUB_REF_NAME}"
+          nom="herdr-chat-${tag#v}"
+          tar --exclude-vcs \
+              --exclude=node_modules \
+              --exclude=.herdr-remote \
+              -czf "${nom}.tar.gz" \
+              apps packages bin package.json bun.lock tsconfig.json LICENSE README.md
+          sha256sum "${nom}.tar.gz" | tee "${nom}.tar.gz.sha256"
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            herdr-chat-*.tar.gz
+            herdr-chat-*.tar.gz.sha256
+          generate_release_notes: true

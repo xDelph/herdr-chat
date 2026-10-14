@@ -1,0 +1,26 @@
+#!/usr/bin/env bash
+#
+# Lanceur de Herdr Chat.
+#
+# ⚠️ **Il résout sa racine depuis SA PROPRE position**, jamais depuis le
+# répertoire courant : le serveur trouve ses assets en remontant depuis son
+# fichier source (`apps/server/src/../../web/dist`). Lancer `herdrchat` depuis
+# n'importe où doit donc fonctionner, et un `cd` dans l'utilisateur le casserait.
+set -euo pipefail
+
+ici="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+racine="$(cd "${ici}/.." && pwd)"
+
+if ! command -v bun >/dev/null 2>&1; then
+  echo "herdrchat : 'bun' est introuvable dans le PATH." >&2
+  echo "            Installez-le : brew install bun" >&2
+  exit 1
+fi
+
+entree="${racine}/apps/server/src/main.ts"
+if [[ ! -f "${entree}" ]]; then
+  echo "herdrchat : ${entree} est absent — installation incomplète." >&2
+  exit 1
+fi
+
+exec bun run "${entree}" "$@"
