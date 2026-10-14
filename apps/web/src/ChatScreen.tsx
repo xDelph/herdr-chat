@@ -265,6 +265,26 @@ export const ChatScreen = ({
     return () => {
       void viewAgent(agent.paneId, false);
     };
+  }, [agent.paneId]);
+
+  /*
+    ⚠️ **Rien à nettoyer ici, et c'est le point.**
+
+    Ce second effet ne fait que **réaffirmer** qu'on regarde l'agent quand son
+    statut change — pour qu'une réponse arrivant pendant qu'on la lit soit
+    acquittée aussi.
+
+    Il ne doit surtout pas relâcher en sortie. Les deux appels partent sans être
+    attendus : un `false` émis au nettoyage puis un `true` émis juste après
+    peuvent **arriver dans l'autre ordre**, et l'agent resterait marqué comme non
+    regardé — donc `done` pour toujours. C'était le défaut : la paire
+    relâcher/réaffirmer se déclenchait à chaque changement d'état.
+
+    Un seul propriétaire du cycle de vie, l'effet au-dessus ; celui-ci ne fait
+    que redire la même chose.
+  */
+  useEffect(() => {
+    void viewAgent(agent.paneId, true);
   }, [agent.paneId, agent.status]);
 
   const chargerPrecedents = useCallback(async () => {

@@ -152,6 +152,25 @@ const makeAgentView =
     }
     const paneId = request.params["paneId"] ?? "";
     const result = await Effect.runPromise(Effect.result(herdr.viewAgent(paneId, body.active)));
+    /*
+      ⚠️ **Journalisé exprès, alors qu'aucun succès ne l'est ailleurs.**
+
+      Cet acquittement est ce qui fait passer un agent de `done` à `idle`, et il
+      est **inobservable** autrement : un POST réussi ne laisse aucune trace, et
+      une requête servie par le service worker n'apparaît même pas dans
+      `performance.getEntriesByType("resource")` du navigateur. Sans cette ligne,
+      « ça ne marche pas » ne se distingue pas de « la PWA n'appelle pas » — ce
+      qui est exactement l'impasse où je me suis trouvé.
+    */
+    await Effect.runPromise(
+      writeLog(logPath, {
+        level: "info",
+        message: `view ${body.active ? "set" : "clear"} ${paneId} (${
+          Result.isSuccess(result) ? "ok" : "échec"
+        })`,
+        source: "server",
+      }),
+    );
     // ⚠️ Un échec ici n'est **pas** remonté comme une panne : l'affichage du
     // statut est un confort, il ne doit pas faire échouer l'ouverture d'une
     // conversation. On répond 200 avec l'état réellement obtenu.
