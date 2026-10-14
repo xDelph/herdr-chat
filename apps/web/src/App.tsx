@@ -92,51 +92,92 @@ export const App = () => {
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState<"live" | "down">("down");
 
-  // iOS standalone PWAs can keep the layout viewport at its pre-keyboard
-  // height. Track the visual viewport so the composer stays above the keyboard
-  // and the chat header remains anchored while the field is focused.
+  /*
+    Hauteur de la coquille, pendant que le clavier va et vient.
+
+    ⚠️ **Le défaut que ce bloc corrige, et pourquoi il est écrit ainsi.**
+
+    Le composeur **remontait en haut de l'écran** à la mise au point. Ce n'est
+    pas un problème d'ancrage : c'est que la coquille se retrouvait **trop
+    courte**. Un shell de 60 px, c'est un en-tête, un fil écrasé, et un
+    composeur collé sous l'en-tête — donc tout en haut. La cause : la hauteur
+    était prise dans `window.innerHeight`, et iOS **rétrécit aussi cette
+    valeur** quand le clavier s'ouvre, dans certaines configurations. La
+    détection « clavier ouvert ? » comparait alors deux nombres déjà rétrécis,
+    ne le voyait pas, et gardait la petite valeur.
+
+    ⚠️ **On ne devine donc plus : on retient.** `hauteurPleine` est la plus
+    grande hauteur observée **hors saisie** — celle que le clavier ne peut pas
+    avoir rétrécie. C'est la référence stable qui manquait.
+
+    Les trois cas, et ce qu'ils donnent :
+
+    | situation                  | hauteur retenue          |
+    |----------------------------|--------------------------|
+    | clavier fermé              | `hauteurPleine`          |
+    | clavier ouvert             | `visualViewport.height`  |
+    | clavier ouvert, `innerHeight` rétréci aussi | `visualViewport.height` |
+
+    ⚠️ **On préfère toujours une coquille trop haute à une trop courte.** Trop
+    haute, le composeur passe sous le clavier et iOS le ramène — c'est le
+    comportement normal. Trop courte, il flotte au milieu de l'écran et plus
+    rien n'a de sens. L'erreur n'est pas symétrique, donc le choix ne l'est pas
+    non plus.
+  */
+  const hauteurPleine = useRef(0);
+  const coquille = useRef({ hauteur: 0, haut: 0 });
+
   useEffect(() => {
     const viewport = window.visualViewport;
+
+    const applique = (hauteur: number, haut: number): void => {
+      if (coquille.current.hauteur === hauteur && coquille.current.haut === haut) return;
+      coquille.current = { hauteur, haut };
+      document.documentElement.style.setProperty("--app-viewport-height", `${hauteur}px`);
+      document.documentElement.style.setProperty("--app-viewport-top", `${haut}px`);
+    };
+
     const syncViewport = () => {
-      const focusedInput =
+      const champActif =
         document.activeElement instanceof HTMLElement &&
         document.activeElement.matches("input, textarea, [contenteditable='true']");
-      const keyboardOpen =
-        focusedInput && viewport !== null && viewport.height < window.innerHeight - 100;
 
-      /*
-        ⚠️ `100dvh` is NOT trustworthy in an installed iOS app.
+      if (!champActif) {
+        // Hors saisie, tout ce qu'on observe est la vraie hauteur : on retient
+        // la plus grande, sans jamais la laisser rétrécir par un clavier.
+        hauteurPleine.current = Math.max(
+          hauteurPleine.current,
+          window.innerHeight,
+          viewport?.height ?? 0,
+        );
+      }
 
-        The shell used to fall back to `100dvh` when the keyboard was closed, and
-        that left **50-60 px of blank space at the bottom** — the height of the
-        iOS status bar. WebKit resolves `dvh` there as "screen minus the status
-        bar", so a shell anchored at `top: 0` stopped short of the real bottom,
-        and neither the composer nor the floating button could reach it.
+      const clavierOuvert =
+        champActif && viewport !== null && viewport.height < hauteurPleine.current - 100;
 
-        `window.innerHeight` is the value that is actually right, in both modes:
-        in standalone it is the full visible height, and in iOS Safari it is the
-        area above the browser chrome — whereas `dvh` is the one that lies.
-
-        We therefore always set the height, instead of removing it and hoping the
-        CSS fallback is correct. While typing we follow `visualViewport`, which is
-        the only thing that knows where the keyboard ends.
-      */
-      const height = keyboardOpen && viewport ? viewport.height : window.innerHeight;
-      const top = keyboardOpen && viewport ? viewport.offsetTop : 0;
-      document.documentElement.style.setProperty("--app-viewport-height", `${height}px`);
-      document.documentElement.style.setProperty("--app-viewport-top", `${top}px`);
+      if (clavierOuvert && viewport) applique(viewport.height, viewport.offsetTop);
+      else applique(hauteurPleine.current, 0);
     };
 
     syncViewport();
     viewport?.addEventListener("resize", syncViewport);
     viewport?.addEventListener("scroll", syncViewport);
+    // ⚠️ La mise au point est un signal direct, plus sûr que la seule variation
+    // de taille : c'est elle qui décide de ce qu'on affiche.
+    document.addEventListener("focusin", syncViewport);
+    document.addEventListener("focusout", syncViewport);
     window.addEventListener("resize", syncViewport);
-    window.addEventListener("orientationchange", syncViewport);
+    window.addEventListener("orientationchange", () => {
+      // Rotation : la hauteur change légitimement, la référence doit suivre.
+      hauteurPleine.current = 0;
+      syncViewport();
+    });
     return () => {
       viewport?.removeEventListener("resize", syncViewport);
       viewport?.removeEventListener("scroll", syncViewport);
+      document.removeEventListener("focusin", syncViewport);
+      document.removeEventListener("focusout", syncViewport);
       window.removeEventListener("resize", syncViewport);
-      window.removeEventListener("orientationchange", syncViewport);
       document.documentElement.style.removeProperty("--app-viewport-height");
       document.documentElement.style.removeProperty("--app-viewport-top");
     };
