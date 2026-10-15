@@ -143,7 +143,7 @@ export const program = Effect.gen(function* () {
   });
 
   yield* Effect.logInfo(
-    `Herdr Remote — écoute sur http://${config.hostname}:${config.port} · socket Herdr ${config.herdrSocketPath}`,
+    `Herdr Chat — écoute sur http://${config.hostname}:${config.port} · socket Herdr ${config.herdrSocketPath}`,
   );
 
   // Vérifie Herdr au démarrage : on signale l'indisponibilité sans empêcher

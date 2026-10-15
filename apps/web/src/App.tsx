@@ -1,5 +1,5 @@
 /**
- * Herdr Remote — interface iPhone.
+ * Herdr Chat — interface iPhone.
  *
  * Quatre onglets : Projets · Agents · Activité · Réglages.
  *
@@ -555,7 +555,7 @@ export const App = () => {
     return (
       <div className="app">
         <header className="topbar">
-          <h1>Herdr Remote</h1>
+          <h1>Herdr Chat</h1>
         </header>
         <Notice ton="erreur">This agent no longer exists in Herdr. It may have been closed.</Notice>
         <button type="button" className="back" onClick={closeAgent}>
@@ -576,7 +576,7 @@ export const App = () => {
         d'écran par `aria-label`.
       */}
       <header className="topbar">
-        <h1>Herdr Remote</h1>
+        <h1>Herdr Chat</h1>
         <div className="topbar__droite">
           {/*
             ⚠️ Le point est **décoratif** : la couleur ne dit rien à un lecteur
