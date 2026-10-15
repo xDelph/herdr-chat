@@ -23,7 +23,7 @@ import {
 import type { Question } from "@herdr-remote/shared";
 import { ecrireBrouillon, lireBrouillon } from "./brouillons.ts";
 import type { RenderedMessage } from "./blocks.ts";
-import { toItems, toMessages, touchedFilesOf } from "./blocks.ts";
+import { avecTravailEnCours, toItems, toMessages, touchedFilesOf } from "./blocks.ts";
 import { agentName, headerContext, statusClass } from "./labels.tsx";
 import { FileOpenerContext, ItemsView, UrlOpenerContext } from "./Blocks.tsx";
 import { FilesSheet } from "./Files.tsx";
@@ -245,16 +245,53 @@ export const ChatScreen = ({
     autoLoadedPrevious.current = false;
     setPreviousCursor(null);
     void load("initial");
+    /*
+      ⚠️ **La cadence suit le regard, pas seulement le statut.**
+
+      Une app visible est regardée : on veut la mise à jour au plus près. Une app
+      en arrière-plan ne l'est pas — la sonder au même rythme vide la batterie du
+      téléphone pour un écran que personne ne lit. Le statut reste le second axe :
+      un agent qui travaille bouge vite, un agent au repos non.
+
+      Avant : 750 ms / 2 s quelle que soit la visibilité. On payait le prix du
+      premier plan en permanence, sans jamais l'obtenir au bon moment.
+
+      ⚠️ **`visibilitychange` et non le focus du document.** La propriété
+      `hasFocus` de `document` est instable sur iOS : elle tombe à `false` sans
+      que l'app ait été quittée, et caler la cadence dessus la ralentirait au
+      moment précis où on est en train de lire. Le `focus` de la fenêtre est donc
+      utilisé pour **réveiller**, jamais pour ralentir.
+    */
+    const regardActif = () => document.visibilityState === "visible";
+    const cadence = () => {
+      if (!regardActif()) return statutRef.current === "working" ? 3000 : 10_000;
+      return statutRef.current === "working" ? 400 : 1200;
+    };
     // `setTimeout` en cascade plutôt que `setInterval` : la cadence est relue à
-    // chaque tour, donc elle suit le statut sans que l'effet en dépende.
-    const cadence = () => (statutRef.current === "working" ? 750 : 2000);
+    // chaque tour, donc elle suit le statut et le regard sans que l'effet en
+    // dépende.
     let timer = 0;
     const tour = () => {
       void load("incremental");
       timer = window.setTimeout(tour, cadence());
     };
+    /*
+      ⚠️ **Revenir au premier plan exige une lecture immédiate.** Sans cela on
+      attend la fin du tour en cours — jusqu'à dix secondes si l'app était en
+      arrière-plan — et l'écran paraît figé au moment précis où on le rouvre.
+    */
+    const reveil = () => {
+      window.clearTimeout(timer);
+      tour();
+    };
+    document.addEventListener("visibilitychange", reveil);
+    window.addEventListener("focus", reveil);
     timer = window.setTimeout(tour, cadence());
-    return () => window.clearTimeout(timer);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("visibilitychange", reveil);
+      window.removeEventListener("focus", reveil);
+    };
   }, [load]);
 
   /*
@@ -807,7 +844,10 @@ export const ChatScreen = ({
               )}
               <ItemsView
                 enCours={agent.status === "working"}
-                items={toItems(messages, agent.status === "working")}
+                items={avecTravailEnCours(
+                  toItems(messages, agent.status === "working"),
+                  agent.status === "working",
+                )}
                 cwd={agent.cwd}
               />
               {/*

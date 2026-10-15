@@ -975,6 +975,57 @@ export const toItems = (
 };
 
 /**
+ * Identifiant du bloc de travail **vide** qui annonce un travail qui commence.
+ *
+ * ⚠️ Fixe, et c'est voulu : le bloc vide et le premier vrai groupe ne doivent
+ * pas être deux blocs différents, sinon l'écran clignote au moment où le
+ * premier appel d'outil arrive.
+ */
+export const ID_TRAVAIL_EN_COURS = "travail:en-cours";
+
+/**
+ * Ajoute le bloc de travail **dès que l'agent travaille**, avant même le premier
+ * appel d'outil.
+ *
+ * ⚠️ **Le statut arrive avant la session.** Herdr annonce `working` sur son flux
+ * — c'est un événement, il est immédiat — alors que le premier appel d'outil
+ * n'est écrit dans le JSONL que plus tard, et n'est lu qu'au tour de
+ * rafraîchissement suivant. Sans ce bloc, l'écran reste **muet** pendant tout
+ * cet intervalle : on ne sait pas si l'agent a reçu la demande, ni s'il a
+ * commencé. Mesuré sur `wA:p1` : ~1 s entre le statut `working` et le premier
+ * appel visible dans la session.
+ *
+ * Le bloc part donc vide et se remplit à l'arrivée réelle des appels.
+ *
+ * ⚠️ **Aucun chiffre n'est inventé.** Le bloc vide ne porte ni durée ni jeton :
+ * ces valeurs se calculent sur les horodatages des messages, et il n'y en a pas
+ * encore. « Working » sans durée est exact ; une durée calculée sur l'horloge de
+ * l'écran mesurerait l'écran, pas l'agent.
+ *
+ * ⚠️ **Rien n'est ajouté sur une conversation vide** : l'état vide dit déjà sa
+ * cause (« Pi creates a session when it receives its first message »), et un
+ * « Working » posé dessus le contredirait.
+ */
+export const avecTravailEnCours = (
+  items: ReadonlyArray<Item>,
+  enCours: boolean,
+): ReadonlyArray<Item> => {
+  if (!enCours || items.length === 0) return items;
+  // Un groupe d'outils déjà en cours montre déjà son propre « Working ».
+  if (items.at(-1)?.kind === "tools") return items;
+  return [
+    ...items,
+    {
+      callCount: 0,
+      id: ID_TRAVAIL_EN_COURS,
+      kind: "tools",
+      messages: [],
+      tools: [],
+    },
+  ];
+};
+
+/**
  * `true` si un message est **uniquement** de la prose.
  *
  * ⚠️ **Uniquement**, et c'est le point. Un message `text + thinking` est de la

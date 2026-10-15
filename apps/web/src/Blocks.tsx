@@ -950,7 +950,16 @@ const ToolGroup = ({
               <LigneDeTravail key={ligne.cle} ligne={ligne} cwd={cwd} />
             ),
           )}
-          {lignes.length === 0 ? <p className="blk__hint">No calls recorded</p> : null}
+          {lignes.length === 0 ? (
+            /*
+              ⚠️ **Deux formulations, parce que les deux situations sont
+              différentes.** « No calls yet » dit un travail en cours dont rien
+              n'est encore écrit ; « No calls recorded » dit un verdict sur un
+              travail terminé. La même phrase pour les deux faisait passer un
+              agent qui démarre pour un agent qui n'a rien fait.
+            */
+            <p className="blk__hint">{enCours ? "No calls yet" : "No calls recorded"}</p>
+          ) : null}
         </div>
       ) : null}
     </div>
