@@ -1,96 +1,95 @@
-# Herdr Remote
+![Herdr Chat](docs/banner.png)
 
-Piloter Herdr et ses agents Pi **depuis l'iPhone**, sans SSH et sans modifier les droits de `$HOME`.
+**Pilot Herdr and its agents from your phone.** Herdr Chat is a PWA that reads your
+Pi and codex sessions and lets you drive them from anywhere in your tailnet.
 
-Herdr reste l'orchestrateur et la source de vérité. Herdr Remote est une **couche locale** : elle lit, affiche et transmet — elle ne remplace rien et ne lance aucun second agent.
+No SSH. No terminal on the phone. Nothing is copied out of your machine.
 
-## Démarrage rapide
+## What it does
 
-```bash
-nvm use                                   # lit .nvmrc → 24.21.0
-npm install -g --allow-scripts=bun bun@1.4.2   # Bun rattaché à cette version de Node
-bun install
-bun run verify                            # format → lint → typecheck → tests
-```
+- **Conversations, not terminals.** Each agent's session is rendered as it actually
+  reads: messages, thinking, tool calls, diffs, subagent results. Long output stays
+  folded.
+- **Answers you when you are not looking.** Push notifications tell you when an agent
+  finishes — and says *"needs you"* when it is waiting on a question, instead of
+  claiming it is done.
+- **Questions, with their choices.** When an agent blocks on a prompt, Herdr Chat
+  reads it off the screen and shows the real options as buttons.
+- **Send, answer, stop, change model.** All through Herdr's own API, with the same
+  confirmations — nothing is reported as sent until the transport says so.
+- **Honest by default.** A missing value is shown as missing. An error carries its
+  cause. Nothing is invented to fill a gap.
 
-Puis compiler la PWA et lancer le serveur :
+## Requirements
 
-```bash
-bun run --cwd apps/web build
-bun run apps/server/src/main.ts           # http://127.0.0.1:8790
-```
+- **Herdr** running on the same machine (`~/.config/herdr/herdr.sock`).
+- **[Tailscale](https://tailscale.com)** for remote access. The server binds to
+  `127.0.0.1` only — Tailscale Serve is the single supported way in.
 
-### Accès depuis l'iPhone
-
-**Chemin canonique (HTTPS, PWA installable)** — nécessite que Serve soit activé sur le tailnet :
-
-La configuration actuelle est déjà active : HTTPS `:8790` pointe vers `127.0.0.1:8791` (D019). Vérifier `tailscale serve status` et le port réel du backend avant de modifier cette configuration. La commande ci-dessous est une **installation initiale**, pas une étape à relancer aveuglément sur ce Mac.
-
-```bash
-tailscale serve --bg 8790
-```
-
-**Repli de développement actuel (hors installation de release)** — HTTP sur le tailnet, chiffré par WireGuard, mais PWA **non installable** sur iOS :
+## Install
 
 ```bash
-HERDR_REMOTE_BIND=$(tailscale ip -4 | head -1) bun run apps/server/src/main.ts
+brew trust xDelph/herdr-chat     # newer Homebrew asks before loading third-party taps
+brew install xDelph/herdr-chat
+brew services start herdr-chat
 ```
 
-`HERDR_REMOTE_BIND` accepte `127.0.0.1` ou une IP Tailscale. **`0.0.0.0` et toute IP publique sont refusés** au démarrage.
+Then expose it to your tailnet:
 
-La release prévue vise un **tap Homebrew personnel**, Tailscale Serve et **aucune authentification applicative**. Un appareil admis par les règles du tailnet peut utiliser toutes les fonctions ; voir le [modèle d'accès](docs/SECURITY_MODEL.md). La formule et les contrôles HTTP de release restent à implémenter.
+```bash
+tailscale serve --bg --https=8790 http://127.0.0.1:8791
+```
+
+Open `https://<your-machine>.<tailnet>.ts.net:8790` on your phone and add it to the
+home screen. It installs as a normal app: its own icon, no Safari chrome.
+
+## How it fits together
+
+```text
+iPhone ── Tailscale ── Serve :8790 ── 127.0.0.1:8791 ── Herdr Chat
+                                                            │
+                                                            ├── Herdr socket  (control)
+                                                            └── Pi/codex JSONL (content)
+```
+
+**Herdr stays the orchestrator.** Herdr Chat is a local layer: it reads, displays and
+forwards. It never replaces Herdr and never starts a second agent behind your back.
+
+Content and catch-up come from the **session files**, never from the API — Herdr's
+`revision` is always `0` and only one event type is implemented. Control and status
+come from the **socket**. See `docs/PROTOCOL.md` for what was measured, and
+`docs/DECISIONS.md` for why.
 
 ## Configuration
 
-| Variable | Défaut | Rôle |
+Every variable is optional — a bare install works.
+
+| Variable | Default | Purpose |
 |---|---|---|
-| `HERDR_SOCKET_PATH` | `~/.config/herdr/herdr.sock` | Socket de l'**API Herdr** (couche A) |
-| `HERDR_REMOTE_PORT` | `8790` | Port d'écoute |
-| `HERDR_REMOTE_BIND` | `127.0.0.1` | Hôte d'écoute — `127.0.0.1` ou IP Tailscale uniquement |
-| `PI_SESSIONS_ROOT` | `~/.pi/agent/sessions` | Racine des sessions Pi |
+| `HERDR_REMOTE_BIND` | `127.0.0.1` | Interface to bind. Never expose publicly. |
+| `HERDR_REMOTE_PORT` | `8791` | Local port |
+| `HERDR_REMOTE_PUBLIC_ORIGINS` | derived | Extra allowed origins, comma-separated |
+| `HERDR_REMOTE_LOG_PATH` | `~/.herdr-remote/herdr-remote.log` | Error journal |
+| `HERDR_REMOTE_PUSH_STORE` | `~/.herdr-remote/push.json` | Push subscriptions |
+| `PI_SESSIONS_ROOT` / `CODEX_SESSION_ROOT` | `~/.pi/…`, `~/.codex/…` | Session roots |
 
-> ⚠️ `HERDR_SOCKET` (bus d'agents) et `HERDR_SOCKET_PATH` (API Herdr) sont **deux choses différentes**. Seul le second est lu.
+The VAPID key pair for push notifications is generated on first run and stored
+alongside the subscriptions.
 
-## Architecture — contenu / contrôle
+## Development
 
-| Besoin | Source |
-|---|---|
-| Contenu et rattrapage après coupure | **fichiers de session Pi** (JSONL, lecture seule) |
-| Envoi de prompt, statut, vue globale, temps réel | **API Herdr** |
+```bash
+nvm use          # reads .nvmrc
+bun install
+bun run verify   # format → lint → typecheck → tests
+bun run dev      # Vite dev server
+```
 
-Cette séparation n'est pas un choix esthétique : `revision` vaut `0` en permanence côté Herdr et `events.wait` n'implémente pas `pane_output_changed`. Aucun compteur de rattrapage n'est exploitable. Détail : `docs/PROTOCOL.md` §10.
+`bun run verify` must be green before any commit. The test suite is the design
+contract: each test carries a requirement id, and changing a rule is expected to
+break a test.
 
-## API
+## License
 
-| Route | Rôle |
-|---|---|
-| `GET /api/health` | État du serveur **et** joignabilité d'Herdr |
-| `GET /api/overview` | Workspaces + agents (depuis `session.snapshot`) |
-| `GET /api/agents/:paneId/session` | Historique (depuis le JSONL Pi) |
-| `GET /api/agents/:paneId/terminal` | Sortie terminal du pane |
-| `POST /api/agents/:paneId/prompt` | Envoyer un prompt, **avec suppression des doubles envois** |
-| `GET /api/events` | Flux SSE, rattrapage par `Last-Event-ID` |
-
-`POST .../prompt` expose quatre états : `sent` (confirmé), `suppressed` (double envoi identique), et une erreur explicite si l'envoi n'est pas confirmé. **Un envoi n'est jamais présenté comme « envoyé » sans confirmation.**
-
-## Documentation
-
-| Fichier | Contenu |
-|---|---|
-| `docs/HERDR_REMOTE_SPEC.md` | Spécification produit de référence |
-| `docs/PROTOCOL.md` | Protocole Herdr et format des sessions Pi, **vérifiés par exécution** |
-| `docs/TASKS.md` | Plan déterministe, portes bloquantes, état d'avancement |
-| `docs/RELEASE_BACKLOG.md` | Backlog actif pour la refonte mobile et la publication du code source |
-| `docs/RELEASE_CHOICES.md` | Proposition de licence PolyForm, distribution et accès |
-| `docs/SECURITY_MODEL.md` | Périmètre d'accès personnel et contrôles prévus pour la release |
-| `docs/UX_MOBILE.md` | Parcours et maquettes mobiles à valider |
-| `docs/DECISIONS.md` | Décisions datées avec leurs alternatives écartées |
-| `docs/TOOLCHAIN.md` | Chaîne d'outils, règles de lint, pièges des outils |
-
-## Méthode
-
-**Le schéma n'est pas la source de vérité de l'implémentation.** Sur Herdr 0.9.3, `events.wait` déclare 19 variantes et n'en implémente qu'une ; `agent_status` est optionnel au schéma et exigé par le serveur ; `revision` vaut toujours `0`.
-
-> **Toute capacité est vérifiée par exécution avant d'être utilisée.**
-
-Les incertitudes restantes sont marquées `INCONNU` dans `docs/PROTOCOL.md`. Elles ne sont jamais comblées par une supposition : l'interface affiche l'absence plutôt qu'un substitut inventé.
+[PolyForm Noncommercial 1.0.0](LICENSE). Free for personal and noncommercial use.
+Commercial use requires a separate license.

@@ -64,3 +64,32 @@ l'URL et `herdrchat`, cohérent avec `devcli` (sans tiret).
   Donc `brew services start herdrchat` doit suffire, sans configuration.
 - Aucune CI, aucun tag, aucune licence dans le dépôt.
 - Serveur lancé aujourd'hui à la main, depuis un shell (`nohup`) — non supervisé.
+
+
+## ⚠️ La PWA servie vient du keg, pas du dépôt
+
+Constaté le 2026-10-15, et ça surprend : après `brew install`, le serveur lit
+`apps/web/dist` depuis `/opt/homebrew/Cellar/herdr-chat/<version>/`. **Modifier
+le dépôt ne change donc plus rien sur le téléphone.** Il faut une release puis
+`brew upgrade`.
+
+J'ai reconstruit trois fois dans `apps/web/dist` en croyant mettre à jour
+l'application — je mettais à jour un dossier que plus personne ne lisait.
+
+## Les deux pièges de la formule, mesurés
+
+1. **`bun install` doit tourner APRÈS `prefix.install`**, pas avant. La copie
+   détruit la disposition que bun crée dans `node_modules/.bun` ; le service
+   meurt alors sur `Cannot find module '@herdr-remote/shared'`.
+2. **Le bloc `service` doit donner un `PATH`** (`std_service_path_env`). Sans
+   lui, launchd démarre avec `/usr/bin:/bin` seulement, le lanceur ne trouve pas
+   `bun`, et sort en 1 — sans écrire une seule ligne de journal.
+
+Et le nom de la formule est **imposé par celui du tap** : `homebrew-herdr-chat`
+⇒ `herdr-chat.rb`. `herdrchat.rb` ne se trouve jamais.
+
+## État
+
+Publié : `v0.1.0` sur `xDelph/herdr-chat`, formule dans
+`xDelph/homebrew-herdr-chat`. Vérifié de bout en bout : `brew services list`
+→ `started`, l'API répond en local et à travers le tailnet.
