@@ -86,11 +86,25 @@ describe("resolveWithin — le refus garde sa cause", () => {
   });
 
   test("le chemin accepted est le chemin RÉSOLU, pas l'original", async () => {
-    const verdict = await resolveWithin(ROOT, join(SESSIONS, "ok.jsonl"));
-    // Sur macOS, `TMP` est sous `/var/folders`, un lien vers `/private/var`.
-    // La résolution doit donc produire un chemin différent de l'entrée.
-    expect(verdict.resolved === join(SESSIONS, "ok.jsonl")).toBe(false);
-    expect(verdict.resolved?.startsWith("/private")).toBe(true);
+    /*
+      ⚠️ **Ce test s'appuyait sur la plateforme, pas sur le produit.**
+
+      Il comptait sur le dossier temporaire de macOS, qui est derrière un lien
+      (`/var/folders` → `/private/var`) : il vérifiait donc qu'un chemin rendu
+      commençait par `/private`. Vrai sur un Mac, faux sur un runner Linux où
+      `/tmp` est réel — et il n'avait jamais pu échouer ici. Il ne testait pas la
+      résolution, il testait le système d'exploitation.
+
+      On crée donc **son propre** lien symbolique. La propriété testée est
+      maintenant la vraie : un chemin qui **traverse** un lien revient résolu.
+    */
+    const lien = join(ROOT, "lien-vers-projet");
+    symlinkSync(SESSIONS, lien);
+    const verdict = await resolveWithin(ROOT, join(lien, "ok.jsonl"));
+    expect(verdict.ok).toBe(true);
+    // Plus aucune trace du segment emprunté : c'est la cible qui est rendue.
+    expect(verdict.resolved).not.toContain("lien-vers-projet");
+    expect(verdict.resolved?.endsWith(join("projet", "ok.jsonl"))).toBe(true);
   });
 
   test("une traversée `../` est refusée avec cause « hors-racine »", async () => {
