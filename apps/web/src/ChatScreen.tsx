@@ -83,6 +83,15 @@ export const ChatScreen = ({
   const [stopping, setStopping] = useState(false);
   const [stopFeedback, setStopFeedback] = useState<string | null>(null);
   const sendTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * Plafond de pages vides remontées d'affilée avant d'abandonner.
+   *
+   * ⚠️ Le serveur peut rendre une page vide **en avançant le curseur** (une ligne
+   * plus grande que la fenêtre). Sans plafond, on lirait le fichier entier sur un
+   * seul appui ; sans continuité, le bouton ne ferait rien du tout.
+   */
+  const PAGES_VIDES_MAX = 8;
+
   const nextLocalId = useRef(0);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
@@ -271,6 +280,7 @@ export const ChatScreen = ({
     setPreviousError(null);
     try {
       let pageCursor: string | null = before;
+      let pagesVides = 0;
       const pagesAnterieures: Array<typeof entries> = [];
       // Codex logs work as many short events. The prompt can sit over ten
       // pages behind the live tail even when the tail itself loads quickly.
@@ -288,10 +298,36 @@ export const ChatScreen = ({
         pagesAnterieures.push(session.entries);
         const nextCursor = session.previousCursor ?? null;
         const hasPrompt = toMessages(session.entries).some((message) => message.role === "user");
-        if (nextCursor === pageCursor || session.entries.length === 0 || hasPrompt) {
-          pageCursor = nextCursor === pageCursor ? null : nextCursor;
+
+        // Le curseur ne bouge plus : continuer boucherait à l'infini.
+        if (nextCursor === pageCursor || nextCursor === null) {
+          pageCursor = null;
           break;
         }
+
+        /*
+          ⚠️ **Une page VIDE n'est pas la fin.**
+
+          Le serveur peut rendre `entries: []` **tout en avançant le curseur** :
+          mesuré sur une session de ~4,2 Mo, où une page de 512 Ko ne contenait
+          aucune ligne complète — une seule ligne plus grande que la fenêtre la
+          remplit entièrement. La version précédente s'arrêtait sur ce vide et
+          laissait le curseur avancé : « Charger les messages précédents »
+          semblait alors ne **jamais rien faire**, indéfiniment.
+
+          On continue donc à remonter, avec un plafond : un fichier réellement
+          fait de pages vides ne doit pas nous faire lire 4 Mo sur un appui.
+        */
+        if (session.entries.length === 0) {
+          pagesVides += 1;
+          if (pagesVides >= PAGES_VIDES_MAX) break;
+        } else {
+          pagesVides = 0;
+        }
+
+        // Une demande de l'utilisateur atteinte : on a remonté jusqu'au tour
+        // précédent, c'est exactement ce qu'on voulait ramener à l'écran.
+        if (hasPrompt) break;
         pageCursor = nextCursor;
       }
       const entriesAnterieures = pagesAnterieures.toReversed().flat();
