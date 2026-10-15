@@ -810,77 +810,88 @@ export const ChatScreen = ({
                 items={toItems(messages, agent.status === "working")}
                 cwd={agent.cwd}
               />
-              {envoisLocaux.map((message) => {
-                const status =
-                  message.state === "queued"
-                    ? "Queued…"
-                    : message.state === "sending"
-                      ? "Sending"
-                      : message.state === "delivered"
-                        ? "Received by Herdr"
-                        : message.state === "uncertain"
-                          ? "Delivery unconfirmed"
-                          : "Send failed";
-                const interactive = message.state !== "delivered";
-                const open = messageOuvert === message.id;
-                return (
-                  <article
-                    key={message.id}
-                    className={`bubble bubble--user optimistic optimistic--${message.state}`}
-                  >
-                    {interactive ? (
-                      <button
-                        type="button"
-                        className="optimistic__tap"
-                        aria-label={`${message.text}. Status: ${status}. Tap for options.`}
-                        aria-expanded={open}
-                        onClick={() => setMessageOuvert(open ? null : message.id)}
-                      >
-                        <span className="optimistic__text">{message.text}</span>
-                        <span className="optimistic__status" aria-hidden="true">
-                          {message.state === "queued" || message.state === "sending"
-                            ? "◌"
-                            : message.state === "failed"
-                              ? "!"
-                              : "?"}
-                        </span>
-                      </button>
-                    ) : (
-                      <>
-                        <span className="optimistic__text">{message.text}</span>
-                        <span className="optimistic__status" aria-label={status} title={status}>
-                          ✓
-                        </span>
-                      </>
-                    )}
-                    {open ? (
-                      <fieldset className="optimistic__menu" aria-label="Message status">
-                        <strong>{status}</strong>
-                        {message.detail === null ? null : (
-                          <p className={message.state === "failed" ? "optimistic__error" : ""}>
-                            {message.detail}
-                          </p>
-                        )}
-                        {message.state === "queued" ? (
-                          <button type="button" onClick={() => annulerEnvoi(message)}>
-                            Cancel send
-                          </button>
-                        ) : null}
-                        {message.state === "failed" || message.state === "uncertain" ? (
-                          <button type="button" onClick={() => reessayerEnvoi(message)}>
-                            {message.failureState === "inconnu"
-                              ? "Retry (may send a duplicate)"
-                              : "Retry"}
-                          </button>
-                        ) : null}
-                        <button type="button" onClick={() => setMessageOuvert(null)}>
-                          Cancel
+              {/*
+                  ⚠️ **Les envois en attente restent COLLÉS au bas du fil.**
+              
+                  Un message non encore pris en compte doit rester sous les yeux tant
+                  qu'il n'a pas été accepté : s'il défile hors de vue, on ne sait plus
+                  s'il est parti — et on le renvoie. Le `sticky` suffit : les envois sont
+                  les derniers enfants du fil, donc ils se collent au bord bas du
+                  conteneur défilant pendant qu'on remonte lire.
+                */}
+              <div className="envois">
+                {envoisLocaux.map((message) => {
+                  const status =
+                    message.state === "queued"
+                      ? "Queued…"
+                      : message.state === "sending"
+                        ? "Sending"
+                        : message.state === "delivered"
+                          ? "Received by Herdr"
+                          : message.state === "uncertain"
+                            ? "Delivery unconfirmed"
+                            : "Send failed";
+                  const interactive = message.state !== "delivered";
+                  const open = messageOuvert === message.id;
+                  return (
+                    <article
+                      key={message.id}
+                      className={`bubble bubble--user optimistic optimistic--${message.state}`}
+                    >
+                      {interactive ? (
+                        <button
+                          type="button"
+                          className="optimistic__tap"
+                          aria-label={`${message.text}. Status: ${status}. Tap for options.`}
+                          aria-expanded={open}
+                          onClick={() => setMessageOuvert(open ? null : message.id)}
+                        >
+                          <span className="optimistic__text">{message.text}</span>
+                          <span className="optimistic__status" aria-hidden="true">
+                            {message.state === "queued" || message.state === "sending"
+                              ? "◌"
+                              : message.state === "failed"
+                                ? "!"
+                                : "?"}
+                          </span>
                         </button>
-                      </fieldset>
-                    ) : null}
-                  </article>
-                );
-              })}
+                      ) : (
+                        <>
+                          <span className="optimistic__text">{message.text}</span>
+                          <span className="optimistic__status" aria-label={status} title={status}>
+                            ✓
+                          </span>
+                        </>
+                      )}
+                      {open ? (
+                        <fieldset className="optimistic__menu" aria-label="Message status">
+                          <strong>{status}</strong>
+                          {message.detail === null ? null : (
+                            <p className={message.state === "failed" ? "optimistic__error" : ""}>
+                              {message.detail}
+                            </p>
+                          )}
+                          {message.state === "queued" ? (
+                            <button type="button" onClick={() => annulerEnvoi(message)}>
+                              Cancel send
+                            </button>
+                          ) : null}
+                          {message.state === "failed" || message.state === "uncertain" ? (
+                            <button type="button" onClick={() => reessayerEnvoi(message)}>
+                              {message.failureState === "inconnu"
+                                ? "Retry (may send a duplicate)"
+                                : "Retry"}
+                            </button>
+                          ) : null}
+                          <button type="button" onClick={() => setMessageOuvert(null)}>
+                            Cancel
+                          </button>
+                        </fieldset>
+                      ) : null}
+                    </article>
+                  );
+                })}
+              </div>
             </div>
           </div>
 

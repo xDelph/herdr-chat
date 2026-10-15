@@ -3145,3 +3145,25 @@ button:disabled {
 .question__reponse--refusee {
   color: var(--err);
 }
+
+/* ---------------------------------------------------------------------------
+   Envois en attente, collés au bas du fil
+   --------------------------------------------------------------------------- */
+
+/*
+  ⚠️ Un message **non encore pris en compte** doit rester visible. S'il défile
+  hors de vue, on ne sait plus s'il est parti — et on le renvoie.
+
+  `sticky` plutôt qu'un déplacement hors du scroller : les envois restent dans
+  l'ordre du fil (ils deviendront de vrais messages), mais se collent au bord
+  bas tant qu'ils sont en attente. Le `z-index` les passe au-dessus des
+  messages qui défilent derrière eux.
+*/
+.chat .messages .envois {
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  position: sticky;
+  z-index: 1;
+}
