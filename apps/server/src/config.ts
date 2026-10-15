@@ -74,20 +74,38 @@ export interface ServerConfig {
   readonly extraFileRoots: ReadonlyArray<string>;
 }
 
+/**
+ * Chemins connus de la CLI Tailscale.
+ *
+ * ⚠️ **macOS et Linux.** La première version ne listait que des chemins macOS :
+ * Tailscale sur Linux (Homebrew, paquet système, Snap) n'était pas trouvé, on
+ * retombait sur le PATH, et sous `systemd` le PATH est minimal — ENOENT, liste
+ * d'origines vide, et **toute** la PWA en 403. Le défaut ne se voit pas sur la
+ * machine où on développe, seulement chez les autres.
+ */
 const TAILSCALE_PATHS = [
-  "/usr/local/bin/tailscale",
+  // macOS
   "/opt/homebrew/bin/tailscale",
   "/Applications/Tailscale.app/Contents/MacOS/tailscale",
+  // Linux et autres — `/usr/local/bin` sert aux deux, il n'est listé qu'une fois.
+  "/usr/bin/tailscale",
+  "/usr/sbin/tailscale",
+  "/usr/local/bin/tailscale",
+  "/home/linuxbrew/.linuxbrew/bin/tailscale",
+  "/snap/bin/tailscale",
+  "/opt/bin/tailscale",
 ];
 
 /**
  * Résout la CLI Tailscale par **chemin absolu**.
  *
- * ⚠️ Lancé par `launchd` (`brew services`), le PATH est minimal et ne contient
- * ni `/usr/local/bin` ni `/opt/homebrew/bin` : `execFileSync("tailscale", …)`
- * échouait alors en ENOENT, `tailscaleOrigins` renvoyait `[]`, et **toute** la
- * PWA accédée via Tailscale Serve était refusée en 403. Le binaire est aussi
- * embarqué dans l'app macOS ; on l'essaie en dernier recours.
+ * ⚠️ Lancé par un superviseur (`brew services`, `systemd`), le PATH est minimal
+ * et ne contient pas les chemins d'installation usuels :
+ * `execFileSync("tailscale", …)` échouait alors en ENOENT, `tailscaleOrigins`
+ * renvoyait `[]`, et **toute** la PWA accédée via Tailscale Serve était refusée
+ * en 403. Le binaire est aussi embarqué dans l'app macOS ; on l'essaie en
+ * dernier recours. Si aucun chemin n'existe, on rend `tailscale` : le PATH est
+ * alors le seul recours, et un lancement interactif y arrive.
  */
 const resolveTailscaleBin = (): string => {
   for (const chemin of TAILSCALE_PATHS) {
@@ -96,16 +114,100 @@ const resolveTailscaleBin = (): string => {
   return "tailscale"; // dernier recours : PATH (lancement interactif)
 };
 
+/** Le port HTTPS par défaut : le navigateur l'**omet** de `Origin`. */
+const PORT_HTTPS_DEFAUT = "443";
+
 /**
- * Origines HTTPS de la machine sur son tailnet.
+ * L'origine que le navigateur enverra pour un `host:port` de Serve.
  *
- * ⚠️ Tailscale Serve expose la PWA en `https://<machine>.<tailnet>.ts.net`, et
- * le navigateur envoie **cette** origine. La liste blanche ne la connaissant
- * pas, toute requête mutante était refusée en 403 — l'envoi de message ne
- * fonctionnait plus.
+ * ⚠️ **Le port 443 disparaît de `Origin`.** `tailscale serve` sert sur 443 par
+ * défaut, et l'adresse est alors `https://<machine>.<tailnet>.ts.net`, sans
+ * port. Écrire `https://…:443` produisait une origine **qui ne correspond à
+ * rien** : la PWA était refusée en 403 sur toute machine configurée par défaut,
+ * alors que la machine de développement utilisait un port explicite (8790) et
+ * passait. Un défaut qui ne se voit que sur les autres configurations — donc
+ * jamais pendant qu'on le développe.
+ */
+const origineHttps = (hostPort: string): string | null => {
+  const dernier = hostPort.lastIndexOf(":");
+  if (dernier === -1) return `https://${hostPort}`;
+  if (dernier === 0) return null;
+  const port = hostPort.slice(dernier + 1);
+  return port === PORT_HTTPS_DEFAUT
+    ? `https://${hostPort.slice(0, dernier)}`
+    : `https://${hostPort}`;
+};
+
+/**
+ * `true` si un handler de Serve pointe vers **notre** backend.
  *
- * On interroge `tailscale` une seule fois, au démarrage. Son absence n'est pas
- * une erreur : la liste locale suffit alors.
+ * ⚠️ **On compare l'hôte et le port, jamais la chaîne.** Serve rapporte la cible
+ * telle qu'elle a été écrite : `http://localhost:8791` est aussi valide que
+ * `http://127.0.0.1:8791`, et une comparaison textuelle refusait la première —
+ * donc aucune origine n'était ajoutée, donc 403.
+ *
+ * Le **port**, lui, est comparé exactement : un autre service proxifié n'a pas à
+ * être autorisé. C'est ce qui distingue « la même machine » de « le même
+ * backend ».
+ */
+const pointeVersBackend = (proxy: string | undefined, port: number): boolean => {
+  if (proxy === undefined) return false;
+  try {
+    const cible = new URL(proxy);
+    const hote = cible.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+    const local = hote === "127.0.0.1" || hote === "localhost" || hote === "::1";
+    return local && cible.port === String(port);
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Origines HTTPS de cette machine sur son tailnet, **dérivées de la
+ * configuration de Serve**.
+ *
+ * ⚠️ **Pure et exportée, exprès.** C'est la partie qu'on peut vérifier sans
+ * Tailscale, et c'est là que vivait le défaut. Lire le format et fabriquer
+ * l'origine sont deux choses ; les mêler obligeait à avoir un tailnet configuré
+ * pour vérifier quoi que ce soit.
+ */
+export const originesDeServe = (statut: unknown, port: number): string[] => {
+  const status = Option.getOrUndefined(
+    Schema.decodeUnknownOption(
+      Schema.Struct({
+        Web: Schema.optional(
+          Schema.Record(
+            Schema.String,
+            Schema.Struct({
+              Handlers: Schema.Record(
+                Schema.String,
+                Schema.Struct({ Proxy: Schema.optional(Schema.String) }),
+              ),
+            }),
+          ),
+        ),
+      }),
+    )(statut),
+  );
+
+  // Serve non configuré, ou format inattendu : la liste locale suffit.
+  if (status?.Web === undefined) return [];
+
+  const origines: string[] = [];
+  for (const [hostPort, entry] of Object.entries(status.Web)) {
+    if (!Object.values(entry.Handlers).some((handler) => pointeVersBackend(handler.Proxy, port)))
+      continue;
+    const origine = origineHttps(hostPort);
+    if (origine !== null) origines.push(origine);
+  }
+  return origines;
+};
+
+/**
+ * Interroge la CLI Tailscale, **une seule fois**, au démarrage.
+ *
+ * ⚠️ Son absence n'est pas une erreur : sans Serve, la liste locale suffit.
+ * C'est un confort, pas une dépendance.
  */
 const tailscaleOrigins = (port: number): string[] => {
   try {
@@ -114,41 +216,22 @@ const tailscaleOrigins = (port: number): string[] => {
       timeout: 5000,
     });
     const parsed: unknown = JSON.parse(json);
-
-    const status = Option.getOrUndefined(
-      Schema.decodeUnknownOption(
-        Schema.Struct({
-          Web: Schema.optional(
-            Schema.Record(
-              Schema.String,
-              Schema.Struct({
-                Handlers: Schema.Record(
-                  Schema.String,
-                  Schema.Struct({ Proxy: Schema.optional(Schema.String) }),
-                ),
-              }),
-            ),
-          ),
-        }),
-      )(parsed),
-    );
-    if (status?.Web === undefined) return [];
-
-    const expected = `http://127.0.0.1:${String(port)}`;
-    return (
-      Object.entries(status.Web)
-        // On ne retient que l'entrée qui pointe vers **notre** backend : une autre
-        // machine ou un autre service proxifié n'a pas à être autorisé.
-        .filter(([, entry]) =>
-          Object.values(entry.Handlers).some((handler) => handler.Proxy === expected),
-        )
-        .map(([hostPort]) => `https://${hostPort}`)
-    );
+    return originesDeServe(parsed, port);
   } catch {
     // Tailscale absent ou Serve non configuré : la liste locale suffit.
     return [];
   }
 };
+
+/**
+ * Un hôte mis en forme pour une URL.
+ *
+ * ⚠️ Une adresse IPv6 se met **entre crochets** dans une URL : `fd7a:…:1` seule
+ * donnerait `http://fd7a:…:1:8791`, qui n'est pas analysable — et le mode
+ * `HERDR_REMOTE_BIND` accepte justement une adresse `fd7a:` du tailnet.
+ */
+export const hoteUrl = (hote: string): string =>
+  hote.includes(":") && !hote.startsWith("[") ? `[${hote}]` : hote;
 
 export class ServerConfigTag extends Context.Service<ServerConfigTag, ServerConfig>()(
   "herdr-remote/Config",
@@ -221,12 +304,20 @@ export class ServerConfigTag extends Context.Service<ServerConfigTag, ServerConf
             .split(",")
             .map((origine) => origine.trim())
             .filter((origine) => origine.length > 0),
-          // Origine locale, toujours légitime.
+          // Origine locale, toujours légitime. `localhost` n'a pas à être listé :
+          // le garde accepte **tout le loopback**, tous ports confondus.
           `http://127.0.0.1:${String(port)}`,
+          // ⚠️ **Sans Serve, le mode documenté (D010) est d'écouter directement
+          // sur l'adresse Tailscale** et d'ouvrir `http://100.x.y.z:8791`. Le
+          // navigateur envoie alors *cette* origine : sans elle, chaque envoi
+          // était refusé en 403 dans le seul mode qui reste quand Serve n'est
+          // pas disponible — c'est-à-dire précisément quand on en a besoin.
+          ...(isTailnet ? [`http://${hoteUrl(bind)}:${String(port)}`] : []),
           // Origines HTTPS de Tailscale Serve, **lues dans sa configuration**.
           // Sans elles, l'envoi d'un message est refusé en 403 dès qu'on passe
           // par Serve : le navigateur envoie l'origine du proxy, pas celle du
-          // backend. Le port compte : Serve peut écouter ailleurs (8790 → 8791).
+          // backend. Le port compte — Serve peut écouter ailleurs (8790 → 8791)
+          // et le port 443 disparaît de l'origine, voir `origineHttps`.
           ...tailscaleOrigins(port),
         ],
         extraFileRoots,
