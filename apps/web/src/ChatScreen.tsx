@@ -21,6 +21,7 @@ import {
   focusAgent,
 } from "./api.ts";
 import type { Question } from "@herdr-remote/shared";
+import { ecrireBrouillon, lireBrouillon } from "./brouillons.ts";
 import type { RenderedMessage } from "./blocks.ts";
 import { toItems, toMessages, touchedFilesOf } from "./blocks.ts";
 import { agentName, headerContext, statusClass } from "./labels.tsx";
@@ -73,7 +74,7 @@ export const ChatScreen = ({
    * liste de messages, et le premier affichage serait un faux vide.
    */
   const [phase, setPhase] = useState<"loading" | "ready" | "error">("loading");
-  const [draft, setDraft] = useState("");
+  const [draft, setDraft] = useState(() => lireBrouillon(agent.paneId));
   const [composerFocused, setComposerFocused] = useState(false);
   /** Champ de saisie, pour lui rendre sa taille après un envoi. */
   const champRef = useRef<HTMLTextAreaElement | null>(null);
@@ -424,17 +425,44 @@ export const ChatScreen = ({
    * Appelée aussi **après l'envoi**, sans quoi le champ restait à la hauteur du
    * message précédent alors qu'il est vide.
    */
-  const ajusterHauteur = (field: HTMLTextAreaElement): void => {
+  const ajusterHauteur = useCallback((field: HTMLTextAreaElement): void => {
     field.style.height = "auto";
     const maximum = LINE_HEIGHT * MAX_LIGNES;
     field.style.height = `${String(Math.min(field.scrollHeight, maximum))}px`;
     field.style.overflowY = field.scrollHeight > maximum ? "auto" : "hidden";
-  };
-
-  const onDraftChange = useCallback((event: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setDraft(event.target.value);
-    ajusterHauteur(event.target);
   }, []);
+
+  const onDraftChange = useCallback(
+    (event: React.ChangeEvent<HTMLTextAreaElement>) => {
+      setDraft(event.target.value);
+      ecrireBrouillon(agent.paneId, event.target.value);
+      ajusterHauteur(event.target);
+    },
+    [agent.paneId, ajusterHauteur],
+  );
+
+  /*
+    ⚠️ **Changer d'agent change de brouillon.**
+
+    Chaque agent a le sien, gardé en mémoire : on peut commencer à écrire, partir
+    vérifier ailleurs, et retrouver son texte en revenant. Sans cette clé, ce
+    qu'on avait écrit pour un agent se retrouverait dans le composeur d'un autre,
+    prêt à partir au mauvais endroit — un défaut bien pire que la perte d'un
+    brouillon.
+
+    ⚠️ Dépendances : `agent.paneId` et `ajusterHauteur` seulement. Relire le
+    magasin à chaque rendu écraserait la frappe en cours — d'où la mémorisation
+    d'`ajusterHauteur`, sans laquelle cet effet se rejouerait en boucle.
+  */
+  useEffect(() => {
+    const retrouve = lireBrouillon(agent.paneId);
+    setDraft(retrouve);
+    const champ = champRef.current;
+    if (champ !== null) {
+      champ.value = retrouve;
+      ajusterHauteur(champ);
+    }
+  }, [agent.paneId, ajusterHauteur]);
 
   const transmettre = useCallback(
     async (id: string, text: string) => {
@@ -516,6 +544,8 @@ export const ChatScreen = ({
     setSending(true);
     setMessageOuvert(null);
     setDraft("");
+    // Le message est parti : le brouillon de CET agent n'a plus lieu d'être.
+    ecrireBrouillon(agent.paneId, "");
     if (champRef.current !== null) {
       champRef.current.value = "";
       ajusterHauteur(champRef.current);
@@ -525,7 +555,7 @@ export const ChatScreen = ({
       sendTimer.current = null;
       void transmettre(id, text);
     }, 900);
-  }, [draft, messages, sending, transmettre]);
+  }, [agent.paneId, ajusterHauteur, draft, messages, sending, transmettre]);
 
   useEffect(
     () => () => {
@@ -554,21 +584,24 @@ export const ChatScreen = ({
     });
   }, [messages]);
 
-  const annulerEnvoi = useCallback((message: EnvoiLocal) => {
-    if (message.state !== "queued") return;
-    if (sendTimer.current !== null) clearTimeout(sendTimer.current);
-    sendTimer.current = null;
-    setEnvoisLocaux((current) => current.filter((candidate) => candidate.id !== message.id));
-    setMessageOuvert(null);
-    setDraft(message.text);
-    setSending(false);
-    requestAnimationFrame(() => {
-      if (champRef.current !== null) {
-        champRef.current.value = message.text;
-        ajusterHauteur(champRef.current);
-      }
-    });
-  }, []);
+  const annulerEnvoi = useCallback(
+    (message: EnvoiLocal) => {
+      if (message.state !== "queued") return;
+      if (sendTimer.current !== null) clearTimeout(sendTimer.current);
+      sendTimer.current = null;
+      setEnvoisLocaux((current) => current.filter((candidate) => candidate.id !== message.id));
+      setMessageOuvert(null);
+      setDraft(message.text);
+      setSending(false);
+      requestAnimationFrame(() => {
+        if (champRef.current !== null) {
+          champRef.current.value = message.text;
+          ajusterHauteur(champRef.current);
+        }
+      });
+    },
+    [ajusterHauteur],
+  );
 
   const reessayerEnvoi = useCallback(
     (message: EnvoiLocal) => {
