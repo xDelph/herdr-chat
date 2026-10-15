@@ -37,13 +37,23 @@ export interface RawPane {
 }
 
 /**
+ * `true` si un libellé est **purement numérique** — « 2 », « 17 ».
+ *
+ * ⚠️ **Une seule règle pour tout le dépôt.** Herdr nomme ses onglets par défaut
+ * « 1 », « 2 »… : un tel libellé n'apprend rien à l'utilisateur. La liste des
+ * conversations et les notifications doivent en dire la même chose — et c'est
+ * bien la même question, pas deux qui se ressemblent.
+ */
+export const estNumerique = (label: string): boolean => /^\d+$/.test(label.trim());
+
+/**
  * Libellé d'onglet **purement numérique** = nom par défaut de Herdr.
  *
  * Herdr nomme les onglets « 1 », « 2 »… Un libellé numérique n'apprend rien à
  * l'utilisateur ; le numéro d'onglet, lui, est exact (D012.5).
  */
 const isDefaultLabel = (label: string | null | undefined): label is null =>
-  label === undefined || label === null || /^\d+$/.test(label.trim());
+  label === undefined || label === null || estNumerique(label);
 
 /**
  * États connus de Herdr.

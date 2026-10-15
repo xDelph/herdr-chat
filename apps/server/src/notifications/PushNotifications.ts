@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import webpush from "web-push";
 import type { PushSubscription } from "web-push";
+import { estNumerique } from "../conversations/Summary.ts";
 
 interface VapidKeys {
   readonly publicKey: string;
@@ -27,7 +28,11 @@ export interface PushNotificationsApi {
    * téléphone disait « c'est terminé » alors que l'agent était bloqué sur une
    * question, et personne n'ouvrait l'app. C'est l'inverse du service rendu.
    */
-  readonly agentFinished: (title: string, tag?: string, status?: string | null) => Promise<void>;
+  readonly agentFinished: (
+    agent: IdentiteNotification | undefined,
+    tag?: string,
+    status?: string | null,
+  ) => Promise<void>;
 }
 
 const emptyStore = (): PushStore => ({ subscriptions: [] });
@@ -94,6 +99,82 @@ export const payloadDeNotification = (
     title: attend ? "Agent needs you" : "Agent finished",
     url: paneId === undefined ? "/" : `/#/agent/${encodeURIComponent(paneId)}`,
   };
+};
+
+/**
+ * Ce qu'il faut savoir d'un agent pour le **nommer** hors de l'écran.
+ *
+ * Sous-ensemble structurel d'`AgentView` : on ne demande que ce qui sert, et le
+ * type se vérifie à la compilation au point d'appel.
+ */
+export interface IdentiteNotification {
+  readonly agent: string | null;
+  readonly tabLabel: string | null;
+  readonly tabNumber: number | null;
+  readonly title: string | null;
+  readonly workspaceLabel: string | null;
+}
+
+/** Non vide après nettoyage, ou rien. */
+const nonVide = (valeur: string | null | undefined): string | null => {
+  const propre = valeur?.trim();
+  return propre === undefined || propre.length === 0 ? null : propre;
+};
+
+/** `true` si `aiguille` est déjà dit par `foin`, sans tenir à la casse. */
+const dejaDit = (foin: string, aiguille: string): boolean =>
+  foin.toLowerCase().includes(aiguille.toLowerCase());
+
+/**
+ * Nom de l'onglet : son libellé quand il dit quelque chose, son numéro sinon.
+ *
+ * ⚠️ **Mesuré sur Herdr 0.9.3, le 15/10 : `tabLabel` est `null` sur 3 des 7
+ * agents, et `tabNumber` est renseigné sur les 7.** Un nom qui ne reposerait que
+ * sur le libellé serait donc vide une fois sur deux.
+ *
+ * ⚠️ Le libellé est aussi **écarté quand il répète le projet** : Herdr donne
+ * `atcrea` comme libellé d'onglet dans le projet `atcrea`, et la notification
+ * disait « π - atcrea · atcrea ». On retombe alors sur le numéro, qui distingue.
+ */
+const nomDOnglet = (agent: IdentiteNotification, projet: string | null): string | null => {
+  const label = nonVide(agent.tabLabel);
+  if (label !== null && !estNumerique(label) && (projet === null || !dejaDit(projet, label)))
+    return label;
+  if (agent.tabNumber !== null) return `tab ${String(agent.tabNumber)}`;
+  // Dernier recours : un libellé numérique reste plus exact que rien.
+  return label;
+};
+
+/**
+ * Comment nommer un agent dans une **notification**.
+ *
+ * ⚠️ **Une notification doit dire QUI, et elle n'a aucun contexte.** L'écran,
+ * lui, a le projet autour : la liste est groupée, la conversation est ouverte.
+ * Une notification arrive sur l'écran verrouillé, parfois des heures plus tard,
+ * et un libellé qui suffit à l'écran n'y suffit pas.
+ *
+ * ⚠️ **Le défaut mesuré : un projet peut contenir plusieurs onglets du même
+ * type.** `wA` (projet `pixel`) porte deux agents `pi` ; la notification ne
+ * donnait que le titre du pane, identique pour les deux. Impossible de savoir
+ * lequel avait fini — donc impossible d'aller voir le bon. C'est le seul cas où
+ * la notification échoue complètement ; c'est aussi le plus fréquent dès qu'on
+ * travaille sérieusement.
+ *
+ * Le nom se compose de ce qui existe, dans cet ordre : le projet, l'onglet, le
+ * type d'agent. Ce qui manque est omis, rien n'est inventé — et si tout manque,
+ * la chaîne est vide et le payload reprend sa phrase générique. Le titre du pane
+ * passe avant le libellé du projet parce que c'est ce que l'utilisateur a sous
+ * les yeux dans Herdr.
+ */
+export const nomDeNotification = (agent: IdentiteNotification | undefined): string => {
+  if (agent === undefined) return "";
+  const projet = nonVide(agent.title) ?? nonVide(agent.workspaceLabel);
+  const parties: string[] = projet === null ? [] : [projet];
+  const onglet = nomDOnglet(agent, projet);
+  if (onglet !== null) parties.push(onglet);
+  const kind = nonVide(agent.agent);
+  if (kind !== null) parties.push(kind);
+  return parties.join(" · ");
 };
 
 /** Persistent Web Push subscriptions and VAPID keys for this Herdr instance. */
@@ -197,11 +278,13 @@ export const makePushNotifications = (
           subscriptions: store.subscriptions.filter((item) => item.endpoint !== endpoint),
         });
       }),
-    agentFinished: (title, tag, status) =>
+    agentFinished: (agent, tag, status) =>
       withKeys(async (store, keys) => {
         webpush.setVapidDetails(subject, keys.publicKey, keys.privateKey);
 
-        const payload = JSON.stringify(payloadDeNotification(title, tag, status));
+        const payload = JSON.stringify(
+          payloadDeNotification(nomDeNotification(agent), tag, status),
+        );
         const expired = new Set<string>();
         const results = await Promise.allSettled(
           store.subscriptions.map(async (subscription) => {

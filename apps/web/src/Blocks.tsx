@@ -907,7 +907,12 @@ const ToolGroup = ({
 
   return (
     <div className="group">
-      <button type="button" className="group__head" onClick={basculer} aria-expanded={open}>
+      <button
+        type="button"
+        className="group__head"
+        onClick={basculer}
+        aria-expanded={open && lignes.length > 0}
+      >
         <span className="group__ligne">
           <span className="group__titre">
             {enCours ? "Working" : "Worked"}
@@ -923,10 +928,13 @@ const ToolGroup = ({
           */}
           {/* Le chevron vit **dans** la première ligne : en `::after` du bouton,
               il tombait sur une troisième ligne depuis que l'en-tête est une
-              colonne de deux lignes. */}
-          <span className="group__chevron" aria-hidden="true">
-            {open ? "▾" : "›"}
-          </span>
+              colonne de deux lignes. Il n'apparaît que s'il y a de quoi
+              replier. */}
+          {lignes.length > 0 ? (
+            <span className="group__chevron" aria-hidden="true">
+              {open ? "▾" : "›"}
+            </span>
+          ) : null}
         </span>
         {/*
           ⚠️ **Jetons et diff sur la seconde ligne**, pas sur celle du titre.
@@ -941,7 +949,18 @@ const ToolGroup = ({
         ) : null}
       </button>
 
-      {open ? (
+      {/*
+        ⚠️ **Rien à montrer, rien de montré.**
+
+        Un bloc de travail dont le corps serait vide n'a pas de corps : ni
+        dépliant, ni phrase d'attente. Le repli ne s'ouvre que s'il y a quelque
+        chose dedans, et le chevron ne s'affiche que s'il y a de quoi replier —
+        un chevron qui n'ouvre rien est un mensonge d'interface.
+
+        « No calls yet » s'affichait sous le « Working » du démarrage : un bloc
+        de deux lignes, dont une pour dire qu'il n'y avait rien à dire.
+      */}
+      {open && lignes.length > 0 ? (
         <div className="group__body">
           {lignes.map((ligne) =>
             ligne.kind === "commands" ? (
@@ -950,16 +969,6 @@ const ToolGroup = ({
               <LigneDeTravail key={ligne.cle} ligne={ligne} cwd={cwd} />
             ),
           )}
-          {lignes.length === 0 ? (
-            /*
-              ⚠️ **Deux formulations, parce que les deux situations sont
-              différentes.** « No calls yet » dit un travail en cours dont rien
-              n'est encore écrit ; « No calls recorded » dit un verdict sur un
-              travail terminé. La même phrase pour les deux faisait passer un
-              agent qui démarre pour un agent qui n'a rien fait.
-            */
-            <p className="blk__hint">{enCours ? "No calls yet" : "No calls recorded"}</p>
-          ) : null}
         </div>
       ) : null}
     </div>

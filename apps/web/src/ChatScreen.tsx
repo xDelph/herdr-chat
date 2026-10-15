@@ -469,6 +469,49 @@ export const ChatScreen = ({
     field.style.overflowY = field.scrollHeight > maximum ? "auto" : "hidden";
   }, []);
 
+  /**
+   * Écrit un texte dans le champ, **et laisse le curseur à la fin**.
+   *
+   * ⚠️ **Écrire dans `.value` remet le curseur à 0.** C'est la cause du défaut :
+   * après un changement d'agent — ou la réexpédition d'un message en échec — le
+   * curseur repartait au début, et la suite du texte s'insérait **avant** tout
+   * le brouillon. Le champ restait aussi à la hauteur d'une ligne, puisque
+   * celle-ci n'était recalculée qu'à la première frappe : on voyait un
+   * brouillon de trois lignes s'afficher sur une seule.
+   *
+   * ⚠️ **On ne force pas la fin à chaque prise de focus.** Ce serait plus simple
+   * et faux : on ne pourrait plus taper au milieu du texte pour corriger un mot.
+   * Le curseur n'est déplacé qu'au moment où c'est **l'application** qui écrit,
+   * c'est-à-dire quand la position courante n'est plus celle qu'on a laissée.
+   */
+  const ecrireAuChamp = useCallback(
+    (texte: string): void => {
+      const champ = champRef.current;
+      if (champ === null) return;
+      champ.value = texte;
+      ajusterHauteur(champ);
+      champ.setSelectionRange(texte.length, texte.length);
+    },
+    [ajusterHauteur],
+  );
+
+  /**
+   * Le champ reprend le focus.
+   *
+   * ⚠️ **La hauteur est recalculée ici.** `onBlur` la remet à `""` pour rendre
+   * le champ au CSS (une ligne, `rows={1}`) ; sans ce recalcul, un brouillon
+   * multiligne réapparaissait sur une seule ligne après un aller-retour de
+   * focus, et ne se corrigeait qu'à la première frappe — d'où l'impression que
+   * la première lettre manquait.
+   */
+  const reprendreFocus = useCallback(
+    (champ: HTMLTextAreaElement): void => {
+      setComposerFocused(true);
+      ajusterHauteur(champ);
+    },
+    [ajusterHauteur],
+  );
+
   const onDraftChange = useCallback(
     (event: React.ChangeEvent<HTMLTextAreaElement>) => {
       setDraft(event.target.value);
@@ -494,12 +537,8 @@ export const ChatScreen = ({
   useEffect(() => {
     const retrouve = lireBrouillon(agent.paneId);
     setDraft(retrouve);
-    const champ = champRef.current;
-    if (champ !== null) {
-      champ.value = retrouve;
-      ajusterHauteur(champ);
-    }
-  }, [agent.paneId, ajusterHauteur]);
+    ecrireAuChamp(retrouve);
+  }, [agent.paneId, ecrireAuChamp]);
 
   const transmettre = useCallback(
     async (id: string, text: string) => {
@@ -631,13 +670,10 @@ export const ChatScreen = ({
       setDraft(message.text);
       setSending(false);
       requestAnimationFrame(() => {
-        if (champRef.current !== null) {
-          champRef.current.value = message.text;
-          ajusterHauteur(champRef.current);
-        }
+        ecrireAuChamp(message.text);
       });
     },
-    [ajusterHauteur],
+    [ecrireAuChamp],
   );
 
   const reessayerEnvoi = useCallback(
@@ -1024,7 +1060,7 @@ export const ChatScreen = ({
               onChange={onDraftChange}
               placeholder={placeholder}
               rows={1}
-              onFocus={() => setComposerFocused(true)}
+              onFocus={(event) => reprendreFocus(event.currentTarget)}
               onBlur={() =>
                 window.setTimeout(() => {
                   setComposerFocused(false);

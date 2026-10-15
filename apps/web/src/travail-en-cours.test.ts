@@ -19,8 +19,6 @@
  * ce fichier vérifie donc ce qui **n'est pas** affiché.
  */
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { ItemsView } from "./Blocks.tsx";
@@ -140,38 +138,34 @@ describe("le bloc vide n'invente aucun chiffre", () => {
     expect(html).not.toContain("group__jetons");
   });
 
-  test("le corps dit l'attente, pas un verdict", () => {
+  test("un bloc encore vide n'affiche aucun corps, et aucune phrase d'attente", () => {
     const html = rendu([prose("m1"), vide], true);
 
-    // ⚠️ « No calls recorded » est un verdict sur un travail **fini**. Pendant le
-    // travail, la même phrase faisait passer un agent qui démarre pour un agent
-    // qui n'a rien fait.
-    expect(html).toContain("No calls yet");
-    expect(html).not.toContain("No calls recorded");
+    // ⚠️ « No calls yet » s'affichait sous le « Working » du démarrage : un bloc
+    // de deux lignes dont une pour dire qu'il n'y avait rien à dire. Un corps
+    // vide n'a pas de corps.
+    expect(html).not.toContain("group__body");
+    expect(html).not.toContain("blk__hint");
+    // L'en-tête, lui, est bien là : c'est tout l'objet du bloc.
+    expect(html).toContain('class="group__titre">Working<');
   });
 
-  test("une fois le travail fini, plus aucun verdict n'est affiché", () => {
+  test("un bloc sans contenu ne montre pas de chevron", () => {
+    // Un chevron qui n'ouvre rien est un mensonge d'interface : il promet du
+    // contenu et n'en donne pas.
+    const html = rendu([prose("m1"), vide], true);
+
+    expect(html).not.toContain("group__chevron");
+    expect(html).toContain('aria-expanded="false"');
+  });
+
+  test("le bloc vide ne se déplie pas, mais reste le dernier élément", () => {
     const html = rendu([prose("m1"), vide], false);
 
-    // ⚠️ Le groupe se **replie** quand le travail finit : son corps n'est plus
-    // rendu du tout. Il n'y a donc rien à y lire — ni en cours, ni fini.
-    expect(html).not.toContain("No calls yet");
-    expect(html).not.toContain("No calls recorded");
-    // Le repli est bien la cause, et pas une disparition du bloc.
+    expect(html).not.toContain("group__body");
+    expect(html).not.toContain("blk__hint");
+    // ⚠️ Le titre reste « Worked » : c'est la même chose, vue après coup.
     expect(html).toContain('class="group__titre">Worked<');
-  });
-
-  test("le verdict de fin existe bien, et se dit autrement", () => {
-    // Le corps replié n'étant pas rendu, cette branche se vérifie à la source.
-    // On exige les deux formulations **et** leur distinction : une seule phrase
-    // pour les deux cas faisait passer un agent qui démarre pour un agent qui
-    // n'a rien fait.
-    const source = readFileSync(join(import.meta.dir, "Blocks.tsx"), "utf8");
-
-    expect(source).toContain('{enCours ? "No calls yet" : "No calls recorded"}');
-    expect(source).not.toContain(
-      '{lignes.length === 0 ? <p className="blk__hint">No calls recorded',
-    );
   });
 });
 
