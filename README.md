@@ -37,16 +37,29 @@ brew services start herdr-chat
 Then expose it to your tailnet:
 
 ```bash
+tailscale serve --bg http://127.0.0.1:8791
+```
+
+Open `https://<your-machine>.<tailnet>.ts.net` on your phone and add it to the
+home screen. It installs as a normal app: its own icon, no Safari chrome.
+
+If port 443 is already taken, serve on an explicit port — the address then
+carries it:
+
+```bash
 tailscale serve --bg --https=8790 http://127.0.0.1:8791
 ```
 
-Open `https://<your-machine>.<tailnet>.ts.net:8790` on your phone and add it to the
-home screen. It installs as a normal app: its own icon, no Safari chrome.
+Either way, Herdr Chat reads `tailscale serve status` at startup and allows the
+matching origin, so there is nothing to declare by hand. (Port 443 is **omitted**
+from that origin — browsers never send `:443` — which is why the default setup
+works without extra configuration.)
 
 ## How it fits together
 
 ```text
-iPhone ── Tailscale ── Serve :8790 ── 127.0.0.1:8791 ── Herdr Chat
+iPhone ── Tailscale ── Serve :443 ── 127.0.0.1:8791 ── Herdr Chat
+                                       (ou :8790, au choix)
                                                             │
                                                             ├── Herdr socket  (control)
                                                             └── Pi/codex JSONL (content)
