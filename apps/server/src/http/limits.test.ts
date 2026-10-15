@@ -173,7 +173,15 @@ describe("U15 — plusieurs adresses servent la même PWA", () => {
     expect(verdict.attendue).toContain("http://127.0.0.1:8791");
   });
 
-  test("une liste vide refuse tout", () => {
-    expect(guardMutation(requeteAvec(ORIGINE), []).ok).toBe(false);
+  test("une liste vide refuse les origines distantes", () => {
+    expect(guardMutation(requeteAvec("https://ailleurs.example"), []).ok).toBe(false);
+  });
+
+  test("le loopback reste accepté même sans liste configurée", () => {
+    // La PWA est servie par la machine elle-même : backend (:8791) comme serveur
+    // de dev Vite (:5173). Le port et le nom d'hôte varient, pas la légitimité.
+    for (const origine of ["http://127.0.0.1:8791", "http://localhost:5173", "http://[::1]:5173"]) {
+      expect(guardMutation(requeteAvec(origine), []).ok).toBe(true);
+    }
   });
 });

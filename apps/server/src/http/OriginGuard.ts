@@ -60,13 +60,31 @@ const readHeaderInsensible = (
 };
 
 /**
- * Origines autorisées, comparées **exactement** et **entièrement**.
+ * Origine servie par la machine elle-même (loopback).
+ *
+ * ⚠️ `localhost`, `127.0.0.1` et `[::1]` **tous ports confondus** : la PWA est
+ * servie aussi bien par le backend (`:8791`) que par le serveur de dev Vite
+ * (`:5173`), et le port change sans que la sécurité change. Une page servie par
+ * la machine ne peut pas être un site tiers : l'accepter ne rouvre pas le CSRF,
+ * qui vient précisément d'une origine **distante**.
+ */
+export const isLoopbackOrigin = (origin: string): boolean => {
+  try {
+    const hote = new URL(origin).hostname.toLowerCase().replace(/^\[|\]$/g, "");
+    return hote === "localhost" || hote === "127.0.0.1" || hote === "::1";
+  } catch {
+    return false;
+  }
+};
+
+/**
+ * Origines autorisées : liste exacte (config + Tailscale) **ou** loopback.
  *
  * `https://macbook.ts.net.evil.com` ne doit pas passer pour
  * `https://macbook.ts.net` : pas de comparaison partielle, pas de motif.
  */
 export const isAllowedOrigin = (origin: string | null, expected: ReadonlyArray<string>): boolean =>
-  origin !== null && expected.includes(origin);
+  origin !== null && (expected.includes(origin) || isLoopbackOrigin(origin));
 
 /**
  * Vérifie une requête mutante.

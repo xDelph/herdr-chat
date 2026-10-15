@@ -74,6 +74,28 @@ export interface ServerConfig {
   readonly extraFileRoots: ReadonlyArray<string>;
 }
 
+const TAILSCALE_PATHS = [
+  "/usr/local/bin/tailscale",
+  "/opt/homebrew/bin/tailscale",
+  "/Applications/Tailscale.app/Contents/MacOS/tailscale",
+];
+
+/**
+ * Résout la CLI Tailscale par **chemin absolu**.
+ *
+ * ⚠️ Lancé par `launchd` (`brew services`), le PATH est minimal et ne contient
+ * ni `/usr/local/bin` ni `/opt/homebrew/bin` : `execFileSync("tailscale", …)`
+ * échouait alors en ENOENT, `tailscaleOrigins` renvoyait `[]`, et **toute** la
+ * PWA accédée via Tailscale Serve était refusée en 403. Le binaire est aussi
+ * embarqué dans l'app macOS ; on l'essaie en dernier recours.
+ */
+const resolveTailscaleBin = (): string => {
+  for (const chemin of TAILSCALE_PATHS) {
+    if (existsSync(chemin)) return chemin;
+  }
+  return "tailscale"; // dernier recours : PATH (lancement interactif)
+};
+
 /**
  * Origines HTTPS de la machine sur son tailnet.
  *
@@ -87,7 +109,7 @@ export interface ServerConfig {
  */
 const tailscaleOrigins = (port: number): string[] => {
   try {
-    const json = execFileSync("tailscale", ["serve", "status", "--json"], {
+    const json = execFileSync(resolveTailscaleBin(), ["serve", "status", "--json"], {
       encoding: "utf8",
       timeout: 5000,
     });

@@ -913,7 +913,17 @@ export const ChatScreen = ({
               envoyer. Un bouton actif qui ne fait rien laisse croire à une panne.
               Le libellé disparaît de l'écran mais reste lu : `aria-label`.
             */}
-            {agent.status === "working" && !composerFocused ? (
+            {/*
+              ⚠️ **Le bouton d'arrêt ne prend la place que si le champ est VIDE.**
+
+              Avant, il remplaçait « envoyer » dès que l'agent travaillait. Il
+              suffisait que le champ perde le focus pour que l'appui suivant
+              **arrête l'agent** au lieu d'envoyer le message qu'on venait
+              d'écrire — un message qu'on croyait parti, et une action qu'on
+              n'avait pas demandée. Le texte présent dit ce qu'on veut faire :
+              on envoie.
+            */}
+            {agent.status === "working" && !composerFocused && draft.trim().length === 0 ? (
               <button
                 type="button"
                 className="send send--stop"
