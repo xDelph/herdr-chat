@@ -336,7 +336,18 @@ export const ChatScreen = ({
         setEntries((current) => [...entriesAnterieures, ...current]);
         setMessages((current) => [...precedents, ...current]);
       }
-      setPreviousCursor(pageCursor);
+      /*
+        ⚠️ **Rien de chargé = il n'y a plus rien, et on le dit.**
+
+        Le curseur peut encore désigner quelque chose alors que la remontée n'a
+        ramené **aucune** entrée : pages vides en cascade, ou plafond atteint.
+        Laisser le bouton dans cet état est le pire des deux mondes — il reste
+        affiché et ne fait rien, indéfiniment. On le retire.
+
+        Un curseur nul fait disparaître le bouton : c'est le seul signal que
+        l'interface écoute, et c'est exactement ce qu'il signifie ici.
+      */
+      setPreviousCursor(entriesAnterieures.length > 0 ? pageCursor : null);
     } catch (cause) {
       setPreviousError(cause instanceof Error ? cause.message : String(cause));
     } finally {
