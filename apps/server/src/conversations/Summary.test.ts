@@ -13,7 +13,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ConversationSummary } from "@herdr-remote/shared";
 import { Option, Schema } from "effect";
-import { defaultRead, summaryOf, titleOf, type RawPane } from "./Summary.ts";
+import { defaultRead, PREVIEW_BYTES, summaryOf, titleOf, type RawPane } from "./Summary.ts";
 
 let dir = "";
 
@@ -38,6 +38,15 @@ const ligne = (role: string, content: unknown, at = "2026-10-09T15:08:21.784Z"):
 /** Une ligne de **changement** de réglage, telle que la session l'écrit. */
 const changement = (type: string, cle: string, valeur: string): string =>
   JSON.stringify({ [cle]: valeur, timestamp: "2026-10-09T16:17:28.362Z", type });
+
+/**
+ * Une ligne de session **Claude Code**, telle que son JSONL la porte.
+ *
+ * ⚠️ Sa forme ressemble à celle de pi — `message.role` — et c'est justement le
+ * piège : une ligne refusée par l'adaptateur restait lisible comme un message.
+ */
+const claude = (type: string, content: unknown, at: string): string =>
+  JSON.stringify({ message: { content, role: type }, timestamp: at, type, uuid: `${type}-${at}` });
 
 beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), "herdr-summary-"));
@@ -186,6 +195,74 @@ describe("aperçu et horodatage — jamais inventés", () => {
     );
     const line = await Effect.runPromise(summaryOf(pane({ sessionPath: path }), defaultRead(dir)));
     expect(line.model).toBe("modele-recent");
+  });
+
+  /*
+    ⚠️ **L'aperçu remonte le fil, comme les réglages — et pour la même raison.**
+    Une session claude réelle avait **94 % de son fichier en comptabilité**
+    (`api-request-blob`, `api-request`, `attachment`…) : sur 511 Kio, 481 Kio ne
+    portent pas la conversation. La fenêtre de 64 Kio ne contenait donc aucune
+    ligne d'assistant, et l'agent — qui avait pourtant parlé — s'affichait sans
+    aperçu dans la liste. Le champ manquait à la remontée.
+
+    La garde ci-dessous vérifie que le trou dépasse bien **une** fenêtre : sans
+    ça, le test passerait aussi avec l'ancien code et ne prouverait rien.
+  */
+  test("l'aperçu est retrouvé même quand la comptabilité remplit la fenêtre", async () => {
+    const path = join(dir, "apercu-loin.jsonl");
+    const comptabilite = Array.from({ length: 220 }, (_, index) =>
+      JSON.stringify({
+        payload: `${String(index)} ${"x".repeat(600)}`,
+        type: "api-request-blob",
+      }),
+    ).join("\n");
+    const contenu = [
+      ligne("user", "la demande du début"),
+      ligne("assistant", [{ text: "la réponse du début" }]),
+      comptabilite,
+      ligne("user", "et la toute dernière demande"),
+    ].join("\n");
+    await writeFile(path, `${contenu}\n`);
+
+    // Le trou doit excéder une fenêtre de lecture, sinon ce test ne prouve rien.
+    expect(Buffer.byteLength(comptabilite, "utf8")).toBeGreaterThan(PREVIEW_BYTES);
+
+    const line = await Effect.runPromise(summaryOf(pane({ sessionPath: path }), defaultRead(dir)));
+    expect(line.preview).toBe("la réponse du début");
+    expect(line.lastPrompt).toBe("et la toute dernière demande");
+  });
+
+  /*
+    ⚠️ **Le piège propre à claude : la source parle la même langue que la cible.**
+
+    Une ligne de conversation claude refusée par l'adaptateur retombait sur la
+    règle générale — « une ligne illisible est gardée brute ». Sauf que sa forme
+    est celle de pi : elle porte `message.role`. Le filtre marchait, et pourtant
+    la liste annonçait `[Request interrupted by user]` comme « la dernière
+    demande de l'utilisateur », parce que l'aperçu relisait la ligne brute.
+
+    Chez codex, le même refus ne fuit pas : sa forme (`event_msg.payload`) n'a
+    pas de `message.role`. Un adaptateur juste ne suffit donc pas quand la forme
+    source ressemble à la forme cible.
+  */
+  test("une ligne claude refusée n'est pas relue comme une demande", async () => {
+    const path = join(dir, "claude-marqueur.jsonl");
+    await writeFile(
+      path,
+      [
+        claude("user", "la vraie demande", "2026-10-16T10:00:00.000Z"),
+        claude(
+          "assistant",
+          [{ text: "la vraie réponse", type: "text" }],
+          "2026-10-16T10:00:01.000Z",
+        ),
+        claude("user", "[Request interrupted by user]", "2026-10-16T10:00:02.000Z"),
+      ].join("\n") + "\n",
+    );
+
+    const line = await Effect.runPromise(summaryOf(pane({ sessionPath: path }), defaultRead(dir)));
+    expect(line.lastPrompt).toBe("la vraie demande");
+    expect(line.preview).toBe("la vraie réponse");
   });
 
   test("session existante et vide : `available`, pas `absent`", () => {

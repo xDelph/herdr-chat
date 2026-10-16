@@ -36,16 +36,66 @@ import { estObjet, tableauDe, texteDe } from "./pi.ts";
 import type { LignePi } from "./pi.ts";
 
 /**
- * Marque du contexte que Claude Code injecte **en rôle `user`**.
+ * Ce que Claude Code écrit **en rôle `user`** sans que l'utilisateur ait rien
+ * demandé.
  *
- * ⚠️ Deuxième ligne de défense : même sur une vraie ligne `user`, un message dont
- * **tous** les blocs sont des rappels système n'est pas une demande. C'est la
- * même règle que pour codex, et pour la même raison — reconnaître le contexte à
- * sa marque, jamais à sa taille.
+ * ⚠️ **Mesuré, jamais deviné.** Relevé du 2026-10-16 sur 132 sessions réelles :
+ * 320 lignes `user` portant du texte (hors `tool_result`), dont **50 — 15 % ** —
+ * ne sont pas des demandes. Sans ce filtre, la ligne de la liste annonçait
+ * `[Request interrupted by user]` comme « la dernière demande de l'utilisateur ».
+ *
+ * | occurrences | préfixe | ce que c'est |
+ * |---|---|---|
+ * | 12 | `[Request interrupted` | l'utilisateur a coupé — une interruption, pas une demande |
+ * | 10 | `<local-command-caveat>` | une consigne du harnais sur les commandes locales |
+ * | 10 | `<local-command-stdout>` | la **sortie** d'une commande — jamais une demande |
+ * | 5 | `This session is being continued` | le résumé d'une compaction |
+ * | 3 | `<task-notification>` | une notification du harnais |
+ * | — | `<system-reminder>` | le contexte injecté (aussi via `api-request-blob`) |
+ *
+ * La reconnaissance se fait **au début** du texte : un utilisateur qui *parle*
+ * de ces marques n'est pas effacé, pas plus qu'il ne l'est chez codex.
  */
-const MARQUE_RAPPEL = "<system-reminder>";
+const MARQUES_APPLICATION: ReadonlyArray<string> = [
+  "<system-reminder>",
+  "<local-command-caveat>",
+  "<local-command-stdout>",
+  "<task-notification>",
+  "[Request interrupted",
+  "This session is being continued",
+];
 
-const estRappel = (texte: string): boolean => texte.trimStart().startsWith(MARQUE_RAPPEL);
+const estMarqueSansDemande = (texte: string): boolean => {
+  const debut = texte.trimStart();
+  return MARQUES_APPLICATION.some((marque) => debut.startsWith(marque));
+};
+
+/**
+ * Une commande à barre oblique : Claude Code remplace ce que l'utilisateur a tapé
+ * par un bloc XML (10 occurrences mesurées, toutes des commandes locales).
+ *
+ * ⚠️ On ne refuse **pas** cette ligne, à la différence des marques ci-dessus :
+ * l'utilisateur a bel et bien agi. On rend seulement le texte utile — la commande
+ * et ses arguments — plutôt que les balises qui l'enveloppent.
+ */
+const BALISE_COMMANDE = /<command-name>([\s\S]*?)<\/command-name>/;
+const BALISE_ARGUMENTS = /<command-args>([\s\S]*?)<\/command-args>/;
+
+/**
+ * Le texte d'une ligne `user`, s'il porte une demande ; `undefined` sinon.
+ *
+ * C'est le point unique du filtre : chaîne nue comme blocs passent par ici.
+ */
+const texteDeDemande = (texte: string): string | undefined => {
+  const debut = texte.trimStart();
+  if (estMarqueSansDemande(debut)) return undefined;
+
+  const nom = BALISE_COMMANDE.exec(debut)?.[1]?.trim();
+  if (nom === undefined) return texte;
+  if (nom.length === 0) return undefined;
+  const args = BALISE_ARGUMENTS.exec(debut)?.[1]?.trim() ?? "";
+  return args.length > 0 ? `${nom} ${args}` : nom;
+};
 
 /** Un bloc `tool_use` → bloc `toolCall`. */
 const blocAppel = (bloc: Record<string, unknown>): unknown => ({
@@ -67,10 +117,47 @@ const texteDeResultat = (contenu: unknown): string => {
 };
 
 /**
+ * Une ligne qui **prétend** porter la conversation — et que l'adaptateur refuse.
+ *
+ * ⚠️ **Pourquoi cette fonction existe.** Une ligne claude refusée était conservée
+ * **telle quelle** par le lecteur — la règle générale, « une ligne illisible est
+ * gardée brute plutôt que perdue ». Sauf que sa forme est celle de pi : elle
+ * porte `message.role`. Tout ce qui lit le rôle relisait donc ce que l'adaptateur
+ * venait d'écarter, et l'aperçu de la liste annonçait
+ * `[Request interrupted by user]` comme « la dernière demande de l'utilisateur »,
+ * **alors que le filtre fonctionnait parfaitement**.
+ *
+ * Chez codex, le même refus ne fuit pas : sa forme brute (`event_msg.payload`)
+ * n'a pas de `message.role`. Le piège est propre à claude, dont la forme
+ * ressemble trop à celle de pi — un adaptateur juste ne suffit pas quand la
+ * source parle la même langue que la cible.
+ */
+export const estLigneDeConversationClaude = (parsed: unknown): boolean => {
+  if (!estObjet(parsed)) return false;
+  const type = parsed["type"];
+  return type === "user" || type === "assistant";
+};
+
+/**
+ * La ligne, privée de son message — tout le reste est conservé.
+ *
+ * C'est ce qu'on stocke pour une ligne de conversation refusée. Ses autres
+ * champs (horodatage, identité, type) survivent ; plus rien ne peut la relire
+ * comme un message.
+ */
+export const sansMessage = (parsed: Record<string, unknown>): Record<string, unknown> => {
+  const copie = { ...parsed };
+  delete copie["message"];
+  return copie;
+};
+
+/**
  * Traduit une ligne de session Claude Code en ligne de forme pi.
  *
  * Renvoie `undefined` quand la ligne n'est pas de la conversation — auquel cas
- * l'appelant garde la ligne brute, comme pour tout type inconnu.
+ * l'appelant garde la ligne brute, comme pour tout type inconnu. ⚠️ **Un appelant
+ * doit alors employer `estLigneDeConversationClaude` et `sansMessage`** : sans
+ * cela, une ligne refusée reste lisible et réinjecte ce qu'on vient d'écarter.
  */
 export const ligneClaudeVersPi = (parsed: unknown): LignePi | undefined => {
   if (!estObjet(parsed)) return undefined;
@@ -94,8 +181,9 @@ export const ligneClaudeVersPi = (parsed: unknown): LignePi | undefined => {
 
   // Une chaîne nue : le cas le plus courant d'une demande.
   if (typeof contenu === "string") {
-    if (contenu.trim().length === 0 || estRappel(contenu)) return undefined;
-    return enveloppe({ content: [{ text: contenu, type: "text" }], role: "user" });
+    const demande = texteDeDemande(contenu);
+    if (demande === undefined || demande.trim().length === 0) return undefined;
+    return enveloppe({ content: [{ text: demande, type: "text" }], role: "user" });
   }
 
   if (!Array.isArray(contenu)) return undefined;
@@ -119,17 +207,24 @@ export const ligneClaudeVersPi = (parsed: unknown): LignePi | undefined => {
     });
   }
 
-  const textes = blocs
+  const brut = blocs
     .filter((bloc) => bloc["type"] === "text")
-    .map((bloc) => (typeof bloc["text"] === "string" ? bloc["text"] : ""))
-    .filter((texte) => texte.length > 0 && !estRappel(texte));
+    .map((bloc) => (typeof bloc["text"] === "string" ? bloc["text"] : ""));
   const appels = blocs.filter((bloc) => bloc["type"] === "tool_use").map(blocAppel);
 
   if (type === "user") {
-    // Tous les blocs étaient des rappels : ce n'est pas une demande.
-    if (textes.length === 0) return undefined;
-    return enveloppe({ content: textes.map((text) => ({ text, type: "text" })), role: "user" });
+    // Tous les blocs étaient des marques de l'application : ce n'est pas une demande.
+    const demandes = brut
+      .map((texte) => texteDeDemande(texte))
+      .filter((texte): texte is string => texte !== undefined && texte.trim().length > 0);
+    if (demandes.length === 0) return undefined;
+    return enveloppe({
+      content: demandes.map((text) => ({ text, type: "text" })),
+      role: "user",
+    });
   }
+
+  const textes = brut.filter((texte) => texte.length > 0 && !estMarqueSansDemande(texte));
 
   const sortie: Array<unknown> = [...textes.map((text) => ({ text, type: "text" })), ...appels];
   // Un message sans bloc n'est pas un message : on ne fabrique pas de bulle vide.

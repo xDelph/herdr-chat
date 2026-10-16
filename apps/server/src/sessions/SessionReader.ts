@@ -15,7 +15,14 @@
 import { Effect, Option, Schema } from "effect";
 import { open } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
-import { ligneClaudeVersPi, ligneCodexVersPi, SESSION_HEADER_BYTES } from "@herdr-remote/shared";
+import {
+  estLigneDeConversationClaude,
+  estObjet,
+  ligneClaudeVersPi,
+  ligneCodexVersPi,
+  sansMessage,
+  SESSION_HEADER_BYTES,
+} from "@herdr-remote/shared";
 import { describeRejection, resolveWithin } from "./PathGuard.ts";
 
 /** En-tête de session, tel qu'écrit en première ligne. */
@@ -216,6 +223,21 @@ const parseEntry = (line: string): RawEntry => {
   */
   const claude = ligneClaudeVersPi(parsed);
   if (claude !== undefined) return toRawEntry(claude, JSON.stringify(claude));
+
+  /*
+    ⚠️ **Une ligne de conversation claude refusée ne doit pas rester lisible.**
+    Elle retombait sur `toRawEntry(parsed, line)` — la règle générale, et elle est
+    bonne pour une ligne illisible. Mais la forme d'une ligne claude est celle de
+    pi : elle porte `message.role`. L'aperçu de la liste relisait donc ce que
+    l'adaptateur venait d'écarter, et annonçait `[Request interrupted by user]`
+    comme « la dernière demande de l'utilisateur » — alors que le filtre
+    marchait. On garde la ligne, privée de son message : ses autres champs
+    survivent, et plus rien ne la lit comme un message.
+  */
+  if (estLigneDeConversationClaude(parsed)) {
+    const comptabilite = estObjet(parsed) ? sansMessage(parsed) : parsed;
+    return toRawEntry(comptabilite, JSON.stringify(comptabilite));
+  }
 
   return toRawEntry(parsed, line);
 };

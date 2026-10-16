@@ -430,6 +430,13 @@ const CACHE_MAX_ENTRIES = 256;
  * alors **absent**, et l'interface dit déjà qu'un réglage non déclaré n'est pas
  * connu — c'est honnête. La solution exacte serait de lire la barre d'état de
  * l'agent plutôt que son journal, ce qui est un autre travail.
+ *
+ * ⚠️ **`preview` remonte le fil pour la même raison, et c'est un cas mesuré.**
+ * Une session claude réelle avait **94 % de son fichier en comptabilité**
+ * (`api-request-blob`, `api-request`, `attachment`…) : sur 511 Kio, 481 Kio ne
+ * portent pas la conversation. La fenêtre de 64 Kio ne contenait donc **aucune
+ * ligne d'assistant**, et l'agent — qui avait pourtant parlé — s'affichait sans
+ * aperçu. Il manquait le dernier champ à cette remontée.
  */
 const FENETRES_REGLAGES = 32;
 
@@ -546,7 +553,8 @@ export const defaultRead = (root: string | ReadonlyArray<string>) => {
       const incomplet = (): boolean =>
         (metadata.model === undefined ||
           metadata.thinking === undefined ||
-          metadata.lastPrompt === undefined) &&
+          metadata.lastPrompt === undefined ||
+          metadata.preview === undefined) &&
         beforeOffset > 0 &&
         fenetres < FENETRES_REGLAGES;
       while (incomplet()) {
@@ -563,6 +571,9 @@ export const defaultRead = (root: string | ReadonlyArray<string>) => {
         }
         if (metadata.lastPrompt === undefined && plus.lastPrompt !== undefined) {
           Object.assign(metadata, { lastPrompt: plus.lastPrompt });
+        }
+        if (metadata.preview === undefined && plus.preview !== undefined) {
+          Object.assign(metadata, { preview: plus.preview });
         }
         if (older.offset >= beforeOffset) break;
         beforeOffset = older.offset;
