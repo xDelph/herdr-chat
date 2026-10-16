@@ -438,6 +438,24 @@ export const ChatScreen = ({
     };
     const observer = new ResizeObserver(suivreLeBas);
     observer.observe(content);
+    /*
+      ⚠️ **Le conteneur aussi, et ce n'est pas un détail.**
+
+      N'observer que le contenu laissait passer le cas le plus fréquent : quand
+      le **conteneur** rétrécit, le contenu ne change pas de taille et rien ne
+      relit la position. Or le conteneur rétrécit pour deux raisons parfaitement
+      banales — **le composeur qui grandit** quand on écrit trois lignes, et **le
+      clavier iOS** qui monte. Mesuré dans le vrai PWA, avec une fenêtre de
+      téléphone : composeur +200 px → `clientHeight` 711 → 535, et le bas de la
+      conversation se retrouve **176 px sous la zone visible**, sans qu'aucun
+      événement ne le signale. Le dernier message disparaît sous le composeur.
+
+      `atBottom` reste la seule autorité : il enregistre l'**intention** de
+      l'utilisateur (« je suivais le bas »), et il n'est pas recalculé quand le
+      conteneur rétrécit — c'est précisément ce qu'on veut. Quelqu'un qui lisait
+      plus haut n'est donc pas ramené de force.
+    */
+    observer.observe(scroller);
     suivreLeBas();
     return () => observer.disconnect();
   }, []);
