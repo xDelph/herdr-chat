@@ -52,6 +52,45 @@ export interface Question {
 }
 
 /**
+ * Filet de rendu vertical, en début de ligne.
+ *
+ * ⚠️ **opencode encadre sa zone de question d'un filet** (`┃`). Mesuré sur un
+ * agent réellement bloqué, 2026-10-16 :
+ *
+ * ```text
+ *   ┃  Questions
+ *   ┃
+ *   ┃  I don't see a report in your message… — how would you like to share it?
+ *   ┃
+ *   ┃  1. It's a file on disk
+ *   ┃     Tell me the file path…
+ *   ┃  5. Type your own answer
+ *   ┃
+ *   ┃  ↑↓ select  enter submit  esc dismiss
+ * ```
+ *
+ * Sans ce nettoyage, **aucun choix n'était reconnu** : `LIGNE_CHOIX` commence par
+ * `^[ \t]*(›)?`, et le `┃` n'y entre pas. La fonction rendait `undefined`, donc
+ * l'application affichait « il faut agir » **sans dire sur quoi** — un agent
+ * bloqué et muet, exactement le défaut que ce module existe pour éviter.
+ */
+const FILET = /^[ \t]*[┃│|]/;
+
+/**
+ * Une ligne d'écran, filet de rendu retiré.
+ *
+ * ⚠️ **On retire le filet, pas ce qui le suit.** Les espaces d'après le `┃`
+ * portent l'**indentation**, et c'est elle qui distingue le détail d'un choix
+ * de la ligne d'invite : chez opencode, le choix est à deux espaces et son
+ * détail à cinq ; chez pi et codex, l'invite est moins indentée que les choix.
+ * Tout aplatir ferait passer `enter to submit` pour le détail du dernier choix.
+ */
+const sansFilet = (ligne: string): string => ligne.replace(FILET, "");
+
+/** Indentation d'une ligne, en caractères. */
+const indentation = (ligne: string): number => ligne.length - ligne.trimStart().length;
+
+/**
  * Un choix : `›` facultatif, numéro, libellé, puis détail séparé par 2 espaces.
  *
  * ⚠️ Le séparateur du détail est une **suite d'au moins deux espaces**, pas un
@@ -61,8 +100,15 @@ export interface Question {
  */
 const LIGNE_CHOIX = /^[ \t]*(›)?[ \t]*(\d{1,2})[.)][ \t]+(.+)$/;
 
-/** « enter to submit | esc to cancel » — la ligne d'aide du sélecteur. */
-const LIGNE_INVITE = /^[ \t]*(?:enter|↑\/↓)/i;
+/**
+ * La ligne d'aide du sélecteur.
+ *
+ * ⚠️ **`↑↓` existe aussi, sans barre oblique.** Relevé sur opencode :
+ * `↑↓ select  enter submit  esc dismiss`. La forme `↑/↓` avait été écrite d'après
+ * pi, où les flèches sont écrites ainsi — une seule forme reconnue suffisait à
+ * perdre l'invite sur un autre agent.
+ */
+const LIGNE_INVITE = /^[ \t]*(?:enter|↑\/?↓)/i;
 
 /** `Field 1/1` — position dans une suite de questions. */
 const LIGNE_CHAMP = /^[ \t]*Field[ \t]+\d+[ \t]*\/[ \t]*\d+/i;
@@ -104,45 +150,86 @@ const separerLibelle = (brut: string): { libelle: string; detail?: string } => {
  * n'attend de réponse.
  */
 export const questionDeLEcran = (ecran: string): Question | undefined => {
-  const lignes = ecran.split("\n");
+  //
+  // ⚠️ **Premier geste : retirer le filet de rendu.** opencode encadre sa zone de
+  // question d'un `┃` en début de ligne, et toutes les reconnaissances ci-dessous
+  // sont ancrées sur le début de ligne. Voir `FILET`.
+  const lignes = ecran.split("\n").map(sansFilet);
 
-  // Le **dernier** choix de l'écran : c'est lui qui décide de l'invite à lire.
-  let indexDernierChoix = -1;
-  for (let index = lignes.length - 1; index >= 0; index -= 1) {
-    const ligne = lignes[index];
-    if (ligne !== undefined && LIGNE_CHOIX.test(ligne)) {
-      indexDernierChoix = index;
-      break;
-    }
-  }
-  if (indexDernierChoix === -1) return undefined;
+  /*
+    ⚠️ **On raisonne sur les lignes NUMÉROTÉES seules.**
 
-  // Remonte jusqu'au premier choix de cette même invite. On s'arrête sur une
-  // ligne franchement séparatrice : au-delà, c'est le contenu précédent.
-  let premier = indexDernierChoix;
-  for (let index = indexDernierChoix; index >= 0; index -= 1) {
+    opencode place le détail d'un choix sur la **ligne suivante**, indentée :
+
+    ```text
+    1. It's a file on disk
+       Tell me the file path…
+    2. Paste it as text
+    ```
+
+    L'ancienne recherche exigeait des lignes de choix **consécutives** : elle
+    remontait donc d'une seule ligne, s'arrêtait sur le détail, et ne retenait
+    que le dernier choix — puis échouait sur « au moins deux choix ». Résultat :
+    `undefined`, et un agent bloqué sans question affichée.
+  */
+  const numerotees: Array<number> = [];
+  for (let index = 0; index < lignes.length; index += 1) {
     const ligne = lignes[index];
-    if (ligne === undefined || !LIGNE_CHOIX.test(ligne)) break;
-    premier = index;
+    if (ligne !== undefined && LIGNE_CHOIX.test(ligne)) numerotees.push(index);
   }
+  if (numerotees.length === 0) return undefined;
+
+  /** Numéro porté par la ligne d'index donné, ou `null`. */
+  const numeroDe = (index: number): number | null => {
+    const trouve = LIGNE_CHOIX.exec(lignes[index] ?? "");
+    return trouve === null ? null : Number.parseInt(trouve[2] ?? "", 10);
+  };
+
+  /*
+    On remonte la suite **contiguë** qui se termine sur le dernier choix : 5, 4,
+    3… Le « moins un exactement » est ce qui borne la remontée : une liste
+    numérotée plus haut dans l'écran (une sortie d'outil) ne peut pas s'y
+    raccrocher, parce qu'elle ne continue pas la numérotation.
+  */
+  let debut = numerotees.length - 1;
+  while (debut > 0) {
+    const courant = numeroDe(numerotees[debut] ?? 0);
+    const precedent = numeroDe(numerotees[debut - 1] ?? 0);
+    if (courant === null || precedent === null || precedent !== courant - 1) break;
+    debut -= 1;
+  }
+  const retenues = numerotees.slice(debut);
+  const premier = retenues[0] ?? 0;
 
   const choix: Array<Choix> = [];
-  for (let index = premier; index < lignes.length; index += 1) {
-    const ligne = lignes[index];
-    if (ligne === undefined) continue;
-    const trouve = LIGNE_CHOIX.exec(ligne);
-    if (trouve === null) {
-      // Un trou dans la numérotation ferme la liste : la suite appartient à
-      // autre chose (une sortie d'outil, une autre invite).
-      if (choix.length > 0 && ligne.trim().length === 0) continue;
-      if (choix.length > 0) break;
-      continue;
-    }
+  for (const index of retenues) {
+    const trouve = LIGNE_CHOIX.exec(lignes[index] ?? "");
+    if (trouve === null) continue;
     const corps = trouve[3] ?? "";
-    const { libelle, detail } = separerLibelle(corps);
+    const lu = separerLibelle(corps);
+    /*
+      ⚠️ **Le détail peut être sur la ligne suivante.** opencode l'y met, indenté
+      plus profond que le choix, là où pi et codex l'écrivent sur la même ligne
+      après deux espaces.
+
+      Deux garde-fous, appris d'un test qui a échoué : la ligne suivante doit être
+      **plus indentée** que le choix, et ne pas être la ligne d'invite. Sans le
+      second, `enter to submit` devenait le détail du dernier choix.
+    */
+    const suivante = lignes[index + 1];
+    const surLaSuivante =
+      lu.detail === undefined &&
+      suivante !== undefined &&
+      suivante.trim().length > 0 &&
+      !LIGNE_CHOIX.test(suivante) &&
+      !LIGNE_INVITE.test(suivante) &&
+      indentation(suivante) > indentation(lignes[index] ?? "")
+        ? suivante.trim()
+        : undefined;
+    const detail = lu.detail ?? surLaSuivante;
     choix.push({
       ...(detail === undefined ? {} : { detail }),
-      libelle,
+      libelle: lu.libelle,
       numero: Number.parseInt(trouve[2] ?? "0", 10),
       selectionne: trouve[1] === "›",
     });

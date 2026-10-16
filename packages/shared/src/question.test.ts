@@ -119,3 +119,104 @@ describe("questionDeLEcran", () => {
     }
   });
 });
+
+/**
+ * ⚠️ **L'écran opencode, recopié tel quel.** Relevé le 2026-10-16 sur un agent
+ * réellement bloqué, via `herdr pane read --source visible`. Rien n'est
+ * reconstruit : c'est la forme exacte que l'application reçoit, filet `┃`
+ * compris — et c'est le filet qui l'empêchait de reconnaître la question.
+ */
+const ECRAN_OPENCODE = `  ┃
+     + Thought · 9.0s
+
+     I don't see a report attached to your message — no file path, pasted text, or link.
+
+  ┃
+  ┃  $ git status --short | head -30
+  ┃
+  ┃  M .agents/skills/improve-codebase-architecture/SKILL.md
+  ┃
+
+     + Thought · 4.6s
+
+     → Asked 1 question
+
+  ┃
+  ┃  Questions
+  ┃
+  ┃  I don't see a report in your message or in the recent repo files — how would you like to share it with me?
+  ┃
+  ┃  1. It's a file on disk
+  ┃     Tell me the file path and I'll read it.
+  ┃  2. Paste it as text
+  ┃     It seems the report didn't come through — paste its contents in your next message.
+  ┃  3. It's a GitHub/CI report
+  ┃     Share the PR number, run ID, or URL and I'll pull it with gh.
+  ┃  4. It's pixel CLI output
+  ┃     E.g. pixel doctor, pixel audit, or a benchmark report — paste the output.
+  ┃  5. Type your own answer
+  ┃
+  ┃  ↑↓ select  enter submit  esc dismiss`;
+
+describe("opencode — le filet de rendu ne cache plus la question", () => {
+  test("la question est reconnue, alors qu'elle était invisible", () => {
+    expect(questionDeLEcran(ECRAN_OPENCODE)).toBeDefined();
+  });
+
+  test("les cinq choix sont lus, dans l'ordre", () => {
+    // ⚠️ Avant le nettoyage du filet, `LIGNE_CHOIX` — ancrée sur `^[ \t]*(›)?` —
+    // ne pouvait pas traverser `  ┃  `. La fonction rendait `undefined` : un
+    // agent bloqué, et un écran qui ne disait pas sur quoi.
+    const question = questionDeLEcran(ECRAN_OPENCODE);
+
+    expect(question?.choix.map((c) => c.numero)).toEqual([1, 2, 3, 4, 5]);
+  });
+
+  test("les libellés sont repris sans le filet ni le numéro", () => {
+    const libelles = questionDeLEcran(ECRAN_OPENCODE)?.choix.map((c) => c.libelle);
+
+    expect(libelles).toEqual([
+      "It's a file on disk",
+      "Paste it as text",
+      "It's a GitHub/CI report",
+      "It's pixel CLI output",
+      "Type your own answer",
+    ]);
+  });
+
+  test("le texte de la question est la phrase, pas le titre de section", () => {
+    const question = questionDeLEcran(ECRAN_OPENCODE);
+
+    expect(question?.texte).toContain("I don't see a report in your message");
+    expect(question?.texte).not.toContain("Questions");
+  });
+
+  test("l'invite `↑↓ select` est reconnue — sans barre oblique", () => {
+    // ⚠️ pi écrit `↑/↓`, opencode écrit `↑↓`. Une seule forme reconnue suffisait
+    // à perdre l'invite sur l'autre agent.
+    expect(questionDeLEcran(ECRAN_OPENCODE)?.invite).toBe("↑↓ select  enter submit  esc dismiss");
+  });
+
+  test("aucun choix n'est marqué sélectionné, et on ne le devine pas", () => {
+    // ⚠️ opencode colore sa sélection ; le texte brut perd la couleur, et il
+    // n'écrit pas de `›`. Inventer une sélection serait pire que ne rien dire :
+    // l'utilisateur verrait un choix surligné qui n'est pas celui de l'agent.
+    const choix = questionDeLEcran(ECRAN_OPENCODE)?.choix ?? [];
+
+    expect(choix.every((c) => !c.selectionne)).toBe(true);
+  });
+
+  test("les autres filets sont tolérés aussi", () => {
+    const barre = ECRAN_OPENCODE.replaceAll("┃", "│");
+    const tube = ECRAN_OPENCODE.replaceAll("┃", "|");
+
+    expect(questionDeLEcran(barre)?.choix.length).toBe(5);
+    expect(questionDeLEcran(tube)?.choix.length).toBe(5);
+  });
+
+  test("un filet sans question ne fabrique pas de question", () => {
+    const sansQuestion = ["  ┃  $ ls -la", "  ┃  total 0", "  ┃  drwxr-xr-x 2"].join("\n");
+
+    expect(questionDeLEcran(sansQuestion)).toBeUndefined();
+  });
+});
