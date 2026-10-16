@@ -43,6 +43,9 @@ const KIND_CODEX = "codex";
 /** Type d'agent opencode. */
 const KIND_OPENCODE = "opencode";
 
+/** Type d'agent devin. */
+const KIND_DEVIN = "devin";
+
 /**
  * Où vit la session d'un agent.
  *
@@ -53,7 +56,16 @@ const KIND_OPENCODE = "opencode";
  */
 export type SourceSession =
   | { readonly kind: "fichier"; readonly base: string }
-  | { readonly kind: "sqlite"; readonly base: string; readonly sessionId: string };
+  | {
+      readonly kind: "sqlite";
+      readonly base: string;
+      readonly sessionId: string;
+      /**
+       * Quel **magasin** SQLite. Deux agents, deux bases, deux schémas — mais une
+       * seule forme de page en sortie, donc un seul chemin dans la route.
+       */
+      readonly magasin: "opencode" | "devin";
+    };
 
 /**
  * Base SQLite d'opencode.
@@ -62,6 +74,18 @@ export type SourceSession =
  * parcourir, et rien à déduire de l'identifiant — il est la clé, pas un nom de
  * fichier à retrouver (c'est la différence avec codex).
  */
+/**
+ * Base SQLite de devin.
+ *
+ * ⚠️ **Mesuré, pas déduit.** Le produit classait devin comme illisible au motif
+ * que « Herdr n'expose qu'un identifiant opaque » : c'était la même erreur que
+ * pour codex puis opencode. devin écrit `message_nodes` dans cette base, et
+ * l'identifiant qu'expose Herdr (`heavenly-…`) est la clé de `sessions`.
+ */
+export const baseDevin = (): string =>
+  process.env["DEVIN_DB"] ?? join(homedir(), ".local", "share", "devin", "cli", "sessions.db");
+
+/** Base SQLite d'opencode. */
 export const baseOpencode = (): string =>
   process.env["OPENCODE_DB"] ?? join(homedir(), ".local", "share", "opencode", "opencode.db");
 
@@ -132,7 +156,12 @@ export const sourceSession = (
     // Un identifiant vide désignerait n'importe quoi : on refuse plutôt que de
     // rendre la session d'un autre, comme pour codex.
     if (slot.value.trim().length === 0) return undefined;
-    return { base: baseOpencode(), kind: "sqlite", sessionId: slot.value };
+    return { base: baseOpencode(), kind: "sqlite", magasin: "opencode", sessionId: slot.value };
+  }
+  if (agentKind === KIND_DEVIN) {
+    // Même garde, même raison.
+    if (slot.value.trim().length === 0) return undefined;
+    return { base: baseDevin(), kind: "sqlite", magasin: "devin", sessionId: slot.value };
   }
   return undefined;
 };

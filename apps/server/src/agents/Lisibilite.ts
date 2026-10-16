@@ -14,7 +14,7 @@
  * |----------|---------|-------------------------------|-----------------|
  * | pi       | oui     | `kind: path`, fichier `.jsonl` | **oui**          |
  * | opencode | oui     | `kind: id` + base SQLite      | **oui**         |
- * | devin    | oui     | `kind: id` (`heavenly-…`)     | non             |
+ * | devin    | oui     | `kind: id` + base SQLite      | **oui**         |
  * | codex    | oui     | `kind: id` ×2 (voir ci-dessous) | **oui**        |
  * | cursor   | oui     | rien                         | non             |
  * | claude   | écran de connexion — non concluant | — | inconnu |
@@ -64,7 +64,12 @@
  */
 
 /** Types vérifiés : Herdr expose pour eux un chemin de session que l'on peut lire. */
-export const TYPES_A_SESSION_LISIBLE: ReadonlySet<string> = new Set(["pi", "codex", "opencode"]);
+export const TYPES_A_SESSION_LISIBLE: ReadonlySet<string> = new Set([
+  "pi",
+  "codex",
+  "opencode",
+  "devin",
+]);
 
 /** Herdr testé le jour de la mesure, et la version du protocole. */
 export const MESURE_SUR = { herdr: "0.9.3", protocole: 22, le: "2026-10-12" } as const;

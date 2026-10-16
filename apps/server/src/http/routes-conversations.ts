@@ -24,7 +24,8 @@ import { Effect, Option, Result } from "effect";
 import { decoderOf, respond } from "./Reply.ts";
 import { defaultRead, summaryOf, type RawPane } from "../conversations/Summary.ts";
 import type { TailedSession } from "../sessions/SessionReader.ts";
-import { lireDerniere } from "../sessions/OpencodeReader.ts";
+import { moteurOpencode } from "../sessions/OpencodeReader.ts";
+import { moteurDevin } from "../sessions/DevinReader.ts";
 import type { SourceSession } from "../agents/SessionLocator.ts";
 import { questionDeLEcran } from "@herdr-remote/shared";
 import { brancheDe as branchOf } from "../git/Branche.ts";
@@ -133,13 +134,19 @@ export const makeConversationRoutes = (config: ServerConfig, herdr: HerdrApi) =>
    * ⚠️ `identity` a zero : une base ne se remplace pas comme un fichier tourne,
    * et cette identite ne sert qu'a un curseur que la liste ne construit pas.
    */
-  const lectureOpencode =
-    (source: { readonly base: string; readonly sessionId: string }) =>
+  const lectureSqlite =
+    (source: {
+      readonly base: string;
+      readonly sessionId: string;
+      readonly magasin: "opencode" | "devin";
+    }) =>
     (_chemin: string): Effect.Effect<TailedSession, unknown> =>
       Effect.try({
         catch: (cause) => cause,
         try: () => {
-          const page = lireDerniere(source.base, source.sessionId, LIGNES_APERCU);
+          // Même choix de magasin que la route de session : un seul endroit.
+          const moteur = source.magasin === "devin" ? moteurDevin : moteurOpencode;
+          const page = moteur.lireDerniere(source.base, source.sessionId, LIGNES_APERCU);
           return {
             entries: page.entries,
             hasMore: page.hasMore,
@@ -221,7 +228,7 @@ export const makeConversationRoutes = (config: ServerConfig, herdr: HerdrApi) =>
           : await Effect.runPromise(branchOf(pane.cwd)),
       );
       return Effect.runPromise(
-        summaryOf(paneBrut, source?.kind === "sqlite" ? lectureOpencode(source) : lire),
+        summaryOf(paneBrut, source?.kind === "sqlite" ? lectureSqlite(source) : lire),
       );
     });
 

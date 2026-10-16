@@ -26,7 +26,8 @@ import {
 } from "@herdr-remote/shared";
 import { sourceSession } from "../agents/SessionLocator.ts";
 import type { SourceSession } from "../agents/SessionLocator.ts";
-import { pageSessionOpencode, sessionExiste } from "../sessions/OpencodeReader.ts";
+import { moteurOpencode } from "../sessions/OpencodeReader.ts";
+import { moteurDevin } from "../sessions/DevinReader.ts";
 import type { ServerConfig } from "../config.ts";
 import { classifyReadFailure, invalidSession, statusFor } from "../sessions/ReadCause.ts";
 import type { HerdrApi } from "../herdr/HerdrClient.ts";
@@ -374,7 +375,13 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
             503,
           );
         }
-        if (!sessionExiste(base, sessionId)) {
+        /*
+          ⚠️ **Deux magasins, un seul chemin.** opencode et devin ont chacun
+          leur table et leur decodeur ; le choix se fait ici, une fois, et tout
+          ce qui suit est identique.
+        */
+        const moteur = value.source.magasin === "devin" ? moteurDevin : moteurOpencode;
+        if (!moteur.sessionExiste(base, sessionId)) {
           // L'identifiant vient d'Herdr et la base ne le connaît pas : mauvaise
           // base ou identifiant d'une autre installation. On le dit, avec les
           // deux valeurs — c'est la seule facon de le diagnotiquer.
@@ -392,7 +399,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
           messages, et le champ `tail` de la requête est ignoré ici — ce qui est
           documenté plutôt que silencieux.
         */
-        const page = pageSessionOpencode(value.source, {
+        const page = moteur.pageSession(value.source, {
           avant: before?.offset,
           depuis: cursor?.offset,
           lignes: OPENCODE_TAIL_ROWS,

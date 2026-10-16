@@ -49,8 +49,12 @@ describe("U14 — seuls les types vérifiés sont proposés", () => {
     expect(typeLisible("opencode")).toBe(true);
   });
 
-  test("devin est refusé : Herdr n'expose qu'un identifiant opaque", () => {
-    expect(typeLisible("devin")).toBe(false);
+  test("devin est ACCEPTÉ : une base SQLite se lit", () => {
+    // ⚠️ QUATRIEME fois que le meme raisonnement se trompait : « un identifiant
+    // opaque » n'est pas « pas de session ». Mesure du 2026-10-16 dans
+    // `~/.local/share/devin/cli/sessions.db` : 163 messages dans `message_nodes`,
+    // et l'identifiant qu'Herdr expose est la cle de `sessions`.
+    expect(typeLisible("devin")).toBe(true);
   });
 
   test("codex est ACCEPTÉ : un identifiant vaut un chemin", () => {
@@ -74,7 +78,7 @@ describe("U14 — seuls les types vérifiés sont proposés", () => {
 
   test("les types refusés le sont tous, sans exception cachée", () => {
     // ⚠️ codex n'est plus dans cette liste, et c'est le seul changement.
-    for (const kind of ["devin", "cursor", "claude", "agy", "gemini"]) {
+    for (const kind of ["cursor", "claude", "agy", "gemini"]) {
       expect(typeLisible(kind)).toBe(false);
     }
   });

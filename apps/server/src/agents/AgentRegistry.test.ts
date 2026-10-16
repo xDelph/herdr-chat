@@ -62,18 +62,18 @@ describe("U14 — un agent muet n'apparaît pas comme une conversation", () => {
   });
 
   test("un agent sans chemin est retiré de la liste", async () => {
-    // devin : `kind: "id"` et un identifiant opaque, sans magasin lisible.
-    // ⚠️ opencode servait d'exemple ici jusqu'au 2026-10-16 : il est
-    // desormais lisible, donc il ne peut plus illustrer un agent muet.
+    // cursor : `kind: "id"` et un identifiant opaque, sans magasin lisible.
+    // ⚠️ opencode puis devin ont servi d'exemple ici : tous deux sont
+    // desormais lisibles, donc ils ne peuvent plus illustrer un agent muet.
     const vue = await lire(
       buildOverview(
         instantane([
           agent({
-            agent: "devin",
+            agent: "cursor",
             agent_session: {
-              agent: "devin",
+              agent: "cursor",
               kind: "id",
-              source: "herdr:devin",
+              source: "herdr:cursor",
               value: "ses_1",
             },
             pane_id: "w1:p2",
@@ -114,8 +114,8 @@ describe("U14 — masquer n'est pas disparaître", () => {
             agent_session: { agent: "pi", kind: "path", source: "herdr:pi", value: "/s/a.jsonl" },
             pane_id: "w1:p1",
           }),
-          agent({ agent: "devin", pane_id: "w1:p2" }),
-          agent({ agent: "devin", pane_id: "w1:p3" }),
+          agent({ agent: "cursor", pane_id: "w1:p2" }),
+          agent({ agent: "cursor", pane_id: "w1:p3" }),
         ]),
       ),
     );
@@ -131,7 +131,7 @@ describe("U14 — masquer n'est pas disparaître", () => {
     const vue = await lire(
       buildOverview(
         instantane(
-          [agent({ agent: "devin", pane_id: "w1:p2" })],
+          [agent({ agent: "cursor", pane_id: "w1:p2" })],
           [workspace({ agent_status: "working" })],
         ),
       ),
@@ -178,11 +178,11 @@ describe("U14 — les deux chemins d'overview doivent dire la même chose", () =
       pane_id: "w1:p1",
     }),
     agent({
-      agent: "devin",
-      agent_session: { agent: "devin", kind: "id", source: "herdr:devin", value: "ses_1" },
+      agent: "cursor",
+      agent_session: { agent: "cursor", kind: "id", source: "herdr:cursor", value: "ses_1" },
       pane_id: "w1:p2",
     }),
-    agent({ agent: "devin", pane_id: "w1:p3" }),
+    agent({ agent: "cursor", pane_id: "w1:p3" }),
   ];
 
   test("le chemin lent et le chemin rapide donnent la même liste", async () => {
@@ -246,7 +246,7 @@ describe("U14 — les deux chemins d'overview doivent dire la même chose", () =
             agent_session: { agent: "pi", kind: "path", source: "herdr:pi", value: "/s/a.jsonl" },
             pane_id: "w1:p1",
           }),
-          agent({ agent: "devin", pane_id: "w1:p2" }),
+          agent({ agent: "cursor", pane_id: "w1:p2" }),
           agent({
             agent_session: { agent: "pi", kind: "path", source: "herdr:pi", value: "" },
             pane_id: "w1:p3",

@@ -300,3 +300,17 @@ export const pageSessionOpencode = (
     previousSeq: page.hasMore ? page.premierSeq : undefined,
   };
 };
+
+/**
+ * Le moteur opencode, sous la forme qu'attend la route.
+ *
+ * ⚠️ **Même forme que `moteurDevin`**, pour que la route n'ait qu'un chemin :
+ * elle choisit un moteur, puis appelle la même fonction. Les deux pages sont
+ * construites séparément parce que leurs tables diffèrent — mais l'appelant ne
+ * le sait pas.
+ */
+export const moteurOpencode = {
+  lireDerniere,
+  pageSession: pageSessionOpencode,
+  sessionExiste,
+} as const;
