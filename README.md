@@ -1,7 +1,8 @@
 ![Herdr Chat](docs/banner.png)
 
 **Pilot Herdr and its agents from your phone.** Herdr Chat is a PWA that reads your
-Pi and codex sessions and lets you drive them from anywhere in your tailnet.
+Pi, codex, opencode, devin and Claude Code sessions and lets you drive them from
+anywhere in your tailnet.
 
 No SSH. No terminal on the phone. Nothing is copied out of your machine.
 
@@ -61,8 +62,8 @@ works without extra configuration.)
 iPhone ── Tailscale ── Serve :443 ── 127.0.0.1:8791 ── Herdr Chat
                                        (ou :8790, au choix)
                                                             │
-                                                            ├── Herdr socket  (control)
-                                                            └── Pi/codex JSONL (content)
+                                                            ├── Herdr socket     (control)
+                                                            └── session stores   (content)
 ```
 
 **Herdr stays the orchestrator.** Herdr Chat is a local layer: it reads, displays and
@@ -84,7 +85,16 @@ Every variable is optional — a bare install works.
 | `HERDR_REMOTE_PUBLIC_ORIGINS` | derived | Extra allowed origins, comma-separated |
 | `HERDR_REMOTE_LOG_PATH` | `~/.herdr-remote/herdr-remote.log` | Error journal |
 | `HERDR_REMOTE_PUSH_STORE` | `~/.herdr-remote/push.json` | Push subscriptions |
-| `PI_SESSIONS_ROOT` / `CODEX_SESSION_ROOT` | `~/.pi/…`, `~/.codex/…` | Session roots |
+| `PI_SESSIONS_ROOT` | `~/.pi/agent/sessions` | Pi session root |
+| `CODEX_SESSION_ROOT` | `~/.codex/sessions` | codex session root |
+| `CLAUDE_PROJECTS_ROOT` | `~/.claude/projects` | Claude Code session root |
+| `OPENCODE_DB` | `~/.local/share/opencode/opencode.db` | opencode session database |
+| `DEVIN_DB` | `~/.local/share/devin/cli/sessions.db` | devin session database |
+
+Each agent type is only offered once its session store has actually been read and
+measured. Types whose store could not be read are refused rather than guessed —
+see `apps/server/src/agents/Lisibilite.ts` for the current list and the date it was
+measured.
 
 The VAPID key pair for push notifications is generated on first run and stored
 alongside the subscriptions.
