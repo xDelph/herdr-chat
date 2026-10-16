@@ -134,3 +134,32 @@ describe("U09 — le retour d'un fichier mène à la liste", () => {
     expect(chat.split("setFromFiles(false)").length - 1).toBeGreaterThanOrEqual(2);
   });
 });
+
+/**
+ * Ce que la feuille de réglages **affirme**.
+ *
+ * ⚠️ **Pourquoi cette section, pour une phrase.** Le texte disait « Conversation
+ * content is read from Pi session files » — vrai au premier jour, faux depuis
+ * que cinq sources sont lues (des fichiers pour Pi, codex et Claude Code, des
+ * bases SQLite pour opencode et devin). Le compilateur ne voit pas une phrase
+ * devenue fausse ; les tests de contraste non plus ; personne ne la relit. Elle a
+ * survécu à trois versions.
+ */
+describe("la feuille de réglages — ce qu'elle affirme", () => {
+  const feuille = readFileSync(join(import.meta.dir, "SettingsSheet.tsx"), "utf8");
+
+  test("ne ramène pas le contenu à UNE source", () => {
+    // ⚠️ Nommer une source unique est le défaut d'origine, et il se réintroduit
+    // sans bruit : une phrase juste au moment où on l'écrit.
+    expect(feuille).not.toContain("Pi session files");
+    expect(feuille).toContain("each agent's own session store");
+  });
+
+  test("dit aussi ce qu'Herdr fait, et ne fait pas", () => {
+    // ⚠️ Dire d'où vient le contenu sans dire le rôle d'Herdr serait une
+    // demi-vérité : le partage — contenu d'un côté, contrôle et état de l'autre —
+    // est la règle la plus structurante du produit.
+    expect(feuille).toContain("only control and status");
+    expect(feuille).toContain("Arbitrary shell actions");
+  });
+});

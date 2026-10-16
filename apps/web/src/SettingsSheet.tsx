@@ -211,9 +211,22 @@ export const SettingsSheet = ({ health, onClose, sansSession }: Props) => {
         </button>
         {pushError === null ? null : <p role="alert">{pushError}</p>}
       </section>
+      {/*
+        ⚠️ **Cette phrase a longtemps dit qu'on lisait « les fichiers de session
+de Pi »**, ce qui était vrai au premier jour et faux depuis : cinq sources sont
+        lues — des fichiers pour Pi, codex et Claude Code, des bases SQLite pour
+        opencode et devin. Elle est donc écrite **en fonction de ce qui est vrai
+        pour toutes** : chaque agent a son magasin, et Herdr indique lequel.
+
+        ⚠️ Et la seconde phrase n'est pas un ornement : dire d'où vient le
+        contenu sans dire ce qu'Herdr fait serait une demi-vérité. Le partage est
+        net — contenu d'un côté, contrôle et état de l'autre — et il vaut mieux
+        l'écrire ici que de laisser croire que Herdr sert le contenu.
+      */}
       <p className="muted small">
-        Conversation content is read from Pi session files, not from Herdr. Arbitrary shell actions
-        are not exposed.
+        Conversation content comes from each agent's own session store — the file or database Herdr
+        points to. Herdr itself provides only control and status. Arbitrary shell actions are not
+        exposed.
       </p>
     </Feuille>
   );
