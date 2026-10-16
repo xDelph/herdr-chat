@@ -371,7 +371,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
           return respond(
             config.logPath,
             decoderOf(ApiErrorResponse),
-            { error: `opencode database not found: ${base}` },
+            { error: `${value.source.magasin} database not found: ${base}` },
             503,
           );
         }
@@ -381,16 +381,33 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
           ce qui suit est identique.
         */
         const moteur = value.source.magasin === "devin" ? moteurDevin : moteurOpencode;
+        /*
+          ⚠️ **Une session sans ligne n'est pas une panne : c'est une session qui
+          n'a pas commencé.**
+
+          Mesure du 2026-10-16, sur un agent devin réellement lancé : Herdr
+          expose `stellar-tortoise`, et cette cle n'existe PAS encore dans
+          `sessions`. Le verrou `stellar-tortoise.lock` porte le pid du processus
+          `devin acp` vivant — l'identifiant est donc juste, mais la ligne n'est
+          ecrite qu'**au premier message**. C'est exactement le JSONL de Pi, qui
+          nait au premier message.
+
+          Un `404` ici traitait un agent qui demarre comme une panne : c'etait un
+          seuil de panique trop zele. On rend donc une session **vide**, comme le
+          fait deja le chemin fichier pour un JSONL absent — meme cause, meme
+          silence, et la conversation s'emplit a la premiere demande.
+        */
         if (!moteur.sessionExiste(base, sessionId)) {
-          // L'identifiant vient d'Herdr et la base ne le connaît pas : mauvaise
-          // base ou identifiant d'une autre installation. On le dit, avec les
-          // deux valeurs — c'est la seule facon de le diagnotiquer.
-          return respond(
-            config.logPath,
-            decoderOf(ApiErrorResponse),
-            { error: `opencode session not found in database: ${sessionId}` },
-            404,
-          );
+          return respond(config.logPath, decoderOf(SessionResponse), {
+            cause: "absente",
+            cursor: curseurSqlite(0),
+            entries: [],
+            hasMore: false,
+            incremental: cursor !== undefined,
+            previousCursor: undefined,
+            reset: false,
+            sessionPath: base,
+          });
         }
         /*
           ⚠️ Le budget de la fenêtre est en **lignes**, pas en octets. Le
