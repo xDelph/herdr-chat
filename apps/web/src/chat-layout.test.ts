@@ -522,45 +522,67 @@ describe("U23 — la ligne compacte s'applique PAR BLOC, pas par message", () =>
   });
 });
 
-describe("U23 — la marque précède le titre, le modèle suit le contexte", () => {
+describe("U23 — la marque dans la liste, le modèle dans l'en-tête", () => {
   const ecran = readFileSync(join(import.meta.dir, "ChatScreen.tsx"), "utf8");
+  const ligne = readFileSync(join(import.meta.dir, "ConversationRow.tsx"), "utf8");
 
-  test("la marque est DANS la ligne du titre, et le titre la suit", () => {
-    // ⚠️ Une marque posée à côté du bouton de retour se lirait comme une action
-    // de plus ; dans la ligne du titre, elle sert à reconnaître la conversation.
-    expect(ecran).toContain('<div className="screen__ligne">');
-    const ligne = ecran.slice(ecran.indexOf('<div className="screen__ligne">'));
-    expect(ligne.slice(0, 240)).toContain("<AgentBadge kind={agent.agent} />");
-    expect(ligne.slice(0, 240)).toContain("<strong>{agent.title ?? agentName(agent)}</strong>");
+  test("la marque est dans la LIGNE DE CONVERSATION, devant le projet", () => {
+    /*
+      ⚠️ **Pas dans l'en-tête de la conversation.** La marque sert a *choisir* :
+      une fois la conversation ouverte, on sait deja laquelle on regarde. Dans la
+      liste, elle tombe sous l'oeil pendant qu'on parcourt.
+    */
+    expect(ligne).toContain("<AgentBadge kind={conversation.agent} />");
+    const origine = ligne.slice(ligne.indexOf('className="conv__origine"'));
+    // La marque vient AVANT le nom du projet, pas apres ni en dessous.
+    expect(origine.indexOf("AgentBadge")).toBeGreaterThan(-1);
+    expect(origine.indexOf("AgentBadge")).toBeLessThan(origine.indexOf("conv__projet"));
   });
 
-  test("le modèle et le raisonnement forment la troisième ligne", () => {
+  test("l'en-tête de la conversation ne porte AUCUNE marque", () => {
+    // ⚠️ Le titre d'Herdr porte deja son propre signe (`π - pixel`) : une
+    // seconde marque a cote se lirait comme un doublon.
+    expect(ecran).not.toContain("AgentBadge");
+  });
+
+  test("le modèle et le raisonnement forment la troisième ligne de l'en-tête", () => {
     expect(ecran).toContain("{headerReglages(currentModel, currentThinking)}");
   });
 
-  test("la ligne du titre reste en `flex`, malgré la troncature imposée par le parent", () => {
+  test("la marque s'aligne au centre, pas sur la ligne de base du texte", () => {
     /*
-      ⚠️ `.screen__title > div` impose `display: block`. Écrite `.screen__ligne`
-      tout court, la règle perdait la comparaison de spécificité : `display:
-      block` l'emportait, et la marque s'empilait au-dessus du titre au lieu de
-      le précéder. Un test qui vérifierait seulement la présence de la classe
-      passerait sans rien voir.
+      ⚠️ `.conv__origine` aligne ses enfants sur la **ligne de base** du texte.
+      Sans `align-self: center`, la pastille descend s'asseoir sur cette ligne et
+      la marque trace sous le titre. Un test qui verifierait seulement la taille
+      de la pastille passerait sans rien voir.
     */
-    expect(sansCommentaires).toContain(".screen__title > .screen__ligne {");
-    expect(bloc(".screen__title > .screen__ligne")["display"]).toBe("flex");
-  });
-
-  test("le titre cède la place au lieu d'élargir la ligne", () => {
-    // Un élément flex refuse de descendre sous la largeur de son contenu : sans
-    // `min-width: 0`, c'est l'en-tête entier qui déborde au lieu du titre.
-    expect(bloc(".screen__ligne > strong")["min-width"]).toBe("0");
+    expect(bloc(".agent-badge")["align-self"]).toBe("center");
   });
 
   test("la marque n'usurpe pas la zone tactile d'un bouton", () => {
-    // Elle est décorative : 24 px, la taille du texte qu'elle précède.
+    // Elle est décorative : 20 px, à peine plus que le texte qu'elle précède.
+    // C'est la ligne entière qui est touchable, et elle fait au moins 44 px.
     const marque = bloc(".agent-badge");
-    expect(marque["height"]).toBe("24px");
-    expect(marque["width"]).toBe("24px");
+    expect(marque["height"]).toBe("20px");
+    expect(marque["width"]).toBe("20px");
+    expect(bloc(".conv")["min-height"]).toBe("var(--tap-min)");
+  });
+
+  test("les marques sont monochromes, et normalisees dans une meme boite", () => {
+    /*
+      ⚠️ Cinq marques en couleur sur une meme liste se disputent l'oeil, et un
+      noir de marque disparait sur un fond sombre. Chacune garde son `viewBox`
+      d'origine dans `logos.tsx` : c'est le `transform` qui les ramene toutes a
+      24x24, sinon la pastille changerait de taille d'un agent a l'autre.
+    */
+    const logos = readFileSync(join(import.meta.dir, "logos.tsx"), "utf8");
+    expect(logos).toContain("viewBox");
+    for (const kind of ["pi", "codex", "claude", "opencode", "devin"]) {
+      expect(logos).toContain(`${kind}: (`);
+    }
+    const badge = readFileSync(join(import.meta.dir, "AgentBadge.tsx"), "utf8");
+    expect(badge).toContain('fill="currentColor"');
+    expect(badge).toContain('viewBox="0 0 24 24"');
   });
 });
 

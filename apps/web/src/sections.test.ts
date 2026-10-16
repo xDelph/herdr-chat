@@ -16,6 +16,9 @@ const ligne = (
   titre?: string,
 ): ConversationSummary => ({
   ...(timestamp === undefined ? {} : { timestamp }),
+  // Le type d'agent est **obligatoire** dans le contrat : la marque de la liste
+  // en dépend. Ces fixtures n'en ont pas besoin, mais elles doivent le dire.
+  agent: "pi",
   paneId,
   sessionState: "available",
   status,

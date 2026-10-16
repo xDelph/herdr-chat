@@ -39,7 +39,7 @@
  * appels d'outils sont traduits selon la forme **OpenAI-compatible** — voir
  * `blocsDAppels`, où la réserve est écrite noir sur blanc.
  */
-import { estObjet, tableauDe, texteDe } from "./pi.ts";
+import { estObjet, modeleUtilisable, tableauDe, texteDe } from "./pi.ts";
 import type { LignePi } from "./pi.ts";
 
 /**
@@ -107,10 +107,21 @@ export const ligneDevinVersPi = (chatMessage: unknown, id: string): LignePi | un
   if (role === "system") return undefined;
 
   const horodatage = horodatageDe(chatMessage);
+
+  /*
+    Le modele, sur le message lui-meme.
+
+    ⚠️ Mesure du 2026-10-16 sur `~/.local/share/devin/cli/sessions.db` : les huit
+    messages `assistant` portent `metadata.generation_model` (`swe-1-6-slow`).
+    Le reste de la session n'en parle jamais.
+  */
+  const metadata = estObjet(chatMessage["metadata"]) ? chatMessage["metadata"] : undefined;
+  const modele = modeleUtilisable(metadata?.["generation_model"]);
+
   const enveloppe = (message: LignePi["message"]): LignePi => ({
     ...(horodatage === undefined ? {} : { timestamp: horodatage }),
     id: `devin:${id}`,
-    message,
+    message: modele === undefined ? message : { ...message, model: modele },
     type: "message",
   });
 

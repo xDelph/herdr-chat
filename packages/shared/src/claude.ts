@@ -32,7 +32,7 @@
  *                                        {"type":"tool_use","id":"call_…","name":"Bash","input":{…}}]}}
  * ```
  */
-import { estObjet, tableauDe, texteDe } from "./pi.ts";
+import { estObjet, modeleUtilisable, tableauDe, texteDe } from "./pi.ts";
 import type { LignePi } from "./pi.ts";
 
 /**
@@ -170,12 +170,25 @@ export const ligneClaudeVersPi = (parsed: unknown): LignePi | undefined => {
   if (!estObjet(message)) return undefined;
   const contenu = message["content"];
 
+  /*
+    Le modele, sur le message lui-meme.
+
+    ⚠️ Mesure du 2026-10-16 : l'API renvoie `model` sur chaque reponse assistant
+    (`claude-sonnet-4-6`). La session ne contient aucun `model_change` — sans
+    cette ligne, l'en-tete annoncait « model not declared » sur un agent qui
+    venait d'ecrire son modele noir sur blanc.
+
+    ⚠️ Le fournisseur et le niveau de raisonnement **n'existent pas** dans cette
+    source : on ne les invente pas, ils resteront absents.
+  */
+  const modele = modeleUtilisable(message["model"]);
+
   const horodatage = texteDe(parsed["timestamp"]);
   const uuid = texteDe(parsed["uuid"]);
   const enveloppe = (corps: LignePi["message"]): LignePi => ({
     ...(horodatage === undefined ? {} : { timestamp: horodatage }),
     ...(uuid === undefined ? {} : { id: `claude:${uuid}` }),
-    message: corps,
+    message: modele === undefined ? corps : { ...corps, model: modele },
     type: "message",
   });
 

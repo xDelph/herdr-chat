@@ -15,6 +15,14 @@
 import { describe, expect, test } from "bun:test";
 import { ligneClaudeVersPi } from "./claude.ts";
 
+/** Une reponse claude portant un modele, pour les tests du modele. */
+const avecModele = (message: Record<string, unknown>): unknown => ({
+  message: { content: [{ text: "ok", type: "text" }], role: "assistant", ...message },
+  timestamp: "2026-10-16T18:00:00.000Z",
+  type: "assistant",
+  uuid: "a-1",
+});
+
 const blocs = (ligne: unknown): ReadonlyArray<Record<string, unknown>> => {
   if (typeof ligne !== "object" || ligne === null) return [];
   const message = Reflect.get(ligne, "message");
@@ -313,5 +321,45 @@ describe("ce que l'application écrit n'est pas une demande", () => {
     );
 
     expect(blocs(ligne).map((bloc) => bloc["text"])).toEqual(["et maintenant, la vraie demande"]);
+  });
+});
+
+/**
+ * Le modèle, porté par le message lui-même.
+ *
+ * ⚠️ **Le défaut que cette section verrouille.** L'en-tête affichait « model not
+ * declared » sur un agent claude qui venait d'écrire son modèle noir sur blanc :
+ * la session ne contient **aucun** `model_change`, contrairement à pi, et le
+ * lecteur ne cherchait que là. Mesure du 2026-10-16 : chaque réponse assistant
+ * de l'API porte `model` (`claude-sonnet-4-6`).
+ */
+describe("claude — le modèle est sur le message", () => {
+  test("le modèle de la réponse est repris tel quel", () => {
+    const ligne = ligneClaudeVersPi(avecModele({ model: "claude-sonnet-4-6" }));
+
+    expect(ligne?.message.model).toBe("claude-sonnet-4-6");
+  });
+
+  test("un substitut n'est PAS un modèle", () => {
+    // Mesuré : Claude Code écrit `<synthetic>` sur les messages qu'il fabrique
+    // lui-même. L'afficher remplacerait « inconnu » par une valeur qui a l'air
+    // d'un modèle.
+    const ligne = ligneClaudeVersPi(avecModele({ model: "<synthetic>" }));
+
+    expect(ligne?.message.model).toBeUndefined();
+    expect(ligne?.message.role).toBe("assistant");
+  });
+
+  test("sans modèle déclaré, le champ reste ABSENT — pas inventé", () => {
+    expect(ligneClaudeVersPi(avecModele({}))?.message.model).toBeUndefined();
+  });
+
+  test("le fournisseur et le niveau n'existent pas dans cette source", () => {
+    // ⚠️ L'API ne les donne pas : on ne les fabrique pas, même si les autres
+    // sources les portent. La ligne de liste saura s'en passer.
+    const ligne = ligneClaudeVersPi(avecModele({ model: "claude-sonnet-4-6" }));
+
+    expect(ligne?.message.provider).toBeUndefined();
+    expect(ligne?.message.thinkingLevel).toBeUndefined();
   });
 });

@@ -18,6 +18,7 @@
  */
 import { memo, useCallback } from "react";
 import type { ConversationSummary } from "@herdr-remote/shared";
+import { AgentBadge } from "./AgentBadge.tsx";
 import { levelLabel } from "./launch.ts";
 import { dureeDepuis } from "./duree.ts";
 
@@ -81,6 +82,15 @@ const ConversationRowInner = ({ conversation, maintenant, onglet, onOpen, projet
     <button type="button" className="conv" onClick={ouvrir}>
       <span className="conv__ligne">
         <span className="conv__origine">
+          {/*
+            La marque de l'agent, devant le nom du projet.
+
+            ⚠️ **Dans la ligne du titre, pas a droite ni en dessous.** C'est la
+            seule information qui dit *qui* travaille : elle doit tomber sous
+            l'oeil quand on parcourt la liste, sans qu'il faille lire la ligne
+            de details — qui est tronquee a l'ellipse sur un ecran etroit.
+          */}
+          <AgentBadge kind={conversation.agent} />
           <span className="conv__projet">{projet}</span>
           {onglet.length > 0 ? <span className="conv__onglet">– {onglet}</span> : null}
         </span>

@@ -41,7 +41,7 @@
  * Un refus explicite coûte deux lignes d'historique sur 1 931. Une traduction
  * inventée coûterait la confiance dans tout le reste.
  */
-import { estObjet, horodatageIso, tableauDe, texteDe } from "./pi.ts";
+import { estObjet, horodatageIso, modeleUtilisable, tableauDe, texteDe } from "./pi.ts";
 import type { LignePi } from "./pi.ts";
 
 /**
@@ -178,10 +178,37 @@ export const ligneOpencodeVersPi = (
   if (!estObjet(data)) return undefined;
   const horodatage = horodatageIso(debutDe(data));
 
+  /*
+    Le modele, sur le message lui-meme.
+
+    ⚠️ Mesure du 2026-10-16 : chaque message assistant porte
+    `model = { id, providerID, variant }`, et la ligne `session_v2` le repete.
+
+    ⚠️ **`variant` est bien le niveau de raisonnement, et ce n'est pas une
+    deduction de ma part** : le bundle d'opencode declare la commande
+    `{ name: "variants", aliases: ["thinking", "effort"] }` et la construit sur
+    `supported_reasoning_levels[].effort`. Les valeurs mesurees sont `high`,
+    `max` et `default`.
+
+    ⚠️ **`default` est refuse** : c'est le nom qu'opencode donne a « aucun
+    niveau choisi », present 52 fois dans la base. L'afficher ferait lire
+    « niveau par defaut » la ou l'agent n'a rien declare.
+  */
+  const brut = estObjet(data["model"]) ? data["model"] : undefined;
+  const modele = modeleUtilisable(brut?.["id"]);
+  const fournisseur = modele === undefined ? undefined : texteDe(brut?.["providerID"]);
+  const variante = texteDe(brut?.["variant"]);
+  const niveau = variante === "default" ? undefined : variante;
+
   const enveloppe = (message: LignePi["message"]): LignePi => ({
     ...(horodatage === undefined ? {} : { timestamp: horodatage }),
     id: `opencode:${id}`,
-    message,
+    message: {
+      ...message,
+      ...(modele === undefined ? {} : { model: modele }),
+      ...(fournisseur === undefined ? {} : { provider: fournisseur }),
+      ...(niveau === undefined ? {} : { thinkingLevel: niveau }),
+    },
     type: "message",
   });
 

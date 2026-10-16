@@ -7,7 +7,7 @@
  * format, un de ces tests tombe — c'est le but.
  */
 import { describe, expect, test } from "bun:test";
-import { ligneCodexVersPi } from "./codex.ts";
+import { ligneCodexVersPi, reglageCodexVersPi } from "./codex.ts";
 
 /** Enveloppe codex : `timestamp`, `ordinal`, `type`, `payload`. */
 const item = (payload: Record<string, unknown>): unknown => ({
@@ -370,5 +370,87 @@ describe("codex → pi", () => {
         type: "message",
       }),
     ).toBeUndefined();
+  });
+});
+
+/**
+ * Les réglages codex — traduits en **ligne pi**, comme le reste.
+ *
+ * ⚠️ **Pourquoi codex a besoin de ça et pas les autres.** Mesure du 2026-10-16 :
+ * pi, opencode, devin et claude écrivent le modèle **sur chaque message** ;
+ * codex, lui, le met dans des événements — `turn_context` (32 fois dans une
+ * session réelle) et `thread_settings_applied` (30 fois). Sans cette
+ * traduction, un agent codex n'annonçait jamais son modèle.
+ *
+ * ⚠️ Ce qui compte, c'est que la ligne produite soit **du pi** : `reglagesOf` la
+ * lit sans rien savoir de codex.
+ */
+describe("codex — les réglages deviennent des lignes pi", () => {
+  test("`turn_context` donne le modèle ET le niveau", () => {
+    // Mesure : ce payload porte `model` et `effort` — et **pas** de
+    // `model_provider_id`, qui est lu sur l'autre forme.
+    const reglage = reglageCodexVersPi({
+      ordinal: 7,
+      payload: { effort: "medium", model: "gpt-6-luna", turn_id: "t1" },
+      timestamp: "2026-10-16T12:34:07.088Z",
+      type: "turn_context",
+    });
+
+    expect(reglage).toEqual({
+      modelId: "gpt-6-luna",
+      thinkingLevel: "medium",
+      type: "model_change",
+    });
+  });
+
+  test("`thread_settings_applied` donne le modèle, le fournisseur et le niveau", () => {
+    const reglage = reglageCodexVersPi({
+      payload: {
+        thread_settings: {
+          model: "gpt-6-luna",
+          model_provider_id: "openai",
+          reasoning_effort: "medium",
+        },
+        type: "thread_settings_applied",
+      },
+      type: "event_msg",
+    });
+
+    expect(reglage).toEqual({
+      modelId: "gpt-6-luna",
+      provider: "openai",
+      thinkingLevel: "medium",
+      type: "model_change",
+    });
+  });
+
+  test("un événement sans modèle ne produit RIEN", () => {
+    /*
+      ⚠️ Une ligne `model_change` sans `modelId` ferait croire à un changement
+      constaté : `reglagesOf` la lirait, ne trouverait rien, et passerait à la
+      suivante — mais l'entrée existerait, et `parseEntry` la garderait.
+    */
+    expect(reglageCodexVersPi({ payload: { model: "" }, type: "turn_context" })).toBeUndefined();
+    expect(
+      reglageCodexVersPi({ payload: { thread_settings: {} }, type: "event_msg" }),
+    ).toBeUndefined();
+  });
+
+  test("un substitut entre chevrons n'est pas un modèle", () => {
+    expect(
+      reglageCodexVersPi({ payload: { model: "<synthetic>" }, type: "turn_context" }),
+    ).toBeUndefined();
+  });
+
+  test("les autres lignes ne sont pas des réglages", () => {
+    expect(reglageCodexVersPi({ payload: { model: "x" }, type: "response_item" })).toBeUndefined();
+    expect(reglageCodexVersPi({ type: "turn_context" })).toBeUndefined();
+    expect(reglageCodexVersPi(null)).toBeUndefined();
+  });
+
+  test("un `model_change` de pi n'est pas pris pour du codex", () => {
+    // La traduction part de la forme codex ; une ligne pi déjà traduite
+    // repasserait par ce chemin au second démarrage si on ne le refusait pas.
+    expect(reglageCodexVersPi({ modelId: "x", type: "model_change" })).toBeUndefined();
   });
 });

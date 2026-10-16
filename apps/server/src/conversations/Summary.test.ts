@@ -35,6 +35,25 @@ const pane = (over: Partial<RawPane> = {}): RawPane => ({
 const ligne = (role: string, content: unknown, at = "2026-10-09T15:08:21.784Z"): string =>
   JSON.stringify({ message: { content, role }, timestamp: at, type: "message" });
 
+/**
+ * Une ligne pi **réelle** d'un tour d'assistant, modèle compris.
+ *
+ * ⚠️ C'est la forme de pi elle-même : `model`, `provider` et `thinkingLevel`
+ * vivent sur **chaque** message, et non dans un événement de changement.
+ */
+const tour = (model: string, provider?: string, thinkingLevel?: string): string =>
+  JSON.stringify({
+    message: {
+      content: [{ text: "ok", type: "text" }],
+      model,
+      ...(provider === undefined ? {} : { provider }),
+      role: "assistant",
+      ...(thinkingLevel === undefined ? {} : { thinkingLevel }),
+    },
+    timestamp: "2026-10-16T06:57:07.102Z",
+    type: "message",
+  });
+
 /** Une ligne de **changement** de réglage, telle que la session l'écrit. */
 const changement = (type: string, cle: string, valeur: string): string =>
   JSON.stringify({ [cle]: valeur, timestamp: "2026-10-09T16:17:28.362Z", type });
@@ -322,8 +341,14 @@ describe("contrat — le payload est validé", () => {
   test("un champ « non lu » n'existe pas dans le schéma", () => {
     // Herdr n'expose aucun compteur exploitable (son `revision` vaut 0). Un
     // tel champ serait une invention — donc il doit être **absent**.
+    //
+    // ⚠️ La liste est exhaustive **à dessein** : c'est en la comparant qu'on
+    // remarque qu'un champ est apparu sans raison. `agent` y est entré en
+    // connaissance de cause — la marque de la liste en dépend, et la ligne ne
+    // peut pas aller la chercher ailleurs sans recroiser l'overview.
     const line = Effect.runSync(summaryOf(pane(), () => Effect.succeed(neverRead())));
     expect(Object.keys(line).toSorted()).toEqual([
+      "agent",
       "paneId",
       "sessionState",
       "status",
@@ -414,5 +439,120 @@ describe("U16 — l'horodatage est une chaîne ISO", () => {
     const line = await Effect.runPromise(summaryOf(pane({ sessionPath: path }), defaultRead(dir)));
     // `NaN` passerait le décodage du contrat et s'afficherait « Invalid Date ».
     expect("timestamp" in line).toBe(false);
+  });
+});
+
+/**
+ * Le modèle déclaré par le **message**, sans aucun changement enregistré.
+ *
+ * ⚠️ **Le défaut que cette section verrouille, et il a été vu à l'écran.** La
+ * ligne de liste et l'en-tête annonçaient « model not declared » sur des agents
+ * qui venaient d'écrire leur modèle noir sur blanc. La cause : le lecteur ne
+ * cherchait que des événements `model_change`, alors que **quatre des cinq
+ * sources** écrivent le modèle sur chaque message assistant — c'est la forme de
+ * pi elle-même. Seul codex le met dans un événement, et il est traduit.
+ *
+ * Mesure avant correction : 7 des 12 conversations déclaraient un modèle.
+ * Après : 12 sur 12.
+ */
+describe("U16 — le modèle vient aussi du message", () => {
+  test("sans aucun `model_change`, le message suffit", async () => {
+    const path = join(dir, "modele-du-message.jsonl");
+    await writeFile(
+      path,
+      [ligne("user", "demande"), tour("deepseek-v4.1-flash", "opencode-go", "high")].join("\n") +
+        "\n",
+    );
+
+    const line = await Effect.runPromise(summaryOf(pane({ sessionPath: path }), defaultRead(dir)));
+    expect(line.model).toBe("deepseek-v4.1-flash");
+    expect(line.provider).toBe("opencode-go");
+    expect(line.thinking).toBe("high");
+  });
+
+  test("le DERNIER message gagne, pas le premier", async () => {
+    const path = join(dir, "modele-change-en-cours.jsonl");
+    await writeFile(
+      path,
+      [
+        tour("modele-ancien", "fournisseur-ancien", "low"),
+        ligne("user", "encore"),
+        tour("modele-recent", "fournisseur-recent", "max"),
+      ].join("\n") + "\n",
+    );
+
+    const line = await Effect.runPromise(summaryOf(pane({ sessionPath: path }), defaultRead(dir)));
+    expect(line.model).toBe("modele-recent");
+    expect(line.thinking).toBe("max");
+  });
+
+  test("un changement déclaré APRÈS le dernier message gagne aussi", async () => {
+    // L'utilisateur a changé de modèle sans envoyer de tour : c'est le
+    // changement qui décrit l'état, et il est le plus récent.
+    const path = join(dir, "modele-change-apres.jsonl");
+    await writeFile(
+      path,
+      [
+        tour("modele-du-tour", "p", "high"),
+        changement("model_change", "modelId", "modele-choisi"),
+        changement("thinking_level_change", "thinkingLevel", "low"),
+      ].join("\n") + "\n",
+    );
+
+    const line = await Effect.runPromise(summaryOf(pane({ sessionPath: path }), defaultRead(dir)));
+    expect(line.model).toBe("modele-choisi");
+    expect(line.thinking).toBe("low");
+  });
+
+  test("le fournisseur n'est JAMAIS emprunté à un autre modèle", async () => {
+    /*
+      ⚠️ Modèle et fournisseur forment une **paire**. Ici le message le plus
+      récent donne un modèle sans fournisseur, et un changement plus ancien en
+      donne un : les coller ensemble afficherait « modele-recent · ancien-
+      fournisseur », c'est-à-dire un couple qui n'a jamais existé.
+    */
+    const path = join(dir, "fournisseur-pair.jsonl");
+    await writeFile(
+      path,
+      [
+        changement("model_change", "modelId", "modele-ancien"),
+        JSON.stringify({
+          message: {
+            content: [{ text: "ok", type: "text" }],
+            model: "modele-recent",
+            role: "assistant",
+          },
+          type: "message",
+        }),
+      ].join("\n") + "\n",
+    );
+
+    const line = await Effect.runPromise(summaryOf(pane({ sessionPath: path }), defaultRead(dir)));
+    expect(line.model).toBe("modele-recent");
+    expect(line.provider).toBeUndefined();
+  });
+
+  test("un message SANS modèle n'efface pas celui d'un message plus ancien", async () => {
+    // Le repli ne doit pas s'arrêter au premier message venu : il continue de
+    // remonter tant que rien ne déclare. Sinon un tour d'outil sans modèle, à la
+    // fin, effacerait tout.
+    const path = join(dir, "modele-plus-loin.jsonl");
+    await writeFile(
+      path,
+      [
+        tour("modele-quelque-part"),
+        ligne("user", "encore"),
+        JSON.stringify({
+          message: {
+            content: [{ text: "ok", type: "text" }],
+            role: "assistant",
+          },
+          type: "message",
+        }),
+      ].join("\n") + "\n",
+    );
+
+    const line = await Effect.runPromise(summaryOf(pane({ sessionPath: path }), defaultRead(dir)));
+    expect(line.model).toBe("modele-quelque-part");
   });
 });

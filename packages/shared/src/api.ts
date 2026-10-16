@@ -451,6 +451,18 @@ export type Choix = typeof Choix.Type;
 
 export const ConversationSummary = Schema.Struct({
   /**
+   * Type de l'agent, tel que Herdr le nomme (`pi`, `codex`, `claude`…).
+   *
+   * ⚠️ **Il voyage avec la ligne parce que la ligne en a besoin** : c'est lui
+   * qui choisit la marque affichée devant le nom du projet. Le faire chercher
+   * ailleurs par l'affichage aurait obligé la liste à recroiser l'overview —
+   * deux sources pour une même vérité, donc deux qui finissent par diverger.
+   *
+   * `null` = Herdr ne le dit pas. L'affichage montre alors un signe **neutre**,
+   * jamais la marque d'un voisin.
+   */
+  agent: Schema.NullOr(Schema.String),
+  /**
    * Branche git du dossier de travail, quand il y en a une.
    *
    * ⚠️ Herdr n'expose **aucune** information de branche : ni le snapshot, ni
@@ -468,13 +480,18 @@ export const ConversationSummary = Schema.Struct({
    */
   lastPrompt: Schema.optional(Schema.String),
   /**
-   * Modèle en vigueur, tel que la session l'a enregistré (`model_change`).
+   * Modèle en vigueur.
    *
-   * Absent quand la session n'en déclare aucun : on ne complète pas avec un
-   * modèle supposé.
+   * ⚠️ **Deux sources, et la plus récente gagne** : le changement déclaré
+   * (`model_change`) *ou* le modèle porté par le dernier message assistant —
+   * c'est la forme de pi, et les cinq sources mesurées s'y ramènent. Le message
+   * est en pratique la source qui répond : un changement n'est écrit qu'au
+   * moment où il change, donc un agent qui n'y a jamais touché n'en a aucun.
+   *
+   * Absent quand rien ne le déclare : on ne complète pas avec un modèle supposé.
    */
   model: Schema.optional(Schema.String),
-  /** Fournisseur explicite pour les modèles Pi (`model_change`). */
+  /** Fournisseur explicite du modèle (`model_change`, ou le message lui-même). */
   provider: Schema.optional(Schema.String),
   /** Aperçu : dernier message texte de l'agent. Absent s'il n'y en a pas. */
   preview: Schema.optional(Schema.String),
@@ -487,7 +504,13 @@ export const ConversationSummary = Schema.Struct({
    * question ne l'est pas.
    */
   question: Schema.optional(Question),
-  /** Niveau de raisonnement en vigueur (`thinking_level_change`). */
+  /**
+   * Niveau de raisonnement en vigueur (`thinking_level_change`, ou le message).
+   *
+   * ⚠️ Chaque source lui donne un nom différent — `thinkingLevel` chez pi,
+   * `effort` chez codex, `variant` chez opencode — mais c'est la même chose, et
+   * les adaptateurs la ramènent à un seul nom avant que quiconque la lise.
+   */
   thinking: Schema.optional(Schema.String),
   sessionState: SessionState,
   /** Horodatage de la dernière activité connue. Jamais inventé. */

@@ -35,8 +35,8 @@
  *    un vrai message long n'a pas à être filtré.
  */
 
-import { estObjet } from "./pi.ts";
-import type { LignePi } from "./pi.ts";
+import { estObjet, modeleUtilisable, texteDe } from "./pi.ts";
+import type { ChangePi, LignePi } from "./pi.ts";
 
 /**
  * Arguments d'un appel d'outil, quelle que soit sa famille.
@@ -287,4 +287,67 @@ export const ligneCodexVersPi = (parsed: unknown): LignePi | undefined => {
   if (role === "user" && blocs.every((bloc) => estBlocDeContexte(bloc.text))) return undefined;
 
   return enveloppe({ content: blocs, role });
+};
+
+/**
+ * Traduit un **événement de réglage** codex en ligne de changement pi.
+ *
+ * ⚠️ **Pourquoi une seconde fonction, et pas un cas de plus dans
+ * `ligneCodexVersPi`.** Les deux ne traduisent pas la même chose : l'une produit
+ * un **message**, l'autre un **changement de réglage**. `LignePi` décrit un
+ * message, et une vingtaine de lectures en dépendent — lui ajouter une variante
+ * pour un événement ferait payer à tout le monde ce qui ne concerne qu'un seul
+ * producteur.
+ *
+ * ⚠️ **Pourquoi codex a besoin de ça, et pas les autres.** Mesure du
+ * 2026-10-16 : pi, opencode, devin et claude écrivent le modèle **sur chaque
+ * message** ; codex, lui, le met dans des événements — `turn_context` (32 fois
+ * dans une session réelle) et `thread_settings_applied` (30 fois). Sans cette
+ * traduction, un agent codex n'annonce jamais son modèle.
+ *
+ * Ce qui compte, c'est que la ligne produite soit **du pi** : `reglagesOf` la
+ * lit sans rien savoir de codex. Un second décodeur plus loin aurait dupliqué
+ * chaque décision de format.
+ */
+export const reglageCodexVersPi = (parsed: unknown): ChangePi | undefined => {
+  if (!estObjet(parsed)) return undefined;
+  const payload = parsed["payload"];
+  if (!estObjet(payload)) return undefined;
+  const type = parsed["type"];
+
+  /*
+    Le modèle de contexte : un par tour, et il porte le modèle **utilisé**.
+
+    ⚠️ Mesure : ce payload a `model` et `effort`, mais **pas** de
+    `model_provider_id` — le fournisseur est lu sur l'autre forme, plus bas. On
+    ne le devine donc pas ici.
+  */
+  if (type === "turn_context") {
+    const modelId = modeleUtilisable(payload["model"]);
+    if (modelId === undefined) return undefined;
+    const effort = texteDe(payload["effort"]);
+    return {
+      ...(effort === undefined ? {} : { thinkingLevel: effort }),
+      modelId,
+      type: "model_change",
+    };
+  }
+
+  // Les réglages appliqués au fil : même information, autre forme.
+  if (type === "event_msg" && payload["type"] === "thread_settings_applied") {
+    const reglages = payload["thread_settings"];
+    if (!estObjet(reglages)) return undefined;
+    const modelId = modeleUtilisable(reglages["model"]);
+    if (modelId === undefined) return undefined;
+    const provider = texteDe(reglages["model_provider_id"]);
+    const effort = texteDe(reglages["reasoning_effort"]);
+    return {
+      ...(provider === undefined ? {} : { provider }),
+      ...(effort === undefined ? {} : { thinkingLevel: effort }),
+      modelId,
+      type: "model_change",
+    };
+  }
+
+  return undefined;
 };

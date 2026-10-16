@@ -95,13 +95,21 @@ const toRawPane = (
     readonly workspaces: ReadonlyMap<string, string>;
   },
   sessionPath: string | null,
-  agentStatus: string | null,
+  /*
+    ⚠️ Le **type** (`agent`) et l'état (`agent_status`) viennent du meme objet :
+    les passer en deux arguments laissait croire qu'ils peuvent venir de deux
+    sources, et un appelant pouvait fournir l'un sans l'autre.
+  */
+  agent:
+    | { readonly agent?: string | null | undefined; readonly agent_status: string | null }
+    | undefined,
   branch: string | undefined,
 ): RawPane => {
   const tabId = pane.tab_id ?? "";
   const workspaceId = pane.workspace_id ?? "";
   return {
-    agentStatus,
+    agent: agent?.agent ?? null,
+    agentStatus: agent?.agent_status ?? null,
     branch,
     paneId: pane.pane_id,
     sessionPath,
@@ -220,7 +228,7 @@ export const makeConversationRoutes = (config: ServerConfig, herdr: HerdrApi) =>
         pane,
         { tabs, workspaces },
         source?.base ?? null,
-        agent?.agent_status ?? null,
+        agent,
         // La branche vient du **dossier du pane** : c'est le dépôt dans lequel
         // l'agent travaille réellement, pas celui du projet en général.
         pane.cwd === null || pane.cwd === undefined

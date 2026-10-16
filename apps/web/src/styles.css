@@ -86,6 +86,16 @@
   Un thème qui ne surcharge pas un token hérite donc de `:root`, ce qui est la
   règle CSS ordinaire et ce que `contraste.ts` suit.
 
+  ⚠️ **Une conséquence qu'il faut dire, et pas cacher.** L'état « en cours » est
+  écrit dans la couleur d'accent (`.etat--en-cours`) : il change donc de teinte
+  avec le thème — vert en vert, corail en rouge. C'est volontaire : « en cours »
+  n'est ni une réussite ni un échec, c'est de l'**activité**, et l'accent est la
+  couleur de l'activité dans cette interface — la même que les boutons et les
+  marques des agents. Ce qui ne change jamais, ce sont les trois couleurs qui
+  portent un **jugement** : `--warn` (attend une réponse), `--ok` (terminé),
+  `--err` (échec). Vérifié à l'écran dans les trois thèmes : « finished » reste
+  turquoise et « waiting for input » reste ambre, quel que soit le thème.
+
   ⚠️ **Une collision assumée, et bornée.** Dans le thème vert, l'accent
   (`#5ee07a`, teinte 133°) se rapproche du vert de réussite (`#3fbf9a`,
   teinte 163°) ; dans le rouge, il se rapproche du rouge d'échec (`#ff9d8f`
@@ -1879,53 +1889,41 @@ button:disabled {
 }
 
 /*
-  Ligne du titre : la marque de l'agent, puis le titre.
-
-  ⚠️ Le sélecteur reprend **exactement** la spécificité de `.screen__title >
-  div`, qui impose `display: block`. Écrit `.screen__ligne` tout court, il
-  perdait la comparaison et la marque se serait empilée au-dessus du titre au
-  lieu de le précéder.
-*/
-.screen__title > .screen__ligne {
-  align-items: center;
-  display: flex;
-  gap: var(--space-sm);
-}
-
-/*
-  ⚠️ **`min-width: 0` n'est pas un réglage de confort.** Un élément flex refuse
-  par défaut de descendre sous la largeur de son contenu : sans cette ligne, un
-  titre long ne se tronque pas — il élargit la ligne, et c'est l'en-tête entier
-  qui déborde au lieu du titre qui s'abrège.
-*/
-.screen__ligne > strong {
-  min-width: 0;
-}
-
-/*
-  Marque d'un agent : un carre arrondi, dans la couleur d'accent du theme.
+  Marque d'un agent : un carré arrondi, devant le nom du projet, dans la liste
+  des conversations.
 
   ⚠️ Elle a la taille du texte qu'elle précède, pas celle d'un bouton. La zone
   tactile minimale du tableau des règles ne concerne que les éléments
-  **touchables**, et celui-ci ne l'est pas : il est décoratif (`aria-hidden`,
-  voir `AgentBadge.tsx`).
+  **touchables** : la ligne entière l'est, la marque non (`aria-hidden`, voir
+  `AgentBadge.tsx`).
+
+  ⚠️ **20 px, mesuré à l'écran et pas estimé.** À 18 px avec une marque de 11 px,
+  les logos devenaient des taches : on ne distinguait plus celui de pi de celui de
+  Claude, alors que c'est tout l'objet de la marque. À 20 px avec une marque de
+  14 px, chaque logo se lit — et la pastille reste plus petite que la ligne de
+  texte qu'elle accompagne, donc ce n'est pas elle qu'on regarde en premier.
+
+  ⚠️ **`align-self: center` n'est pas un détail.** `.conv__origine` aligne ses
+  enfants sur la **ligne de base** du texte : sans lui, la pastille descendrait
+  s'asseoir sur cette ligne de base, et la marque tracerait sous le titre.
 */
 .agent-badge {
   align-items: center;
+  align-self: center;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   color: var(--accent);
   display: inline-flex;
   flex: 0 0 auto;
-  height: 24px;
+  height: 20px;
   justify-content: center;
-  width: 24px;
+  width: 20px;
 }
 
 .agent-badge svg {
-  height: 15px;
-  width: 15px;
+  height: 14px;
+  width: 14px;
 }
 
 /* Sélecteur de thème, dans la feuille de réglages. */

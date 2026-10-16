@@ -18,6 +18,7 @@ import {
   readBefore,
   readTail,
   tailFrom,
+  type RawEntry,
   type TailedSession,
 } from "../sessions/SessionReader.ts";
 
@@ -25,6 +26,13 @@ import {
 export interface RawPane {
   readonly paneId: string;
   readonly workspaceId: string;
+  /**
+   * Type de l'agent (`pi`, `codex`, `claude`…), tel que Herdr le nomme.
+   *
+   * ⚠️ Il traverse tout le résumé pour finir dans la ligne : c'est lui qui
+   * choisit la marque affichée devant le nom du projet.
+   */
+  readonly agent?: string | null;
   /** Titre donné par Herdr, s'il y en a un. */
   readonly title?: string | null;
   readonly tabLabel?: string | null;
@@ -186,10 +194,23 @@ const indiceDArguments = (args: unknown): string | undefined => {
 /**
  * Modèle et niveau de raisonnement **en vigueur**.
  *
- * ⚠️ La session les porte comme des **changements** (`model_change`,
- * `thinking_level_change`), pas comme un état courant. On remonte donc le fil
- * jusqu'au dernier de chaque, et on ne déduit rien : sans changement, le champ
- * reste absent — l'agent n'a pas forcément déclaré son modèle.
+ * ⚠️ **Deux endroits, et le plus récent gagne.** La session porte les réglages
+ * (a) comme des **changements** (`model_change`, `thinking_level_change`) et
+ * (b) sur **chaque message** (`message.model`, `message.provider`,
+ * `message.thinkingLevel`) — c'est la forme de pi, et les cinq sources mesurées
+ * s'y ramènent (codex mis à part, dont les événements sont traduits en
+ * `model_change` à l'entrée).
+ *
+ * ⚠️ **Pourquoi la seconde source est indispensable.** Un changement n'est écrit
+ * qu'au moment où il change : sur une session de 19 Mo, le dernier peut être hors
+ * de la fenêtre lue — ou n'avoir jamais eu lieu, si l'agent a démarré avec son
+ * modèle par défaut. C'est ce qui faisait afficher « model not declared » sur des
+ * agents qui venaient d'écrire leur modèle noir sur blanc.
+ *
+ * ⚠️ **On remonte le fil et on ne déduit rien** : sans changement ni message qui
+ * déclare, le champ reste absent. Le modèle et le fournisseur forment une
+ * **paire** : si le message qui donne le modèle ne donne pas le fournisseur, on
+ * n'y colle pas celui d'un changement plus ancien, qui décrirait un autre modèle.
  */
 export const reglagesOf = (
   tailed: TailedSession,
@@ -204,17 +225,17 @@ export const reglagesOf = (
   for (let index = tailed.entries.length - 1; index >= 0; index -= 1) {
     const entry = tailed.entries[index];
     if (entry === undefined) continue;
-    // Les deux peuvent être trouvés dans la même passe : on ne s'arrête que
-    // lorsque les deux sont connus, pour ne pas relire la session deux fois.
-    if (model === undefined && entry.type === "model_change") {
-      const lu = lireChamp(entry.raw, "modelId");
-      if (lu !== undefined) {
-        model = lu;
-        provider = lireChamp(entry.raw, "provider");
+    // Les trois peuvent être trouvés dans la même passe : on ne s'arrête que
+    // lorsque tout est connu, pour ne pas relire la session trois fois.
+    if (model === undefined) {
+      const paire = paireDeModele(entry);
+      if (paire !== undefined) {
+        model = paire.model;
+        provider = paire.provider;
       }
     }
-    if (thinking === undefined && entry.type === "thinking_level_change") {
-      const lu = lireChamp(entry.raw, "thinkingLevel");
+    if (thinking === undefined) {
+      const lu = niveauDeLEntree(entry);
       if (lu !== undefined) thinking = lu;
     }
     if (model !== undefined && thinking !== undefined) break;
@@ -224,6 +245,43 @@ export const reglagesOf = (
     ...(provider === undefined ? {} : { provider }),
     ...(thinking === undefined ? {} : { thinking }),
   };
+};
+
+/**
+ * Le modèle déclaré par une entrée, et son fournisseur **quand elle le donne**.
+ *
+ * ⚠️ Lueur de forme pi commune : un changement de modèle, ou un message qui dit
+ * lequel a tourné. Deux chemins, une seule décision de format — celle de pi.
+ */
+const paireDeModele = (
+  entry: RawEntry,
+): { readonly model: string; readonly provider?: string } | undefined => {
+  if (entry.type === "model_change") {
+    const model = lireChamp(entry.raw, "modelId");
+    if (model === undefined) return undefined;
+    const provider = lireChamp(entry.raw, "provider");
+    return provider === undefined ? { model } : { model, provider };
+  }
+  if (entry.type !== "message") return undefined;
+  const model = champDuMessage(entry.raw, "model");
+  if (model === undefined) return undefined;
+  const provider = champDuMessage(entry.raw, "provider");
+  return provider === undefined ? { model } : { model, provider };
+};
+
+/** Le niveau de raisonnement déclaré par une entrée, changement ou message. */
+const niveauDeLEntree = (entry: RawEntry): string | undefined => {
+  if (entry.type === "thinking_level_change") return lireChamp(entry.raw, "thinkingLevel");
+  if (entry.type !== "message") return undefined;
+  return champDuMessage(entry.raw, "thinkingLevel");
+};
+
+/** Champ texte **du corps du message** d'une ligne, ou `undefined`. */
+const champDuMessage = (raw: string, cle: string): string | undefined => {
+  const corps = corpsDeLigne(raw);
+  if (corps === undefined) return undefined;
+  const valeur = lire(corps, cle);
+  return typeof valeur === "string" && valeur.trim().length > 0 ? valeur.trim() : undefined;
 };
 
 /** Champ texte de premier niveau d'une ligne, ou `undefined`. */
@@ -345,6 +403,7 @@ export const summaryOf = (
 ): Effect.Effect<ConversationSummary> =>
   Effect.gen(function* () {
     const base = {
+      agent: pane.agent ?? null,
       status: toStatus(pane.agentStatus),
       title: titleOf(pane),
       workspaceId: pane.workspaceId,

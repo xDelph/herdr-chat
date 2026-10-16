@@ -22,6 +22,18 @@
 import { describe, expect, test } from "bun:test";
 import { ligneOpencodeVersPi } from "./opencode.ts";
 
+/**
+ * Un message assistant portant un modele, pour les tests du modele.
+ *
+ * ⚠️ Le nom est distinct de `assistant`, qui designe deja un *type* de message
+ * plus haut dans ce fichier : deux fonctions du meme nom dans un meme fichier
+ * finissent par masquer l'autre, et le test lit alors la mauvaise.
+ */
+const avecModele = (model: unknown): unknown => ({
+  content: [{ state: { output: "ok" }, tool: "bash", type: "tool" }],
+  model,
+});
+
 /** Un appel d'outil, tel que la base le stocke. */
 const appel = (surcharge: Record<string, unknown> = {}): Record<string, unknown> => ({
   content: [{ text: "apps/web/src/blocks.test.ts:497:  const items = toItems(", type: "text" }],
@@ -388,5 +400,69 @@ describe("l'identité d'un message est stable", () => {
     const ligne = ligneOpencodeVersPi("assistant", assistant([appel()]), "msg_1");
 
     expect(ligne?.type).toBe("message");
+  });
+});
+
+/**
+ * Le modèle, le fournisseur et le niveau — sur le message.
+ *
+ * ⚠️ Mesure du 2026-10-16 : chaque message assistant porte
+ * `model = { id, providerID, variant }`. Rien n'est déduit d'un `model_change`,
+ * qui n'existe pas dans cette source.
+ */
+describe("opencode — le modèle est sur le message", () => {
+  test("identifiant et fournisseur sont repris", () => {
+    const ligne = ligneOpencodeVersPi(
+      "assistant",
+      avecModele({ id: "deepseek-v4.1-flash", providerID: "opencode-go", variant: "high" }),
+      "m1",
+    );
+
+    expect(ligne?.message.model).toBe("deepseek-v4.1-flash");
+    expect(ligne?.message.provider).toBe("opencode-go");
+  });
+
+  test("`variant` EST le niveau de raisonnement", () => {
+    /*
+      ⚠️ Ce n'est pas une déduction : le bundle d'opencode déclare la commande
+      `{ name: "variants", aliases: ["thinking", "effort"] }`, et la construit sur
+      `supported_reasoning_levels[].effort`.
+    */
+    const ligne = ligneOpencodeVersPi(
+      "assistant",
+      avecModele({ id: "m", providerID: "p", variant: "high" }),
+      "m1",
+    );
+
+    expect(ligne?.message.thinkingLevel).toBe("high");
+  });
+
+  test("`default` n'est PAS un niveau : c'est « rien de choisi »", () => {
+    // Mesuré : 52 messages sur 400 portent `variant: "default"`. L'afficher
+    // ferait lire « niveau par défaut » là où l'agent n'a rien déclaré.
+    const ligne = ligneOpencodeVersPi(
+      "assistant",
+      avecModele({ id: "m", providerID: "p", variant: "default" }),
+      "m1",
+    );
+
+    expect(ligne?.message.thinkingLevel).toBeUndefined();
+    expect(ligne?.message.model).toBe("m");
+  });
+
+  test("un modèle absent laisse les trois champs absents", () => {
+    const ligne = ligneOpencodeVersPi("assistant", avecModele(undefined), "m1");
+
+    expect(ligne?.message.model).toBeUndefined();
+    expect(ligne?.message.provider).toBeUndefined();
+    expect(ligne?.message.thinkingLevel).toBeUndefined();
+  });
+
+  test("un fournisseur n'est pas repris si le modèle manque", () => {
+    // ⚠️ Les deux vont ensemble : un fournisseur sans modèle ne décrit rien, et
+    // l'interface afficherait « · opencode-go » sans savoir de quoi.
+    const ligne = ligneOpencodeVersPi("assistant", avecModele({ providerID: "opencode-go" }), "m1");
+
+    expect(ligne?.message.provider).toBeUndefined();
   });
 });

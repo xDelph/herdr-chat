@@ -20,6 +20,7 @@ import {
   estObjet,
   ligneClaudeVersPi,
   ligneCodexVersPi,
+  reglageCodexVersPi,
   sansMessage,
   SESSION_HEADER_BYTES,
 } from "@herdr-remote/shared";
@@ -214,6 +215,17 @@ const parseEntry = (line: string): RawEntry => {
   // chaque décision d'affichage.
   const traduite = ligneCodexVersPi(parsed);
   if (traduite !== undefined) return toRawEntry(traduite, JSON.stringify(traduite));
+
+  /*
+    ⚠️ **Les réglages codex passent par ici, et pas par la ligne de message.**
+    Mesure : codex écrit le modèle dans des **événements** (`turn_context`,
+    `thread_settings_applied`), jamais sur ses messages. La ligne produite est de
+    forme pi (`model_change`), donc `reglagesOf` la lit sans rien savoir de
+    codex — c'est la règle du point d'entrée unique. Un second décodeur plus
+    loin aurait dupliqué chaque décision de format.
+  */
+  const reglage = reglageCodexVersPi(parsed);
+  if (reglage !== undefined) return toRawEntry(reglage, JSON.stringify(reglage));
 
   /*
     ⚠️ Claude Code a son propre adaptateur, et il est indispensable : sa forme

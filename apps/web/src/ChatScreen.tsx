@@ -27,7 +27,6 @@ import type { RenderedMessage } from "./blocks.ts";
 import { avecTravailEnCours, toItems, toMessages, touchedFilesOf } from "./blocks.ts";
 import { fusionnerEntrees } from "./messages.ts";
 import { agentName, headerContext, headerReglages, statusClass } from "./labels.tsx";
-import { AgentBadge } from "./AgentBadge.tsx";
 import { FileOpenerContext, ItemsView, UrlOpenerContext } from "./Blocks.tsx";
 import { FilesSheet } from "./Files.tsx";
 import { ModelSheet } from "./ModelSheet.tsx";
@@ -909,15 +908,12 @@ export const ChatScreen = ({
                 qu'on a sous les yeux en ouvrant, et le contexte juste dessous
                 dit de quel agent et de quel projet il s'agit.
 
-                ⚠️ La marque est **dans** la ligne du titre, et pas à côté de
-                l'en-tête : elle sert à repérer une conversation d'un coup
-                d'œil en y revenant. Posée à gauche du bouton de retour, elle
-                se serait lue comme une action de plus.
+                ⚠️ **Pas de marque ici.** Le logo de l'agent vit dans la liste
+                des conversations, ou il sert a choisir ; une fois la
+                conversation ouverte, on sait deja laquelle on regarde, et le
+                titre d'Herdr porte deja son propre signe (`π - pixel`).
               */}
-              <div className="screen__ligne">
-                <AgentBadge kind={agent.agent} />
-                <strong>{agent.title ?? agentName(agent)}</strong>
-              </div>
+              <strong>{agent.title ?? agentName(agent)}</strong>
               {/*
                 Le statut **en tete** : la ligne est tronquée à l'ellipse sur
                 un écran étroit, et « onglet 1 · pi · devcli-private » se coupe
