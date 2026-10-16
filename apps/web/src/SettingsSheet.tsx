@@ -220,8 +220,8 @@ export const SettingsSheet = ({
         */}
         <h4 className="theme__titre">Conversation list</h4>
         <p className="muted small">
-          By status keeps what needs attention on top. By workspace gathers each project's agents
-          together — easier once there are many, but a blocked agent is no longer first.
+          Both keep what needs attention and what is running on top. By workspace also gathers the
+          rest — finished and idle agents — by project, which is easier once there are many.
         </p>
         <fieldset className="theme">
           <legend className="sr-only">Conversation list</legend>

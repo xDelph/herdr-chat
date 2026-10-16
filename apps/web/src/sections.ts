@@ -150,6 +150,28 @@ export const sectionConversations = (
   })).filter((groupe) => groupe.conversations.length > 0);
 
 /**
+ * Les sections qui **restent des sections** quand la liste est groupée par
+ * projet.
+ *
+ * ⚠️ **C'est le cœur de la règle, et elle a été corrigée par l'usage.** Une
+ * première version rangeait *tout* par projet : un agent bloqué se retrouvait
+ * dispersé dans le sien, alors qu'il était le seul à demander une action — il
+ * fallait ouvrir chaque groupe pour trouver ce qui attendait. Le regroupement par
+ * projet sert à ranger **la masse** (les agents finis et au repos) ; il ne doit
+ * pas cacher ce qui demande une réponse.
+ *
+ * ⚠️ Et `en-cours` reste avec elles, pour une autre raison : trois agents au
+ * travail se lisent d'un regard tant qu'ils sont côte à côte — « deux tournent »
+ * — et ne se lisent plus du tout répartis dans leurs projets. L'attention portée
+ * à un agent qui travaille est la même quel que soit le projet.
+ */
+const SECTIONS_D_ATTENTION: ReadonlySet<Section> = new Set(["a-traiter", "en-cours"]);
+
+/** L'agent demande-t-il une attention qui ne dépend pas de son projet ? */
+const attireLAttention = (conversation: ConversationSummary): boolean =>
+  SECTIONS_D_ATTENTION.has(sectionOf(conversation.status));
+
+/**
  * Répartit et trie les conversations par **projet**.
  *
  * `nomDuProjet` vient de l'appelant : `ConversationSummary` ne porte que
@@ -161,7 +183,7 @@ export const sectionConversations = (
  * nom et les groupes par date donnerait deux règles d'ordre dans le même écran,
  * et personne ne saurait plus laquelle s'applique à quoi.
  */
-export const grouperParProjet = (
+const groupesParProjet = (
   conversations: ReadonlyArray<ConversationSummary>,
   ordre: Ordre,
   nomDuProjet: (workspaceId: string) => string,
@@ -182,11 +204,42 @@ export const grouperParProjet = (
 };
 
 /**
+ * Répartit **l'attention d'abord**, puis les projets.
+ *
+ * ⚠️ **Deux familles, et elles ne se rangent pas pareil.** Ce qui demande une
+ * action ou signale une activité reste en tête et **n'est pas découpé par
+ * projet** : c'est ce qu'on vient chercher, et le découper le cacherait. Le
+ * reste — finis, au repos — forme la masse, et c'est elle qui devient illisible
+ * quand les agents se multiplient : c'est donc elle, et elle seule, qu'on range
+ * par projet.
+ *
+ * ⚠️ Un projet peut donc apparaître **sans** son agent bloqué : celui-ci est en
+ * haut. C'est voulu, et c'est visible — le groupe du projet ne contient que ce
+ * qu'il annonce.
+ */
+export const grouperAttentionPuisProjet = (
+  conversations: ReadonlyArray<ConversationSummary>,
+  ordre: Ordre,
+  nomDuProjet: (workspaceId: string) => string,
+): ReadonlyArray<Groupe> => [
+  ...sectionConversations(conversations.filter(attireLAttention), ordre),
+  ...groupesParProjet(
+    conversations.filter((c) => !attireLAttention(c)),
+    ordre,
+    nomDuProjet,
+  ),
+];
+
+/**
  * Répartit la liste selon le regroupement choisi.
  *
  * ⚠️ **Un seul point d'entrée**, pour que l'écran n'ait pas à décider quelle
  * fonction appeler : le choix se trouverait alors à deux endroits — le réglage et
  * l'appel — et oublier l'un des deux donnerait un réglage sans effet.
+ *
+ * ⚠️ Les deux chemins ne sont pas symétriques, et c'est la règle : « par
+ * statut » est une répartition pure, « par projet » est une **priorité** suivie
+ * d'un rangement (`grouperAttentionPuisProjet`).
  */
 export const groupesDe = (
   conversations: ReadonlyArray<ConversationSummary>,
@@ -195,7 +248,7 @@ export const groupesDe = (
   nomDuProjet: (workspaceId: string) => string,
 ): ReadonlyArray<Groupe> =>
   groupement === "projet"
-    ? grouperParProjet(conversations, ordre, nomDuProjet)
+    ? grouperAttentionPuisProjet(conversations, ordre, nomDuProjet)
     : sectionConversations(conversations, ordre);
 
 /**

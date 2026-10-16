@@ -8,7 +8,7 @@ import { describe, expect, test } from "bun:test";
 import type { AgentStatus, ConversationSummary } from "@herdr-remote/shared";
 import {
   countOf,
-  grouperParProjet,
+  grouperAttentionPuisProjet,
   groupesDe,
   SECTIONS,
   SECTION_LABEL,
@@ -289,7 +289,7 @@ const nomDeProjet = (workspaceId: string): string =>
 
 describe("U18 — le regroupement par projet", () => {
   test("chaque projet forme un groupe, nommé par son libellé", () => {
-    const groupes = grouperParProjet(
+    const groupes = grouperAttentionPuisProjet(
       [ligneProjet("w1:p1", "w1"), ligneProjet("w2:p1", "w2"), ligneProjet("w1:p2", "w1")],
       "recent",
       nomDeProjet,
@@ -304,7 +304,7 @@ describe("U18 — le regroupement par projet", () => {
     // ⚠️ C'est la même règle que pour les lignes — on veut voir ce qui vient de
     // bouger. Trier les groupes par nom et les lignes par date aurait donné deux
     // règles d'ordre dans le même écran.
-    const groupes = grouperParProjet(
+    const groupes = grouperAttentionPuisProjet(
       [
         ligneProjet("w1:p1", "w1", "idle", 1_000),
         ligneProjet("w2:p1", "w2", "idle", 5_000),
@@ -320,7 +320,7 @@ describe("U18 — le regroupement par projet", () => {
   test("un projet sans aucune date passe en dernier", () => {
     // Même contrepied que pour les lignes : sans horodatage n'est pas « le plus
     // ancien », c'est **hors classement** — donc en bas, jamais en tête.
-    const groupes = grouperParProjet(
+    const groupes = grouperAttentionPuisProjet(
       [ligneProjet("w2:p1", "w2"), ligneProjet("w1:p1", "w1", "idle", 1_000)],
       "recent",
       nomDeProjet,
@@ -330,7 +330,7 @@ describe("U18 — le regroupement par projet", () => {
   });
 
   test("en tri par nom, ce sont les PROJETS qui s'ordonnent", () => {
-    const groupes = grouperParProjet(
+    const groupes = grouperAttentionPuisProjet(
       [ligneProjet("w2:p1", "w2", "idle", 9_000), ligneProjet("w1:p1", "w1", "idle", 1_000)],
       "nom",
       nomDeProjet,
@@ -340,7 +340,7 @@ describe("U18 — le regroupement par projet", () => {
   });
 
   test("à l'intérieur d'un groupe, l'ordre choisi s'applique encore", () => {
-    const groupes = grouperParProjet(
+    const groupes = grouperAttentionPuisProjet(
       [
         ligneProjet("w1:p1", "w1", "idle", 1_000),
         ligneProjet("w1:p2", "w1", "idle", 9_000),
@@ -356,18 +356,18 @@ describe("U18 — le regroupement par projet", () => {
   test("un projet que l'aperçu ne connaît pas garde son groupe", () => {
     // ⚠️ Le libellé peut manquer : l'aperçu arrive après la liste. Le groupe
     // existe quand même — le faire disparaître cacherait une conversation.
-    const groupes = grouperParProjet([ligneProjet("w9:p1", "w9")], "recent", nomDeProjet);
+    const groupes = grouperAttentionPuisProjet([ligneProjet("w9:p1", "w9")], "recent", nomDeProjet);
 
     expect(groupes.map((g) => g.titre)).toEqual(["Workspace"]);
     expect(dans(groupes, "w9")).toEqual(["w9:p1"]);
   });
 
   test("une liste vide ne rend aucun groupe", () => {
-    expect(grouperParProjet([], "recent", nomDeProjet)).toEqual([]);
+    expect(grouperAttentionPuisProjet([], "recent", nomDeProjet)).toEqual([]);
   });
 
   test("le compte se lit aussi par clé de projet", () => {
-    const groupes = grouperParProjet(
+    const groupes = grouperAttentionPuisProjet(
       [ligneProjet("w1:p1", "w1"), ligneProjet("w1:p2", "w1"), ligneProjet("w2:p1", "w2")],
       "recent",
       nomDeProjet,
@@ -393,11 +393,27 @@ describe("U18 — le dispatcher ne dérive pas", () => {
     );
   });
 
-  test("« projet » regroupe bien par projet", () => {
+  test("« projet » met l'attention en tête, et ne range que le reste", () => {
+    /*
+      ⚠️ Un agent bloqué et un agent au travail restent en tête, **non découpés
+      par projet** : c'est ce qu'on vient chercher. Seuls les agents au repos
+      forment des groupes de projet — c'est là qu'est la masse à ranger.
+    */
     expect(groupesDe(source, "recent", "projet", nomDeProjet).map((g) => g.cle)).toEqual([
-      "w2",
-      "w1",
+      "a-traiter",
+      "en-cours",
     ]);
+  });
+
+  test("« projet » range bien les agents au repos par projet", () => {
+    expect(
+      groupesDe(
+        [ligneProjet("w1:p1", "w1", "idle", 1_000), ligneProjet("w2:p1", "w2", "idle", 2_000)],
+        "recent",
+        "projet",
+        nomDeProjet,
+      ).map((g) => g.cle),
+    ).toEqual(["w2", "w1"]);
   });
 
   test("le regroupement par état garde les titres que l'interface attend", () => {
@@ -406,5 +422,89 @@ describe("U18 — le dispatcher ne dérive pas", () => {
     expect(
       groupesDe([ligne("w1:p1", "blocked", 1_000)], "recent", "statut", nomDeProjet)[0]?.titre,
     ).toBe("Needs attention");
+  });
+});
+
+/**
+ * L'attention n'est PAS rangée par projet.
+ *
+ * ⚠️ **Cette règle a été corrigée par l'usage, et elle mérite ses tests.** Une
+ * première version rangeait tout par projet : un agent bloqué se retrouvait
+ * dispersé dans le sien, et il fallait ouvrir chaque groupe pour trouver ce qui
+ * demandait une réponse. Le regroupement sert à ranger la **masse** — les agents
+ * finis et au repos — pas à cacher ce qui attend une action.
+ */
+describe("U18 — l'attention passe avant le rangement", () => {
+  /*
+    Fixture **mixte à dessein** : `w1` a un agent en attention ET un au repos.
+    Sans les deux, on ne pourrait pas vérifier qu'un projet apparaît *sans* son
+    agent bloqué — qui est le point de la règle.
+  */
+  const source = [
+    ligneProjet("w1:p1", "w1", "blocked", 1_000),
+    ligneProjet("w1:p3", "w1", "idle", 2_000),
+    ligneProjet("w1:p2", "w1", "working", 4_000),
+    ligneProjet("w2:p1", "w2", "idle", 5_000),
+    ligneProjet("w2:p2", "w2", "done", 3_000),
+  ];
+  const groupes = grouperAttentionPuisProjet(source, "recent", nomDeProjet);
+
+  test("les deux premières sections sont l'attention, dans cet ordre", () => {
+    // `blocked` avant `working` : un agent bloqué demande une action, un agent
+    // qui travaille n'en demande pas.
+    expect(groupes.map((g) => g.cle)).toEqual(["a-traiter", "en-cours", "w2", "w1"]);
+    expect(groupes[0]?.titre).toBe("Needs attention");
+    expect(groupes[1]?.titre).toBe("In progress");
+  });
+
+  test("le groupe d'un projet ne contient QUE ses agents au repos", () => {
+    // ⚠️ C'est tout l'objet de la correction : `w1:p1` et `w1:p2` sont en haut,
+    // pas ici. Les y remettre les rendrait trouvables à deux endroits.
+    expect(dans(groupes, "w1")).toEqual(["w1:p3"]);
+    expect(dans(groupes, "w2")).toEqual(["w2:p1", "w2:p2"]);
+  });
+
+  test("l'attention n'est pas découpée par projet", () => {
+    expect(dans(groupes, "a-traiter")).toEqual(["w1:p1"]);
+    expect(dans(groupes, "en-cours")).toEqual(["w1:p2"]);
+  });
+
+  test("chaque ligne n'apparaît qu'UNE fois, tous groupes confondus", () => {
+    const vues = groupes.flatMap((g) => g.conversations.map((c) => c.paneId));
+    expect(vues.toSorted()).toEqual(["w1:p1", "w1:p2", "w1:p3", "w2:p1", "w2:p2"]);
+  });
+
+  test("en tri par nom, ce sont les projets qui s'ordonnent", () => {
+    // Les deux sections d'attention gardent leur place : elles ne sont pas des
+    // projets, et les trier avec eux n'aurait pas de sens.
+    expect(grouperAttentionPuisProjet(source, "nom", nomDeProjet).map((g) => g.cle)).toEqual([
+      "a-traiter",
+      "en-cours",
+      "w1",
+      "w2",
+    ]);
+  });
+
+  test("un projet dont TOUS les agents sont en attention n'a pas de groupe", () => {
+    // Sinon il apparaîtrait vide, ce qui ferait chercher ce qui manque.
+    const toutEnAttention = grouperAttentionPuisProjet(
+      [ligneProjet("w1:p1", "w1", "blocked"), ligneProjet("w1:p2", "w1", "working")],
+      "recent",
+      nomDeProjet,
+    );
+    expect(toutEnAttention.map((g) => g.cle)).toEqual(["a-traiter", "en-cours"]);
+  });
+
+  test("sans agent en attention, il ne reste que les projets", () => {
+    const auRepos = grouperAttentionPuisProjet(
+      [ligneProjet("w1:p1", "w1"), ligneProjet("w2:p1", "w2")],
+      "recent",
+      nomDeProjet,
+    );
+    expect(auRepos.map((g) => g.cle)).toEqual(["w1", "w2"]);
+  });
+
+  test("une liste vide ne rend aucun groupe", () => {
+    expect(grouperAttentionPuisProjet([], "recent", nomDeProjet)).toEqual([]);
   });
 });

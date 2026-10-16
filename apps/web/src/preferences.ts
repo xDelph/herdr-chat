@@ -207,9 +207,16 @@ export const appliquerStyleMarque = (style: StyleMarque): void => {
  * necessaire quand le nombre d'agents grandit — dix onglets etales dans trois
  * sections ne disent plus a quel projet ils appartiennent.
  *
- * ⚠️ Ce que le second fait **perdre**, et qu'il faut dire : le blocage n'est plus
- * en tete de liste. C'est pour ca que l'etat n'est pas abandonne — il reste ecrit
- * sur chaque ligne, a droite.
+ * ⚠️ **Le second ne remplace pas le premier : il le precede.** Ce qui demande une
+ * action (bloque) ou signale une activite (au travail) reste en tete et **n'est
+ * pas decoupe par projet** — le decouper obligerait a ouvrir chaque groupe pour
+ * trouver ce qui attend, ce qui annule la raison de le mettre en tete. Seul le
+ * reste — finis, au repos — est range par projet : c'est la masse, et c'est elle
+ * qui devient illisible quand les agents se multiplient.
+ *
+ * ⚠️ Une premiere version rangeait *tout* par projet. Corrige apres usage : un
+ * agent bloque se retrouvait disperse dans le sien, alors qu'il etait le seul a
+ * demander une reponse.
  */
 export const GROUPEMENTS = ["statut", "projet"] as const;
 export type Groupement = (typeof GROUPEMENTS)[number];
