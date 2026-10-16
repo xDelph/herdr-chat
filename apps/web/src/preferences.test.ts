@@ -28,7 +28,7 @@ import {
   THEME_LABEL,
   THEMES,
   themeEnregistre,
-} from "./apparence.ts";
+} from "./preferences.ts";
 
 describe("le thème retenu est toujours un thème valide", () => {
   test("une valeur connue est retenue telle quelle", () => {

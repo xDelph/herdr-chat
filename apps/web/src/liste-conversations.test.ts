@@ -126,9 +126,17 @@ describe("U16 — la ligne se lit à 320 px", () => {
 });
 
 describe("U16 — la liste garde sa structure", () => {
-  test("chaque section a un titre et son compte", () => {
-    expect(app).toContain("<SectionTitle count={lignes.length}>");
-    expect(app).toContain("SECTION_LABEL[section]");
+  test("chaque groupe a un titre et son compte", () => {
+    /*
+      ⚠️ Le titre vient désormais du **groupe**, pas d'une table lue dans
+      l'écran. C'était `SECTION_LABEL[section]` : depuis que la liste peut être
+      répartie par projet, une clé est soit une section, soit un identifiant de
+      projet — et une seule des deux se traduit par une table. Résoudre le titre
+      dans `sections.ts` évite un `as Section` dans le rendu, c'est-à-dire une
+      assertion qui masquerait une clé inattendue au lieu de la montrer.
+    */
+    expect(app).toContain("<SectionTitle count={lignes.length}>{titre}</SectionTitle>");
+    expect(app).not.toContain("SECTION_LABEL[");
   });
 
   test("les filtres, l'activité et la barre d'onglets ont disparu", () => {

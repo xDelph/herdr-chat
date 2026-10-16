@@ -8,7 +8,7 @@ import {
   lireStyleMarque,
   lireTheme,
   rafraichirCouleurDeBarre,
-} from "./apparence.ts";
+} from "./preferences.ts";
 import "./styles.css";
 
 /*

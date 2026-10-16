@@ -33,8 +33,9 @@ import { ProjectAgentsOf } from "./ProjectDetail.tsx";
 import type { LaunchChoice } from "./launch.ts";
 import { TrustCard } from "./TrustCard.tsx";
 import { parseRoute, routeToHash } from "./routing.ts";
-import { ORDRE_LABEL, SECTION_LABEL, sectionConversations } from "./sections.ts";
+import { groupesDe, ORDRE_LABEL } from "./sections.ts";
 import type { Ordre } from "./sections.ts";
+import { lireGroupement, retenirGroupement, type Groupement } from "./preferences.ts";
 import { ConversationRow } from "./ConversationRow.tsx";
 import { SectionTitle } from "./SectionTitle.tsx";
 import { ProjectPicker } from "./ProjectPicker.tsx";
@@ -345,32 +346,48 @@ export const App = () => {
   }, [refresh]);
 
   /**
-   * Liste par sections, dans l'ordre du tableau de règles.
+   * **Comment** la liste est répartie — réglage de l'utilisateur.
    *
-   * Les sections sont celles de la référence, et elles répondent à la seule
-   * question qu'on se pose en ouvrant l'application : **qu'est-ce qui m'attend ?**
+   * ⚠️ **Pourquoi cet état vit ici et pas dans la feuille de réglages**, à la
+   * différence du thème et des marques. Ceux-là posent un attribut sur `<html>`
+   * et n'ont besoin d'aucun rendu React : la feuille les garde pour elle. Le
+   * regroupement décide de la **structure** de la liste, donc l'écran qui la
+   * construit doit le connaître et se redessiner. Un réglage que le CSS applique
+   * peut vivre dans la feuille ; un réglage qui change l'arbre doit remonter.
    */
+  const [groupement, setGroupement] = useState<Groupement>(lireGroupement);
+
   /** Ordre choisi. Défaut « récent » : le contrat U04. */
   const [ordre, setOrdre] = useState<Ordre>("recent");
   const basculerOrdre = useCallback(() => {
     setOrdre((actuel) => (actuel === "recent" ? "nom" : "recent"));
   }, []);
 
-  const sections = useMemo(
-    () =>
-      sectionConversations(conversations, ordre).map(({ conversations: lignes, section }) => ({
-        lignes,
-        section,
-      })),
-    [conversations, ordre],
-  );
-
   /** Nom du projet et libellé d'onglet — absents de `ConversationSummary`. */
   const projetDe = useCallback(
     (workspaceId: string): string =>
       overview?.workspaces.find((workspace) => workspace.workspaceId === workspaceId)?.label ??
-      "projet",
+      // ⚠️ Libellé **anglais**, comme le reste de l'interface. Il ne s'affiche que
+      // si l'aperçu ne connaît pas ce projet — donc au démarrage, ou si le
+      // project a disparu entre deux rafraîchissements.
+      "Workspace",
     [overview],
+  );
+
+  /**
+   * Liste répartie selon le réglage, dans l'ordre du tableau de règles.
+   *
+   * ⚠️ **Un seul appel**, quelle que soit la répartition : `groupesDe` décide, et
+   * l'écran n'a pas à savoir laquelle des deux fonctions appeler. Sinon le choix
+   * se serait trouvé à deux endroits, et en oublier un aurait donné un réglage
+   * sans effet.
+   *
+   * ⚠️ Le calcul vient **après** `projetDe` : c'est lui qui fournit le nom des
+   * projets, et le regroupement par projet ne peut pas s'en passer.
+   */
+  const sections = useMemo(
+    () => groupesDe(conversations, ordre, groupement, projetDe),
+    [conversations, ordre, groupement, projetDe],
   );
   const ongletDe = useCallback(
     (paneId: string): string => {
@@ -665,9 +682,9 @@ export const App = () => {
               <span aria-hidden="true">{ordre === "nom" ? "A→Z" : "⏱"}</span>
             </button>
           </div>
-          {sections.map(({ lignes, section }) => (
-            <section key={section}>
-              <SectionTitle count={lignes.length}>{SECTION_LABEL[section]}</SectionTitle>
+          {sections.map(({ cle, conversations: lignes, titre }) => (
+            <section key={cle}>
+              <SectionTitle count={lignes.length}>{titre}</SectionTitle>
               {lignes.map((conversation) => (
                 <ConversationRow
                   conversation={conversation}
@@ -704,8 +721,13 @@ export const App = () => {
 
       {reglagesOuverts ? (
         <SettingsSheet
+          groupement={groupement}
           health={health}
           onClose={fermerReglages}
+          onGroupement={(suivant) => {
+            retenirGroupement(suivant);
+            setGroupement(suivant);
+          }}
           sansSession={overview?.withoutSession ?? 0}
         />
       ) : null}

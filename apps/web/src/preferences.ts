@@ -1,12 +1,19 @@
 /**
- * Préférences d'**apparence** — deux réglages, un seul endroit.
+ * Préférences d'affichage — quatre réglages, un seul endroit.
  *
- * ⚠️ Pourquoi les deux vivent ici, et pourquoi le module ne s'appelle plus
- * `theme.ts`. Le thème et le rendu des marques sont la **même mécanique** : une
- * valeur validée, posée en attribut sur `<html>`, retenue dans le stockage local
- * et lue par le CSS. Deux fichiers auraient dupliqué la validation, le défaut, la
- * lecture tolérante du stockage, et l'écriture protégée. Le nom du module suit
- * donc ce qu'il contient.
+ * ⚠️ **Pourquoi ils vivent ensemble, et pourquoi le module a change de nom deux
+ * fois.** Le thème, le rendu des marques et le regroupement de la liste sont la
+ * **meme mecanique** : une valeur validee, un defaut, une lecture tolerante du
+ * stockage, une ecriture protegee. Trois fichiers auraient duplique ces quatre
+ * choses — et une validation dupliquee finit toujours par diverger. Le nom du
+ * module suit donc ce qu'il contient, plutot que le premier reglage qu'on y a
+ * mis (`theme.ts`, puis `apparence.ts`, puis `preferences.ts`).
+ *
+ * ⚠️ **Deux familles, et il ne faut pas les confondre.** Le theme et les marques
+ * sont poses en **attribut sur `<html>`** : le CSS fait le reste, sans qu'aucun
+ * composant ne se redessine. Le **regroupement** n'a pas d'attribut — c'est la
+ * structure de la liste qui change, donc React doit le savoir. `retenirGroupement`
+ * ne fait que l'enregistrer, et l'appelant le garde dans son etat.
  *
  * ⚠️ **Thèmes d'affichage — trois ambiances, un seul jeu de rôles.**
  *
@@ -41,6 +48,7 @@ export const THEME_LABEL: Record<Theme, string> = {
 
 const CLE_THEME = "herdr-chat.theme";
 const CLE_MARQUE = "herdr-chat.marques";
+const CLE_GROUPEMENT = "herdr-chat.groupement";
 
 /**
  * Token CSS de la pastille de chaque thème, dans le sélecteur de réglages.
@@ -187,4 +195,56 @@ export const lireStyleMarque = (): StyleMarque => styleMarqueEnregistre(lireStoc
 export const appliquerStyleMarque = (style: StyleMarque): void => {
   document.documentElement.dataset["marques"] = attributDeStyleMarque(style);
   ecrireStockage(CLE_MARQUE, style);
+};
+
+/**
+ * Regroupement de la liste des conversations.
+ *
+ * ⚠️ **Pourquoi ce reglage existe, et pourquoi son defaut ne change pas.** Le
+ * regroupement par **etat** repond a « qu'est-ce qui m'attend ? » : un agent
+ * bloque passe en tete, et c'est la seule categorie qui appelle une action. Le
+ * regroupement par **projet** repond a « ou en est tel chantier ? », ce qui devient
+ * necessaire quand le nombre d'agents grandit — dix onglets etales dans trois
+ * sections ne disent plus a quel projet ils appartiennent.
+ *
+ * ⚠️ Ce que le second fait **perdre**, et qu'il faut dire : le blocage n'est plus
+ * en tete de liste. C'est pour ca que l'etat n'est pas abandonne — il reste ecrit
+ * sur chaque ligne, a droite.
+ */
+export const GROUPEMENTS = ["statut", "projet"] as const;
+export type Groupement = (typeof GROUPEMENTS)[number];
+
+export const GROUPEMENT_DEFAUT: Groupement = "statut";
+
+export const GROUPEMENT_LABEL: Record<Groupement, string> = {
+  statut: "By status",
+  projet: "By workspace",
+};
+
+/** Le seul endroit qui decide si une valeur est un regroupement. */
+export const estGroupement = (valeur: string | null | undefined): valeur is Groupement =>
+  valeur !== null &&
+  valeur !== undefined &&
+  (GROUPEMENTS as ReadonlyArray<string>).includes(valeur);
+
+/**
+ * Regroupement à appliquer, ou le défaut. Jamais d'exception, comme les autres :
+ * une préférence illisible ne doit pas empêcher l'écran de s'afficher.
+ */
+export const groupementEnregistre = (valeur: string | null | undefined): Groupement =>
+  estGroupement(valeur) ? valeur : GROUPEMENT_DEFAUT;
+
+export const lireGroupement = (): Groupement => groupementEnregistre(lireStockage(CLE_GROUPEMENT));
+
+/**
+ * Retient le regroupement.
+ *
+ * ⚠️ **« Retenir », et pas « appliquer »** — les autres réglages posent un
+ * attribut, celui-ci n'a rien à poser : la structure de la liste est construite
+ * par un composant, qui doit donc garder la valeur dans son état. Un nom qui
+ * dirait « appliquer » laisserait croire qu'un attribut suffit, et le réglage
+ * aurait l'air de ne rien faire.
+ */
+export const retenirGroupement = (groupement: Groupement): void => {
+  ecrireStockage(CLE_GROUPEMENT, groupement);
 };

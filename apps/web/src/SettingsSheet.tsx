@@ -23,24 +23,43 @@ import {
 import {
   appliquerStyleMarque,
   appliquerTheme,
+  GROUPEMENT_LABEL,
+  GROUPEMENTS,
   lireStyleMarque,
   lireTheme,
   STYLE_MARQUE_LABEL,
   STYLES_MARQUE,
   THEME_LABEL,
   THEMES,
+  type Groupement,
   type StyleMarque,
   type Theme,
-} from "./apparence.ts";
+} from "./preferences.ts";
 
 interface Props {
   readonly health: Health | null;
   readonly onClose: () => void;
   /** Agents masqués faute de session lisible — comptés, jamais cachés en silence. */
   readonly sansSession: number;
+  /*
+    ⚠️ **Le regroupement vient du parent, pas d'un état local.** Le thème et les
+    marques sont poses en attribut sur `<html>` : le CSS fait le reste, et la
+    feuille peut les garder pour elle. Le regroupement decide de la **structure**
+    de la liste — l'ecran qui la construit doit donc le connaitre et se
+    redessiner. Un reglage que le CSS applique peut vivre ici ; un reglage qui
+    change l'arbre doit remonter.
+  */
+  readonly groupement: Groupement;
+  readonly onGroupement: (suivant: Groupement) => void;
 }
 
-export const SettingsSheet = ({ health, onClose, sansSession }: Props) => {
+export const SettingsSheet = ({
+  groupement,
+  health,
+  onClose,
+  onGroupement,
+  sansSession,
+}: Props) => {
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
@@ -187,6 +206,36 @@ export const SettingsSheet = ({ health, onClose, sansSession }: Props) => {
               type="button"
             >
               {STYLE_MARQUE_LABEL[option]}
+            </button>
+          ))}
+        </fieldset>
+        {/*
+          Le regroupement de la liste.
+
+          ⚠️ **Ce que le second choix fait perdre, et il faut le dire à
+          l'écran.** « Needs attention » passe en tête parce qu'un agent bloqué
+          attend une action ; groupées par projet, ces lignes se retrouvent
+          dispersées. L'état reste écrit sur chaque ligne, mais ce n'est plus lui
+          qui organise.
+        */}
+        <h4 className="theme__titre">Conversation list</h4>
+        <p className="muted small">
+          By status keeps what needs attention on top. By workspace gathers each project's agents
+          together — easier once there are many, but a blocked agent is no longer first.
+        </p>
+        <fieldset className="theme">
+          <legend className="sr-only">Conversation list</legend>
+          {GROUPEMENTS.map((option) => (
+            <button
+              aria-pressed={groupement === option}
+              className="theme__choix"
+              key={option}
+              onClick={() => {
+                onGroupement(option);
+              }}
+              type="button"
+            >
+              {GROUPEMENT_LABEL[option]}
             </button>
           ))}
         </fieldset>

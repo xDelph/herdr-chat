@@ -18,7 +18,7 @@
  */
 import { describe, expect, test } from "bun:test";
 import { MINIMUM, ratio, token, tokenDuTheme } from "./contraste.ts";
-import { PASTILLE, THEMES, THEME_DEFAUT, type Theme } from "./apparence.ts";
+import { PASTILLE, THEMES, THEME_DEFAUT, type Theme } from "./preferences.ts";
 
 /**
  * Les couples *texte/fond* réellement utilisés, par leur rôle.

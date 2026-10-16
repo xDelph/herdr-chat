@@ -107,14 +107,31 @@ export const ORDRE_LABEL: Record<Ordre, string> = {
  */
 const nomDe = (conversation: ConversationSummary): string => conversation.title ?? "";
 
-/** Une section de la liste, prête à afficher. */
-export interface Sectioned {
-  readonly section: Section;
+/**
+ * Un groupe de la liste, prêt à afficher.
+ *
+ * ⚠️ **Le titre est déjà résolu, et c'est délibéré.** Selon le réglage, une clé
+ * est une `Section` (« à traiter ») ou un identifiant de projet : une seule des
+ * deux se traduit par une table. Résoudre ici évite un `as Section` dans le
+ * rendu — c'est-à-dire une assertion qui **masquerait** une clé inattendue au
+ * lieu de la montrer.
+ */
+export interface Groupe {
+  /** Clé stable, unique dans la liste : sert de `key` React et de comparaison. */
+  readonly cle: string;
+  readonly titre: string;
   readonly conversations: ReadonlyArray<ConversationSummary>;
 }
 
+/** Trie des lignes selon l'ordre choisi — un seul endroit. */
+const trier = (
+  conversations: ReadonlyArray<ConversationSummary>,
+  ordre: Ordre,
+): ReadonlyArray<ConversationSummary> =>
+  conversations.toSorted(ordre === "nom" ? comparerParNom : comparerParDate);
+
 /**
- * Répartit et trie les conversations.
+ * Répartit et trie les conversations par **état**.
  *
  * Chaque pane apparaît **une fois** : un agent `blocked` qui travaille aussi
  * reste dans `À traiter`, jamais en double.
@@ -122,14 +139,94 @@ export interface Sectioned {
 export const sectionConversations = (
   conversations: ReadonlyArray<ConversationSummary>,
   ordre: Ordre = "recent",
-): ReadonlyArray<Sectioned> =>
+): ReadonlyArray<Groupe> =>
   SECTIONS.map((section) => ({
-    conversations: conversations
-      .filter((conversation) => sectionOf(conversation.status) === section)
-      .toSorted(ordre === "nom" ? comparerParNom : comparerParDate),
-    section,
-  })).filter((sectioned) => sectioned.conversations.length > 0);
+    cle: section,
+    conversations: trier(
+      conversations.filter((conversation) => sectionOf(conversation.status) === section),
+      ordre,
+    ),
+    titre: SECTION_LABEL[section],
+  })).filter((groupe) => groupe.conversations.length > 0);
 
-/** Nombre de conversations par section, pour l'en-tête. */
-export const countOf = (sectioned: ReadonlyArray<Sectioned>, section: Section): number =>
-  sectioned.find((entree) => entree.section === section)?.conversations.length ?? 0;
+/**
+ * Répartit et trie les conversations par **projet**.
+ *
+ * `nomDuProjet` vient de l'appelant : `ConversationSummary` ne porte que
+ * l'identifiant du projet, et c'est le seul endroit où le libellé existe. Le
+ * passer en argument garde ce module testable **sans application** — la leçon de
+ * D013.4, déjà appliquée à `sectionConversations`.
+ *
+ * ⚠️ **Les groupes suivent l'ordre choisi pour les lignes.** Trier les lignes par
+ * nom et les groupes par date donnerait deux règles d'ordre dans le même écran,
+ * et personne ne saurait plus laquelle s'applique à quoi.
+ */
+export const grouperParProjet = (
+  conversations: ReadonlyArray<ConversationSummary>,
+  ordre: Ordre,
+  nomDuProjet: (workspaceId: string) => string,
+): ReadonlyArray<Groupe> => {
+  const parProjet = new Map<string, Array<ConversationSummary>>();
+  for (const conversation of conversations) {
+    const lignes = parProjet.get(conversation.workspaceId);
+    if (lignes === undefined) parProjet.set(conversation.workspaceId, [conversation]);
+    else lignes.push(conversation);
+  }
+  return [...parProjet.entries()]
+    .map(([workspaceId, lignes]) => ({
+      cle: workspaceId,
+      conversations: trier(lignes, ordre),
+      titre: nomDuProjet(workspaceId),
+    }))
+    .toSorted(ordre === "nom" ? comparerGroupesParTitre : comparerGroupesParDate);
+};
+
+/**
+ * Répartit la liste selon le regroupement choisi.
+ *
+ * ⚠️ **Un seul point d'entrée**, pour que l'écran n'ait pas à décider quelle
+ * fonction appeler : le choix se trouverait alors à deux endroits — le réglage et
+ * l'appel — et oublier l'un des deux donnerait un réglage sans effet.
+ */
+export const groupesDe = (
+  conversations: ReadonlyArray<ConversationSummary>,
+  ordre: Ordre,
+  groupement: "statut" | "projet",
+  nomDuProjet: (workspaceId: string) => string,
+): ReadonlyArray<Groupe> =>
+  groupement === "projet"
+    ? grouperParProjet(conversations, ordre, nomDuProjet)
+    : sectionConversations(conversations, ordre);
+
+/**
+ * Dernier horodatage d'un groupe, ou `null` s'il n'en a aucun.
+ *
+ * ⚠️ Sert à ordonner les projets « du plus récemment touché au plus ancien »,
+ * c'est-à-dire avec **la même règle que les lignes** : un projet dont aucune
+ * ligne n'est datée passe en dernier, comme une ligne sans date.
+ */
+const dateDuGroupe = (groupe: Groupe): number | null => {
+  let dernier: number | null = null;
+  for (const conversation of groupe.conversations) {
+    const date = conversation.timestamp ?? null;
+    if (date !== null && (dernier === null || date > dernier)) dernier = date;
+  }
+  return dernier;
+};
+
+const comparerGroupesParDate = (a: Groupe, b: Groupe): number => {
+  const dateA = dateDuGroupe(a);
+  const dateB = dateDuGroupe(b);
+  if (dateA === null && dateB === null) return a.cle.localeCompare(b.cle);
+  if (dateA === null) return 1;
+  if (dateB === null) return -1;
+  if (dateA !== dateB) return dateB - dateA;
+  return a.cle.localeCompare(b.cle);
+};
+
+const comparerGroupesParTitre = (a: Groupe, b: Groupe): number =>
+  a.titre.localeCompare(b.titre, "fr", { sensitivity: "base" }) || a.cle.localeCompare(b.cle);
+
+/** Nombre de conversations d'un groupe, pour l'en-tête. */
+export const countOf = (groupes: ReadonlyArray<Groupe>, cle: string): number =>
+  groupes.find((entree) => entree.cle === cle)?.conversations.length ?? 0;

@@ -6,7 +6,15 @@
  */
 import { describe, expect, test } from "bun:test";
 import type { AgentStatus, ConversationSummary } from "@herdr-remote/shared";
-import { countOf, SECTIONS, SECTION_LABEL, sectionConversations, sectionOf } from "./sections.ts";
+import {
+  countOf,
+  grouperParProjet,
+  groupesDe,
+  SECTIONS,
+  SECTION_LABEL,
+  sectionConversations,
+  sectionOf,
+} from "./sections.ts";
 
 const ligne = (
   paneId: string,
@@ -29,7 +37,7 @@ const ligne = (
 const dans = (
   entrees: ReadonlyArray<ReturnType<typeof sectionConversations>[number]>,
   nom: string,
-) => entrees.find((entree) => entree.section === nom)?.conversations.map((c) => c.paneId) ?? [];
+) => entrees.find((entree) => entree.cle === nom)?.conversations.map((c) => c.paneId) ?? [];
 
 describe("U04 — un pane apparaît une fois", () => {
   test("chaque statut tombe dans sa section", () => {
@@ -158,7 +166,7 @@ describe("U04 — l'ordre par nom", () => {
     ];
     for (const ordre of ["recent", "nom"] as const) {
       const entrees = sectionConversations(source, ordre);
-      expect(entrees.map((e) => e.section)).toEqual([...SECTIONS]);
+      expect(entrees.map((e) => e.cle)).toEqual([...SECTIONS]);
       expect(entrees.map((e) => e.conversations.length)).toEqual([1, 1, 1]);
     }
   });
@@ -185,8 +193,11 @@ describe("U04 — structure et libellés", () => {
     // un sous-ensemble de `SECTIONS`, dans l'ordre déclaré.
     const sections = sectionConversations([ligne("w1:p1", "working", 1_000)], "recent");
 
-    expect(sections.map((e) => e.section)).toEqual(["en-cours"]);
-    for (const entree of sections) expect(SECTIONS.includes(entree.section)).toBe(true);
+    expect(sections.map((e) => e.cle)).toEqual(["en-cours"]);
+    // ⚠️ Vu comme des chaînes : `.includes` sur le tuple littéral exigerait une
+    // assertion, qui masquerait justement la clé inattendue qu'on veut voir.
+    const connues: ReadonlyArray<string> = SECTIONS;
+    for (const entree of sections) expect(connues.includes(entree.cle)).toBe(true);
   });
 
   test("chaque section a un libellé exact", () => {
@@ -211,13 +222,13 @@ describe("une section vide ne s'affiche pas", () => {
     // rien fait chercher ce qui manque, et use le mot pour le jour où il compte.
     const sections = sectionConversations([ligne("w1:p1", "idle", 1_000)], "recent");
 
-    expect(sections.map((entree) => entree.section)).toEqual(["recents"]);
+    expect(sections.map((entree) => entree.cle)).toEqual(["recents"]);
   });
 
   test("sans agent au travail, « In progress » disparaît", () => {
     const sections = sectionConversations([ligne("w1:p1", "blocked", 1_000)], "recent");
 
-    expect(sections.map((entree) => entree.section)).toEqual(["a-traiter"]);
+    expect(sections.map((entree) => entree.cle)).toEqual(["a-traiter"]);
   });
 
   test("avec les deux, les deux sont là", () => {
@@ -226,7 +237,7 @@ describe("une section vide ne s'affiche pas", () => {
       "recent",
     );
 
-    expect(sections.map((entree) => entree.section)).toEqual(["a-traiter", "en-cours"]);
+    expect(sections.map((entree) => entree.cle)).toEqual(["a-traiter", "en-cours"]);
   });
 
   test("une liste vide ne rend AUCUNE section", () => {
@@ -249,5 +260,151 @@ describe("une section vide ne s'affiche pas", () => {
     expect(
       countOf(sectionConversations([ligne("w1:p1", "idle", 1_000)], "recent"), "a-traiter"),
     ).toBe(0);
+  });
+});
+
+/**
+ * Le regroupement par projet.
+ *
+ * ⚠️ **Pourquoi cette option existe.** Le regroupement par état répond à
+ * « qu'est-ce qui m'attend ? ». À dix agents répartis dans trois sections, on ne
+ * sait plus à quel chantier chacun appartient — et c'est la question qu'on se
+ * pose quand les projets se multiplient.
+ *
+ * ⚠️ **Ce qu'elle fait perdre, et qui est vérifié ici.** Un agent bloqué n'est
+ * plus en tête : il est dans son projet, à sa place alphabétique ou
+ * chronologique. C'est le prix du regroupement, et il est écrit dans les
+ * réglages plutôt que découvert à l'usage.
+ */
+const ligneProjet = (
+  paneId: string,
+  workspaceId: string,
+  status: AgentStatus = "idle",
+  timestamp?: number,
+): ConversationSummary => ({ ...ligne(paneId, status, timestamp), workspaceId });
+
+/** Résolveur de libellé : `w1` → « Alpha », le reste → « Workspace ». */
+const nomDeProjet = (workspaceId: string): string =>
+  workspaceId === "w1" ? "Alpha" : workspaceId === "w2" ? "Beta" : "Workspace";
+
+describe("U18 — le regroupement par projet", () => {
+  test("chaque projet forme un groupe, nommé par son libellé", () => {
+    const groupes = grouperParProjet(
+      [ligneProjet("w1:p1", "w1"), ligneProjet("w2:p1", "w2"), ligneProjet("w1:p2", "w1")],
+      "recent",
+      nomDeProjet,
+    );
+
+    expect(groupes.map((g) => g.titre).toSorted()).toEqual(["Alpha", "Beta"]);
+    expect(dans(groupes, "w1")).toEqual(["w1:p1", "w1:p2"]);
+    expect(dans(groupes, "w2")).toEqual(["w2:p1"]);
+  });
+
+  test("le projet le plus récemment touché passe en premier", () => {
+    // ⚠️ C'est la même règle que pour les lignes — on veut voir ce qui vient de
+    // bouger. Trier les groupes par nom et les lignes par date aurait donné deux
+    // règles d'ordre dans le même écran.
+    const groupes = grouperParProjet(
+      [
+        ligneProjet("w1:p1", "w1", "idle", 1_000),
+        ligneProjet("w2:p1", "w2", "idle", 5_000),
+        ligneProjet("w1:p2", "w1", "idle", 3_000),
+      ],
+      "recent",
+      nomDeProjet,
+    );
+
+    expect(groupes.map((g) => g.cle)).toEqual(["w2", "w1"]);
+  });
+
+  test("un projet sans aucune date passe en dernier", () => {
+    // Même contrepied que pour les lignes : sans horodatage n'est pas « le plus
+    // ancien », c'est **hors classement** — donc en bas, jamais en tête.
+    const groupes = grouperParProjet(
+      [ligneProjet("w2:p1", "w2"), ligneProjet("w1:p1", "w1", "idle", 1_000)],
+      "recent",
+      nomDeProjet,
+    );
+
+    expect(groupes.map((g) => g.cle)).toEqual(["w1", "w2"]);
+  });
+
+  test("en tri par nom, ce sont les PROJETS qui s'ordonnent", () => {
+    const groupes = grouperParProjet(
+      [ligneProjet("w2:p1", "w2", "idle", 9_000), ligneProjet("w1:p1", "w1", "idle", 1_000)],
+      "nom",
+      nomDeProjet,
+    );
+
+    expect(groupes.map((g) => g.titre)).toEqual(["Alpha", "Beta"]);
+  });
+
+  test("à l'intérieur d'un groupe, l'ordre choisi s'applique encore", () => {
+    const groupes = grouperParProjet(
+      [
+        ligneProjet("w1:p1", "w1", "idle", 1_000),
+        ligneProjet("w1:p2", "w1", "idle", 9_000),
+        ligneProjet("w1:p3", "w1", "idle", 5_000),
+      ],
+      "recent",
+      nomDeProjet,
+    );
+
+    expect(dans(groupes, "w1")).toEqual(["w1:p2", "w1:p3", "w1:p1"]);
+  });
+
+  test("un projet que l'aperçu ne connaît pas garde son groupe", () => {
+    // ⚠️ Le libellé peut manquer : l'aperçu arrive après la liste. Le groupe
+    // existe quand même — le faire disparaître cacherait une conversation.
+    const groupes = grouperParProjet([ligneProjet("w9:p1", "w9")], "recent", nomDeProjet);
+
+    expect(groupes.map((g) => g.titre)).toEqual(["Workspace"]);
+    expect(dans(groupes, "w9")).toEqual(["w9:p1"]);
+  });
+
+  test("une liste vide ne rend aucun groupe", () => {
+    expect(grouperParProjet([], "recent", nomDeProjet)).toEqual([]);
+  });
+
+  test("le compte se lit aussi par clé de projet", () => {
+    const groupes = grouperParProjet(
+      [ligneProjet("w1:p1", "w1"), ligneProjet("w1:p2", "w1"), ligneProjet("w2:p1", "w2")],
+      "recent",
+      nomDeProjet,
+    );
+
+    expect(countOf(groupes, "w1")).toBe(2);
+    expect(countOf(groupes, "w2")).toBe(1);
+    expect(countOf(groupes, "w3")).toBe(0);
+  });
+});
+
+describe("U18 — le dispatcher ne dérive pas", () => {
+  const source = [
+    ligneProjet("w1:p1", "w1", "blocked", 1_000),
+    ligneProjet("w2:p1", "w2", "working", 2_000),
+  ];
+
+  test("« statut » rend exactement ce que rend la répartition par état", () => {
+    // ⚠️ Un seul point d'entrée : si le dispatcher réimplémentait la règle, elle
+    // pourrait s'écarter de celle qui est testée juste au-dessus.
+    expect(groupesDe(source, "recent", "statut", nomDeProjet)).toEqual(
+      sectionConversations(source, "recent"),
+    );
+  });
+
+  test("« projet » regroupe bien par projet", () => {
+    expect(groupesDe(source, "recent", "projet", nomDeProjet).map((g) => g.cle)).toEqual([
+      "w2",
+      "w1",
+    ]);
+  });
+
+  test("le regroupement par état garde les titres que l'interface attend", () => {
+    // La clé redevient un titre : c'est ce que `sections.ts` résout, et l'écran
+    // n'a plus de table à consulter.
+    expect(
+      groupesDe([ligne("w1:p1", "blocked", 1_000)], "recent", "statut", nomDeProjet)[0]?.titre,
+    ).toBe("Needs attention");
   });
 });
