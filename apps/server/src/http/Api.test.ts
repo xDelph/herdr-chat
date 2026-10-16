@@ -49,6 +49,7 @@ const TEST_TMP = mkdtempSync(join(tmpdir(), "herdr-remote-test-"));
 
 const config: ServerConfig = {
   duplicateWindowMs: 60_000,
+  opencodeDbPath: "/tmp/opencode-test.db",
   extraFileRoots: [],
   herdrSocketPath: join(TEST_TMP, "fake.sock"),
   hostname: "127.0.0.1",

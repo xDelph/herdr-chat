@@ -42,8 +42,11 @@ describe("U14 — seuls les types vérifiés sont proposés", () => {
     expect(typeLisible("codex")).toBe(true);
   });
 
-  test("opencode est refusé : sa session est dans une base", () => {
-    expect(typeLisible("opencode")).toBe(false);
+  test("opencode est ACCEPTÉ : une base SQLite se lit", () => {
+    // ⚠️ Troisième fois que le meme raisonnement se trompait : « sa session est
+    // dans une base » n'est pas « sa session est illisible ». Mesure du
+    // 2026-10-16 dans `opencode.db` : 1 879 messages lisibles.
+    expect(typeLisible("opencode")).toBe(true);
   });
 
   test("devin est refusé : Herdr n'expose qu'un identifiant opaque", () => {
@@ -71,7 +74,7 @@ describe("U14 — seuls les types vérifiés sont proposés", () => {
 
   test("les types refusés le sont tous, sans exception cachée", () => {
     // ⚠️ codex n'est plus dans cette liste, et c'est le seul changement.
-    for (const kind of ["opencode", "devin", "cursor", "claude", "agy", "gemini"]) {
+    for (const kind of ["devin", "cursor", "claude", "agy", "gemini"]) {
       expect(typeLisible(kind)).toBe(false);
     }
   });

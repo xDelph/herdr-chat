@@ -62,17 +62,18 @@ describe("U14 — un agent muet n'apparaît pas comme une conversation", () => {
   });
 
   test("un agent sans chemin est retiré de la liste", async () => {
-    // opencode : `kind: "id"` et une base SQLite. Herdr l'expose comme agent,
-    // et la PWA ne peut rien en lire.
+    // devin : `kind: "id"` et un identifiant opaque, sans magasin lisible.
+    // ⚠️ opencode servait d'exemple ici jusqu'au 2026-10-16 : il est
+    // desormais lisible, donc il ne peut plus illustrer un agent muet.
     const vue = await lire(
       buildOverview(
         instantane([
           agent({
-            agent: "opencode",
+            agent: "devin",
             agent_session: {
-              agent: "opencode",
+              agent: "devin",
               kind: "id",
-              source: "herdr:opencode",
+              source: "herdr:devin",
               value: "ses_1",
             },
             pane_id: "w1:p2",
@@ -113,7 +114,7 @@ describe("U14 — masquer n'est pas disparaître", () => {
             agent_session: { agent: "pi", kind: "path", source: "herdr:pi", value: "/s/a.jsonl" },
             pane_id: "w1:p1",
           }),
-          agent({ agent: "opencode", pane_id: "w1:p2" }),
+          agent({ agent: "devin", pane_id: "w1:p2" }),
           agent({ agent: "devin", pane_id: "w1:p3" }),
         ]),
       ),
@@ -130,7 +131,7 @@ describe("U14 — masquer n'est pas disparaître", () => {
     const vue = await lire(
       buildOverview(
         instantane(
-          [agent({ agent: "opencode", pane_id: "w1:p2" })],
+          [agent({ agent: "devin", pane_id: "w1:p2" })],
           [workspace({ agent_status: "working" })],
         ),
       ),
@@ -177,8 +178,8 @@ describe("U14 — les deux chemins d'overview doivent dire la même chose", () =
       pane_id: "w1:p1",
     }),
     agent({
-      agent: "opencode",
-      agent_session: { agent: "opencode", kind: "id", source: "herdr:opencode", value: "ses_1" },
+      agent: "devin",
+      agent_session: { agent: "devin", kind: "id", source: "herdr:devin", value: "ses_1" },
       pane_id: "w1:p2",
     }),
     agent({ agent: "devin", pane_id: "w1:p3" }),
@@ -245,7 +246,7 @@ describe("U14 — les deux chemins d'overview doivent dire la même chose", () =
             agent_session: { agent: "pi", kind: "path", source: "herdr:pi", value: "/s/a.jsonl" },
             pane_id: "w1:p1",
           }),
-          agent({ agent: "opencode", pane_id: "w1:p2" }),
+          agent({ agent: "devin", pane_id: "w1:p2" }),
           agent({
             agent_session: { agent: "pi", kind: "path", source: "herdr:pi", value: "" },
             pane_id: "w1:p3",

@@ -24,7 +24,9 @@ import {
   encodeCursor,
   SessionResponse,
 } from "@herdr-remote/shared";
-import { localiserSession } from "../agents/SessionLocator.ts";
+import { sourceSession } from "../agents/SessionLocator.ts";
+import type { SourceSession } from "../agents/SessionLocator.ts";
+import { pageSessionOpencode, sessionExiste } from "../sessions/OpencodeReader.ts";
 import type { ServerConfig } from "../config.ts";
 import { classifyReadFailure, invalidSession, statusFor } from "../sessions/ReadCause.ts";
 import type { HerdrApi } from "../herdr/HerdrClient.ts";
@@ -60,15 +62,21 @@ const decodeAgentKind = Schema.decodeUnknownOption(
  * identifiant, dont la résolution n'est pas vérifiée (D008, `[INCONNU]`). Une
  * capacité non vérifiée n'est pas exposée.
  */
-export const sessionPathOf = (agent: unknown): string | undefined => {
+export const sessionSourceOf = (agent: unknown): SourceSession | undefined => {
   const decoded = Option.getOrUndefined(decodeSessionSlot(agent));
   if (decoded === undefined) return undefined;
   const info = decoded.agent_session;
   if (info === undefined || info === null) return undefined;
   // ⚠️ `agent` porte aussi le nom du type : c'est lui qui dit si un `id` est
-  // résoluble. La décision est prise dans `localiserSession`, et nulle part ici.
+  // résoluble. La décision est prise dans `sourceSession`, et nulle part ici.
   const kind = Option.getOrUndefined(decodeAgentKind(agent))?.agent ?? null;
-  return localiserSession(kind, info);
+  return sourceSession(kind, info);
+};
+
+/** Le chemin, quand la session vit dans un **fichier**. `undefined` sinon. */
+export const sessionPathOf = (agent: unknown): string | undefined => {
+  const source = sessionSourceOf(agent);
+  return source?.kind === "fichier" ? source.base : undefined;
 };
 
 /** Fabrique les deux routes. `config` n'est lu que pour son `logPath`. */
@@ -80,6 +88,25 @@ const isMissingFileEmpty = (path: string): boolean => {
     return false;
   }
 };
+
+/**
+ * Fenetre d'une session opencode, en **lignes**.
+ *
+ * ⚠️ Le contrat exprime la fenetre d'un fichier en octets (`tail`). Pour une
+ * base, un nombre de lignes ; un « 512 Kio de lignes » ne veut rien dire.
+ * 400 messages couvrent largement un ecran de telephone, et la pagination
+ * anterieure est la pour le reste.
+ */
+const OPENCODE_TAIL_ROWS = 400;
+
+/**
+ * Curseur d'une session opencode : le numero de sequence, porte par `offset`.
+ *
+ * ⚠️ `dev` et `ino` a zero, volontairement : une base ne se remplace pas en
+ * cours de route comme un fichier tourne. La detection de rotation ne se
+ * declenche donc jamais, et rien n'est simule pour l'eviter.
+ */
+const curseurSqlite = (offset: number): string => encodeCursor({ dev: 0, ino: 0, offset });
 
 export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
   /**
@@ -124,10 +151,21 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
         Effect.gen(function* () {
           const paneId = request.params["paneId"] ?? "";
           const payload = yield* herdr.getAgent(paneId);
-          const path = sessionPathOf(payload["agent"]);
-          if (path === undefined) {
+          const source = sessionSourceOf(payload["agent"]);
+          if (source === undefined) {
             return { kind: "no-session" as const };
           }
+          /*
+            ⚠️ **opencode sort ici**, avant tout ce qui suppose un fichier :
+            fenêtre d'octets, identité `dev`/`ino`, détection de rotation. Sa
+            session vit dans une base SQLite, et son curseur avance par numéro
+            de séquence. Traiter les deux par le même chemin aurait demandé de
+            simuler un fichier ; on ne simule pas.
+          */
+          if (source.kind === "sqlite") {
+            return { kind: "sqlite" as const, source };
+          }
+          const path = source.base;
           // Contenu depuis le JSONL Pi — jamais depuis Herdr (D008.1).
           /*
           ⚠️ Un agent fraîchement lancé a un `agent_session` valide vers un
@@ -322,6 +360,54 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
           },
           422,
         );
+      }
+      if (value.kind === "sqlite") {
+        const { base, sessionId } = value.source;
+        if (!existsSync(base)) {
+          // Une base absente est une panne de configuration, pas une session
+          // vide. La confondre ferait passer une installation cassée pour un
+          // agent muet.
+          return respond(
+            config.logPath,
+            decoderOf(ApiErrorResponse),
+            { error: `opencode database not found: ${base}` },
+            503,
+          );
+        }
+        if (!sessionExiste(base, sessionId)) {
+          // L'identifiant vient d'Herdr et la base ne le connaît pas : mauvaise
+          // base ou identifiant d'une autre installation. On le dit, avec les
+          // deux valeurs — c'est la seule facon de le diagnotiquer.
+          return respond(
+            config.logPath,
+            decoderOf(ApiErrorResponse),
+            { error: `opencode session not found in database: ${sessionId}` },
+            404,
+          );
+        }
+        /*
+          ⚠️ Le budget de la fenêtre est en **lignes**, pas en octets. Le
+          contrat exprime la fenêtre d'un fichier en kilo-octets ; pour une base,
+          « 512 Kio de lignes » ne veut rien dire. On garde donc un nombre de
+          messages, et le champ `tail` de la requête est ignoré ici — ce qui est
+          documenté plutôt que silencieux.
+        */
+        const page = pageSessionOpencode(value.source, {
+          avant: before?.offset,
+          depuis: cursor?.offset,
+          lignes: OPENCODE_TAIL_ROWS,
+        });
+        return respond(config.logPath, decoderOf(SessionResponse), {
+          cause: "vide",
+          cursor: curseurSqlite(page.curseur),
+          entries: page.entries,
+          hasMore: page.hasMore,
+          incremental: cursor !== undefined,
+          previousCursor:
+            page.previousSeq === undefined ? undefined : curseurSqlite(page.previousSeq),
+          reset: false,
+          sessionPath: base,
+        });
       }
       if (value.kind === "no-session") {
         return respond(

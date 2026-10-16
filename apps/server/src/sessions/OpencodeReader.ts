@@ -31,8 +31,15 @@ export interface PageOpencode {
   readonly entries: ReadonlyArray<RawEntry>;
   /** Des messages plus anciens existent hors de la fenêtre. */
   readonly hasMore: boolean;
-  /** Numéro de séquence à reporter dans le curseur (borne basse si `avant`). */
-  readonly seq: number;
+  /**
+   * Première ligne de la fenêtre **rendue** — la base du curseur « plus tôt ».
+   *
+   * ⚠️ Ne pas confondre avec `dernierSeq` : ils sont égaux quand la page tient
+   * en une ligne, et le confondre ferait redemander la même page.
+   */
+  readonly premierSeq: number;
+  /** Dernière ligne **lue** — la position du prochain rafraîchissement. */
+  readonly dernierSeq: number;
 }
 
 /** Une ligne telle que la base la rend. */
@@ -141,11 +148,11 @@ export const lireDerniere = (base: string, sessionId: string, limite: number): P
     const hasMore = lignes.length > limite;
     // `slice(0, limite)` : on garde les plus **récentes** des `limite + 1`.
     const gardees = lignes.slice(0, limite).toReversed();
-    const premiere = gardees[0];
     return {
+      dernierSeq: gardees.at(-1)?.seq ?? 0,
       entries: gardees.map(versEntree),
       hasMore,
-      seq: premiere?.seq ?? 0,
+      premierSeq: gardees[0]?.seq ?? 0,
     };
   } finally {
     db.close();
@@ -174,10 +181,11 @@ export const lireDepuis = (
       .all(sessionId, depuis, limite);
     const derniere = lignes.at(-1);
     return {
+      dernierSeq: derniere?.seq ?? depuis,
       entries: lignes.map(versEntree),
       // Une page pleine peut cacher la suite : on ne l'affirme pas, on la signale.
       hasMore: lignes.length >= limite,
-      seq: derniere?.seq ?? depuis,
+      premierSeq: lignes[0]?.seq ?? depuis,
     };
   } finally {
     db.close();
@@ -210,11 +218,74 @@ export const lireAvant = (
     // ancienne, donc la **dernière** de la lecture descendante.
     const gardees = lignes.slice(0, limite).toReversed();
     return {
+      dernierSeq: gardees.at(-1)?.seq ?? avant,
       entries: gardees.map(versEntree),
       hasMore,
-      seq: gardees[0]?.seq ?? avant,
+      premierSeq: gardees[0]?.seq ?? avant,
     };
   } finally {
     db.close();
   }
+};
+
+/** Ce qu'on demande à une session opencode. */
+export interface DemandeOpencode {
+  /** Page **antérieure** au curseur (« charger plus tôt »). */
+  readonly avant?: number | undefined;
+  /** Rafraîchissement : lignes **postérieures** à ce numéro. */
+  readonly depuis?: number | undefined;
+  readonly lignes: number;
+}
+
+/**
+ * Une page prête à mettre dans la réponse HTTP, sans plomberie de transport.
+ *
+ * ⚠️ **Pure, et c'est voulu** : c'est ce qui permet de la tester sur une base
+ * fabriquée sans monter un serveur ni un agent. La route ne fait plus que
+ * l'encodage du curseur et la sérialisation.
+ */
+export interface ReponseOpencode {
+  /** Position à reporter dans le curseur rendu au client. */
+  readonly curseur: number;
+  readonly entries: ReadonlyArray<RawEntry>;
+  readonly hasMore: boolean;
+  readonly incremental: boolean;
+  /** Position de la page précédente, quand il en reste une. */
+  readonly previousSeq: number | undefined;
+}
+
+export const pageSessionOpencode = (
+  source: { readonly base: string; readonly sessionId: string },
+  demande: DemandeOpencode,
+): ReponseOpencode => {
+  if (demande.avant !== undefined) {
+    const page = lireAvant(source.base, source.sessionId, demande.avant, demande.lignes);
+    return {
+      // Le curseur du client ne bouge pas : c'est **lui** qui reste la position
+      // courante, et la page d'avant est décrite par `previousSeq`.
+      curseur: demande.avant,
+      entries: page.entries,
+      hasMore: page.hasMore,
+      incremental: false,
+      previousSeq: page.hasMore ? page.premierSeq : undefined,
+    };
+  }
+  if (demande.depuis !== undefined) {
+    const page = lireDepuis(source.base, source.sessionId, demande.depuis, demande.lignes);
+    return {
+      curseur: page.dernierSeq,
+      entries: page.entries,
+      hasMore: page.hasMore,
+      incremental: true,
+      previousSeq: page.hasMore ? page.premierSeq : undefined,
+    };
+  }
+  const page = lireDerniere(source.base, source.sessionId, demande.lignes);
+  return {
+    curseur: page.dernierSeq,
+    entries: page.entries,
+    hasMore: page.hasMore,
+    incremental: false,
+    previousSeq: page.hasMore ? page.premierSeq : undefined,
+  };
 };

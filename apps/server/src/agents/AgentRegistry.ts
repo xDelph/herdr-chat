@@ -22,7 +22,7 @@ import type {
 } from "@herdr-remote/shared";
 import { readHeader } from "../sessions/SessionReader.ts";
 import { sessionLisible } from "./Lisibilite.ts";
-import { localiserSession } from "./SessionLocator.ts";
+import { sourceSession } from "./SessionLocator.ts";
 
 /** Vue d'un agent exposée à l'interface. */
 export interface AgentView {
@@ -130,22 +130,32 @@ export const enrichAgent = (
 ): Effect.Effect<AgentView> =>
   Effect.gen(function* () {
     const session = agent.agent_session ?? null;
-    // ⚠️ Résolution unique : `path` passe tel quel, `id` est résolu pour codex.
-    const path = localiserSession(agent.agent ?? null, session) ?? null;
+    // ⚠️ Résolution unique : `path` passe tel quel, `id` est résolu pour codex
+    // (nom de fichier) et pour opencode (clé de base).
+    const source = sourceSession(agent.agent ?? null, session);
+    // Pour opencode, `base` est le fichier SQLite : c'est ce qui rend l'agent
+    // **visible**, puisque c'est la présence d'un chemin qui le fait figurer dans
+    // la liste. Le chemin du magasin est donc le bon, et non un chemin de session.
+    const path = source?.base ?? null;
 
     let sessionCwd: string | null = null;
     let sessionId: string | null = null;
     let parentSession: string | null = null;
 
-    if (path !== null) {
-      const header = Result.getOrUndefined(yield* Effect.result(readHeader(path)));
+    if (source?.kind === "fichier") {
+      const header = Result.getOrUndefined(yield* Effect.result(readHeader(source.base)));
       if (header !== undefined) {
         sessionCwd = header.cwd ?? null;
         sessionId = header.id ?? null;
         parentSession = header.parentSession ?? null;
       }
+    } else if (source?.kind === "sqlite") {
+      // Pas d'en-tête à lire dans une base : l'identifiant **est** celui
+      // qu'Herdr expose, et c'est la clé primaire de `session_v2`. On ne lit
+      // donc rien ici — la lecture coûteuse appartient à la route de session.
+      sessionId = source.sessionId;
     } else if (session !== null) {
-      // `kind: "id"` : aucun mécanisme de résolution documenté (INCONNU, D008).
+      // `kind: "id"` sans mécanisme de résolution (devin, INCONNU, D008).
       // On expose l'identifiant sans inventer de chemin.
       sessionId = session.value;
     }

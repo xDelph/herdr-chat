@@ -40,6 +40,31 @@ export interface SessionSlot {
 /** Type d'agent codex, tel que Herdr le nomme dans `agent`. */
 const KIND_CODEX = "codex";
 
+/** Type d'agent opencode. */
+const KIND_OPENCODE = "opencode";
+
+/**
+ * Où vit la session d'un agent.
+ *
+ * ⚠️ **Deux magasins, pas deux capacités.** pi et codex écrivent un fichier
+ * JSONL ; opencode écrit tout dans une base SQLite et désigne une session par sa
+ * **clé primaire**. La distinction est une question de forme — c'est elle qui
+ * décide *comment* lire, jamais *si* on peut lire.
+ */
+export type SourceSession =
+  | { readonly kind: "fichier"; readonly base: string }
+  | { readonly kind: "sqlite"; readonly base: string; readonly sessionId: string };
+
+/**
+ * Base SQLite d'opencode.
+ *
+ * ⚠️ **Une base, et non un dossier de sessions** : il n'y a donc rien à
+ * parcourir, et rien à déduire de l'identifiant — il est la clé, pas un nom de
+ * fichier à retrouver (c'est la différence avec codex).
+ */
+export const baseOpencode = (): string =>
+  process.env["OPENCODE_DB"] ?? join(homedir(), ".local", "share", "opencode", "opencode.db");
+
 /**
  * Racine des sessions codex.
  *
@@ -80,8 +105,34 @@ export const localiserSession = (
   agentKind: string | null,
   slot: SessionSlot | null,
 ): string | undefined => {
+  const source = sourceSession(agentKind, slot);
+  // Un chemin n'existe que pour un **fichier** : la base opencode n'est pas un
+  // chemin de session, et la faire passer pour tel tromperait l'appelant.
+  return source?.kind === "fichier" ? source.base : undefined;
+};
+
+/**
+ * Source de la session d'un agent, ou `undefined` s'il n'y en a pas.
+ *
+ * Même décision que `localiserSession`, avec la forme en plus — c'est ce dont
+ * les lecteurs et la route ont besoin pour choisir leur magasin.
+ */
+export const sourceSession = (
+  agentKind: string | null,
+  slot: SessionSlot | null,
+): SourceSession | undefined => {
   if (slot === null) return undefined;
-  if (slot.kind === "path") return slot.value;
-  if (slot.kind === "id" && agentKind === KIND_CODEX) return cheminCodexParId(slot.value);
+  if (slot.kind === "path") return { base: slot.value, kind: "fichier" };
+  if (slot.kind !== "id") return undefined;
+  if (agentKind === KIND_CODEX) {
+    const chemin = cheminCodexParId(slot.value);
+    return chemin === undefined ? undefined : { base: chemin, kind: "fichier" };
+  }
+  if (agentKind === KIND_OPENCODE) {
+    // Un identifiant vide désignerait n'importe quoi : on refuse plutôt que de
+    // rendre la session d'un autre, comme pour codex.
+    if (slot.value.trim().length === 0) return undefined;
+    return { base: baseOpencode(), kind: "sqlite", sessionId: slot.value };
+  }
   return undefined;
 };

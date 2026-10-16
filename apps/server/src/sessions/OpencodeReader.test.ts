@@ -17,7 +17,13 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { lireAvant, lireDepuis, lireDerniere, sessionExiste } from "./OpencodeReader.ts";
+import {
+  lireAvant,
+  lireDepuis,
+  lireDerniere,
+  pageSessionOpencode,
+  sessionExiste,
+} from "./OpencodeReader.ts";
 
 let dossier = "";
 let base = "";
@@ -137,7 +143,7 @@ describe("la dernière page", () => {
     // le début de ce qu'on a déjà, pas la fin.
     const page = lireDerniere(base, SESSION, 3);
 
-    expect(page.seq).toBe(4);
+    expect(page.premierSeq).toBe(4);
   });
 });
 
@@ -163,7 +169,7 @@ describe("le rafraîchissement incrémental", () => {
   test("sans nouveau message, le curseur ne bouge pas", () => {
     const page = lireDepuis(base, SESSION, 6, 100);
 
-    expect(page.seq).toBe(6);
+    expect(page.dernierSeq).toBe(6);
     expect(page.hasMore).toBe(false);
   });
 
@@ -172,7 +178,7 @@ describe("le rafraîchissement incrémental", () => {
     // ferait relire `idle` et `system` à chaque tour, indéfiniment.
     const page = lireDepuis(base, SESSION, 3, 100);
 
-    expect(page.seq).toBe(6);
+    expect(page.dernierSeq).toBe(6);
   });
 });
 
@@ -202,7 +208,7 @@ describe("la page antérieure", () => {
   });
 
   test("son curseur pointe sur la première ligne rendue", () => {
-    expect(lireAvant(base, SESSION, 6, 2).seq).toBe(4);
+    expect(lireAvant(base, SESSION, 6, 2).premierSeq).toBe(4);
   });
 });
 
@@ -220,7 +226,7 @@ describe("une session connue mais vide n'est pas une erreur", () => {
     const page = lireDerniere(join(dossier, "vide.db"), "ses_vide", 10);
     expect(page.entries).toEqual([]);
     expect(page.hasMore).toBe(false);
-    expect(page.seq).toBe(0);
+    expect(page.dernierSeq).toBe(0);
   });
 });
 
@@ -281,5 +287,63 @@ describe("rien n'est inventé quand la source est abîmée", () => {
     // ⚠️ Une base absente est une panne de configuration, pas une session vide.
     // La confondre ferait passer une installation cassée pour un agent muet.
     expect(() => lireDerniere(join(dossier, "inconnue.db"), SESSION, 10)).toThrow();
+  });
+});
+
+describe("la page prête pour la réponse HTTP", () => {
+  test("le premier affichage rend la fin, et le curseur pointe APRÈS ce qui est rendu", () => {
+    // ⚠️ Le curseur d'un rafraîchissement doit désigner la dernière ligne
+    // **rendue** : pointer sur la première redonnerait toute la page à chaque
+    // tour, et le fil se dupliquerait sous les yeux.
+    const page = pageSessionOpencode({ base, sessionId: SESSION }, { lignes: 3 });
+
+    expect(page.entries.map((e) => e.id)).toEqual([
+      "opencode:msg_4",
+      "opencode:msg_5",
+      "opencode:msg_6",
+    ]);
+    expect(page.curseur).toBe(6);
+    expect(page.incremental).toBe(false);
+  });
+
+  test("il dit où reprendre la page d'avant, quand il en reste une", () => {
+    const page = pageSessionOpencode({ base, sessionId: SESSION }, { lignes: 3 });
+
+    expect(page.hasMore).toBe(true);
+    expect(page.previousSeq).toBe(4);
+  });
+
+  test("sans rien de plus ancien, il ne promet pas de page d'avant", () => {
+    const page = pageSessionOpencode({ base, sessionId: SESSION }, { lignes: 100 });
+
+    expect(page.hasMore).toBe(false);
+    expect(page.previousSeq).toBeUndefined();
+  });
+
+  test("le rafraîchissement ne renvoie que la suite, et avance le curseur", () => {
+    const page = pageSessionOpencode({ base, sessionId: SESSION }, { depuis: 3, lignes: 100 });
+
+    expect(page.entries.map((e) => e.id)).toEqual([
+      "opencode:msg_4",
+      "opencode:msg_5",
+      "opencode:msg_6",
+    ]);
+    expect(page.curseur).toBe(6);
+    expect(page.incremental).toBe(true);
+  });
+
+  test("la page d'avant laisse le curseur du client OU il est", () => {
+    // Le curseur reste la position courante : c'est la page d'avant qui est
+    // décrite par `previousSeq`, pas le curseur.
+    const page = pageSessionOpencode({ base, sessionId: SESSION }, { avant: 4, lignes: 10 });
+
+    expect(page.entries.map((e) => e.id)).toEqual([
+      "opencode:msg_1",
+      "opencode:msg_2",
+      "opencode:msg_3",
+    ]);
+    expect(page.curseur).toBe(4);
+    // Rien de plus ancien : aucune page d'avant n'est promise.
+    expect(page.previousSeq).toBeUndefined();
   });
 });

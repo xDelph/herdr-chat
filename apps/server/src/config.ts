@@ -14,6 +14,7 @@ import { Context, Effect, Layer, Option, Schema } from "effect";
 import { execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
+import { join } from "node:path";
 import { defaultLogPath } from "./logging/LogFile.ts";
 
 export class ConfigError extends Schema.TaggedError<ConfigError>()("ConfigError", {
@@ -35,6 +36,18 @@ export interface ServerConfig {
    * disponible — voir D010. **Jamais `0.0.0.0`** : le contrôle est explicite.
    */
   readonly hostname: string;
+  /**
+   * Base SQLite d'opencode.
+   *
+   * ⚠️ **Une base, pas un dossier de sessions.** opencode range *tout* dans un
+   * seul fichier (`session_v2`, `session_message`, `permission`…), et une
+   * session y est désignée par sa clé primaire — l'identifiant qu'Herdr expose
+   * (`ses_…`). Il n'y a donc pas de racine à parcourir, et rien à déduire.
+   *
+   * Surchargeable pour les tests : sans cela, vérifier la lecture exigerait de
+   * toucher à la base de la machine.
+   */
+  readonly opencodeDbPath: string;
   /** Fenêtre de suppression des envois identiques consécutifs (D007.2). */
   readonly duplicateWindowMs: number;
   /**
@@ -297,6 +310,8 @@ export class ServerConfigTag extends Context.Service<ServerConfigTag, ServerConf
         ],
         port,
         hostname: bind,
+        opencodeDbPath:
+          env["OPENCODE_DB"] ?? join(home, ".local", "share", "opencode", "opencode.db"),
         duplicateWindowMs: DUPLICATE_WINDOW_MS,
         logPath: env["HERDR_REMOTE_LOG_PATH"] ?? defaultLogPath(),
         publicOrigins: [

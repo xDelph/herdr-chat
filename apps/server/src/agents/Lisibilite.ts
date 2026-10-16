@@ -13,7 +13,7 @@
  * | type     | démarre | ce qu'expose Herdr            | session lisible |
  * |----------|---------|-------------------------------|-----------------|
  * | pi       | oui     | `kind: path`, fichier `.jsonl` | **oui**          |
- * | opencode | oui     | `kind: id` + base SQLite      | non             |
+ * | opencode | oui     | `kind: id` + base SQLite      | **oui**         |
  * | devin    | oui     | `kind: id` (`heavenly-…`)     | non             |
  * | codex    | oui     | `kind: id` ×2 (voir ci-dessous) | **oui**        |
  * | cursor   | oui     | rien                         | non             |
@@ -47,10 +47,24 @@
  * vérifier **sur le disque** que la session se lit, puis l'ajouter ici **avec la
  * date et la version de Herdr**. Sans ces deux éléments, l'entrée est une
  * hypothèse.
+ *
+ * ⚠️ **Correction du 2026-10-16, opencode 2.0.23.** La colonne « session
+ * lisible » disait `non` pour opencode, au motif que « sa session est dans une
+ * base ». C'était la **troisième** fois que le même raisonnement se trompait, et
+ * la leçon est la même que pour codex : *« pas de fichier » n'est pas « pas de
+ * contenu »*. Mesuré dans `opencode.db` : 1 931 lignes, dont 1 879 messages
+ * (`user` 48 + `assistant` 1 831), avec le texte, la réflexion, les appels
+ * d'outils et leurs sorties. L'identifiant qu'Herdr expose est **la clé
+ * primaire** de `session_v2` — il n'y a rien à déduire, là où codex demandait de
+ * retrouver un nom de fichier.
+ *
+ * ⚠️ Cette liste ne dit pas « le type est installé », elle dit « ce qu'il
+ * produit est lisible ». `opencode` y entre parce que la lecture existe
+ * (`OpencodeReader`), pas parce qu'on l'espère.
  */
 
 /** Types vérifiés : Herdr expose pour eux un chemin de session que l'on peut lire. */
-export const TYPES_A_SESSION_LISIBLE: ReadonlySet<string> = new Set(["pi", "codex"]);
+export const TYPES_A_SESSION_LISIBLE: ReadonlySet<string> = new Set(["pi", "codex", "opencode"]);
 
 /** Herdr testé le jour de la mesure, et la version du protocole. */
 export const MESURE_SUR = { herdr: "0.9.3", protocole: 22, le: "2026-10-12" } as const;
