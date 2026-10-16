@@ -162,14 +162,28 @@ describe("U04 — l'ordre par nom", () => {
 });
 
 describe("U04 — structure et libellés", () => {
-  test("les trois sections existent toujours, même vides", () => {
-    const entrees = sectionConversations([]);
-    expect(entrees.map((e) => e.section)).toEqual([...SECTIONS]);
-    // Une section vide reste présente : l'écran garde sa hauteur et l'utilisateur
-    // ne voit pas l'écran sauter quand une conversation change de section.
-    for (const entree of entrees) {
-      expect(entree.conversations).toEqual([]);
-    }
+  test("une section vide n'est PAS rendue", () => {
+    /*
+      ⚠️ **Renversement assumé d'une décision antérieure.** Ce test affirmait
+      l'inverse — « les trois sections existent toujours, même vides » — et il
+      donnait sa raison : l'écran garde sa hauteur, donc il ne saute pas quand une
+      conversation change de section.
+
+      Le coût s'est révélé plus grand que le bénéfice. Un titre de section
+      **promet du contenu** : « Needs attention » suivi de rien fait chercher ce
+      qui manque, et use le mot pour le jour où il compte vraiment. Le saut de
+      mise en page, lui, ne concerne que le haut d'une liste courte.
+    */
+    expect(sectionConversations([])).toEqual([]);
+  });
+
+  test("aucune section n'est inventée pour combler un vide", () => {
+    // Le filtre retire, il n'ajoute jamais : les sections rendues sont toujours
+    // un sous-ensemble de `SECTIONS`, dans l'ordre déclaré.
+    const sections = sectionConversations([ligne("w1:p1", "working", 1_000)], "recent");
+
+    expect(sections.map((e) => e.section)).toEqual(["en-cours"]);
+    for (const entree of sections) expect(SECTIONS.includes(entree.section)).toBe(true);
   });
 
   test("chaque section a un libellé exact", () => {
@@ -185,5 +199,52 @@ describe("U04 — structure et libellés", () => {
       ligne("w1:p2", "idle"),
     ];
     expect(sectionConversations(source)).toEqual(sectionConversations(source));
+  });
+});
+
+describe("une section vide ne s'affiche pas", () => {
+  test("sans agent bloqué, « Needs attention » disparaît", () => {
+    // ⚠️ Un titre de section promet du contenu. « Needs attention » suivi de
+    // rien fait chercher ce qui manque, et use le mot pour le jour où il compte.
+    const sections = sectionConversations([ligne("w1:p1", "idle", 1_000)], "recent");
+
+    expect(sections.map((entree) => entree.section)).toEqual(["recents"]);
+  });
+
+  test("sans agent au travail, « In progress » disparaît", () => {
+    const sections = sectionConversations([ligne("w1:p1", "blocked", 1_000)], "recent");
+
+    expect(sections.map((entree) => entree.section)).toEqual(["a-traiter"]);
+  });
+
+  test("avec les deux, les deux sont là", () => {
+    const sections = sectionConversations(
+      [ligne("w1:p1", "blocked", 1_000), ligne("w1:p2", "working", 2_000)],
+      "recent",
+    );
+
+    expect(sections.map((entree) => entree.section)).toEqual(["a-traiter", "en-cours"]);
+  });
+
+  test("une liste vide ne rend AUCUNE section", () => {
+    expect(sectionConversations([], "recent")).toEqual([]);
+  });
+
+  test("le tri et le contenu des sections gardées ne changent pas", () => {
+    // Le filtre retire des sections, il ne réordonne rien.
+    const sections = sectionConversations(
+      [ligne("w1:p1", "idle", 1_000, "zeta"), ligne("w1:p2", "idle", 2_000, "alpha")],
+      "nom",
+    );
+
+    expect(sections.length).toBe(1);
+    expect(sections[0]?.conversations.map((c) => c.title)).toEqual(["alpha", "zeta"]);
+  });
+
+  test("`countOf` reste juste sur une section absente", () => {
+    // Il cherchait déjà par `find`, donc l'absence d'une section ne casse rien.
+    expect(
+      countOf(sectionConversations([ligne("w1:p1", "idle", 1_000)], "recent"), "a-traiter"),
+    ).toBe(0);
   });
 });

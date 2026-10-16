@@ -128,7 +128,7 @@ export const sectionConversations = (
       .filter((conversation) => sectionOf(conversation.status) === section)
       .toSorted(ordre === "nom" ? comparerParNom : comparerParDate),
     section,
-  }));
+  })).filter((sectioned) => sectioned.conversations.length > 0);
 
 /** Nombre de conversations par section, pour l'en-tête. */
 export const countOf = (sectioned: ReadonlyArray<Sectioned>, section: Section): number =>
