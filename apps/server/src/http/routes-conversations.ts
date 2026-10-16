@@ -23,10 +23,12 @@
 import { Effect, Option, Result } from "effect";
 import { decoderOf, respond } from "./Reply.ts";
 import { defaultRead, summaryOf, type RawPane } from "../conversations/Summary.ts";
+import type { TailedSession } from "../sessions/SessionReader.ts";
+import { lireDerniere } from "../sessions/OpencodeReader.ts";
+import type { SourceSession } from "../agents/SessionLocator.ts";
 import { questionDeLEcran } from "@herdr-remote/shared";
 import { brancheDe as branchOf } from "../git/Branche.ts";
-import { sessionLisible } from "../agents/Lisibilite.ts";
-import { sessionPathOf } from "./routes-sessions.ts";
+import { sessionSourceOf } from "./routes-sessions.ts";
 import { decodeSnapshot } from "./Reply.ts";
 import { ConversationsResponse } from "@herdr-remote/shared";
 import type { HerdrApi } from "../herdr/HerdrClient.ts";
@@ -112,6 +114,42 @@ const toRawPane = (
 export const makeConversationRoutes = (config: ServerConfig, herdr: HerdrApi) => {
   // Gardé au niveau du routeur pour que le résumé réutilise son cache entre
   // deux rafraîchissements de la liste.
+  /**
+   * Combien de lignes on lit pour tirer un apercu de liste.
+   *
+   * ⚠️ Bien moins que la fenetre de la conversation : la liste n'a besoin que du
+   * dernier message et de la date, pas de l'historique.
+   */
+  const LIGNES_APERCU = 200;
+
+  /**
+   * Lit une session opencode **sous la forme d'un fichier**.
+   *
+   * ⚠️ **Pourquoi une adaptation, et pas un second chemin de liste.** Tout l'aval
+   * — apercu, horodatage, modele, reglages — lit un `TailedSession`. Lui apprendre
+   * SQLite dupliquerait chaque decision d'affichage, exactement ce que
+   * l'adaptateur d'entree existe pour eviter. On lui donne donc la meme forme.
+   *
+   * ⚠️ `identity` a zero : une base ne se remplace pas comme un fichier tourne,
+   * et cette identite ne sert qu'a un curseur que la liste ne construit pas.
+   */
+  const lectureOpencode =
+    (source: { readonly base: string; readonly sessionId: string }) =>
+    (_chemin: string): Effect.Effect<TailedSession, unknown> =>
+      Effect.try({
+        catch: (cause) => cause,
+        try: () => {
+          const page = lireDerniere(source.base, source.sessionId, LIGNES_APERCU);
+          return {
+            entries: page.entries,
+            hasMore: page.hasMore,
+            identity: { dev: 0, ino: 0 },
+            offset: page.dernierSeq,
+            pending: "",
+          };
+        },
+      });
+
   const read = defaultRead(config.sessionRoots);
   const lire = (path: string) => read(path);
 
@@ -160,17 +198,21 @@ export const makeConversationRoutes = (config: ServerConfig, herdr: HerdrApi) =>
     */
     const panes = (decoded.panes ?? []).filter((pane) => {
       const agent = decoded.agents.find((candidat) => candidat.pane_id === pane.pane_id);
-      return agent !== undefined && sessionLisible(sessionPathOf(agent) ?? null);
+      // La question posee est « y a-t-il une source de session ? », pas « y a-t-il
+      // un chemin de fichier ? » — opencode lit une base.
+      return agent !== undefined && sessionSourceOf(agent) !== undefined;
     });
 
     const lignes = await withConcurrency(panes, MAX_SESSION_READS, async (pane) => {
       // Le chemin de session vient de `agent_session`, fourni par Herdr dans
       // la vue agent ; un pane sans agent n'a pas de session.
       const agent = decoded.agents.find((candidat) => candidat.pane_id === pane.pane_id);
+      const source: SourceSession | undefined =
+        agent === undefined ? undefined : sessionSourceOf(agent);
       const paneBrut = toRawPane(
         pane,
         { tabs, workspaces },
-        agent === undefined ? null : (sessionPathOf(agent) ?? null),
+        source?.base ?? null,
         agent?.agent_status ?? null,
         // La branche vient du **dossier du pane** : c'est le dépôt dans lequel
         // l'agent travaille réellement, pas celui du projet en général.
@@ -178,7 +220,9 @@ export const makeConversationRoutes = (config: ServerConfig, herdr: HerdrApi) =>
           ? undefined
           : await Effect.runPromise(branchOf(pane.cwd)),
       );
-      return Effect.runPromise(summaryOf(paneBrut, lire));
+      return Effect.runPromise(
+        summaryOf(paneBrut, source?.kind === "sqlite" ? lectureOpencode(source) : lire),
+      );
     });
 
     /*
