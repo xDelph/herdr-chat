@@ -352,6 +352,79 @@ const cursorCatalog = Effect.gen(function* () {
   } satisfies CatalogResult;
 });
 
+/** Objet JSON, au sens strict : ni tableau, ni `null`. */
+const estObjet = (v: unknown): v is Record<string, unknown> =>
+  typeof v === "object" && v !== null && !Array.isArray(v);
+
+/**
+ * Catalogue de devin, **extrait d'une forme structurée**.
+ *
+ * ⚠️ **`--format json` et non la sortie texte.** Le CLI offre les deux, et il
+ * l'écrit lui-même : « Machine-readable JSON (for scripts) ». Analyser le texte
+ * aligné par colonnes serait une devinette sur des largeurs — la forme
+ * structurée, elle, est un contrat.
+ *
+ * Mesuré (devin 3000.11.92, 2026-10-16) :
+ *
+ * ```jsonc
+ * { "families": [ { "family_label": "SWE-2", "slug": "swe-2", "aliases": ["swe"],
+ *                   "variants": [ { "model_uid": "swe-2-high", "label": "SWE-2 High",
+ *                                   "cost_summary": "…", "max_output_tokens": 12800 } ] } ] }
+ * ```
+ *
+ * ⚠️ **Le modèle est le VARIANT, pas la famille.** `--model` attend
+ * `swe-1-6-slow`, pas `swe-1.6-slow` : la famille est un regroupement
+ * d'affichage, et prendre son `slug` enverrait un nom que le CLI refuse.
+ *
+ * ⚠️ **Aucun niveau séparé**, comme cursor : le niveau est **dans le nom** du
+ * variant (`-low`, `-high`, `-max`, `-xhigh`). Proposer un niveau à part
+ * promettrait un réglage que le CLI n'a pas.
+ *
+ * Pure et exportée : c'est ce qui permet de la vérifier sur la forme réelle sans
+ * lancer le CLI.
+ */
+export const modelsDeDevin = (brut: unknown): ReadonlyArray<CatalogModel> => {
+  if (!estObjet(brut) || !Array.isArray(brut["families"])) return [];
+
+  const models: CatalogModel[] = [];
+  for (const famille of brut["families"]) {
+    if (!estObjet(famille) || !Array.isArray(famille["variants"])) continue;
+    for (const variant of famille["variants"]) {
+      if (!estObjet(variant)) continue;
+      const id = variant["model_uid"];
+      if (typeof id !== "string" || id.length === 0) continue;
+      const label = variant["label"];
+      models.push({
+        id,
+        label: typeof label === "string" ? label : undefined,
+        // Le niveau vit dans le nom : rien à proposer séparément.
+        thinkingLevels: [],
+      });
+    }
+  }
+  return models;
+};
+
+/** Catalogue de devin, lu par le CLI. */
+const devinCatalog = Effect.gen(function* () {
+  const source = "devin models list --format json";
+  const out = yield* run(["devin", "models", "list", "--format", "json"]);
+  if (out.error !== null) return yield* failed(source, out.error);
+
+  let analyse: unknown;
+  try {
+    analyse = JSON.parse(out.out);
+  } catch {
+    // Un catalogue illisible se **refuse** : il ne se devine pas.
+    return yield* failed(source, "unreadable JSON");
+  }
+
+  const models = modelsDeDevin(analyse);
+  if (models.length === 0) return yield* failed(source, "empty or unreadable list");
+
+  return { error: null, models, source, thinkingLevels: [] } satisfies CatalogResult;
+});
+
 /**
  * Adaptateurs **vérifiés par exécution**.
  *
@@ -362,6 +435,7 @@ const ADAPTERS: Readonly<Record<string, Adapter>> = {
   claude: { catalog: claudeCatalog },
   codex: { catalog: codexCatalog },
   cursor: { catalog: cursorCatalog },
+  devin: { catalog: devinCatalog },
   pi: { catalog: piCatalog },
 };
 
