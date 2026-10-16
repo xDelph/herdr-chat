@@ -375,6 +375,25 @@ export const App = () => {
   );
 
   /**
+   * Les agents du **même onglet** que celui-ci, dans l'ordre de la disposition.
+   *
+   * ⚠️ Triés par **rang de disposition**, pas par identifiant : la barre doit
+   * présenter les panes dans l'ordre où ils apparaissent sur le Mac — c'est la
+   * seule chose qui permette de s'y retrouver entre deux écrans.
+   */
+  const voisinsDuTab = useCallback(
+    (agent: AgentView): ReadonlyArray<AgentView> =>
+      agents
+        .filter((candidat) => candidat.tabId === agent.tabId)
+        .toSorted(
+          (a, b) =>
+            (a.paneRank ?? Number.MAX_SAFE_INTEGER) - (b.paneRank ?? Number.MAX_SAFE_INTEGER) ||
+            a.paneId.localeCompare(b.paneId),
+        ),
+    [agents],
+  );
+
+  /**
    * Liste répartie selon le réglage, dans l'ordre du tableau de règles.
    *
    * ⚠️ **Un seul appel**, quelle que soit la répartition : `groupesDe` décide, et
@@ -541,6 +560,14 @@ export const App = () => {
         ) : null}
         <ChatScreen
           agent={agentAffiche}
+          /*
+            ⚠️ Les voisins viennent de **l'overview**, donc des agents tels
+            qu'Herdr les décrit — y compris ceux dont la session n'est pas encore
+            lisible. La liste des conversations, elle, ne les contient pas tous :
+            s'en servir aurait rendu des panes invisibles dans la barre.
+          */
+          onOuvrirVoisin={onOpenAgent}
+          voisins={voisinsDuTab(agentAffiche)}
           currentModel={selectedConversation?.model}
           currentProvider={selectedConversation?.provider}
           currentThinking={selectedConversation?.thinking}

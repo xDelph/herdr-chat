@@ -25,6 +25,17 @@ import { describe, expect, test } from "bun:test";
 import { nomDeNotification, payloadDeNotification } from "./PushNotifications.ts";
 import type { IdentiteNotification } from "./PushNotifications.ts";
 
+const dansLEMemeOnglet = (nom: string | null, rang: number | null): IdentiteNotification => ({
+  agent: "pi",
+  name: nom,
+  paneRank: rang,
+  tabLabel: "1",
+  tabNumber: 1,
+  tabPaneCount: 2,
+  title: "π - pixel",
+  workspaceLabel: "pixel",
+});
+
 /** Relevé le 2026-10-15 sur Herdr 0.9.3, via `/api/overview`. */
 const MESURES: ReadonlyArray<readonly [string, IdentiteNotification, string]> = [
   [
@@ -35,6 +46,9 @@ const MESURES: ReadonlyArray<readonly [string, IdentiteNotification, string]> = 
       tabNumber: 1,
       title: "π - devcli-private",
       workspaceLabel: "devcli pi",
+      name: null,
+      paneRank: null,
+      tabPaneCount: 1,
     },
     "π - devcli-private · tab 1 · pi",
   ],
@@ -46,6 +60,9 @@ const MESURES: ReadonlyArray<readonly [string, IdentiteNotification, string]> = 
       tabNumber: 2,
       title: "π - atcrea",
       workspaceLabel: "atcrea",
+      name: null,
+      paneRank: null,
+      tabPaneCount: 1,
     },
     "π - atcrea · tab 2 · pi",
   ],
@@ -57,6 +74,9 @@ const MESURES: ReadonlyArray<readonly [string, IdentiteNotification, string]> = 
       tabNumber: 1,
       title: "π - prusa-pi-setup",
       workspaceLabel: "prusa-pi-setup",
+      name: null,
+      paneRank: null,
+      tabPaneCount: 1,
     },
     "π - prusa-pi-setup · tab 1 · pi",
   ],
@@ -68,6 +88,9 @@ const MESURES: ReadonlyArray<readonly [string, IdentiteNotification, string]> = 
       tabNumber: 1,
       title: "π - pixel",
       workspaceLabel: "pixel",
+      name: null,
+      paneRank: null,
+      tabPaneCount: 1,
     },
     "π - pixel · The chosen one · pi",
   ],
@@ -79,6 +102,9 @@ const MESURES: ReadonlyArray<readonly [string, IdentiteNotification, string]> = 
       tabNumber: 4,
       title: "π - pixel",
       workspaceLabel: "pixel",
+      name: null,
+      paneRank: null,
+      tabPaneCount: 1,
     },
     "π - pixel · Eternal second · pi",
   ],
@@ -90,6 +116,9 @@ const MESURES: ReadonlyArray<readonly [string, IdentiteNotification, string]> = 
       tabNumber: 1,
       title: "π - herdr-pwa",
       workspaceLabel: "herdr-pwa",
+      name: null,
+      paneRank: null,
+      tabPaneCount: 1,
     },
     "π - herdr-pwa · The chosen one · pi",
   ],
@@ -101,17 +130,30 @@ const MESURES: ReadonlyArray<readonly [string, IdentiteNotification, string]> = 
       tabNumber: 1,
       title: "π - lgc-back-end",
       workspaceLabel: "lgc-back-end",
+      name: null,
+      paneRank: null,
+      tabPaneCount: 1,
     },
     "π - lgc-back-end · tab 1 · pi",
   ],
 ];
 
+/**
+ * Une identite neutre : un agent **seul dans son onglet**, sans nom.
+ *
+ * ⚠️ `tabPaneCount: 1` n'est pas un remplissage : c'est le cas de tres loin le
+ * plus courant, et celui ou l'etiquette de pane reste vide. Les tests qui
+ * portent sur l'etiquetage le surchargent explicitement.
+ */
 const vide = (): IdentiteNotification => ({
   agent: null,
   tabLabel: null,
   tabNumber: null,
   title: null,
   workspaceLabel: null,
+  name: null,
+  paneRank: null,
+  tabPaneCount: 1,
 });
 
 describe("le nom de la notification dit de quel onglet il s'agit", () => {
@@ -216,5 +258,53 @@ describe("le nom arrive bien dans la notification", () => {
 
     expect(payload.body).toContain("is waiting for your answer");
     expect(payload.title).toBe("Agent needs you");
+  });
+});
+
+/**
+ * Deux agents d'un **même onglet** — le défaut que cette section verrouille.
+ *
+ * ⚠️ **Mesuré sur un onglet réel à cinq panes.** `nomDeNotification` a été écrit
+ * pour « un projet peut contenir plusieurs onglets du même type » : il
+ * discrimine par **onglet**. Deux agents qui partagent un onglet n'avaient donc
+ * plus rien pour se distinguer — deux notifications au texte IDENTIQUE, deux
+ * bannières justes et indiscernables.
+ *
+ * ⚠️ Ce n'est pas le clic qui était cassé : le `tag` et l'URL portent le
+ * `paneId`, donc chaque bannière ouvre le bon agent. C'est le **texte**, et lui
+ * seul, qui ne disait pas de quel agent il parlait.
+ */
+describe("deux agents du même onglet ne disent plus la même chose", () => {
+  test("deux panes nommés donnent deux noms distincts", () => {
+    const premier = nomDeNotification(dansLEMemeOnglet("verif-ui", 1));
+    const second = nomDeNotification(dansLEMemeOnglet("verif-db", 2));
+
+    expect(premier).not.toBe(second);
+    expect(premier).toContain("verif-ui");
+    expect(second).toContain("verif-db");
+  });
+
+  test("sans nom, c'est la place dans la disposition qui distingue", () => {
+    const premier = nomDeNotification(dansLEMemeOnglet(null, 1));
+    const second = nomDeNotification(dansLEMemeOnglet(null, 2));
+
+    expect(premier).toBe("π - pixel · tab 1 · pane 1 · pi");
+    expect(second).not.toBe(premier);
+  });
+
+  test("seul dans son onglet, RIEN n'est ajouté — le nom reste celui d'avant", () => {
+    /*
+      ⚠️ Le cas ordinaire ne doit pas bouger : une notification qui gagnerait un
+      segment partout serait du bruit qu'on ne lit plus.
+    */
+    expect(nomDeNotification({ ...dansLEMemeOnglet("pixel", 1), tabPaneCount: 1 })).toBe(
+      "π - pixel · tab 1 · pi",
+    );
+  });
+
+  test("un nom qui répète le projet cède la place au rang", () => {
+    // `agent.start` reçoit le libellé du projet par défaut : l'afficher redirait
+    // la ligne du dessus.
+    expect(nomDeNotification(dansLEMemeOnglet("pixel", 2))).toBe("π - pixel · tab 1 · pane 2 · pi");
   });
 });

@@ -18,6 +18,7 @@
  */
 import { memo, useCallback } from "react";
 import type { ConversationSummary } from "@herdr-remote/shared";
+import { etiquetteDePane } from "@herdr-remote/shared";
 import { AgentBadge } from "./AgentBadge.tsx";
 import { levelLabel } from "./launch.ts";
 import { dureeDepuis } from "./duree.ts";
@@ -78,6 +79,17 @@ interface Props {
 const ConversationRowInner = ({ conversation, maintenant, onglet, onOpen, projet }: Props) => {
   const ouvrir = useCallback(() => onOpen(conversation.paneId), [conversation.paneId, onOpen]);
   const morceaux = fragments(conversation);
+  /*
+    ⚠️ L'etiquette du pane vient de la **fonction partagee**, la meme que celle
+    de l'en-tete et de la notification. Les deux libelles du contexte (projet,
+    onglet) lui sont passes : c'est avec eux qu'elle decide si un nom dit
+    quelque chose de plus ou s'il ne fait que repeter la ligne.
+  */
+  const etiquette = etiquetteDePane({
+    ...conversation,
+    tabLabel: onglet.length > 0 ? onglet : null,
+    workspaceLabel: projet,
+  });
   return (
     <button type="button" className="conv" onClick={ouvrir}>
       <span className="conv__ligne">
@@ -93,6 +105,7 @@ const ConversationRowInner = ({ conversation, maintenant, onglet, onOpen, projet
           <AgentBadge kind={conversation.agent} />
           <span className="conv__projet">{projet}</span>
           {onglet.length > 0 ? <span className="conv__onglet">– {onglet}</span> : null}
+          {etiquette === undefined ? null : <span className="conv__pane">{etiquette}</span>}
         </span>
         <span className={CLASSE_ETAT[conversation.status]}>
           {motDEtat(conversation, maintenant)}

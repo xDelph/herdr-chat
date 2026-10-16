@@ -67,10 +67,23 @@ export const classifyReadFailure = (error: unknown): ReadVerdict => {
     return verdictOf("io");
   }
 
-  // Un refus de chemin (S03) a déjà sa cause et son propre 403 : on ne le
-  // requalifie pas ici, sinon la distinction s'effacerait.
+  /*
+    ⚠️ **Un refus de chemin n'est pas toujours une panne.** La garde S03 refuse
+    avec une **raison** typée, et l'une d'elles veut dire « il n'y a encore rien
+    ici » : `chemin-absent`. Un agent qui vient de démarrer annonce son chemin de
+    session **avant** d'écrire quoi que ce soit — mesuré sur un true tab à cinq
+    panes : le pane pi affichait `error` alors qu'il était simplement neuf, et un
+    `error` fait croire à une panne.
+
+    Les autres raisons gardent leur refus tel quel : `hors-racine` et
+    `lien-sortant` sont des **intrusions**, `racine-absente` dit que le magasin
+    lui-même manque — les requalifier effacerait la distinction que S03 a
+    construite.
+  */
   if (isPathRejection(error)) {
-    return { benign: false, cause: "io", message: error.detail };
+    return error.reason === "chemin-absent"
+      ? verdictOf("absente")
+      : { benign: false, cause: "io", message: error.detail };
   }
 
   return verdictOf("io");
@@ -103,7 +116,11 @@ const readCode = (error: unknown): string | undefined => {
 
 const isPathRejection = (
   error: unknown,
-): error is { readonly _tag: "SessionPathRejected"; readonly detail: string } =>
+): error is {
+  readonly _tag: "SessionPathRejected";
+  readonly detail: string;
+  readonly reason?: string | undefined;
+} =>
   typeof error === "object" &&
   error !== null &&
   (error as { _tag?: unknown })._tag === "SessionPathRejected";

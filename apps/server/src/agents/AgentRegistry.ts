@@ -13,10 +13,12 @@
  * `state_labels` étaient **absents** sur l'instance mesurée, pas vides.
  */
 import { Effect, Result, Schema } from "effect";
+import { rangsDesPanes } from "@herdr-remote/shared";
 import type {
   AgentInfo,
   AgentStatus,
   SnapshotPane,
+  PaneLayout,
   TabInfo,
   WorkspaceInfo,
 } from "@herdr-remote/shared";
@@ -40,6 +42,12 @@ export interface AgentView {
   readonly tabNumber: number | null;
   /** Libellé humain du projet. `null` = nom par défaut côté Herdr. */
   readonly workspaceLabel: string | null;
+  /** Nom exigé unique par `agent.start`. `null` = lancé à la main. */
+  readonly name: string | null;
+  /** Rang du pane dans son tab, en ordre de lecture. `null` si inconnu. */
+  readonly paneRank: number | null;
+  /** Nombre de panes du tab. `1` = seul. */
+  readonly tabPaneCount: number;
   /** Chemin absolu du fichier de session, fourni par Herdr. */
   readonly sessionPath: string | null;
   /** `path` ou `id` — dans quel référentiel `sessionPath`/`sessionId` vit. */
@@ -80,7 +88,7 @@ export class SnapshotError extends Schema.TaggedError<SnapshotError>()("Snapshot
 }) {}
 
 /** Un libellé n'est utile que s'il n'est pas le numéro d'onglet par défaut. */
-const usefulLabel = (label: string | null): string | null => {
+export const usefulLabel = (label: string | null): string | null => {
   if (label === null || label.trim().length === 0) return null;
   return /^\d+$/.test(label.trim()) ? null : label;
 };
@@ -104,24 +112,57 @@ export const checkoutPathOf = (
   )?.cwd ??
   null;
 
-/** Contexte de nommage : évite d'afficher des identifiants de pane à l'écran. */
+/**
+ * Contexte de nommage : évite d'afficher des identifiants de pane à l'écran.
+ *
+ * ⚠️ **Il porte aussi les dispositions**, et ce n'est pas un abus de langage : la
+ * question à laquelle il répond est « comment nommer et **situer** ce pane ? ».
+ * Le rang dans le tab vient de la disposition, et c'est le seul discriminant
+ * possible — Herdr ne numérote pas les panes.
+ */
 export interface NamingContext {
   readonly workspaces: ReadonlyMap<string, string | null>;
   readonly tabs: ReadonlyMap<string, { label: string | null; number: number }>;
+  /** Par pane : son rang dans son tab, et le nombre de panes du tab. */
+  readonly panes: ReadonlyMap<string, { rank: number | null; tabPaneCount: number }>;
 }
 
-export const emptyNaming: NamingContext = { tabs: new Map(), workspaces: new Map() };
+export const emptyNaming: NamingContext = {
+  panes: new Map(),
+  tabs: new Map(),
+  workspaces: new Map(),
+};
 
-/** Construit le contexte de nommage depuis un snapshot. */
+/**
+ * Construit le contexte de nommage depuis un snapshot.
+ *
+ * ⚠️ `layouts` est **optionnel** : un snapshot sans dispositions reste
+ * exploitable, les agents n'ont simplement pas de rang. Le nommage d'un agent
+ * lancé par Herdr (`name`) continue de fonctionner, lui.
+ */
 export const namingFrom = (
   workspaces: ReadonlyArray<WorkspaceInfo>,
   tabs: ReadonlyArray<TabInfo>,
-): NamingContext => ({
-  tabs: new Map(tabs.map((tab) => [tab.tab_id, { label: tab.label, number: tab.number }])),
-  workspaces: new Map(
-    workspaces.map((workspace) => [workspace.workspace_id, workspace.label ?? null]),
-  ),
-});
+  layouts: ReadonlyArray<PaneLayout> = [],
+): NamingContext => {
+  const panes = new Map<string, { rank: number | null; tabPaneCount: number }>();
+  for (const layout of layouts) {
+    const rangs = rangsDesPanes(layout.panes);
+    for (const pane of layout.panes) {
+      panes.set(pane.pane_id, {
+        rank: rangs.get(pane.pane_id) ?? null,
+        tabPaneCount: layout.panes.length,
+      });
+    }
+  }
+  return {
+    panes,
+    tabs: new Map(tabs.map((tab) => [tab.tab_id, { label: tab.label, number: tab.number }])),
+    workspaces: new Map(
+      workspaces.map((workspace) => [workspace.workspace_id, workspace.label ?? null]),
+    ),
+  };
+};
 
 /** Enrichit un agent Herdr avec les métadonnées lues dans son fichier de session. */
 export const enrichAgent = (
@@ -182,6 +223,13 @@ export const enrichAgent = (
       tabLabel: usefulLabel(naming.tabs.get(agent.tab_id)?.label ?? null),
       tabNumber: naming.tabs.get(agent.tab_id)?.number ?? null,
       title: agent.terminal_title ?? null,
+      // ⚠️ Le nom vient de l'agent, le rang de la **disposition de son tab** :
+      // deux sources, deux questions differentes (« comment s'appelle-t-il ? »,
+      // « ou est-il ? »). Un pane absent du contexte (snapshot partiel) n'a pas
+      // de rang, et l'etiquette saura s'en passer.
+      name: agent.name ?? null,
+      paneRank: naming.panes.get(agent.pane_id)?.rank ?? null,
+      tabPaneCount: naming.panes.get(agent.pane_id)?.tabPaneCount ?? 1,
       workspaceId: agent.workspace_id,
       workspaceLabel: naming.workspaces.get(agent.workspace_id) ?? null,
     } satisfies AgentView;
@@ -223,11 +271,49 @@ export const toWorkspaceViews = (
  * exactement ce que « deux endroits pour la même règle » produit : le second
  * finit par ne plus être à jour.
  */
+/**
+ * Un agent est-il a montrer ?
+ *
+ * ⚠️ **La regle a change deux fois, et la mesure l'a imposee chaque fois.**
+ *
+ * 1. Elle etait « a une session lisible ». Sur un tab a cinq panes reels, trois
+ *    agents sur cinq ont donc disparu : codex, claude et opencode n'ecrivent
+ *    leur session qu'au premier message. Or l'un des trois etait **`blocked`** —
+ *    et le veilleur lit ces memes vues, donc il ne l'a jamais surveille : ni
+ *    ligne, ni notification. Le seul agent qui attendait une reponse etait celui
+ *    qu'on ne voyait pas.
+ * 2. Elle est devenue « lisible OU l'etat demande quelque chose ». Restait le cas
+ *    du tab a plusieurs panes : les verificateurs **au repos et sans session**
+ *    restaient invisibles, alors que le tab est justement l'unite de travail
+ *    qu'on veut voir entiere.
+ *
+ * La regle est donc : **lisible, OU l'etat demande quelque chose, OU le tab
+ * compte plusieurs panes.**
+ *
+ * ⚠️ `idle` et `done` sans session restent masques **quand l'agent est seul dans
+ * son tab** : ils n'ont rien a dire, et les afficher remplirait la liste au
+ * demarrage de chaque agent.
+ *
+ * ⚠️ La signature est **structurelle** et pas `AgentView` : la route des
+ * conversations travaille sur l'`AgentInfo` brut, et elle doit appliquer la meme
+ * regle. Deux expressions de cette regle divergeraient — c'est exactement ce que
+ * U14 interdit.
+ */
+export const attireLeRegard = (status: AgentStatus): boolean =>
+  status === "blocked" || status === "working";
+
+export const estVisible = (agent: {
+  readonly sessionPath: string | null;
+  readonly status: AgentStatus;
+  readonly tabPaneCount: number;
+}): boolean =>
+  sessionLisible(agent.sessionPath) || attireLeRegard(agent.status) || agent.tabPaneCount > 1;
+
 export const repartirAgents = (
   tous: ReadonlyArray<AgentView>,
 ): { readonly agents: ReadonlyArray<AgentView>; readonly masquees: number } => ({
-  agents: tous.filter((agent) => sessionLisible(agent.sessionPath)),
-  masquees: tous.filter((agent) => !sessionLisible(agent.sessionPath)).length,
+  agents: tous.filter((agent) => estVisible(agent)),
+  masquees: tous.filter((agent) => !estVisible(agent)).length,
 });
 
 /**
@@ -275,12 +361,14 @@ export const buildOverview = (snapshot: {
    * une propriété optionnelle.
    */
   readonly tabs: ReadonlyArray<TabInfo> | undefined;
+  /** Dispositions des tabs : source du rang de chaque pane. */
+  readonly layouts?: ReadonlyArray<PaneLayout> | undefined;
   readonly workspaces: ReadonlyArray<WorkspaceInfo>;
   readonly version: string;
   readonly protocol: number;
 }): Effect.Effect<OverviewView> =>
   Effect.gen(function* () {
-    const naming = namingFrom(snapshot.workspaces, snapshot.tabs ?? []);
+    const naming = namingFrom(snapshot.workspaces, snapshot.tabs ?? [], snapshot.layouts ?? []);
     const tous = yield* toAgentViews(snapshot.agents, naming);
     return composerOverview({
       herdrProtocol: snapshot.protocol,

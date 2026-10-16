@@ -18,7 +18,7 @@
  * différentielle est plus simple et couvre tout.
  */
 import { Context, Effect, Layer, Option, Ref, Schema } from "effect";
-import { AgentInfo, TabInfo, WorkspaceInfo } from "@herdr-remote/shared";
+import { AgentInfo, PaneLayout, TabInfo, WorkspaceInfo } from "@herdr-remote/shared";
 import type { EventHubApi } from "../events/EventHub.ts";
 import type { HerdrApi } from "../herdr/HerdrClient.ts";
 import { namingFrom } from "../agents/AgentRegistry.ts";
@@ -157,6 +157,13 @@ export interface WatchLoop {
 /** Forme utile de `session.snapshot` : agents **et** contexte de nommage. */
 const WatchSnapshot = Schema.Struct({
   agents: Schema.Array(AgentInfo),
+  /**
+   * ⚠️ **Les dispositions, et pas par confort.** Le veilleur construit les vues
+   * avec `toAgentViews` : sans ce champ, les agents surveilles n'auraient pas de
+   * rang dans leur tab, alors que ceux de l'accueil en auraient un. Deux chemins
+   * qui doivent dire la meme chose ne peuvent pas lire deux jeux de donnees.
+   */
+  layouts: Schema.optional(Schema.Array(PaneLayout)),
   tabs: Schema.optional(Schema.Array(TabInfo)),
   workspaces: Schema.optional(Schema.Array(WorkspaceInfo)),
 });
@@ -180,7 +187,7 @@ const decodeWatch = (payload: Readonly<Record<string, unknown>>) =>
     }
     return {
       agents: decoded.agents,
-      naming: namingFrom(decoded.workspaces ?? [], decoded.tabs ?? []),
+      naming: namingFrom(decoded.workspaces ?? [], decoded.tabs ?? [], decoded.layouts ?? []),
     };
   });
 

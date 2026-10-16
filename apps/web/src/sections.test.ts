@@ -27,8 +27,15 @@ const ligne = (
   // Le type d'agent est **obligatoire** dans le contrat : la marque de la liste
   // en dépend. Ces fixtures n'en ont pas besoin, mais elles doivent le dire.
   agent: "pi",
+  // ⚠️ Les trois faits de nommage : l'agent est **seul** dans son tab, donc
+  // aucune étiquette de pane n'est produite. Ces tests portent sur le
+  // regroupement, pas sur l'étiquetage.
+  name: null,
+  paneRank: null,
   paneId,
   sessionState: "available",
+  tabId: "w1:t1",
+  tabPaneCount: 1,
   status,
   title: titre ?? paneId,
   workspaceId: "w1",

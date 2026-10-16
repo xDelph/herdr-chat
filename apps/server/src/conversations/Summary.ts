@@ -33,6 +33,17 @@ export interface RawPane {
    * choisit la marque affichée devant le nom du projet.
    */
   readonly agent?: string | null;
+  /**
+   * Nom de l'agent et place dans son tab — de quoi l'étiqueter.
+   *
+   * ⚠️ Recopiés de la vue d'agent, jamais recalculés : une seconde déduction du
+   * même rang finirait par diverger de la première.
+   */
+  readonly name?: string | null;
+  readonly paneRank?: number | null;
+  readonly tabPaneCount?: number;
+  /** Onglet de l'agent — sert à retrouver ses voisins. */
+  readonly tabId?: string;
   /** Titre donné par Herdr, s'il y en a un. */
   readonly title?: string | null;
   readonly tabLabel?: string | null;
@@ -404,7 +415,11 @@ export const summaryOf = (
   Effect.gen(function* () {
     const base = {
       agent: pane.agent ?? null,
+      name: pane.name ?? null,
+      paneRank: pane.paneRank ?? null,
       status: toStatus(pane.agentStatus),
+      tabId: pane.tabId ?? "",
+      tabPaneCount: pane.tabPaneCount ?? 1,
       title: titleOf(pane),
       workspaceId: pane.workspaceId,
       paneId: pane.paneId,

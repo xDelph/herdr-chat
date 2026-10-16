@@ -42,6 +42,11 @@ const view = (paneId: string, status: AgentStatus): AgentView => ({
   title: paneId,
   workspaceId: "w1",
   workspaceLabel: "projet",
+  // ⚠️ Les trois faits de nommage : nuls ou neutres par défaut, donc
+  // l'étiquette d'un pane reste vide — comme un agent seul dans son tab.
+  name: null,
+  paneRank: null,
+  tabPaneCount: 1,
 });
 
 /** Hub en mémoire : enregistre ce qui est publié, sans réseau. */

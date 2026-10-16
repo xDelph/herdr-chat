@@ -1944,6 +1944,79 @@ button:disabled {
   width: 14px;
 }
 
+/*
+  Étiquette du pane, dans la ligne de liste : « pane 3 ».
+
+  ⚠️ Style d'**appoint**, pas d'information principale : le projet et l'onglet
+  passent avant. Elle n'apparaît que dans un onglet à plusieurs panes — donc
+  jamais dans la liste ordinaire.
+*/
+.conv__pane {
+  color: var(--muted);
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/*
+  Barre des panes d'un même onglet.
+
+  ⚠️ **Hauteur de 44 px**, la cible tactile du tableau des règles : ce sont bien
+  des boutons, pas des décorations. Posée **sous l'en-tête** et hors du
+  conteneur défilant, pour ne pas toucher à la zone qu'on a stabilisée en bas
+  (clavier iOS, taille du champ).
+
+  ⚠️ **Défilement horizontal** quand les panes sont nombreux : six pastilles ne
+  tiennent pas sur 390 px, et les rétrécir jusqu'à les rendre illisibles serait
+  pire que de les faire défiler.
+*/
+.panes {
+  align-items: stretch;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex: 0 0 auto;
+  gap: 2px;
+  min-height: var(--tap-min);
+  overflow-x: auto;
+  padding: 0 8px;
+  scrollbar-width: none;
+}
+
+.panes::-webkit-scrollbar {
+  display: none;
+}
+
+.panes__pane {
+  align-items: center;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  flex: 0 0 auto;
+  font: inherit;
+  font-size: 12px;
+  gap: 6px;
+  max-width: 130px;
+  min-height: var(--tap-min);
+  padding: 0 8px;
+}
+
+/* L'onglet courant se dit par la **bordure** et par `aria-current`, pas
+   seulement par la couleur : elle seule ne dirait rien à un lecteur d'écran. */
+.panes__pane[aria-current="true"] {
+  border-bottom-color: var(--accent);
+  color: var(--text);
+}
+
+.panes__nom {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* Sélecteur de thème, dans la feuille de réglages. */
 .theme {
   border: 0;

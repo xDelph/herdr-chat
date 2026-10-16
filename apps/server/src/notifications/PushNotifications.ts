@@ -2,6 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import webpush from "web-push";
 import type { PushSubscription } from "web-push";
+import { dejaDit, etiquetteDePane } from "@herdr-remote/shared";
 import { estNumerique } from "../conversations/Summary.ts";
 
 interface VapidKeys {
@@ -109,8 +110,11 @@ export const payloadDeNotification = (
  */
 export interface IdentiteNotification {
   readonly agent: string | null;
+  readonly name: string | null;
+  readonly paneRank: number | null;
   readonly tabLabel: string | null;
   readonly tabNumber: number | null;
+  readonly tabPaneCount: number;
   readonly title: string | null;
   readonly workspaceLabel: string | null;
 }
@@ -122,9 +126,6 @@ const nonVide = (valeur: string | null | undefined): string | null => {
 };
 
 /** `true` si `aiguille` est déjà dit par `foin`, sans tenir à la casse. */
-const dejaDit = (foin: string, aiguille: string): boolean =>
-  foin.toLowerCase().includes(aiguille.toLowerCase());
-
 /**
  * Nom de l'onglet : son libellé quand il dit quelque chose, son numéro sinon.
  *
@@ -172,6 +173,15 @@ export const nomDeNotification = (agent: IdentiteNotification | undefined): stri
   const parties: string[] = projet === null ? [] : [projet];
   const onglet = nomDOnglet(agent, projet);
   if (onglet !== null) parties.push(onglet);
+  /*
+    ⚠️ **La place du pane, et elle vient de la meme fonction que l'ecran.** Sans
+    elle, deux agents d'un meme onglet produisaient deux notifications au texte
+    IDENTIQUE — deux bannieres justes, indiscernables. La fonction est partagee
+    (`nommage.ts`) : la notification ne peut donc pas dire autre chose que la
+    ligne de la liste.
+  */
+  const pane = etiquetteDePane(agent);
+  if (pane !== undefined) parties.push(pane);
   const kind = nonVide(agent.agent);
   if (kind !== null) parties.push(kind);
   return parties.join(" · ");

@@ -23,6 +23,12 @@
 import { Effect, Option, Result } from "effect";
 import { decoderOf, respond } from "./Reply.ts";
 import { defaultRead, summaryOf, type RawPane } from "../conversations/Summary.ts";
+import {
+  estVisible,
+  namingFrom,
+  usefulLabel,
+  type NamingContext,
+} from "../agents/AgentRegistry.ts";
 import type { TailedSession } from "../sessions/SessionReader.ts";
 import { moteurOpencode } from "../sessions/OpencodeReader.ts";
 import { moteurDevin } from "../sessions/DevinReader.ts";
@@ -90,10 +96,12 @@ const toRawPane = (
     readonly tab_id?: string;
     readonly workspace_id?: string | undefined;
   },
-  labels: {
-    readonly tabs: ReadonlyMap<string, string>;
-    readonly workspaces: ReadonlyMap<string, string>;
-  },
+  /*
+    ⚠️ Le **contexte de nommage complet**, et pas deux tables rebaties ici : c'est
+    lui qui porte le rang du pane dans son tab. Deux constructions du meme
+    nommage auraient fini par ne plus dire la meme chose.
+  */
+  naming: NamingContext,
   sessionPath: string | null,
   /*
     ⚠️ Le **type** (`agent`) et l'état (`agent_status`) viennent du meme objet :
@@ -101,21 +109,31 @@ const toRawPane = (
     sources, et un appelant pouvait fournir l'un sans l'autre.
   */
   agent:
-    | { readonly agent?: string | null | undefined; readonly agent_status: string | null }
+    | {
+        readonly agent?: string | null | undefined;
+        readonly agent_status: string | null;
+        readonly name?: string | null | undefined;
+      }
     | undefined,
   branch: string | undefined,
 ): RawPane => {
   const tabId = pane.tab_id ?? "";
   const workspaceId = pane.workspace_id ?? "";
+  const rang = naming.panes.get(pane.pane_id);
   return {
     agent: agent?.agent ?? null,
     agentStatus: agent?.agent_status ?? null,
     branch,
+    // Meme ecart des libelles numeriques que l'accueil : une seule regle.
+    name: agent?.name ?? null,
     paneId: pane.pane_id,
+    paneRank: rang?.rank ?? null,
     sessionPath,
-    tabLabel: labels.tabs.get(tabId) ?? null,
+    tabId,
+    tabLabel: usefulLabel(naming.tabs.get(tabId)?.label ?? null),
+    tabPaneCount: rang?.tabPaneCount ?? 1,
     workspaceId,
-    workspaceLabel: labels.workspaces.get(workspaceId) ?? null,
+    workspaceLabel: naming.workspaces.get(workspaceId) ?? null,
     title: null,
   };
 };
@@ -193,12 +211,16 @@ export const makeConversationRoutes = (config: ServerConfig, herdr: HerdrApi) =>
       return respond(config.logPath, decoderOf(ConversationsResponse), { conversations: [] }, 502);
     }
 
-    // Libellés : Herdr nomme les onglets « 1 », « 2 »… et la cascade de titre
-    // (B10) les écarte s'ils sont purement numériques.
-    const tabs = new Map((decoded.tabs ?? []).map((tab) => [tab.tab_id, tab.label ?? ""]));
-    const workspaces = new Map(
-      decoded.workspaces.map((workspace) => [workspace.workspace_id, workspace.label ?? ""]),
-    );
+    /*
+      ⚠️ **Le contexte de nommage vient du meme constructeur que l'accueil.**
+
+      Il etait rebati ici a la main — deux tables, deux regles pour les memes
+      libelles. Depuis que le rang d'un pane vient de la disposition de son tab,
+      cette seconde construction n'aurait pas pu le fournir : deux chemins pour
+      une meme donnee, dont un seul correct. C'est exactement le motif que U14
+      interdit.
+    */
+    const naming = namingFrom(decoded.workspaces, decoded.tabs ?? [], decoded.layouts ?? []);
 
     /*
       ⚠️ **Seuls les panes dont la session est lisible** (U14, U17).
@@ -213,9 +235,15 @@ export const makeConversationRoutes = (config: ServerConfig, herdr: HerdrApi) =>
     */
     const panes = (decoded.panes ?? []).filter((pane) => {
       const agent = decoded.agents.find((candidat) => candidat.pane_id === pane.pane_id);
+      if (agent === undefined) return false;
       // La question posee est « y a-t-il une source de session ? », pas « y a-t-il
       // un chemin de fichier ? » — opencode lit une base.
-      return agent !== undefined && sessionSourceOf(agent) !== undefined;
+      const source = sessionSourceOf(agent);
+      return estVisible({
+        sessionPath: source?.base ?? null,
+        status: agent.agent_status,
+        tabPaneCount: naming.panes.get(pane.pane_id)?.tabPaneCount ?? 1,
+      });
     });
 
     const lignes = await withConcurrency(panes, MAX_SESSION_READS, async (pane) => {
@@ -226,7 +254,7 @@ export const makeConversationRoutes = (config: ServerConfig, herdr: HerdrApi) =>
         agent === undefined ? undefined : sessionSourceOf(agent);
       const paneBrut = toRawPane(
         pane,
-        { tabs, workspaces },
+        naming,
         source?.base ?? null,
         agent,
         // La branche vient du **dossier du pane** : c'est le dépôt dans lequel

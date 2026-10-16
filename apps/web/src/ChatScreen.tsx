@@ -27,6 +27,7 @@ import type { RenderedMessage } from "./blocks.ts";
 import { avecTravailEnCours, toItems, toMessages, touchedFilesOf } from "./blocks.ts";
 import { fusionnerEntrees } from "./messages.ts";
 import { agentName, headerContext, headerReglages, statusClass } from "./labels.tsx";
+import { TabPanes } from "./TabPanes.tsx";
 import { FileOpenerContext, ItemsView, UrlOpenerContext } from "./Blocks.tsx";
 import { FilesSheet } from "./Files.tsx";
 import { ModelSheet } from "./ModelSheet.tsx";
@@ -40,8 +41,13 @@ export const ChatScreen = ({
   currentThinking,
   onBack,
   question,
+  voisins,
+  onOuvrirVoisin,
 }: {
   agent: AgentView;
+  /** Les agents du **même onglet**, pour la barre de navigation. */
+  voisins: ReadonlyArray<AgentView>;
+  onOuvrirVoisin: (paneId: string) => void;
   currentModel: string | undefined;
   currentProvider: string | undefined;
   currentThinking: string | undefined;
@@ -969,6 +975,13 @@ export const ChatScreen = ({
               </svg>
             </button>
           </header>
+          {/*
+            ⚠️ La barre est **sous l'en-tête**, pas au-dessus du composeur. Le
+            bas de l'écran est la zone qu'on a stabilisée pour le clavier iOS et
+            la taille du champ : y ajouter une barre aurait touché exactement ce
+            qui vient d'être rendu prévisible.
+          */}
+          <TabPanes agents={voisins} courant={agent.paneId} onOpen={onOuvrirVoisin} />
 
           {agent.sessionPath === null ? (
             <Notice ton="avertissement">

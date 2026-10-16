@@ -12,6 +12,12 @@
 import { describe, expect, test } from "bun:test";
 import { classifyReadFailure, invalidSession, statusFor, verdictOf } from "./ReadCause.ts";
 
+const rejet = (reason: string) => ({
+  _tag: "SessionPathRejected",
+  detail: `refus ${reason}`,
+  reason,
+});
+
 /** Reproduit la forme d'une erreur Node : `code` à la racine ou dans `cause`. */
 const erreur = (code: string | undefined, nested = false) => {
   const base =
@@ -47,8 +53,8 @@ describe("B03 — quatre causes, jamais confondues", () => {
   });
 
   test("un refus de chemin garde sa propre cause, pas « io » générique", () => {
-    const rejet = { _tag: "SessionPathRejected", detail: "chemin hors de la racine autorisée" };
-    const verdict = classifyReadFailure(rejet);
+    const refus = { _tag: "SessionPathRejected", detail: "chemin hors de la racine autorisée" };
+    const verdict = classifyReadFailure(refus);
     // Le message du refus est conservé tel quel : le réqualifier en « io »
     // effacerait exactement la distinction que S03 a construite.
     expect(verdict.message).toBe("chemin hors de la racine autorisée");
@@ -79,5 +85,51 @@ describe("B03 — quatre causes, jamais confondues", () => {
     const verdict = invalidSession("ligne tronquée");
     expect(verdict.message).toContain("ligne tronquée");
     expect(verdict.cause).toBe("invalide");
+  });
+});
+
+/**
+ * Un fichier de session **pas encore écrit** n'est pas une panne.
+ *
+ * ⚠️ **Mesuré sur un onglet réel à cinq panes.** Un agent qui vient de démarrer
+ * annonce son chemin de session **avant** d'avoir écrit quoi que ce soit : le
+ * pane `pi` s'affichait donc en `error`, alors qu'il était simplement neuf. Un
+ * `error` fait croire à une panne et envoie chercher un problème qui n'existe
+ * pas — c'est le même défaut que devin, qui avait été corrigé pour les bases et
+ * laissé pour les fichiers.
+ *
+ * ⚠️ Les autres refus de chemin gardent leur refus : `hors-racine` et
+ * `lien-sortant` sont des **intrusions**, `racine-absente` dit que le magasin
+ * manque. Les requalifier effacerait la distinction que S03 a construite.
+ */
+describe("un chemin absent est bénin, un refus ne l'est pas", () => {
+  test("`chemin-absent` donne « absente », donc bénin", () => {
+    const verdict = classifyReadFailure(rejet("chemin-absent"));
+
+    expect(verdict.cause).toBe("absente");
+    expect(verdict.benign).toBe(true);
+  });
+
+  test("`hors-racine` reste un refus, jamais « absente »", () => {
+    const verdict = classifyReadFailure(rejet("hors-racine"));
+
+    expect(verdict.benign).toBe(false);
+    expect(verdict.cause).toBe("io");
+  });
+
+  test("`lien-sortant` aussi", () => {
+    expect(classifyReadFailure(rejet("lien-sortant")).benign).toBe(false);
+  });
+
+  test("`racine-absente` aussi : c'est le magasin qui manque", () => {
+    expect(classifyReadFailure(rejet("racine-absente")).benign).toBe(false);
+  });
+
+  test("un refus SANS raison reste un refus", () => {
+    // ⚠️ Garde-fou : si la raison disparaissait de la classe, on retomberait sur
+    // le traitement dangereux plutôt que sur le bénin — le bon sens de l'erreur.
+    expect(classifyReadFailure({ _tag: "SessionPathRejected", detail: "refus" }).benign).toBe(
+      false,
+    );
   });
 });

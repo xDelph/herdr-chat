@@ -7,6 +7,8 @@ export { estLigneDeConversationClaude, ligneClaudeVersPi, sansMessage } from "./
 export { ligneCodexVersPi, reglageCodexVersPi } from "./codex.ts";
 export { ligneDevinVersPi } from "./devin.ts";
 export { ligneOpencodeVersPi } from "./opencode.ts";
+export { dejaDit, etiquetteDePane, rangsDesPanes } from "./nommage.ts";
+export type { PaneAEtiqueter } from "./nommage.ts";
 export { estObjet, modeleUtilisable, tableauDe, texteDe } from "./pi.ts";
 export type { ChangePi, LignePi } from "./pi.ts";
 // `Choix` et `Question` sont exportés par `api.ts` (schémas Effect) : les

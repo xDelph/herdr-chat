@@ -349,9 +349,13 @@ describe("contrat — le payload est validé", () => {
     const line = Effect.runSync(summaryOf(pane(), () => Effect.succeed(neverRead())));
     expect(Object.keys(line).toSorted()).toEqual([
       "agent",
+      "name",
       "paneId",
+      "paneRank",
       "sessionState",
       "status",
+      "tabId",
+      "tabPaneCount",
       "title",
       "workspaceId",
     ]);

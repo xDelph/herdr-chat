@@ -5,6 +5,7 @@
  * 1100 lignes, alors que quatre écrans les utilisent. Les déplacer ensemble
  * évite d'avoir à les dupliquer.
  */
+import { etiquetteDePane } from "@herdr-remote/shared";
 import type { AgentStatus, AgentView } from "@herdr-remote/shared";
 
 /**
@@ -100,8 +101,17 @@ export const agentContext = (agent: AgentView): string => {
  */
 export const headerContext = (agent: AgentView): string => {
   const status = statusLabel(agent.status);
+  /*
+    ⚠️ **L'étiquette du pane passe juste après le statut, et pas à la fin.** Cette
+    ligne est tronquée à l'ellipse sur un iPhone : ajoutée en queue, elle aurait
+    été la première coupée — c'est-à-dire l'information nouvelle cachée par celle
+    qui existait déjà. Même raison que le statut lui-même, qui est en tête.
+  */
+  const etiquette = etiquetteDePane(agent);
   const detail = agentContext(agent);
-  return detail.length === 0 ? status : `${status} · ${detail}`;
+  const morceaux = [status, ...(etiquette === undefined ? [] : [etiquette])];
+  if (detail.length > 0) morceaux.push(detail);
+  return morceaux.join(" · ");
 };
 
 /**

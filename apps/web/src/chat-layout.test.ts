@@ -632,3 +632,67 @@ describe("U23 — le sélecteur de thème", () => {
     expect(bloc(".theme__choix")["min-height"]).toBe("var(--tap-min)");
   });
 });
+
+/**
+ * U19 — la barre des panes d'un onglet, et l'étiquette du pane.
+ *
+ * ⚠️ **Ce qui est vérifié ici est structurel**, et c'est ce qui casserait en
+ * silence : la barre doit être **hors du conteneur défilant** (sinon elle
+ * défile avec les messages et disparaît), elle doit porter le libellé de
+ * l'étiquette **partagée** (sinon l'écran et la notification divergeraient), et
+ * la ligne de liste doit la montrer sans avoir recalculé quoi que ce soit.
+ */
+describe("U19 — les panes d'un onglet", () => {
+  const ecran = readFileSync(join(import.meta.dir, "ChatScreen.tsx"), "utf8");
+  const ligne = readFileSync(join(import.meta.dir, "ConversationRow.tsx"), "utf8");
+
+  test("la barre est sous l'en-tête, pas dans le fil", () => {
+    // ⚠️ Le bas de l'écran est la zone stabilisée pour le clavier iOS : la barre
+    // y aurait touché. Et dans `.messages`, elle aurait défilé avec le fil.
+    expect(ecran).toContain("<TabPanes agents={voisins} courant={agent.paneId}");
+    const barre = ecran.indexOf("<TabPanes");
+    const fil = ecran.indexOf('className="messages"');
+    expect(fil).toBeGreaterThan(-1);
+    expect(barre).toBeLessThan(fil);
+  });
+
+  test("l'en-tête nomme le pane avec la fonction PARTAGÉE", () => {
+    // ⚠️ `etiquetteDePane` vient du paquet partagé : le même texte que la ligne
+    // de liste et que la notification. La recalculer ici aurait suffi à faire
+    // dire à l'écran autre chose que ce que dit le téléphone.
+    // ⚠️ Dans `headerContext`, qui la place **juste après le statut** : la ligne
+    // est tronquée sur iPhone, et en queue l'étiquette serait la première coupée.
+    const labels = readFileSync(join(import.meta.dir, "labels.tsx"), "utf8");
+    expect(labels).toContain("const etiquette = etiquetteDePane(agent);");
+    expect(ecran).toContain("headerContext(agent)");
+  });
+
+  test("la ligne de liste aussi, et avec les libellés qu'elle a déjà", () => {
+    expect(ligne).toContain("etiquetteDePane({");
+    expect(ligne).toContain('className="conv__pane"');
+  });
+
+  test("les voisins sont triés par rang de disposition", () => {
+    // ⚠️ Pas par identifiant : l'ordre de la barre doit être celui qu'on voit sur
+    // le Mac, sinon « le troisième » ne désigne rien de stable.
+    const app = readFileSync(join(import.meta.dir, "App.tsx"), "utf8");
+    expect(app).toContain("paneRank ?? Number.MAX_SAFE_INTEGER");
+    expect(app).toContain("candidat.tabId === agent.tabId");
+  });
+
+  test("la barre est un vrai bouton, donc touchable", () => {
+    expect(bloc(".panes")["min-height"]).toBe("var(--tap-min)");
+    expect(bloc(".panes__pane")["min-height"]).toBe("var(--tap-min)");
+  });
+
+  test("le current se dit aussi autrement que par la couleur", () => {
+    expect(bloc('.panes__pane[aria-current="true"]')["border-bottom-color"]).toBe("var(--accent)");
+  });
+
+  test("l'étiquette du pane ne prend pas la place du projet", () => {
+    // C'est un complément : plus petit, et en chiffres tabulaires pour que
+    // « pane 3 » et « pane 11 » s'alignent.
+    expect(bloc(".conv__pane")["font-size"]).toBe("12px");
+    expect(bloc(".conv__pane")["font-variant-numeric"]).toBe("tabular-nums");
+  });
+});

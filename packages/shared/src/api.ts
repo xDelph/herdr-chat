@@ -50,6 +50,24 @@ export const AgentViewSchema = Schema.Struct({
   tabLabel: Schema.NullOr(Schema.String),
   tabId: Schema.String,
   tabNumber: Schema.NullOr(Schema.Number),
+  /**
+   * Nom de l'agent, **exigé unique** par `agent.start`.
+   *
+   * ⚠️ `null` pour un agent lancé à la main : mesuré, ses treize agents n'en
+   * portaient aucun. C'est donc le seul libellé *choisi* quand il existe, et il
+   * n'existe que pour ce que Herdr a lancé.
+   */
+  name: Schema.NullOr(Schema.String),
+  /**
+   * Rang du pane dans son tab, en ordre de lecture (1 = premier).
+   *
+   * ⚠️ Herdr numérote les tabs et les workspaces, **jamais les panes** : c'est
+   * la place dans la disposition qui sert de discriminant. `null` quand la
+   * disposition n'a pas été lue.
+   */
+  paneRank: Schema.NullOr(Schema.Number),
+  /** Combien de panes compte le tab. `1` = l'agent est seul. */
+  tabPaneCount: Schema.Number,
   title: Schema.NullOr(Schema.String),
   /** Libellé humain du projet. `null` = nom par défaut côté Herdr. */
   workspaceLabel: Schema.NullOr(Schema.String),
@@ -491,6 +509,16 @@ export const ConversationSummary = Schema.Struct({
    * Absent quand rien ne le déclare : on ne complète pas avec un modèle supposé.
    */
   model: Schema.optional(Schema.String),
+  /**
+   * Nom de l'agent et place dans son tab — **de quoi l'étiqueter** quand son tab
+   * en contient plusieurs.
+   *
+   * ⚠️ Recopiés depuis la vue d'agent plutôt que recalculés : une seconde
+   * déduction du même rang finirait par diverger de la première.
+   */
+  name: Schema.NullOr(Schema.String),
+  paneRank: Schema.NullOr(Schema.Number),
+  tabPaneCount: Schema.Number,
   /** Fournisseur explicite du modèle (`model_change`, ou le message lui-même). */
   provider: Schema.optional(Schema.String),
   /** Aperçu : dernier message texte de l'agent. Absent s'il n'y en a pas. */
@@ -520,6 +548,13 @@ export const ConversationSummary = Schema.Struct({
   /** État en union fermée (A04) : une string libre accepterait n'importe quoi. */
   status: AgentStatus,
   workspaceId: Schema.String,
+  /**
+   * Onglet dont vient l'agent.
+   *
+   * ⚠️ Sert à retrouver **ses voisins** : c'est la clé de la barre qui permet de
+   * passer d'un pane à l'autre sans repasser par la liste.
+   */
+  tabId: Schema.String,
   paneId: Schema.String,
 });
 export type ConversationSummary = typeof ConversationSummary.Type;
@@ -554,8 +589,55 @@ export const SnapshotPane = Schema.Struct({
 export type SnapshotPane = typeof SnapshotPane.Type;
 
 /** Vue du snapshot Herdr telle que consommée par le serveur. */
+/**
+ * Un pane dans la disposition de son tab.
+ *
+ * ⚠️ **Les rectangles sont en cellules de terminal**, pas en pixels (mesuré :
+ * `width: 190, height: 82` pour une fenêtre pleine). Ils servent donc à *situer*
+ * et à *ordonner* — jamais à mesurer un écran.
+ */
+export const PaneLayoutRect = Schema.Struct({
+  height: Schema.Number,
+  width: Schema.Number,
+  x: Schema.Number,
+  y: Schema.Number,
+});
+
+export const PaneLayoutPane = Schema.Struct({
+  focused: Schema.Boolean,
+  pane_id: Schema.String,
+  rect: PaneLayoutRect,
+});
+
+/**
+ * Disposition d'un tab — **déjà présente dans le snapshot** (`snapshot.layouts`).
+ *
+ * ⚠️ C'est ce qui rend le rang d'un pane gratuit : la route d'aperçu lit déjà le
+ * snapshot, donc le calcul ne coûte aucun appel supplémentaire. Mesuré : 24
+ * dispositions livrées d'un coup avec les agents.
+ *
+ * ⚠️ `splits` existe aussi côté Herdr et n'est **pas** décrit ici : on ne
+ * déclare que ce qu'on lit. Un champ décrit mais inutilisé finit par laisser
+ * croire qu'il sert.
+ */
+export const PaneLayout = Schema.Struct({
+  focused_pane_id: Schema.String,
+  panes: Schema.Array(PaneLayoutPane),
+  tab_id: Schema.String,
+  workspace_id: Schema.String,
+  zoomed: Schema.Boolean,
+});
+export type PaneLayout = typeof PaneLayout.Type;
+
 export const SnapshotPayload = Schema.Struct({
   agents: Schema.Array(AgentInfo),
+  /**
+   * ⚠️ **À déclarer explicitement.** Un `Schema.Struct` ne garde pas les champs
+   * qu'il ne connaît pas : sans cette ligne, les dispositions seraient lues…
+   * puis jetées au décodage, et le rang de chaque pane resterait inconnu sans
+   * qu'aucune erreur ne le dise.
+   */
+  layouts: Schema.optional(Schema.Array(PaneLayout)),
   panes: Schema.optional(Schema.Array(SnapshotPane)),
   protocol: Schema.Number,
   tabs: Schema.optional(Schema.Array(TabInfo)),
