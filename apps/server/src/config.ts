@@ -307,6 +307,22 @@ export class ServerConfigTag extends Context.Service<ServerConfigTag, ServerConf
         sessionRoots: [
           env["PI_SESSIONS_ROOT"] ?? `${home}/.pi/agent/sessions`,
           env["CODEX_SESSION_ROOT"] ?? `${home}/.codex/sessions`,
+          /*
+            ⚠️ **Une racine de plus, et ce n'est pas un detail d'installation.**
+            La garde de chemin refuse tout ce qui n'est pas sous une racine
+            autorisee — c'est elle qui empeche de lire `~/.ssh/id_rsa` en le
+            faisant passer pour une session.
+
+            Mesure du 2026-10-16, sur un agent claude reellement lance : Herdr
+            expose un **chemin** (et non un identifiant), et la lecture repondait
+            `403 session path outside the allowed root` — l'agent etait donc
+            annonce en `error` dans la liste, alors que sa session se lisait tres
+            bien. Le type etait supporte, la racine ne l'etait pas.
+
+            Meme variable d'environnement que `SessionLocator` : une seule
+            decision, lue aux deux endroits.
+          */
+          env["CLAUDE_PROJECTS_ROOT"] ?? `${home}/.claude/projects`,
         ],
         port,
         hostname: bind,
