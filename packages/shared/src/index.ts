@@ -8,4 +8,4 @@ export { ligneOpencodeVersPi } from "./opencode.ts";
 export type { LignePi } from "./pi.ts";
 // `Choix` et `Question` sont exportés par `api.ts` (schémas Effect) : les
 // redéclarer ici créerait deux types pour la même chose.
-export { questionDeLEcran } from "./question.ts";
+export { estOptionSaisieLibre, OPTION_SAISIE_LIBRE, questionDeLEcran } from "./question.ts";

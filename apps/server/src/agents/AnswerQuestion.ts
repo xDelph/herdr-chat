@@ -22,7 +22,7 @@ import type { HerdrApi } from "../herdr/HerdrClient.ts";
  * qui s'ensuit désactive justement la vérification qu'on veut garder. Ici, un
  * faux client de six lignes suffit, et il est **vérifié** par le type.
  */
-export type HerdrPourQuestion = Pick<HerdrApi, "readAgent" | "sendKeys">;
+export type HerdrPourQuestion = Pick<HerdrApi, "readAgent" | "sendKeys" | "sendText">;
 import { Effect } from "effect";
 import { questionDeLEcran } from "@herdr-remote/shared";
 
@@ -51,6 +51,16 @@ export const numeroOffert = (
 /**
  * Répond à la question affichée sur un pane.
  *
+ * ⚠️ **`texte` n'est pas une décoration.** « Type your own answer » est un choix
+ * qu'opencode ajoute lui-même : le choisir **ouvre un champ texte**, et envoyer
+ * le seul numéro laisserait l'utilisateur sans moyen d'y écrire. La séquence
+ * complète est donc : le numéro, `enter` (qui ouvre le champ), le texte, `enter`.
+ *
+ * ⚠️ L'ordre est **prouvé par le code d'opencode**, pas supposé (bundle 2.0.23,
+ * 2026-10-16) : un chiffre **sélectionne** (`te(ne - 1)`) sans valider, et
+ * `return` valide (`te()`). Le choix de saisie libre fait ensuite basculer le
+ * sélecteur vers un prompt texte (`cS`).
+ *
  * Ne lève jamais pour un refus : un refus est une **valeur**, pour que la route
  * puisse en faire une réponse lisible.
  */
@@ -58,6 +68,7 @@ export const repondreQuestion = (
   herdr: HerdrPourQuestion,
   paneId: string,
   numero: number,
+  texte?: string,
 ): Effect.Effect<ReponseQuestion, unknown> =>
   Effect.gen(function* () {
     // Lecture **avant** : quelle est la question, et quels choix offre-t-elle ?
@@ -81,6 +92,22 @@ export const repondreQuestion = (
 
     // `enter` valide le choix : le numéro seul le sélectionne sans le soumettre.
     yield* herdr.sendKeys(paneId, [String(numero), "enter"]);
+
+    /*
+      ⚠️ **Saisie libre : le choix ouvre un champ, il faut y écrire.**
+
+      Envoyer le numéro seul laissait le champ ouvert et vide — l'agent bloquait
+      toujours, et rien à l'écran ne disait pourquoi. Le texte est donc écrit
+      **après** le choix, puis validé.
+
+      ⚠️ Un texte vide ou fait d'espaces n'écrit rien : valider un champ vide
+      ferait avancer l'agent sur du vent.
+    */
+    const reponseLibre = texte?.trim() ?? "";
+    if (reponseLibre.length > 0) {
+      yield* herdr.sendText(paneId, reponseLibre);
+      yield* herdr.sendKeys(paneId, ["enter"]);
+    }
 
     // Relecture : l'application est un **fait observé**, pas une intention.
     const apres = yield* herdr.readAgent(paneId, 200, "visible");

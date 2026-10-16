@@ -133,7 +133,16 @@ const decodeTrustBody = Schema.decodeUnknownOption(TrustBody);
  * refusée et **aucune touche n'est envoyée**. Répondre à la place de
  * l'utilisateur à un autre dialogue serait pire que de ne rien faire.
  */
-const decodeAnswerBody = Schema.decodeUnknownOption(Schema.Struct({ numero: Schema.Number }));
+/**
+ * Corps de la reponse a une question.
+ *
+ * ⚠️ `texte` est **optionnel mais decisif** : c'est lui qui repond a l'option de
+ * saisie libre d'opencode (« Type your own answer »), laquelle ouvre un champ.
+ * Sans lui, le champ reste ouvert et vide.
+ */
+const decodeAnswerBody = Schema.decodeUnknownOption(
+  Schema.Struct({ numero: Schema.Number, texte: Schema.optional(Schema.String) }),
+);
 
 /** Corps de l'acquittement d'affichage : on regarde, ou on ne regarde plus. */
 /**
@@ -247,7 +256,7 @@ const makeAnswerQuestion =
 
     const paneId = request.params["paneId"] ?? "";
     const result = await Effect.runPromise(
-      Effect.result(repondreQuestion(herdr, paneId, body.numero)),
+      Effect.result(repondreQuestion(herdr, paneId, body.numero, body.texte)),
     );
     if (Result.isFailure(result)) {
       const failure = failureOf(result);

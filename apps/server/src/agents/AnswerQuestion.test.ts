@@ -42,6 +42,9 @@ const fauxHerdr = (
       frappes.push(keys);
       return Effect.succeed({});
     },
+    // Ce faux client n'exerce pas la saisie libre (voir `fauxHerdrTrace`) : les
+    // tests ci-dessus ne passent jamais de texte.
+    sendText: () => Effect.succeed({}),
   };
   return { frappes, herdr };
 };
@@ -117,5 +120,97 @@ describe("repondreQuestion", () => {
     // Le `›` est sur « Allow » : on envoie quand même le numéro demandé.
     const { frappes } = await lancer([ECRAN, "fini"], 4);
     expect(frappes).toEqual([["4", "enter"]]);
+  });
+});
+
+/** Écran d'après : la question a disparu, l'agent a repris. */
+const ECRAN_APRES = ["  > travail en cours", "  $ bun run verify", ""].join("\n");
+
+/**
+ * Un Herdr simulé qui note **la méthode** de chaque écriture, dans l'ordre.
+ *
+ * ⚠️ Sans cette trace, « un choix seul » et « un choix suivi d'un texte » sont
+ * indistinguables : les deux finissent par un `sendKeys`. Or l'ordre est
+ * exactement ce qu'il faut tenir — écrire le texte **avant** de choisir
+ * l'option le ferait taper dans le vide.
+ */
+const fauxHerdrTrace = (ecrans: ReadonlyArray<string>) => {
+  const trace: Array<string> = [];
+  let index = 0;
+  const lire = () => {
+    const texte = ecrans[Math.min(index, ecrans.length - 1)] ?? "";
+    index += 1;
+    return Effect.succeed({ text: texte, truncated: false });
+  };
+  const herdr: HerdrPourQuestion = {
+    readAgent: () => lire(),
+    sendKeys: (_cible: string, keys: ReadonlyArray<string>) => {
+      trace.push(`keys:${keys.join("+")}`);
+      return Effect.succeed({});
+    },
+    sendText: (_cible: string, text: string) => {
+      trace.push(`text:${text}`);
+      return Effect.succeed({});
+    },
+  };
+  return { herdr, trace };
+};
+
+const lancerAvecTexte = async (texte: string | undefined) => {
+  const { herdr, trace } = fauxHerdrTrace([ECRAN, ECRAN_APRES]);
+  const reponse = await Effect.runPromise(repondreQuestion(herdr, "w1:p1", 4, texte));
+  return { reponse, trace };
+};
+
+describe("la saisie libre — le choix ouvre le champ, le texte l'emplit", () => {
+  test("sans texte, le choix seul part — et rien de plus", async () => {
+    const { reponse, trace } = await lancerAvecTexte(undefined);
+
+    expect(reponse.state).toBe("appliquee");
+    expect(trace).toEqual(["keys:4+enter"]);
+  });
+
+  test("avec un texte : choix, puis texte, puis validation", async () => {
+    // ⚠️ C'est la séquence prouvée dans le code d'opencode : un chiffre
+    // **sélectionne** sans valider, `enter` valide — ce qui ouvre le champ texte
+    // pour l'option de saisie libre — puis on écrit, puis on valide.
+    const { reponse, trace } = await lancerAvecTexte("le rapport est dans ~/tmp/r.md");
+
+    expect(reponse.state).toBe("appliquee");
+    expect(trace).toEqual(["keys:4+enter", "text:le rapport est dans ~/tmp/r.md", "keys:enter"]);
+  });
+
+  test("le texte est écrit APRÈS le choix, jamais avant", async () => {
+    // L'inverse ferait taper dans le vide : le champ n'existe qu'une fois
+    // l'option sélectionnée et validée.
+    const { trace } = await lancerAvecTexte("ma réponse");
+    const rangChoix = trace.indexOf("keys:4+enter");
+    const rangTexte = trace.findIndex((t) => t.startsWith("text:"));
+
+    expect(rangChoix).toBeGreaterThanOrEqual(0);
+    expect(rangTexte).toBeGreaterThan(rangChoix);
+  });
+
+  test("un texte fait d'espaces n'écrit RIEN", async () => {
+    // ⚠️ Valider un champ vide ferait avancer l'agent sur du vent — il croirait
+    // avoir reçu une réponse.
+    const { trace } = await lancerAvecTexte("   \n  ");
+
+    expect(trace).toEqual(["keys:4+enter"]);
+  });
+
+  test("un texte vide n'écrit rien non plus", async () => {
+    const { trace } = await lancerAvecTexte("");
+
+    expect(trace).toEqual(["keys:4+enter"]);
+  });
+
+  test("un choix refusé n'écrit jamais de texte", async () => {
+    // La garde passe avant tout envoi : rien ne part, texte compris.
+    const { herdr, trace } = fauxHerdrTrace([ECRAN, ECRAN]);
+    const reponse = await Effect.runPromise(repondreQuestion(herdr, "w1:p1", 9, "ma réponse"));
+
+    expect(reponse.state).toBe("refusee");
+    expect(trace).toEqual([]);
   });
 });

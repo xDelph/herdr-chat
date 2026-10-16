@@ -576,9 +576,17 @@ export interface AnswerResult {
  * numéro qui n'est pas offert ne part jamais. L'interface n'a donc pas à
  * protéger cette décision — elle ne peut offrir que ce qui existe.
  */
-export const answerQuestion = async (paneId: string, numero: number): Promise<AnswerResult> => {
+export const answerQuestion = async (
+  paneId: string,
+  numero: number,
+  texte?: string,
+): Promise<AnswerResult> => {
   const response = await fetch(`/api/agents/${encodeURIComponent(paneId)}/answer`, {
-    body: JSON.stringify({ numero }),
+    // ⚠️ `texte` n'est pas un ornement : l'option de saisie libre d'opencode
+    // ouvre un champ, et le choix **seul** le laisserait vide.
+    body: JSON.stringify(
+      texte === undefined || texte.length === 0 ? { numero } : { numero, texte },
+    ),
     headers: { "content-type": "application/json" },
     method: "POST",
   });

@@ -12,6 +12,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentView, AnswerResult, SessionEntry } from "./api.ts";
+import { estOptionSaisieLibre } from "@herdr-remote/shared";
 import {
   answerQuestion,
   fetchSession,
@@ -626,9 +627,51 @@ export const ChatScreen = ({
     [agent.paneId],
   );
 
+  /** État de la dernière réponse à une question, pour ne jamais mentir dessus. */
+  const [reponse, setReponse] = useState<AnswerResult | null>(null);
+  const [envoiReponse, setEnvoiReponse] = useState(false);
+  /**
+   * Numéro de l'option de **saisie libre** en cours de réponse, ou `null`.
+   *
+   * ⚠️ **Cette option ne se répond pas par un chiffre.** opencode l'ajoute
+   * lui-même (« Type your own answer ») et la choisir **ouvre un champ texte** :
+   * envoyer le seul numéro laissait l'utilisateur avec un champ ouvert et aucun
+   * moyen d'y écrire. Tant que ce mode est actif, l'envoi part comme **réponse à
+   * la question** — le numéro ET le texte — au lieu d'un prompt, que Herdr
+   * refuserait de toute façon sur un agent bloqué.
+   */
+  const [saisieLibre, setSaisieLibre] = useState<number | null>(null);
+
   const submit = useCallback(async () => {
     const text = draft.trim();
     if (text.length === 0 || sending) return;
+    /*
+      ⚠️ **Répondre à l'option de saisie libre.** Le texte part **avec** le
+      numéro : le choix ouvre le champ, le texte l'emplit, la validation suit —
+      c'est la séquence prouvée dans le code d'opencode, et c'est le serveur qui
+      l'exécute pour qu'elle ne soit pas recomposée ici.
+    */
+    if (saisieLibre !== null) {
+      if (envoiReponse) return;
+      setEnvoiReponse(true);
+      setDraft("");
+      ecrireBrouillon(agent.paneId, "");
+      ecrireAuChamp("");
+      try {
+        setReponse(await answerQuestion(agent.paneId, saisieLibre, text));
+        // Le mode ne survit pas à une réponse : la question est traitée.
+        setSaisieLibre(null);
+      } catch (cause) {
+        // Jamais d'échec muet : la cause est nommée, et le mode reste actif.
+        setReponse({
+          detail: cause instanceof Error ? cause.message : "Unknown error",
+          state: "refusee",
+        });
+      } finally {
+        setEnvoiReponse(false);
+      }
+      return;
+    }
     const id = `local-${String(Date.now())}-${String(++nextLocalId.current)}`;
     const baseline = messages.filter(
       (message) => message.role === "user" && message.text === text,
@@ -651,7 +694,17 @@ export const ChatScreen = ({
       sendTimer.current = null;
       void transmettre(id, text);
     }, 900);
-  }, [agent.paneId, ajusterHauteur, draft, messages, sending, transmettre]);
+  }, [
+    agent.paneId,
+    ajusterHauteur,
+    draft,
+    ecrireAuChamp,
+    envoiReponse,
+    messages,
+    saisieLibre,
+    sending,
+    transmettre,
+  ]);
 
   useEffect(
     () => () => {
@@ -728,10 +781,6 @@ export const ChatScreen = ({
       setStopping(false);
     }
   }, [agent.paneId, stopping]);
-
-  /** État de la dernière réponse à une question, pour ne jamais mentir dessus. */
-  const [reponse, setReponse] = useState<AnswerResult | null>(null);
-  const [envoiReponse, setEnvoiReponse] = useState(false);
 
   const choisir = useCallback(
     async (numero: number) => {
@@ -1054,6 +1103,19 @@ export const ChatScreen = ({
                     className="question__choix-bouton"
                     disabled={envoiReponse}
                     onClick={() => {
+                      /*
+                        ⚠️ **L'option de saisie libre n'est pas envoyée.** La
+                        choisir ouvre un champ texte chez opencode ; l'expédier
+                        seule laisserait ce champ vide. On passe donc en mode
+                        réponse : le composeur prend le relais, et l'envoi
+                        expédie le choix et le texte ensemble.
+                      */
+                      if (estOptionSaisieLibre(choix.libelle)) {
+                        setSaisieLibre(choix.numero);
+                        setReponse(null);
+                        champRef.current?.focus();
+                        return;
+                      }
                       void choisir(choix.numero);
                     }}
                   >
@@ -1065,6 +1127,11 @@ export const ChatScreen = ({
                   </button>
                 ))}
               </div>
+              {saisieLibre === null ? null : (
+                <p className="question__contexte">
+                  Write your answer below, then send — the choice and the text go together.
+                </p>
+              )}
               {reponse === null ? null : (
                 <p className={`question__reponse question__reponse--${reponse.state}`}>
                   {reponse.detail}

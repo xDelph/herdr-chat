@@ -289,3 +289,32 @@ export const questionDeLEcran = (ecran: string): Question | undefined => {
     texte,
   };
 };
+
+/**
+ * Le libellé que **opencode ajoute lui-même** pour la saisie libre.
+ *
+ * ⚠️ **Ce n'est pas un choix du modèle, et ce n'est pas une heuristique.** C'est
+ * la chaîne qu'opencode écrit dans son propre code d'affichage de formulaire,
+ * relevée dans son bundle (2.0.23, 2026-10-16) :
+ *
+ * ```js
+ * if (e.custom) i.push({ value: f, label: "Type your own answer" });
+ * let r = yield* sS({ … options: i … });
+ * if (r === f) { … }
+ * let n = yield* cS({ … placeholder: … });   // le champ texte s'ouvre
+ * ```
+ *
+ * Et sa description d'outil le dit explicitement : « A "Type your own answer"
+ * option is added automatically; don't include a separate option for free form
+ * answers ».
+ *
+ * ⚠️ **La reconnaître sert à ne PAS l'envoyer.** Choisir cette option ouvre un
+ * champ texte : envoyer le seul numéro d'un cran fait ouvrir le champ et laisse
+ * l'utilisateur sans moyen d'y écrire. L'application doit donc la traiter comme
+ * une **demande de saisie**, pas comme une réponse.
+ */
+export const OPTION_SAISIE_LIBRE = "Type your own answer";
+
+/** Un libellé de choix est-il l'option de saisie libre d'opencode ? */
+export const estOptionSaisieLibre = (libelle: string): boolean =>
+  libelle.trim() === OPTION_SAISIE_LIBRE;
