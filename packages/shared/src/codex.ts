@@ -35,6 +35,9 @@
  *    un vrai message long n'a pas à être filtré.
  */
 
+import { estObjet } from "./pi.ts";
+import type { LignePi } from "./pi.ts";
+
 /**
  * Arguments d'un appel d'outil, quelle que soit sa famille.
  *
@@ -72,29 +75,6 @@ const texteDeSortie = (sortie: unknown): string => {
     .join("");
 };
 
-/**
- * Forme pi produite par l'adaptateur.
- *
- * `message` est typé assez précisément pour être **lu sans assertion** — un test
- * qui doit caster pour vérifier ne vérifie plus grand-chose.
- */
-export interface LignePi {
-  readonly type: string;
-  readonly id?: string;
-  readonly timestamp?: string;
-  readonly message: {
-    readonly content: unknown;
-    readonly role?: string;
-    readonly toolName?: string;
-    readonly phase?: string;
-    readonly command?: string;
-    readonly output?: string;
-    readonly exitCode?: number | null;
-    readonly cancelled?: boolean;
-    readonly truncated?: boolean;
-  };
-}
-
 /** Rôles qui font partie de la conversation. Le reste est de la configuration. */
 const ROLES_CONVERSATION: ReadonlySet<string> = new Set(["user", "assistant"]);
 
@@ -125,9 +105,6 @@ const estBlocDeContexte = (texte: string): boolean => {
   if (debut.startsWith(MARQUE_ENV)) return true;
   return debut.startsWith(MARQUE_AGENTS_MD) && debut.includes("<INSTRUCTIONS>");
 };
-
-const estObjet = (v: unknown): v is Record<string, unknown> =>
-  typeof v === "object" && v !== null && !Array.isArray(v);
 
 /**
  * Traduit une ligne codex en ligne de forme pi.
