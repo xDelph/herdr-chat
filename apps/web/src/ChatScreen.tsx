@@ -24,6 +24,7 @@ import type { Question } from "@herdr-remote/shared";
 import { ecrireBrouillon, lireBrouillon } from "./brouillons.ts";
 import type { RenderedMessage } from "./blocks.ts";
 import { avecTravailEnCours, toItems, toMessages, touchedFilesOf } from "./blocks.ts";
+import { fusionnerEntrees } from "./messages.ts";
 import { agentName, headerContext, statusClass } from "./labels.tsx";
 import { FileOpenerContext, ItemsView, UrlOpenerContext } from "./Blocks.tsx";
 import { FilesSheet } from "./Files.tsx";
@@ -186,10 +187,11 @@ export const ChatScreen = ({
 
         if (session.incremental) {
           if (session.entries.length > 0) {
-            // Analyse des seules entrées nouvelles.
-            const added = toMessages(session.entries);
-            setEntries((current) => [...current, ...session.entries]);
-            setMessages((current) => [...current, ...added]);
+            // ⚠️ Fusion, pas empilement : une entrée peut être **remplacée**
+            // (opencode réécrit la ligne d'un message pendant qu'il le compose).
+            const ajoutees = toMessages(session.entries);
+            setEntries((current) => fusionnerEntrees(current, session.entries));
+            setMessages((current) => fusionnerEntrees(current, ajoutees));
           }
         } else {
           setEntries(session.entries);

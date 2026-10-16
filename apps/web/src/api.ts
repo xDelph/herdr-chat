@@ -432,8 +432,6 @@ export const openEventStream = (handlers: {
   onResync: () => void;
   onStatus: (status: "live" | "down") => void;
 }): (() => void) => {
-  const source = new EventSource("/api/events");
-
   /**
    * Anti-clignotement du statut.
    *
@@ -462,23 +460,15 @@ export const openEventStream = (handlers: {
     }, 6_000);
   };
 
-  source.addEventListener("open", markLive);
-  source.addEventListener("error", markDownSoon);
-  source.addEventListener("ready", markLive);
-  source.addEventListener("resync", () => handlers.onResync());
-
-  // Un événement reçu prouve que le flux vit, même après un `error`.
-  source.addEventListener("message", markLive);
-
+  /**
+   * Un événement **nommé** prouve lui aussi que le flux vit.
+   *
+   * `message` ne se déclenche que pour les événements sans nom — or le trafic
+   * utile ici est nommé (`agent_status`, `prompt`…). Sans cette ligne, une
+   * coupure de trois secondes suivie d'un `agent_status` bien reçu laissait
+   * l'indicateur « hors ligne » alors que le flux fonctionnait.
+   */
   const forward = (kind: string) => (event: MessageEvent<string>) => {
-    /*
-      Un événement **nommé** prouve lui aussi que le flux vit.
-
-      `message` ne se déclenche que pour les événements sans nom — or le trafic
-      utile ici est nommé (`agent_status`, `prompt`…). Sans cette ligne, une
-      coupure de trois secondes suivie d'un `agent_status` bien reçu laissait
-      l'indicateur « hors ligne » alors que le flux fonctionnait.
-    */
     markLive();
     let data: unknown = event.data;
     try {
@@ -489,14 +479,66 @@ export const openEventStream = (handlers: {
     handlers.onEvent(kind, data);
   };
 
-  for (const kind of ["agent_status", "prompt", "prompt-suppressed", "resync", "ready"]) {
-    if (kind === "resync" || kind === "ready") continue;
-    source.addEventListener(kind, forward(kind));
-  }
+  const EVENEMENTS_SUIVIS = ["agent_status", "prompt", "prompt-suppressed"];
+  /** `EventSource.CLOSED`, sans dépendre de la classe (absente d'un double de test). */
+  const CLOSED = 2;
+
+  let courant: EventSource | undefined;
+  let ferme = false;
+  let reprise: ReturnType<typeof setTimeout> | undefined;
+  let essais = 0;
+
+  /**
+   * Recrée le flux, avec un délai qui double puis plafonne.
+   *
+   * ⚠️ **`EventSource` ne se reconnecte PAS toujours tout seul.** Il réessaie
+   * tant que la coupure est un simple incident réseau, mais si le serveur a
+   * répondu une **erreur HTTP** (statut non-2xx, ou type de contenu inattendu),
+   * il passe en `CLOSED` et **abandonne définitivement**. Mesuré à l'usage : le
+   * bandeau « hors ligne » restait affiché indéfiniment, et seul un redémarrage
+   * de l'application rétablissait la connexion.
+   *
+   * On reprend donc la main : c'est la seule façon de garantir une reconnexion
+   * qui n'attende pas de l'utilisateur qu'il ferme l'app.
+   */
+  const planifierReprise = () => {
+    if (ferme || reprise !== undefined) return;
+    const delai = Math.min(1_000 * 2 ** essais, 15_000);
+    essais += 1;
+    reprise = setTimeout(() => {
+      reprise = undefined;
+      courant?.close();
+      connect();
+    }, delai);
+  };
+
+  const connect = () => {
+    if (ferme) return;
+    const source = new EventSource("/api/events");
+    courant = source;
+
+    source.addEventListener("open", () => {
+      // Le flux est reparti : le prochain incident repartira du délai court.
+      essais = 0;
+      markLive();
+    });
+    source.addEventListener("error", () => {
+      markDownSoon();
+      if (source.readyState === CLOSED) planifierReprise();
+    });
+    source.addEventListener("ready", markLive);
+    source.addEventListener("resync", () => handlers.onResync());
+    source.addEventListener("message", markLive);
+    for (const kind of EVENEMENTS_SUIVIS) source.addEventListener(kind, forward(kind));
+  };
+
+  connect();
 
   return () => {
+    ferme = true;
     if (downTimer !== undefined) clearTimeout(downTimer);
-    source.close();
+    if (reprise !== undefined) clearTimeout(reprise);
+    courant?.close();
   };
 };
 

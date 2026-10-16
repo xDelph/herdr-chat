@@ -160,10 +160,21 @@ export const lireDerniere = (base: string, sessionId: string, limite: number): P
 };
 
 /**
- * Lignes **postérieures** à un curseur.
+ * Lignes **à partir** d'un curseur, borne incluse.
  *
- * ⚠️ `seq > ?` et non `>=` : le curseur désigne la dernière ligne **déjà
- * renvoyée**. Un `>=` renverrait cette ligne à chaque tour.
+ * ⚠️ **`seq >= ?` et non `seq > ?`, et c'est tout le correctif du streaming.**
+ * Mesuré sur la base réelle : **1 943 lignes sur 1 993 (97 %) sont réécrites
+ * après leur création.** Une réponse d'opencode grossit dans la **même** ligne
+ * pendant plusieurs secondes (mesuré : 7,8 s sur un message) — son `seq` ne
+ * bouge pas. Un `>` strict ne renvoyait donc **rien** tant qu'une nouvelle ligne
+ * n'apparaissait pas : la réponse n'arrivait qu'en rouvrant la conversation,
+ * c'est-à-dire en relisant une page initiale complète.
+ *
+ * Le coût de l'inclusion est d'**une ligne relue** par rafraîchissement, et il
+ * est assumé : c'est le seul moyen de voir une ligne changer sans le flux
+ * d'événements d'opencode, que nous ne lisons pas. En contrepartie, le client
+ * doit **remplacer par identifiant** au lieu d'empiler — ce qu'il fait
+ * désormais.
  */
 export const lireDepuis = (
   base: string,
@@ -176,7 +187,7 @@ export const lireDepuis = (
     const lignes = db
       .query<LigneBrute, [string, number, number]>(
         "SELECT id, type, seq, time_created, data FROM session_message " +
-          "WHERE session_id = ? AND seq > ? ORDER BY seq LIMIT ?",
+          "WHERE session_id = ? AND seq >= ? ORDER BY seq LIMIT ?",
       )
       .all(sessionId, depuis, limite);
     const derniere = lignes.at(-1);

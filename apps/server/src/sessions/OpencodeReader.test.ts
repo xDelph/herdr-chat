@@ -148,28 +148,47 @@ describe("la dernière page", () => {
 });
 
 describe("le rafraîchissement incrémental", () => {
-  test("ne renvoie que ce qui suit le curseur", () => {
+  test("renvoie la fin À PARTIR du curseur, borne incluse", () => {
+    // La borne est incluse parce que la ligne du curseur peut avoir été
+    // réécrite depuis la dernière lecture — c'est le cas du streaming.
     const page = lireDepuis(base, SESSION, 3, 100);
 
     expect(page.entries.map((e) => e.id)).toEqual([
+      "opencode:msg_3",
       "opencode:msg_4",
       "opencode:msg_5",
       "opencode:msg_6",
     ]);
   });
 
-  test("le curseur lui-même n'est PAS renvoyé deux fois", () => {
-    // `seq > ?` et non `>=` : un `>=` redonnerait la ligne déjà affichée à
-    // chaque tour, et le fil la dupliquerait.
+  test("la ligne du curseur EST renvoyée : elle peut avoir changé", () => {
+    // ⚠️ Mesuré : 1 943 lignes sur 1 993 sont réécrites après création. Une
+    // réponse d'opencode grossit dans la MÊME ligne, sans que son `seq` bouge —
+    // un `>` strict ne renverrait donc rien pendant tout le streaming.
+    // Le client fusionne par identifiant, donc relire est sans danger.
     const page = lireDepuis(base, SESSION, 6, 100);
 
-    expect(page.entries).toEqual([]);
+    expect(page.entries.map((e) => e.id)).toEqual(["opencode:msg_6"]);
   });
 
-  test("sans nouveau message, le curseur ne bouge pas", () => {
+  test("une réécriture en place est bien rattrapée", () => {
+    const db = new Database(base);
+    db.query("UPDATE session_message SET data = ?, time_updated = ? WHERE seq = 6").run(
+      JSON.stringify(assistant("texte réécrit")),
+      1791873812099,
+    );
+    db.close();
+
     const page = lireDepuis(base, SESSION, 6, 100);
 
-    expect(page.dernierSeq).toBe(6);
+    expect(page.entries.length).toBe(1);
+    expect(page.entries[0]?.raw).toContain("texte réécrit");
+  });
+
+  test("sans rien à relire, le curseur ne bouge pas", () => {
+    const page = lireDepuis(base, SESSION, 99, 100);
+
+    expect(page.dernierSeq).toBe(99);
     expect(page.hasMore).toBe(false);
   });
 
@@ -320,10 +339,11 @@ describe("la page prête pour la réponse HTTP", () => {
     expect(page.previousSeq).toBeUndefined();
   });
 
-  test("le rafraîchissement ne renvoie que la suite, et avance le curseur", () => {
+  test("le rafraîchissement renvoie la suite, borne incluse, et avance le curseur", () => {
     const page = pageSessionOpencode({ base, sessionId: SESSION }, { depuis: 3, lignes: 100 });
 
     expect(page.entries.map((e) => e.id)).toEqual([
+      "opencode:msg_3",
       "opencode:msg_4",
       "opencode:msg_5",
       "opencode:msg_6",
