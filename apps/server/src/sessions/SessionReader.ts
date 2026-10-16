@@ -15,7 +15,7 @@
 import { Effect, Option, Schema } from "effect";
 import { open } from "node:fs/promises";
 import type { FileHandle } from "node:fs/promises";
-import { ligneCodexVersPi, SESSION_HEADER_BYTES } from "@herdr-remote/shared";
+import { ligneClaudeVersPi, ligneCodexVersPi, SESSION_HEADER_BYTES } from "@herdr-remote/shared";
 import { describeRejection, resolveWithin } from "./PathGuard.ts";
 
 /** En-tête de session, tel qu'écrit en première ligne. */
@@ -207,6 +207,15 @@ const parseEntry = (line: string): RawEntry => {
   // chaque décision d'affichage.
   const traduite = ligneCodexVersPi(parsed);
   if (traduite !== undefined) return toRawEntry(traduite, JSON.stringify(traduite));
+
+  /*
+    ⚠️ Claude Code a son propre adaptateur, et il est indispensable : sa forme
+    ressemble a celle de Pi, mais `api-request-blob` porte un `message` de role
+    `user` dont le contenu est le prompt systeme. Sans ce tri, chaque
+    conversation s'ouvrirait sur les consignes injectees.
+  */
+  const claude = ligneClaudeVersPi(parsed);
+  if (claude !== undefined) return toRawEntry(claude, JSON.stringify(claude));
 
   return toRawEntry(parsed, line);
 };

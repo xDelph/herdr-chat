@@ -46,6 +46,9 @@ const KIND_OPENCODE = "opencode";
 /** Type d'agent devin. */
 const KIND_DEVIN = "devin";
 
+/** Type d'agent claude. */
+const KIND_CLAUDE = "claude";
+
 /**
  * Où vit la session d'un agent.
  *
@@ -74,6 +77,32 @@ export type SourceSession =
  * parcourir, et rien à déduire de l'identifiant — il est la clé, pas un nom de
  * fichier à retrouver (c'est la différence avec codex).
  */
+/**
+ * Racine des sessions Claude Code.
+ *
+ * ⚠️ **Un fichier, comme codex — et c'est la fin de la serie.** Le produit
+ * classait claude « non concluant » : la sonde etait tombee sur un ecran de
+ * connexion, et personne n'etait alle regarder le disque. Sa session est un
+ * JSONL : `~/.claude/projects/<dossier>/<uuid>.jsonl`.
+ */
+export const RACINE_CLAUDE = (): string =>
+  process.env["CLAUDE_PROJECTS_ROOT"] ?? join(homedir(), ".claude", "projects");
+
+/**
+ * Resout un identifiant claude en chemin de fichier.
+ *
+ * ⚠️ Comme codex : l'identifiant est cherche dans le **nom** du fichier. Le
+ * dossier intermediaire est le chemin de travail encode, qui ne se deduit pas
+ * d'un identifiant — c'est pourquoi on cherche, on ne compose pas.
+ */
+export const cheminClaudeParId = (id: string): string | undefined => {
+  if (id.trim().length === 0) return undefined;
+  const racine = RACINE_CLAUDE();
+  const trouves = globSync(`**/${id}.jsonl`, { cwd: racine });
+  const premier = trouves.toSorted()[0];
+  return premier === undefined ? undefined : join(racine, premier);
+};
+
 /**
  * Base SQLite de devin.
  *
@@ -157,6 +186,11 @@ export const sourceSession = (
     // rendre la session d'un autre, comme pour codex.
     if (slot.value.trim().length === 0) return undefined;
     return { base: baseOpencode(), kind: "sqlite", magasin: "opencode", sessionId: slot.value };
+  }
+  if (agentKind === KIND_CLAUDE) {
+    // Un fichier, comme pi et codex : le lecteur existant s'en charge.
+    const chemin = cheminClaudeParId(slot.value);
+    return chemin === undefined ? undefined : { base: chemin, kind: "fichier" };
   }
   if (agentKind === KIND_DEVIN) {
     // Même garde, même raison.

@@ -32,6 +32,13 @@ export interface LignePi {
     readonly exitCode?: number | null;
     readonly cancelled?: boolean;
     readonly truncated?: boolean;
+    /**
+     * Un resultat d'outil en echec.
+     *
+     * ⚠️ Fait partie de la forme pi : `MessageEntry` le declare dans
+     * `session.ts`, et l'adaptateur claude s'en sert (`is_error` de l'API).
+     */
+    readonly isError?: boolean;
   };
 }
 

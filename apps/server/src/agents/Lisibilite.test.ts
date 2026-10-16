@@ -65,6 +65,14 @@ describe("U14 — seuls les types vérifiés sont proposés", () => {
     expect(typeLisible("codex")).toBe(true);
   });
 
+  test("claude est ACCEPTÉ : un JSONL se lit", () => {
+    // ⚠️ CINQUIEME fois. Le produit le classait « non concluant » : la sonde
+    // etait tombee sur un ecran de connexion, et personne n'etait alle regarder
+    // le disque. Mesure du 2026-10-16 : `~/.claude/projects/<dossier>/<uuid>.jsonl`,
+    // treize types de lignes dont deux portent la conversation.
+    expect(typeLisible("claude")).toBe(true);
+  });
+
   test("cursor reste refusé : rien n'a été mesuré pour lui", () => {
     expect(typeLisible("cursor")).toBe(false);
   });
@@ -78,7 +86,7 @@ describe("U14 — seuls les types vérifiés sont proposés", () => {
 
   test("les types refusés le sont tous, sans exception cachée", () => {
     // ⚠️ codex n'est plus dans cette liste, et c'est le seul changement.
-    for (const kind of ["cursor", "claude", "agy", "gemini"]) {
+    for (const kind of ["cursor", "agy", "gemini"]) {
       expect(typeLisible(kind)).toBe(false);
     }
   });

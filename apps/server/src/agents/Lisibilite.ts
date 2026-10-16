@@ -17,7 +17,7 @@
  * | devin    | oui     | `kind: id` + base SQLite      | **oui**         |
  * | codex    | oui     | `kind: id` ×2 (voir ci-dessous) | **oui**        |
  * | cursor   | oui     | rien                         | non             |
- * | claude   | écran de connexion — non concluant | — | inconnu |
+ * | claude   | oui     | `kind: id` + JSONL `.jsonl`     | **oui**         |
  * | agy      | démarrage refusé         | —                             | inconnu         |
  *
  * ⚠️ **Ce n'est pas un inventaire, c'est une capacité vérifiée.** B07 avait
@@ -69,6 +69,7 @@ export const TYPES_A_SESSION_LISIBLE: ReadonlySet<string> = new Set([
   "codex",
   "opencode",
   "devin",
+  "claude",
 ]);
 
 /** Herdr testé le jour de la mesure, et la version du protocole. */
