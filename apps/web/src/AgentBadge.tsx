@@ -3,13 +3,15 @@
  * conversations.
  *
  * ⚠️ **Ce sont les vraies marques**, recuperees a leur source et non
- * redessinees : `logos.tsx` porte l'adresse de chacune. Une imitation dessinee a
- * la main ne ressemblerait pas au vrai logo — donc elle tromperait — et
- * reprendrait une marque sans droit.
+ * redessinees : `logos.tsx` porte l'adresse de chacune, et le detail de leurs
+ * couleurs. Une imitation dessinee a la main ne ressemblerait pas au vrai logo —
+ * donc elle tromperait — et reprendrait une marque sans droit.
  *
- * ⚠️ **Monochrome, dans la couleur d'accent du theme.** Cinq marques en couleur
- * sur une meme liste se disputent l'oeil, et un noir de marque deviendrait
- * invisible sur un fond sombre — ce qui est exactement le cas ici.
+ * ⚠️ **Deux rendus, choisis dans les reglages.** « Standard » montre la marque
+ * telle que son editeur la publie (c'est le defaut) ; « a la couleur du theme »
+ * la dessine dans l'accent, ce qui rend la liste homogene mais fait perdre la
+ * reconnaissance immediate. Le choix est un attribut sur `<html>`, et le CSS
+ * ecrase les `fill` — les deux rendus sortent donc des **memes tracés**.
  *
  * ⚠️ **Decorative, et `aria-hidden` le dit.** Le type de l'agent est ecrit en
  * toutes lettres a cote du projet (la ligne de details porte `pi`, `claude`…) :
@@ -19,7 +21,9 @@
  *
  * ⚠️ **Le repli est neutre.** Un type inconnu — un agent dont on n'a pas encore
  * mesure le magasin — recoit un disque, jamais la marque d'un voisin : emprunter
- * un logo ferait croire a un type qu'on n'a pas verifie.
+ * un logo ferait croire a un type qu'on n'a pas verifie. Ce disque n'a pas de
+ * `fill`, donc il suit `currentColor` dans les deux modes : il ne represente
+ * aucune marque, il n'en suit aucune.
  */
 import { LOGOS } from "./logos.tsx";
 

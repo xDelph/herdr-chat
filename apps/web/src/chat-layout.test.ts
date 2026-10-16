@@ -568,21 +568,37 @@ describe("U23 — la marque dans la liste, le modèle dans l'en-tête", () => {
     expect(bloc(".conv")["min-height"]).toBe("var(--tap-min)");
   });
 
-  test("les marques sont monochromes, et normalisees dans une meme boite", () => {
+  test("les cinq marques existent, et sont normalisees dans une meme boite", () => {
     /*
-      ⚠️ Cinq marques en couleur sur une meme liste se disputent l'oeil, et un
-      noir de marque disparait sur un fond sombre. Chacune garde son `viewBox`
-      d'origine dans `logos.tsx` : c'est le `transform` qui les ramene toutes a
-      24x24, sinon la pastille changerait de taille d'un agent a l'autre.
+      ⚠️ Chacune garde son `viewBox` d'origine dans `logos.tsx` : c'est le
+      `transform` qui les ramene toutes a 24x24. Sans lui, la pastille
+      changerait de taille d'un agent a l'autre — 800x800 pour pi, 16,65 pour
+      OpenAI, 21,5 pour Cognition.
     */
     const logos = readFileSync(join(import.meta.dir, "logos.tsx"), "utf8");
-    expect(logos).toContain("viewBox");
     for (const kind of ["pi", "codex", "claude", "opencode", "devin"]) {
       expect(logos).toContain(`${kind}: (`);
     }
+    expect(logos.match(/<g transform="translate\(/g)?.length).toBe(5);
     const badge = readFileSync(join(import.meta.dir, "AgentBadge.tsx"), "utf8");
+    // ⚠️ Le `fill` porté par le `<svg>` est le **défaut des tracés sans
+    // remplissage** : c'est le repli neutre, qui ne représente aucune marque.
     expect(badge).toContain('fill="currentColor"');
     expect(badge).toContain('viewBox="0 0 24 24"');
+  });
+
+  test("le CSS peut reprendre les `fill` des marques", () => {
+    /*
+      ⚠️ **C'est ce qui permet deux rendus sans dupliquer les tracés.** Un
+      attribut de présentation SVG est la forme la plus faible de style : une
+      règle CSS le bat. Si quelqu'un passait les couleurs en `style="fill: …"`
+      inline, le mode « couleur du thème » cesserait de fonctionner — sans que
+      rien d'autre ne casse, donc sans que personne ne s'en aperçoive.
+    */
+    const logos = readFileSync(join(import.meta.dir, "logos.tsx"), "utf8");
+    expect(logos).not.toContain('style="fill');
+    expect(logos).toContain('fill="#D97757"');
+    expect(logos).toContain('fill="#FFFFFF"');
   });
 });
 

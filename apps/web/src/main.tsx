@@ -2,7 +2,13 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { registerSW } from "virtual:pwa-register";
 import { App } from "./App.tsx";
-import { appliquerTheme, lireTheme, rafraichirCouleurDeBarre } from "./theme.ts";
+import {
+  appliquerStyleMarque,
+  appliquerTheme,
+  lireStyleMarque,
+  lireTheme,
+  rafraichirCouleurDeBarre,
+} from "./apparence.ts";
 import "./styles.css";
 
 /*
@@ -15,6 +21,7 @@ import "./styles.css";
   reprise qu'une fois la feuille appliquee — d'ou le second appel.
 */
 appliquerTheme(lireTheme());
+appliquerStyleMarque(lireStyleMarque());
 window.addEventListener("load", rafraichirCouleurDeBarre, { once: true });
 
 const avaitDejaUnWorker = navigator.serviceWorker.controller !== null;

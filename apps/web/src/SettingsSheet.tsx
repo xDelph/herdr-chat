@@ -20,7 +20,18 @@ import {
   enablePushNotifications,
   pushSupported,
 } from "./notifications.ts";
-import { appliquerTheme, lireTheme, THEME_LABEL, THEMES, type Theme } from "./theme.ts";
+import {
+  appliquerStyleMarque,
+  appliquerTheme,
+  lireStyleMarque,
+  lireTheme,
+  STYLE_MARQUE_LABEL,
+  STYLES_MARQUE,
+  THEME_LABEL,
+  THEMES,
+  type StyleMarque,
+  type Theme,
+} from "./apparence.ts";
 
 interface Props {
   readonly health: Health | null;
@@ -42,6 +53,11 @@ export const SettingsSheet = ({ health, onClose, sansSession }: Props) => {
    * comprise — pour changer une couleur.
    */
   const [theme, setTheme] = useState<Theme>(lireTheme);
+  /**
+   * Le rendu des marques suit exactement le même chemin que le thème : une
+   * valeur validée, un attribut sur `<html>`, le CSS qui décide.
+   */
+  const [styleMarque, setStyleMarque] = useState<StyleMarque>(lireStyleMarque);
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">(
     pushSupported ? Notification.permission : "unsupported",
   );
@@ -49,6 +65,11 @@ export const SettingsSheet = ({ health, onClose, sansSession }: Props) => {
   const choisirTheme = (suivant: Theme): void => {
     appliquerTheme(suivant);
     setTheme(suivant);
+  };
+
+  const choisirStyleMarque = (suivant: StyleMarque): void => {
+    appliquerStyleMarque(suivant);
+    setStyleMarque(suivant);
   };
 
   useEffect(() => {
@@ -136,6 +157,36 @@ export const SettingsSheet = ({ health, onClose, sansSession }: Props) => {
             >
               <span aria-hidden="true" className={`theme__pastille theme__pastille--${option}`} />
               {THEME_LABEL[option]}
+            </button>
+          ))}
+        </fieldset>
+        {/*
+          Le rendu des marques d'agents — les mêmes boutons, un autre réglage.
+
+          ⚠️ **Ce n'est pas un réglage de thème**, donc il a son propre
+          `<fieldset>` et son propre intitulé : mêler les deux dans un même
+          groupe ferait croire qu'on choisit une couleur alors qu'on choisit une
+          **convention d'affichage**. Le défaut est le logo tel que son éditeur
+          le publie.
+        */}
+        <h4 className="theme__titre">Agent logos</h4>
+        <p className="muted small">
+          Standard shows each agent's own logo. Match theme draws them in the theme colour, which
+          makes the list uniform but loses the marks' colours.
+        </p>
+        <fieldset className="theme">
+          <legend className="sr-only">Agent logos</legend>
+          {STYLES_MARQUE.map((option) => (
+            <button
+              aria-pressed={styleMarque === option}
+              className="theme__choix"
+              key={option}
+              onClick={() => {
+                choisirStyleMarque(option);
+              }}
+              type="button"
+            >
+              {STYLE_MARQUE_LABEL[option]}
             </button>
           ))}
         </fieldset>

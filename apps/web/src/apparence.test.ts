@@ -16,13 +16,19 @@
 import { describe, expect, test } from "bun:test";
 import { css } from "./contraste.ts";
 import {
+  attributDeStyleMarque,
   attributDeTheme,
+  estStyleMarque,
   estTheme,
+  STYLE_MARQUE_DEFAUT,
+  STYLE_MARQUE_LABEL,
+  STYLES_MARQUE,
+  styleMarqueEnregistre,
   THEME_DEFAUT,
   THEME_LABEL,
   THEMES,
   themeEnregistre,
-} from "./theme.ts";
+} from "./apparence.ts";
 
 describe("le thème retenu est toujours un thème valide", () => {
   test("une valeur connue est retenue telle quelle", () => {
@@ -84,5 +90,72 @@ describe("la table des thèmes et la feuille de style disent la même chose", ()
     for (const theme of THEMES) {
       expect(THEME_LABEL[theme].length).toBeGreaterThan(0);
     }
+  });
+});
+
+/**
+ * Le rendu des marques — un réglage, deux valeurs, un défaut.
+ *
+ * ⚠️ **Le défaut est « standard », et c'est un renversement assumé.** La première
+ * version colorait les marques avec l'accent du thème sans que personne ne l'ait
+ * demandé. Les couleurs d'origine sont désormais le défaut : une marque est
+ * dessinée dans ses couleurs, et la reconnaissance immédiate est justement la
+ * raison d'afficher un logo plutôt qu'un point coloré. L'option « à la couleur du
+ * thème » reste, parce qu'elle rend la liste homogène.
+ */
+describe("le rendu des marques", () => {
+  test("une valeur connue est retenue telle quelle", () => {
+    for (const style of STYLES_MARQUE) {
+      expect(`${style} → ${styleMarqueEnregistre(style)}`).toBe(`${style} → ${style}`);
+    }
+  });
+
+  test("sans rien d'enregistré, c'est le logo STANDARD", () => {
+    // ⚠️ C'est ce que voit quelqu'un qui n'a jamais touché au réglage, et c'est
+    // le cas de la quasi-totalité des installations.
+    expect(styleMarqueEnregistre(null)).toBe("standard");
+    expect(styleMarqueEnregistre(undefined)).toBe("standard");
+    expect(STYLE_MARQUE_DEFAUT).toBe("standard");
+  });
+
+  test("une valeur inconnue retombe sur le défaut, sans lever", () => {
+    for (const valeur of ["", "couleur", "Standard", " standard", "{}"]) {
+      expect(`${valeur} → ${styleMarqueEnregistre(valeur)}`).toBe(`${valeur} → standard`);
+    }
+  });
+
+  test("`estStyleMarque` est le seul juge, et il est strict", () => {
+    expect(estStyleMarque("theme")).toBe(true);
+    for (const valeur of ["Theme", "THEME", " theme", "theme ", "", null, undefined]) {
+      expect(estStyleMarque(valeur)).toBe(false);
+    }
+  });
+
+  test("chaque rendu a un libellé lisible", () => {
+    // L'interface est en anglais : le libellé part tel quel dans le sélecteur.
+    for (const style of STYLES_MARQUE) {
+      expect(STYLE_MARQUE_LABEL[style].length).toBeGreaterThan(0);
+    }
+  });
+
+  test("l'attribut posé est la valeur elle-même", () => {
+    // Le CSS s'en sert directement : `[data-marques="theme"]`. Renommer d'un
+    // côté sans l'autre ferait un réglage sans effet, et rien ne le dirait.
+    for (const style of STYLES_MARQUE) {
+      expect(attributDeStyleMarque(style)).toBe(style);
+    }
+  });
+
+  test("les deux rendus sortent des MÊMES tracés", () => {
+    /*
+      ⚠️ C'est la règle qui évite que les deux versions divergent. Le mode
+      « couleur du thème » est une règle CSS qui écrase les attributs `fill` ;
+      dupliquer les chemins aurait donné deux jeux de tracés à tenir d'accord, et
+      le premier changement de marque aurait fait oublier l'autre.
+    */
+    expect(css).toContain(':root[data-marques="theme"] .agent-badge svg path {');
+    // ⚠️ Le repli neutre n'y est **pas** : il n'a pas de `fill`, donc il suit
+    // `currentColor` dans les deux modes — il ne représente aucune marque.
+    expect(css).not.toContain(':root[data-marques="theme"] .agent-badge svg circle');
   });
 });

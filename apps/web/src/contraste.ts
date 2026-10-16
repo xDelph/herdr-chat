@@ -12,7 +12,7 @@
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { THEME_DEFAUT, type Theme } from "./theme.ts";
+import { THEME_DEFAUT, type Theme } from "./apparence.ts";
 
 /**
  * La feuille de style — **commentaires retirés**.

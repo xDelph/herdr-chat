@@ -1889,6 +1889,24 @@ button:disabled {
 }
 
 /*
+  Les marques à la couleur du thème — **une seule règle pour les cinq**.
+
+  ⚠️ **Le CSS écrase l'attribut `fill` d'un `<path>`**, et c'est toute
+  l'astuce : un attribut de présentation est la forme la plus faible de style,
+  au point qu'un sélecteur d'élément le bat. Les `fill` d'origine restent donc
+  dans `logos.tsx` et ce mode les recouvre — deux rendus, **un seul jeu de
+  tracés**. Deux jeux de chemins auraient divergé au premier changement de
+  marque.
+
+  ⚠️ Le repli **n'est pas** dans cette règle : il n'a pas de `fill`, donc il
+  hérite de `currentColor` dans les deux modes. C'est exact — il ne représente
+  aucune marque, il n'en suit aucune.
+*/
+:root[data-marques="theme"] .agent-badge svg path {
+  fill: currentColor;
+}
+
+/*
   Marque d'un agent : un carré arrondi, devant le nom du projet, dans la liste
   des conversations.
 
@@ -1934,6 +1952,18 @@ button:disabled {
   gap: var(--space-sm);
   margin: 0;
   padding: 0;
+}
+
+/*
+  Intitulé du second réglage d'apparence.
+
+  ⚠️ Plus petit qu'un `<h3>` : « Appearance » est la section, celui-ci en est une
+  sous-partie. Au même niveau, les deux titres se disputeraient l'œil et on ne
+  saurait plus ce qui dépend de quoi.
+*/
+.theme__titre {
+  font-size: 13px;
+  margin: var(--space-md) 0 var(--space-xs);
 }
 
 .theme__choix {

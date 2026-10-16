@@ -1,5 +1,14 @@
 /**
- * Thèmes d'affichage — trois ambiances, un seul jeu de rôles.
+ * Préférences d'**apparence** — deux réglages, un seul endroit.
+ *
+ * ⚠️ Pourquoi les deux vivent ici, et pourquoi le module ne s'appelle plus
+ * `theme.ts`. Le thème et le rendu des marques sont la **même mécanique** : une
+ * valeur validée, posée en attribut sur `<html>`, retenue dans le stockage local
+ * et lue par le CSS. Deux fichiers auraient dupliqué la validation, le défaut, la
+ * lecture tolérante du stockage, et l'écriture protégée. Le nom du module suit
+ * donc ce qu'il contient.
+ *
+ * ⚠️ **Thèmes d'affichage — trois ambiances, un seul jeu de rôles.**
  *
  * ⚠️ **Un thème ne recolore pas les couleurs de *sens*.** « terminé »,
  * « en attente d'une réponse », « en échec » gardent leur définition d'un thème à
@@ -9,12 +18,12 @@
  * fond, surfaces, bordures, accent, texte secondaire — et jamais l'état d'un
  * agent.
  *
- * ⚠️ **Le thème est enregistré, et c'est le seul état que l'application écrit sur
- * le disque.** Le refus du stockage local porte sur le **contenu** : un
- * brouillon non envoyé ne doit pas survivre à un redémarrage (voir
- * `brouillons.ts`, qui garde la règle inverse et pour cette raison). Un choix
- * d'affichage n'est pas du contenu : le redemander à chaque ouverture serait une
- * corvée pour rien.
+ * ⚠️ **Ces préférences sont enregistrées, et c'est le seul état que
+ * l'application écrit sur le disque.** Le refus du stockage local porte sur le
+ * **contenu** : un brouillon non envoyé ne doit pas survivre à un redémarrage
+ * (voir `brouillons.ts`, qui garde la règle inverse et pour cette raison). Un
+ * choix d'affichage n'est pas du contenu : le redemander à chaque ouverture
+ * serait une corvée pour rien.
  */
 
 /** Les trois ambiances. L'ordre est celui du sélecteur. */
@@ -30,7 +39,8 @@ export const THEME_LABEL: Record<Theme, string> = {
   red: "Red",
 };
 
-const CLE = "herdr-chat.theme";
+const CLE_THEME = "herdr-chat.theme";
+const CLE_MARQUE = "herdr-chat.marques";
 
 /**
  * Token CSS de la pastille de chaque thème, dans le sélecteur de réglages.
@@ -65,16 +75,31 @@ export const themeEnregistre = (valeur: string | null | undefined): Theme =>
 /** Valeur posée dans l'attribut `data-theme` de `<html>`. */
 export const attributDeTheme = (theme: Theme): string => theme;
 
-/** Lecture du stockage — tolérante : Safari en navigation privée peut lever. */
-const lireStockage = (): string | null => {
+/**
+ * Écriture du stockage — tolérante : Safari en navigation privée peut lever.
+ *
+ * ⚠️ **Un seul point d'écriture pour les deux réglages.** Une exception avalée
+ * par l'un et pas par l'autre laisserait le second casser la mise à jour de
+ * l'apparence, et le défaut ne se verrait que sur iPhone en navigation privée.
+ */
+const ecrireStockage = (cle: string, valeur: string): void => {
   try {
-    return localStorage.getItem(CLE);
+    localStorage.setItem(cle, valeur);
+  } catch {
+    // Navigation privée : le réglage vaut pour cette session, et c'est tout.
+  }
+};
+
+/** Lecture du stockage — tolérante, pour la même raison. */
+const lireStockage = (cle: string): string | null => {
+  try {
+    return localStorage.getItem(cle);
   } catch {
     return null;
   }
 };
 
-export const lireTheme = (): Theme => themeEnregistre(lireStockage());
+export const lireTheme = (): Theme => themeEnregistre(lireStockage(CLE_THEME));
 
 /**
  * Couleur de la barre système, **lue dans le CSS**.
@@ -116,10 +141,50 @@ export const rafraichirCouleurDeBarre = (): void => {
 export const appliquerTheme = (theme: Theme): void => {
   document.documentElement.dataset["theme"] = attributDeTheme(theme);
   rafraichirCouleurDeBarre();
+  ecrireStockage(CLE_THEME, theme);
+};
 
-  try {
-    localStorage.setItem(CLE, theme);
-  } catch {
-    // Navigation privée : le thème vaut pour cette session, et c'est tout.
-  }
+/**
+ * Rendu des **marques d'agents** : couleurs d'origine, ou couleur du thème.
+ *
+ * ⚠️ **Les couleurs d'origine sont le défaut, et c'est un choix de l'utilisateur
+ * avant d'être le mien.** Une marque est dessinée dans ses couleurs : les
+ * remplacer par l'accent du thème rend la liste homogène, ce qui plaît sur un
+ * écran — mais fait perdre la reconnaissance immédiate, qui est justement la
+ * raison d'afficher un logo plutôt qu'un point coloré. L'option existe donc, et
+ * son défaut est le logo tel que son éditeur le publie.
+ *
+ * ⚠️ Les deux rendus sortent des **mêmes tracés** : le CSS écrase les `fill`
+ * (voir `styles.css`). Deux jeux de chemins auraient divergé au premier
+ * changement de marque.
+ */
+export const STYLES_MARQUE = ["standard", "theme"] as const;
+export type StyleMarque = (typeof STYLES_MARQUE)[number];
+
+export const STYLE_MARQUE_DEFAUT: StyleMarque = "standard";
+
+export const STYLE_MARQUE_LABEL: Record<StyleMarque, string> = {
+  standard: "Standard",
+  theme: "Match theme",
+};
+
+/** Le seul endroit qui décide si une valeur est un rendu de marque. */
+export const estStyleMarque = (valeur: string | null | undefined): valeur is StyleMarque =>
+  valeur !== null &&
+  valeur !== undefined &&
+  (STYLES_MARQUE as ReadonlyArray<string>).includes(valeur);
+
+/** Rendu des marques à appliquer, ou le défaut. Jamais d'exception. */
+export const styleMarqueEnregistre = (valeur: string | null | undefined): StyleMarque =>
+  estStyleMarque(valeur) ? valeur : STYLE_MARQUE_DEFAUT;
+
+/** Valeur posée dans l'attribut `data-marques` de `<html>`. */
+export const attributDeStyleMarque = (style: StyleMarque): string => style;
+
+export const lireStyleMarque = (): StyleMarque => styleMarqueEnregistre(lireStockage(CLE_MARQUE));
+
+/** Applique le rendu des marques et le retient. */
+export const appliquerStyleMarque = (style: StyleMarque): void => {
+  document.documentElement.dataset["marques"] = attributDeStyleMarque(style);
+  ecrireStockage(CLE_MARQUE, style);
 };
