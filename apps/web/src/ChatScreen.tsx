@@ -98,6 +98,11 @@ export const ChatScreen = ({
   const nextLocalId = useRef(0);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * Dernier statut **vu** pour cet agent, pour distinguer une arrivee d'une fin
+   * de travail. Remis a `null` au changement d'agent.
+   */
+  const statutVu = useRef<string | null>(null);
   const placeholder = `Message ${agentName(agent)}…`;
   const files = touchedFilesOf(messages);
   const [showFiles, setShowFiles] = useState(false);
@@ -246,6 +251,9 @@ export const ChatScreen = ({
   useEffect(() => {
     cursor.current = null;
     autoLoadedPrevious.current = false;
+    // ⚠️ Le statut vu appartient à **cet** agent : le garder ferait croire à une
+    // transition qui n'a pas eu lieu chez le suivant.
+    statutVu.current = null;
     setPreviousCursor(null);
     void load("initial");
     /*
@@ -430,6 +438,38 @@ export const ChatScreen = ({
     atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
   }, []);
 
+  /**
+   * Amène la **dernière demande** de l'utilisateur en haut de la vue.
+   *
+   * ⚠️ **Pourquoi ce n'est pas le bas.** Une réponse qui arrive au bas de
+   * l'écran pousse la demande hors du cadre : on lit la réponse sans savoir à
+   * quoi elle répond, et il faut remonter d'un geste. En posant la demande en
+   * haut, on lit les deux d'un même regard.
+   *
+   * ⚠️ On vise `.bubble--user:not(.optimistic)` : un envoi en attente porte aussi
+   * la classe `bubble--user`, mais il est **collé au bas** (`.envois`). Le prendre
+   * pour la demande ferait viser un élément qui ne défile pas.
+   */
+  const derniereDemandeEnHaut = useCallback((): void => {
+    const scroller = scrollerRef.current;
+    if (scroller === null) return;
+    const demandes = scroller.querySelectorAll(".bubble--user:not(.optimistic)");
+    const derniere = demandes[demandes.length - 1];
+    if (derniere === undefined) return;
+    const ecart = derniere.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+    // 8 px de marge : collée au bord, la bulle paraît coupée.
+    scroller.scrollTop += ecart - 8;
+    /*
+      ⚠️ On **recalcule** l'intention ici, au lieu d'attendre l'événement de
+      défilement. Celui-ci arrive après, et l'observateur de taille pouvait
+      repasser entre-temps et ramener la vue en bas : le correctif aurait été
+      annulé par le mécanisme existant. Le calcul rend aussi la vérité du cas
+      court — quand tout tient à l'écran, on **est** en bas, et suivre le bas
+      reste correct.
+    */
+    atBottom.current = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 48;
+  }, []);
+
   useEffect(() => {
     const content = contentRef.current;
     const scroller = scrollerRef.current;
@@ -460,6 +500,30 @@ export const ChatScreen = ({
     suivreLeBas();
     return () => observer.disconnect();
   }, []);
+
+  /**
+   * Où se poser quand un agent finit de travailler.
+   *
+   * ⚠️ **À l'ouverture, tout dépend de l'état.** Un agent `idle` a déjà été lu :
+   * on se pose en bas, la convention de toutes les messageries. Un agent `done`
+   * attend une réponse qu'on n'a **pas** vue — se poser en bas la montrerait sans
+   * sa demande, donc on se pose sur la demande.
+   *
+   * ⚠️ **Pendant qu'on regarde, la fin d'un travail ramène à la demande.**
+   * Seulement si l'on suivait le bas : quelqu'un qui lisait plus haut n'est pas
+   * tiré de sa lecture.
+   */
+  useEffect(() => {
+    if (phase !== "ready") return;
+    const avant = statutVu.current;
+    statutVu.current = agent.status;
+    const finitDeTravailler = avant === "working" && agent.status !== "working";
+    const arriveSurUneReponse = avant === null && agent.status === "done";
+    if (!finitDeTravailler && !arriveSurUneReponse) return;
+    // On ne ramène jamais quelqu'un qui lisait plus haut.
+    if (!atBottom.current) return;
+    derniereDemandeEnHaut();
+  }, [phase, agent.paneId, agent.status, derniereDemandeEnHaut]);
 
   /**
    * Champ grandissant, borné à cinq lignes.
