@@ -7,6 +7,7 @@
  */
 import { describe, expect, test } from "bun:test";
 import { Effect } from "effect";
+import { dejaDit } from "@herdr-remote/shared";
 import type {
   AgentInfo,
   PaneLayout,
@@ -20,6 +21,7 @@ import {
   enrichAgent,
   estVisible,
   namingFrom,
+  nomDeLancement,
   repartirAgents,
   toAgentViews,
 } from "./AgentRegistry.ts";
@@ -441,5 +443,60 @@ describe("U19 — un agent qui demande quelque chose reste visible", () => {
 
     expect(direct.agents.map((vue) => vue.paneId)).toEqual(["w1:p1"]);
     expect(parVues.agents.map((vue) => vue.paneId)).toEqual(["w1:p1"]);
+  });
+});
+
+/**
+ * Le nom donné à un agent qu'on lance.
+ *
+ * ⚠️ **Ce nom n'est pas décoratif : c'est l'étiquette qui distingue les panes
+ * d'un même onglet.** La règle d'étiquetage écarte un nom qui ne dit rien de plus
+ * que la ligne du dessus — donc nommer le premier agent d'un projet « pixel »
+ * faisait retomber son étiquette sur `pane N` pendant que ses voisins
+ * affichaient « pixel-2 », « pixel-3 ».
+ */
+describe("U19 — le nom de lancement s'accorde avec l'étiquetage", () => {
+  test("le premier agent d'un projet est déjà numéroté", () => {
+    expect(nomDeLancement("pixel", new Set())).toBe("pixel-1");
+  });
+
+  test("il ne répète JAMAIS le nom du projet", () => {
+    /*
+      ⚠️ C'est la propriété qui compte, et elle se vérifie contre la **règle
+      d'étiquetage** elle-même, pas contre une chaîne écrite à la main : un nom
+      que `dejaDit` écarte ne serait jamais affiché, et le défaut d'origine
+      reviendrait sans qu'aucun test ne le voie.
+    */
+    const nom = nomDeLancement("pixel", new Set());
+
+    expect(nom).not.toBe("pixel");
+    expect(dejaDit("pixel", nom)).toBe(false);
+  });
+
+  test("les suivants s'incrémentent : deux agents d'un projet se distinguent", () => {
+    const premier = nomDeLancement("pixel", new Set());
+    const second = nomDeLancement("pixel", new Set([premier]));
+    const troisieme = nomDeLancement("pixel", new Set([premier, second]));
+
+    expect([premier, second, troisieme]).toEqual(["pixel-1", "pixel-2", "pixel-3"]);
+  });
+
+  test("un nom déjà pris ailleurs est sauté, pas réutilisé", () => {
+    // Herdr refuse un doublon : réutiliser un nom ferait échouer le lancement.
+    expect(nomDeLancement("pixel", new Set(["pixel-1", "pixel-2"]))).toBe("pixel-3");
+  });
+
+  test("la base est reprise telle quelle, seul le suffixe est ajouté", () => {
+    // ⚠️ `nomDeLancement` ne juge pas la base : il la reçoit. C'est la **route**
+    // qui décide quoi mettre dedans (le libellé du projet, ou le nom choisi par
+    // l'appelant), et le test de bout en bout le vérifie là-bas.
+    expect(nomDeLancement("verif-ui", new Set())).toBe("verif-ui-1");
+  });
+
+  test("cent noms pris rendent quand même un nom, jamais une chaîne vide", () => {
+    const tous = new Set(Array.from({ length: 120 }, (_, i) => `pixel-${String(i + 1)}`));
+    const nom = nomDeLancement("pixel", tous);
+
+    expect(nom.length).toBeGreaterThan(0);
   });
 });

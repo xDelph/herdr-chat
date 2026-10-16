@@ -78,8 +78,15 @@ const fail = <A>(): Effect.Effect<A, HerdrError> => Effect.fail(protocolError())
  */
 let createTabCalls = 0;
 let startCalls = 0;
+/** Noms envoyés à `agent.start`, dans l'ordre. */
+let nomsDesAgents: Array<string> = [];
 
-const fakeHerdr = (options: { healthy: boolean; listFails?: boolean }): HerdrApi => {
+const fakeHerdr = (options: {
+  healthy: boolean;
+  listFails?: boolean;
+  /** Instantané fourni : sert aux lancements, qui ont besoin d'un projet réel. */
+  snapshot?: Readonly<Record<string, unknown>>;
+}): HerdrApi => {
   return {
     closeTab: fail,
     sendKeys: fail,
@@ -89,8 +96,12 @@ const fakeHerdr = (options: { healthy: boolean; listFails?: boolean }): HerdrApi
       createTabCalls += 1;
       return options.healthy ? Effect.succeed({ paneId: "w1:p9", tabId: "w1:t9" }) : fail();
     },
-    startAgent: () => {
+    startAgent: (params: { readonly name?: string }) => {
       startCalls += 1;
+      // ⚠️ Le **nom** est retenu : c'est lui qui devient l'étiquette du pane
+      // quand l'onglet en contient plusieurs, et c'est la seule chose que cette
+      // couche décide.
+      nomsDesAgents.push(params.name ?? "");
       return options.healthy ? Effect.succeed({}) : fail();
     },
     getAgent: () => (options.healthy ? Effect.succeed({}) : fail()),
@@ -138,7 +149,12 @@ const fakeHerdr = (options: { healthy: boolean; listFails?: boolean }): HerdrApi
     snapshot: () =>
       options.healthy
         ? Effect.succeed({
-            snapshot: { agents: [], protocol: 22, version: "0.9.3", workspaces: [] },
+            snapshot: options.snapshot ?? {
+              agents: [],
+              protocol: 22,
+              version: "0.9.3",
+              workspaces: [],
+            },
           })
         : fail(),
   };
@@ -156,9 +172,13 @@ const fakeWatch: WatchLoop = {
   lastAt: () => Effect.succeed(0),
 };
 
-const build = async (healthy: boolean, extra: { listFails?: boolean } = {}) => {
+const build = async (
+  healthy: boolean,
+  extra: { listFails?: boolean; snapshot?: Readonly<Record<string, unknown>> } = {},
+) => {
   createTabCalls = 0;
   startCalls = 0;
+  nomsDesAgents = [];
   const herdr = fakeHerdr({ healthy, ...extra });
   const sender = await Effect.runPromise(PromptSender.make(herdr, 60_000));
   return makeRoutes({
@@ -725,5 +745,123 @@ describe("U13 — plus aucune route terminal", () => {
   test("le contrat partagé n'exporte plus TerminalResponse", async () => {
     const contrat = await import("@herdr-remote/shared");
     expect("TerminalResponse" in contrat).toBe(false);
+  });
+});
+
+/**
+ * Le lancement **réussi**, et le nom qu'il envoie.
+ *
+ * ⚠️ **Ce chemin n'était pas couvert.** Les tests de lancement vérifiaient des
+ * refus (`400`, `403`, « aucun onglet créé ») ; le seul qui visait un succès
+ * s'arrêtait à « pas 403 et pas 404 » — un `502` passait. Or c'est ce chemin qui
+ * **nomme** l'agent, et ce nom devient l'étiquette du pane quand l'onglet en
+ * contient plusieurs.
+ */
+/** Un projet « pixel » avec un dossier de travail, comme un vrai. */
+const projet = (label: string, workspaceId = "w1") => ({
+  snapshot: {
+    agents: [],
+    panes: [{ cwd: "/dev/pixel", pane_id: `${workspaceId}:p1`, workspace_id: workspaceId }],
+    protocol: 22,
+    tabs: [],
+    version: "0.9.3",
+    workspaces: [{ label, pane_count: 1, tab_count: 1, workspace_id: workspaceId }],
+  },
+});
+
+const lancer = async (label: string, workspaceId = "w1") => {
+  const routes = await build(true, projet(label, workspaceId));
+  const response = await handler(
+    routes,
+    "/api/workspaces/:workspaceId/agents",
+  )(request({ workspaceId }, { kind: "pi" }));
+  return response;
+};
+
+describe("le nom envoyé au lancement", () => {
+  test("un lancement réussi est bien un 200", async () => {
+    const response = await lancer("pixel");
+
+    // ⚠️ 201 : un agent est **créé**, pas « lu ». Un test qui accepterait
+    // n'importe quel code non-erreur laisserait passer un `502`.
+    expect(response.status).toBe(201);
+    expect(startCalls).toBe(1);
+  });
+
+  test("le nom est numéroté DÈS LE PREMIER agent du projet", async () => {
+    /*
+      ⚠️ Sans la numérotation, le premier agent s'appelait « pixel » — soit
+      exactement le nom du projet, que la règle d'étiquetage écarte. Son étiquette
+      retombait alors sur `pane N` pendant que ses voisins affichaient
+      « pixel-2 », « pixel-3 ».
+    */
+    await lancer("pixel");
+
+    expect(nomsDesAgents).toEqual(["pixel-1"]);
+  });
+
+  test("un nom déjà pris dans Herdr est évité — il refuse les doublons", async () => {
+    /*
+      ⚠️ La déduplication se fait contre les noms **présents dans Herdr** (il
+      répond `agent_name_taken` sinon), pas contre un compteur local : c'est le
+      mécanisme réel, donc c'est lui qu'on éprouve.
+    */
+    const routes = await build(true, {
+      snapshot: {
+        agents: [
+          {
+            agent: "pi",
+            agent_status: "idle",
+            focused: false,
+            name: "pixel-1",
+            pane_id: "w1:p1",
+            revision: 1,
+            tab_id: "w1:t1",
+            terminal_id: "term-1",
+            workspace_id: "w1",
+          },
+        ],
+        panes: [{ cwd: "/dev/pixel", pane_id: "w1:p1", workspace_id: "w1" }],
+        protocol: 22,
+        tabs: [],
+        version: "0.9.3",
+        workspaces: [{ label: "pixel", pane_count: 1, tab_count: 1, workspace_id: "w1" }],
+      },
+    });
+    const response = await handler(
+      routes,
+      "/api/workspaces/:workspaceId/agents",
+    )(request({ workspaceId: "w1" }, { kind: "pi" }));
+
+    expect(response.status).toBe(201);
+    expect(nomsDesAgents).toEqual(["pixel-2"]);
+  });
+
+  test("un nom CHOISI par l'appelant passe tel quel, sans numérotation", async () => {
+    /*
+      ⚠️ C'est le seul nom qui vienne de quelqu'un : le transformer serait le
+      trahir, et c'est justement celui qu'on veut voir affiché comme étiquette.
+    */
+    const routes = await build(true, projet("pixel"));
+    const response = await handler(
+      routes,
+      "/api/workspaces/:workspaceId/agents",
+    )(request({ workspaceId: "w1" }, { kind: "pi", name: "verif-ui" }));
+
+    expect(response.status).toBe(201);
+    expect(nomsDesAgents).toEqual(["verif-ui"]);
+  });
+
+  test("un projet sans libellé garde un nom utilisable", async () => {
+    // Herdr laisse `label` vide sur les projets par défaut : le nom ne doit pas
+    // être vide pour autant, sinon l'étiquette n'aurait rien à montrer.
+    const routes = await build(true, projet(""));
+    const response = await handler(
+      routes,
+      "/api/workspaces/:workspaceId/agents",
+    )(request({ workspaceId: "w1" }, { kind: "pi" }));
+
+    expect(response.status).toBe(201);
+    expect(nomsDesAgents[0]).toMatch(/^agent-\d+$/);
   });
 });

@@ -29,7 +29,13 @@ import {
   PromptSuppressedResponse,
   StopAgentResponse,
 } from "@herdr-remote/shared";
-import { buildOverview, checkoutPathOf, composerOverview } from "../agents/AgentRegistry.ts";
+import {
+  buildOverview,
+  checkoutPathOf,
+  composerOverview,
+  nomDeLancement,
+  usefulLabel,
+} from "../agents/AgentRegistry.ts";
 import { buildModelArgs, checkThinkingSupported } from "../agents/ModelArgs.ts";
 import { catalogOf } from "../agents/ModelCatalog.ts";
 import { isTrustPrompt, respondToTrust } from "../agents/TrustPrompt.ts";
@@ -904,11 +910,21 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
               .map((agent) => agent.name)
               .filter((value): value is string => typeof value === "string"),
           );
-          const base = body.name ?? workspace.label ?? "agent";
-          let name = base;
-          for (let suffix = 2; taken.has(name) && suffix < 100; suffix += 1) {
-            name = `${base}-${String(suffix)}`;
-          }
+          /*
+            ⚠️ Le nom genere est **numerote des le premier** — voir
+            `nomDeLancement` : c'est ce qui rend l'etiquette utilisable quand
+            l'onglet compte plusieurs panes, au lieu de retomber sur le rang pour
+            le premier agent et d'afficher « pixel-2 » pour les suivants.
+          */
+          /*
+            ⚠️ **`usefulLabel`, pas le libellé brut.** Un projet sans libellé ou
+            au libellé par défaut (« 1 ») donnait un nom vide ou « 1-1 » : le nom
+            serait alors inutilisable comme étiquette, et Herdr pourrait même le
+            refuser. La règle « un libellé qui dit quelque chose » existe déjà,
+            on la réutilise au lieu d'en écrire une seconde.
+          */
+          const name =
+            body.name ?? nomDeLancement(usefulLabel(workspace.label ?? null) ?? "agent", taken);
           // **Même** fonction que l'aperçu : une seule source pour le dossier.
           const checkout = checkoutPathOf(workspace, snapshot.panes ?? []);
           if (checkout === null) {

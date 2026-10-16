@@ -88,6 +88,34 @@ export class SnapshotError extends Schema.TaggedError<SnapshotError>()("Snapshot
 }) {}
 
 /** Un libellé n'est utile que s'il n'est pas le numéro d'onglet par défaut. */
+/**
+ * Nom à donner à un agent qu'on lance.
+ *
+ * ⚠️ **Herdr exige un nom unique** (il répond `agent_name_taken` sinon), et ce
+ * nom est **visible** dès que l'onglet compte plusieurs panes — c'est l'étiquette
+ * qui les distingue les uns des autres.
+ *
+ * ⚠️ **Le libellé du projet ne convient donc pas.** Mesuré : nommer le premier
+ * agent d'un projet « pixel » faisait que son étiquette retombait sur
+ * `pane N` — la règle écarte un nom qui ne dit rien de plus que la ligne du
+ * dessus — pendant que ses voisins affichaient « pixel-2 », « pixel-3 ». Trois
+ * libellés qui ne se ressemblaient pas pour la même chose.
+ *
+ * On numérote donc **dès le premier** : `pixel-1`, `pixel-2`… Uniforme, unique,
+ * et jamais confondu avec le nom du projet.
+ *
+ * ⚠️ Un nom **choisi** par l'appelant passe tel quel : c'est le seul qui vienne
+ * de quelqu'un.
+ */
+export const nomDeLancement = (base: string, pris: ReadonlySet<string>): string => {
+  for (let suffixe = 1; suffixe < 100; suffixe += 1) {
+    const candidat = `${base}-${String(suffixe)}`;
+    if (!pris.has(candidat)) return candidat;
+  }
+  // Cent agents du même nom : on rend le dernier essayé plutôt que rien.
+  return `${base}-1`;
+};
+
 export const usefulLabel = (label: string | null): string | null => {
   if (label === null || label.trim().length === 0) return null;
   return /^\d+$/.test(label.trim()) ? null : label;
