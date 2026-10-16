@@ -12,18 +12,63 @@
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { THEME_DEFAUT, type Theme } from "./theme.ts";
 
-/** La feuille de style est la source de vérité du thème. */
-export const css = readFileSync(join(import.meta.dir, "styles.css"), "utf8");
+/**
+ * La feuille de style — **commentaires retirés**.
+ *
+ * ⚠️ Ce n'est pas du confort. Les commentaires de ce fichier parlent des tokens
+ * et des sélecteurs (« `:root[data-theme="blue"]` n'existe pas », « si
+ * quelqu'un change `--muted`… ») : lus tels quels, ils feraient passer un test
+ * sur une règle qui n'existe pas, et échouer un autre sur une règle qui existe.
+ * Ce qui se mesure, ce sont les **règles**. Exporter la version nettoyée évite
+ * que chaque fichier de test réinvente son propre découpage.
+ */
+export const css = readFileSync(join(import.meta.dir, "styles.css"), "utf8").replace(
+  /\/\*[\s\S]*?\*\//g,
+  "",
+);
 
 /** Le minimum du tableau des règles. */
 export const MINIMUM = 4.5;
 
-/** Valeur d'un token du thème. */
+/** Valeur d'un token du thème — celle de `:root`, c'est-à-dire du thème de base. */
 export const token = (nom: string): string => {
   const trouve = new RegExp(`--${nom}:\\s*([^;]+);`).exec(css);
   if (trouve?.[1] === undefined) throw new Error(`token --${nom} absent`);
   return trouve[1].trim();
+};
+
+/**
+ * Corps du bloc CSS d'un sélecteur.
+ *
+ * Les blocs de thème ne contiennent aucune accolade imbriquée : la première
+ * accolade fermante est donc bien la bonne.
+ */
+const corpsDe = (selecteur: string): string => {
+  const debut = css.indexOf(selecteur);
+  if (debut < 0) throw new Error(`bloc CSS absent : ${selecteur}`);
+  const ouvrante = css.indexOf("{", debut);
+  const fermante = css.indexOf("}", ouvrante);
+  return css.slice(ouvrante + 1, fermante);
+};
+
+/**
+ * Valeur d'un token **pour un thème donné**.
+ *
+ * ⚠️ `token()` prend la **première** déclaration du fichier : avec trois thèmes,
+ * il ne lirait jamais que celui de base, et les deux autres passeraient le test
+ * de contraste **sans que personne ne les ait mesurés**. C'est le genre de
+ * vérification qui a l'air de servir et ne sert à rien — exactement ce que U03
+ * existe pour empêcher.
+ *
+ * ⚠️ Un token que le thème ne surcharge pas **hérite** de `:root` : c'est la
+ * règle CSS ordinaire, et on la suit au lieu de la refuser.
+ */
+export const tokenDuTheme = (nom: string, theme: Theme): string => {
+  const corps = theme === THEME_DEFAUT ? corpsDe(":root {") : corpsDe(`data-theme="${theme}"`);
+  const trouve = new RegExp(`--${nom}:\\s*([^;]+);`).exec(corps);
+  return trouve?.[1]?.trim() ?? token(nom);
 };
 
 /** Luminance relative — formule WCAG 2.1. */

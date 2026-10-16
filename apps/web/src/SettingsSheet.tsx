@@ -20,6 +20,7 @@ import {
   enablePushNotifications,
   pushSupported,
 } from "./notifications.ts";
+import { appliquerTheme, lireTheme, THEME_LABEL, THEMES, type Theme } from "./theme.ts";
 
 interface Props {
   readonly health: Health | null;
@@ -32,9 +33,23 @@ export const SettingsSheet = ({ health, onClose, sansSession }: Props) => {
   const [pushEnabled, setPushEnabled] = useState(false);
   const [pushBusy, setPushBusy] = useState(false);
   const [pushError, setPushError] = useState<string | null>(null);
+  /**
+   * Le thème vit ici, et pas dans `App`.
+   *
+   * ⚠️ Rien d'autre que cette feuille n'en dépend : l'apparence est décidée par
+   * l'attribut posé sur `<html>`, pas par un rendu React. Le remonter jusqu'à la
+   * racine aurait fait re-rendre toute l'application — la liste des agents
+   * comprise — pour changer une couleur.
+   */
+  const [theme, setTheme] = useState<Theme>(lireTheme);
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">(
     pushSupported ? Notification.permission : "unsupported",
   );
+
+  const choisirTheme = (suivant: Theme): void => {
+    appliquerTheme(suivant);
+    setTheme(suivant);
+  };
 
   useEffect(() => {
     let active = true;
@@ -95,6 +110,36 @@ export const SettingsSheet = ({ health, onClose, sansSession }: Props) => {
             : `${String(sansSession)} agent(s) hidden — Herdr does not expose a readable session`}
         </dd>
       </dl>
+      <section>
+        <h3>Appearance</h3>
+        <p className="muted small">
+          Recolours the interface. Status colours — finished, waiting, failed — keep their meaning
+          in every theme.
+        </p>
+        {/*
+          ⚠️ Un `<fieldset>` plutôt qu'un `role="group"` : la balise veut dire
+          exactement cela, et un lecteur d'écran l'annonce sans qu'on ait à le lui
+          dire. Le `<legend>` est masqué visuellement — le titre « Appearance »
+          est juste au-dessus — mais il reste lu.
+        */}
+        <fieldset className="theme">
+          <legend className="sr-only">Theme</legend>
+          {THEMES.map((option) => (
+            <button
+              aria-pressed={theme === option}
+              className="theme__choix"
+              key={option}
+              onClick={() => {
+                choisirTheme(option);
+              }}
+              type="button"
+            >
+              <span aria-hidden="true" className={`theme__pastille theme__pastille--${option}`} />
+              {THEME_LABEL[option]}
+            </button>
+          ))}
+        </fieldset>
+      </section>
       <section>
         <h3>Notifications</h3>
         <p className="muted small">

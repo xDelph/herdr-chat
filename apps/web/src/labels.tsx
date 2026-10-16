@@ -103,3 +103,27 @@ export const headerContext = (agent: AgentView): string => {
   const detail = agentContext(agent);
   return detail.length === 0 ? status : `${status} · ${detail}`;
 };
+
+/**
+ * Troisième ligne de l'en-tête de conversation : le modèle et le niveau de
+ * raisonnement **en vigueur**.
+ *
+ * ⚠️ **Pourquoi une phrase de repli, plutôt qu'une ligne vide.** La session ne
+ * déclare ces valeurs qu'au moment où elles **changent** (`model_change`,
+ * `thinking_level_change`) : un agent qui n'y a jamais touché n'en déclare
+ * aucune. Laisser la ligne vide la ferait disparaître, et l'en-tête changerait
+ * de hauteur d'une conversation à l'autre — le titre sauterait d'un écran à
+ * l'autre. Écrire un modèle « par défaut » serait une invention. On nomme donc
+ * l'absence, comme la feuille de modèle le fait déjà.
+ *
+ * ⚠️ **Le fournisseur n'est pas repris ici.** `pi` le stocke séparément du
+ * modèle, et trois segments sur une ligne d'iPhone la couperaient à l'ellipse
+ * avant le niveau de raisonnement — qui est justement ce qu'on vient lire. Il
+ * reste visible dans la feuille de modèle, où il n'est pas tronqué.
+ */
+export const headerReglages = (modele?: string, thinking?: string): string => {
+  const morceaux = [modele, thinking].filter(
+    (valeur): valeur is string => valeur !== undefined && valeur.trim().length > 0,
+  );
+  return morceaux.length === 0 ? "model not declared" : morceaux.join(" · ");
+};

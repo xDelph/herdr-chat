@@ -12,8 +12,8 @@
   /*
     Rayons : trois valeurs, pas sept.
 
-    Chaque valeur écrite « en dur »ajioutait une variante de plus — 8, 10, 12,
-    14px se sont Melanie pour le meme role. Un rayon = un role.
+    Chaque valeur écrite « en dur » ajoutait une variante de plus — 8, 10, 12,
+    14 px se partageaient le même rôle. Un rayon = un rôle.
   */
   --radius-sm: 8px;
   --radius-md: 10px;
@@ -26,8 +26,8 @@
    * dès qu'il grandit. 14 px suit le champ quelle que soit sa hauteur.
    */
   --radius-field: 14px;
-  /* Fonds qui n'appartiennent pas a la palette de surfaces : code, terminal,
-     ligne numero, voile. Ils etaient repetes et copies dans le CSS. */
+  /* Fonds qui n'appartiennent pas à la palette de surfaces : code, terminal,
+     ligne numérotée, voile. Ils étaient répétés et recopiés dans le CSS. */
   --code-bg: #05080f;
   --terminal-bg: #060b14;
   --code-line-no: #4a5b70;
@@ -35,8 +35,8 @@
 
   /*
     Espacements : une échelle de quatre pas. Chaque valeur écrite « en dur »
-    ajoutait une variante de plus — 6, 8, 10, 12, 14, 18, 20, 24px se sont
-    roles echanges sans raison : un espacement = un rôle.
+    ajoutait une variante de plus — 6, 8, 10, 12, 14, 18, 20, 24 px se
+    partageaient des rôles échangés sans raison : un espacement = un rôle.
   */
   --space-xs: 4px;
   --space-sm: 8px;
@@ -53,18 +53,87 @@
 
   /*
     Contrastes **mesurés** par calcul de luminance relative (WCAG 2.1), pas
-    estimés à l'œil. Le tableau des règles impose 4,5:1 pour le texte normal ;
-    le plus bas couple réel est `err/surface` à 5,17:1.
+    estimés à l'œil. Le tableau des règles impose 4,5:1 pour le texte normal.
 
-      text/bg 16,10 · muted/bg 7,14 · text/surface 14,64
-      muted/surface 6,49 · accent/surface-2 5,67 · err/surface 5,17
+    ⚠️ **La marge est le pire couple des TROIS thèmes**, pas celui du thème de
+    base. Mesurer le bleu seul laisserait le vert et le rouge passer le test
+    sans que personne ne les ait regardés — et c'est le vert qui donne la plus
+    faible marge.
 
-    Ces nombres sont une **marge**, pas une décoration : si un token change,
-    il faut les recalculer. `apps/web/src/contrast.test.ts` le vérifie.
+      bleu   err/surface 5,17
+      vert   err/surface 5,12   <- la marge retenue
+      rouge  err/surface 5,44
+
+    Ces nombres sont une **marge**, pas une décoration : si un token change, il
+    faut les recalculer. `apps/web/src/contraste.test.ts` le vérifie, pour
+    chaque thème.
   */
-  --contrast-min: 5.17;
+  --contrast-min: 5.12;
 
   color-scheme: dark;
+}
+
+/*
+  ⚠️ **Les thèmes ne touchent QUE l'ambiance.** Fond, surfaces, bordures,
+  accent, texte secondaire. Jamais les couleurs de sens — `--ok`, `--warn`,
+  `--err` restent définies une seule fois, ci-dessus : un thème rouge dont
+  l'échec serait vert, ou un thème vert dont l'attente serait rouge, ne serait
+  plus un thème mais un mensonge d'interface.
+
+  ⚠️ **Le thème de base n'a pas de bloc.** `blue` EST la palette de `:root` ;
+  `:root[data-theme="blue"]` n'existe pas, et c'est volontaire — l'attribut est
+  quand même posé, pour qu'on puisse lire le thème actif dans l'inspecteur.
+  Un thème qui ne surcharge pas un token hérite donc de `:root`, ce qui est la
+  règle CSS ordinaire et ce que `contraste.ts` suit.
+
+  ⚠️ **Une collision assumée, et bornée.** Dans le thème vert, l'accent
+  (`#5ee07a`, teinte 133°) se rapproche du vert de réussite (`#3fbf9a`,
+  teinte 163°) ; dans le rouge, il se rapproche du rouge d'échec (`#ff9d8f`
+  contre `#e2685f`). C'est inévitable dès qu'on propose un thème vert et un
+  thème rouge, puisque « réussi » est vert et « échoué » est rouge. Ce qui
+  borne le risque : **la couleur n'est jamais le seul canal ici**. Chaque état
+  est écrit en toutes lettres à côté de son point
+  (« waiting for input · separated · … »), et chaque erreur porte un
+  `role="alert"` ou un texte. Un daltonien ne perd rien, et personne ne
+  confond un accent avec un état.
+*/
+:root[data-theme="green"] {
+  --bg: #0a1411;
+  --surface: #122019;
+  --surface-2: #1a2e24;
+  --border: #26463a;
+  --accent: #5ee07a;
+  --muted: #94b8a4;
+  --code-bg: #040a07;
+  --terminal-bg: #050b09;
+}
+
+:root[data-theme="red"] {
+  --bg: #140a0b;
+  --surface: #241215;
+  --surface-2: #2e171b;
+  --border: #4c282e;
+  --accent: #ff9d8f;
+  --muted: #c1a0a4;
+  --code-bg: #0c0506;
+  --terminal-bg: #0d0607;
+}
+
+/*
+  Pastilles du sélecteur : les trois accents, montrés **ensemble**, quel que
+  soit le thème actif — il faut bien voir ce qu'on choisit.
+
+  ⚠️ Trois valeurs recopiées, et c'est le seul endroit du fichier où une
+  couleur existe en double. La recopie est inévitable : le CSS ne sait pas
+  référencer « l'accent du thème vert » quand c'est le bleu qui est actif. Elle
+  est donc **vérifiée** — `contraste.test.ts` échoue si une pastille ne
+  correspond plus à l'accent du thème qu'elle annonce. Une pastille qui ment
+  ferait choisir autre chose que ce qu'on croit.
+*/
+:root {
+  --pastille-blue: #4da3ff;
+  --pastille-green: #5ee07a;
+  --pastille-red: #ff9d8f;
 }
 
 * {
@@ -1807,6 +1876,108 @@ button:disabled {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/*
+  Ligne du titre : la marque de l'agent, puis le titre.
+
+  ⚠️ Le sélecteur reprend **exactement** la spécificité de `.screen__title >
+  div`, qui impose `display: block`. Écrit `.screen__ligne` tout court, il
+  perdait la comparaison et la marque se serait empilée au-dessus du titre au
+  lieu de le précéder.
+*/
+.screen__title > .screen__ligne {
+  align-items: center;
+  display: flex;
+  gap: var(--space-sm);
+}
+
+/*
+  ⚠️ **`min-width: 0` n'est pas un réglage de confort.** Un élément flex refuse
+  par défaut de descendre sous la largeur de son contenu : sans cette ligne, un
+  titre long ne se tronque pas — il élargit la ligne, et c'est l'en-tête entier
+  qui déborde au lieu du titre qui s'abrège.
+*/
+.screen__ligne > strong {
+  min-width: 0;
+}
+
+/*
+  Marque d'un agent : un carre arrondi, dans la couleur d'accent du theme.
+
+  ⚠️ Elle a la taille du texte qu'elle précède, pas celle d'un bouton. La zone
+  tactile minimale du tableau des règles ne concerne que les éléments
+  **touchables**, et celui-ci ne l'est pas : il est décoratif (`aria-hidden`,
+  voir `AgentBadge.tsx`).
+*/
+.agent-badge {
+  align-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--accent);
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 24px;
+  justify-content: center;
+  width: 24px;
+}
+
+.agent-badge svg {
+  height: 15px;
+  width: 15px;
+}
+
+/* Sélecteur de thème, dans la feuille de réglages. */
+.theme {
+  border: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  margin: 0;
+  padding: 0;
+}
+
+.theme__choix {
+  align-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  cursor: pointer;
+  display: inline-flex;
+  gap: var(--space-sm);
+  /* La zone tactile du tableau des règles : 44 px. */
+  min-height: var(--tap-min);
+  padding: 0 var(--space-md);
+}
+
+/*
+  ⚠️ L'état choisi se dit par la bordure **et** par `aria-pressed`. La couleur
+  seule ne dirait rien à un lecteur d'écran, et un daltonien ne verrait pas la
+  différence entre trois accents — le libellé, lui, est écrit.
+*/
+.theme__choix[aria-pressed="true"] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.theme__pastille {
+  border-radius: 50%;
+  height: 14px;
+  width: 14px;
+}
+
+.theme__pastille--blue {
+  background: var(--pastille-blue);
+}
+
+.theme__pastille--green {
+  background: var(--pastille-green);
+}
+
+.theme__pastille--red {
+  background: var(--pastille-red);
 }
 
 /*

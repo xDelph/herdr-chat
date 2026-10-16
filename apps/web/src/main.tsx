@@ -2,7 +2,20 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { registerSW } from "virtual:pwa-register";
 import { App } from "./App.tsx";
+import { appliquerTheme, lireTheme, rafraichirCouleurDeBarre } from "./theme.ts";
 import "./styles.css";
+
+/*
+  Le theme est pose **avant le premier rendu**.
+
+  ⚠️ Appliqué après coup, l'interface s'afficherait en bleu puis basculerait : un
+  clignotement a chaque ouverture, d'autant plus visible qu'un theme sombre
+  change la totalite de l'ecran. L'attribut est ce qui decide de l'apparence ;
+  la couleur de la barre systeme, elle, se lit dans le CSS et ne peut etre
+  reprise qu'une fois la feuille appliquee — d'ou le second appel.
+*/
+appliquerTheme(lireTheme());
+window.addEventListener("load", rafraichirCouleurDeBarre, { once: true });
 
 const avaitDejaUnWorker = navigator.serviceWorker.controller !== null;
 let rechargementApresMiseAJour = false;

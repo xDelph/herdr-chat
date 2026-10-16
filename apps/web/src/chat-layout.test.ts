@@ -521,3 +521,76 @@ describe("U23 — la ligne compacte s'applique PAR BLOC, pas par message", () =>
     expect(actions).toContain('singulier: "Thinking"');
   });
 });
+
+describe("U23 — la marque précède le titre, le modèle suit le contexte", () => {
+  const ecran = readFileSync(join(import.meta.dir, "ChatScreen.tsx"), "utf8");
+
+  test("la marque est DANS la ligne du titre, et le titre la suit", () => {
+    // ⚠️ Une marque posée à côté du bouton de retour se lirait comme une action
+    // de plus ; dans la ligne du titre, elle sert à reconnaître la conversation.
+    expect(ecran).toContain('<div className="screen__ligne">');
+    const ligne = ecran.slice(ecran.indexOf('<div className="screen__ligne">'));
+    expect(ligne.slice(0, 240)).toContain("<AgentBadge kind={agent.agent} />");
+    expect(ligne.slice(0, 240)).toContain("<strong>{agent.title ?? agentName(agent)}</strong>");
+  });
+
+  test("le modèle et le raisonnement forment la troisième ligne", () => {
+    expect(ecran).toContain("{headerReglages(currentModel, currentThinking)}");
+  });
+
+  test("la ligne du titre reste en `flex`, malgré la troncature imposée par le parent", () => {
+    /*
+      ⚠️ `.screen__title > div` impose `display: block`. Écrite `.screen__ligne`
+      tout court, la règle perdait la comparaison de spécificité : `display:
+      block` l'emportait, et la marque s'empilait au-dessus du titre au lieu de
+      le précéder. Un test qui vérifierait seulement la présence de la classe
+      passerait sans rien voir.
+    */
+    expect(sansCommentaires).toContain(".screen__title > .screen__ligne {");
+    expect(bloc(".screen__title > .screen__ligne")["display"]).toBe("flex");
+  });
+
+  test("le titre cède la place au lieu d'élargir la ligne", () => {
+    // Un élément flex refuse de descendre sous la largeur de son contenu : sans
+    // `min-width: 0`, c'est l'en-tête entier qui déborde au lieu du titre.
+    expect(bloc(".screen__ligne > strong")["min-width"]).toBe("0");
+  });
+
+  test("la marque n'usurpe pas la zone tactile d'un bouton", () => {
+    // Elle est décorative : 24 px, la taille du texte qu'elle précède.
+    const marque = bloc(".agent-badge");
+    expect(marque["height"]).toBe("24px");
+    expect(marque["width"]).toBe("24px");
+  });
+});
+
+describe("U23 — le sélecteur de thème", () => {
+  const feuille = readFileSync(join(import.meta.dir, "SettingsSheet.tsx"), "utf8");
+
+  test("les trois thèmes sont proposés, et l'état choisi est DIT", () => {
+    expect(feuille).toContain("THEMES.map((option) => (");
+    // ⚠️ `aria-pressed` : la couleur seule ne dirait rien à un lecteur d'écran.
+    expect(feuille).toContain("aria-pressed={theme === option}");
+  });
+
+  test("le thème est appliqué tout de suite, et retenu", () => {
+    expect(feuille).toContain("appliquerTheme(suivant)");
+  });
+
+  test("chaque choix porte sa pastille", () => {
+    expect(feuille).toContain("theme__pastille--${option}");
+  });
+
+  test("les trois pastilles ont leur couleur, et elle ne vient pas du thème actif", () => {
+    // ⚠️ Il faut voir ce qu'on choisit : la pastille verte doit être verte même
+    // quand c'est le bleu qui est appliqué. Elles ne peuvent donc pas passer par
+    // `--accent`, qui vaut la couleur du thème en cours.
+    for (const theme of ["blue", "green", "red"]) {
+      expect(bloc(`.theme__pastille--${theme}`)["background"]).toBe(`var(--pastille-${theme})`);
+    }
+  });
+
+  test("un choix reste touchable au doigt", () => {
+    expect(bloc(".theme__choix")["min-height"]).toBe("var(--tap-min)");
+  });
+});
