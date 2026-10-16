@@ -31,3 +31,7 @@ data/
 *.log
 npm-debug.log*
 bun-debug.log*
+
+# Dossier de captures local. Ce sont des images de travail, pas du produit :
+# elles n'ont rien a faire dans une archive d'installation.
+/apps/web/public/screenshots/

@@ -345,16 +345,6 @@ export const App = () => {
   }, [refresh]);
 
   /**
-   * Captures servies par le backend.
-   *
-   * Elles vivent dans `apps/web/public/screenshots`, donc sous le dossier du
-   * projet : le service de fichiers les accepte comme n'importe quel fichier de
-   * projet, sans route dédiée.
-   */
-  // Hors du corps du composant : le tableau ne dépend que de `projectRoot`, donc
-  // il est identique à chaque rendu. Le reconstruire ici en créait une nouvelle
-  // référence et redessinait la galerie entière (react-perf).
-  /**
    * Liste par sections, dans l'ordre du tableau de règles.
    *
    * Les sections sont celles de la référence, et elles répondent à la seule
