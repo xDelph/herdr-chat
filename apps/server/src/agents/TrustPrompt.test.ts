@@ -81,6 +81,10 @@ const herdrWith = (screen: string, sent: string[][], apres?: string): HerdrApi =
       sent.push([...keys]);
       return Effect.succeed({});
     },
+    // ⚠️ Present parce que l'interface l'exige : ce chemin n'est pas celui de
+    // l'invite de confiance (qui envoie des touches), mais un client incomplet
+    // ne compilerait pas.
+    sendText: unused,
     snapshot: unused,
     startAgent: unused,
   };

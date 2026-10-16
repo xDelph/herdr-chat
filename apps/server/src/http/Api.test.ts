@@ -83,6 +83,7 @@ const fakeHerdr = (options: { healthy: boolean; listFails?: boolean }): HerdrApi
   return {
     closeTab: fail,
     sendKeys: fail,
+    sendText: fail,
     focusAgent: () => Effect.succeed({}),
     createTab: () => {
       createTabCalls += 1;

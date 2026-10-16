@@ -163,6 +163,15 @@ export interface HerdrApi {
     target: string,
     keys: ReadonlyArray<string>,
   ) => Effect.Effect<ResultPayload, HerdrError>;
+  /**
+   * Écrit du **texte littéral** dans le pane — pas un prompt, des frappes.
+   *
+   * ⚠️ **C'est le seul chemin pour répondre à une invite interactive.** Herdr
+   * refuse `agent.prompt` sur un agent bloqué :
+   * « agent … is blocked and requires interactive input ». Or « type your own
+   * answer », chez opencode, exige précisément d'écrire dans l'invite.
+   */
+  readonly sendText: (target: string, text: string) => Effect.Effect<ResultPayload, HerdrError>;
 }
 
 export class HerdrClient extends Context.Service<HerdrClient, HerdrApi>()(
@@ -337,6 +346,12 @@ export class HerdrClient extends Context.Service<HerdrClient, HerdrApi>()(
     const sendKeys = (target: string, keys: ReadonlyArray<string>) =>
       request(Method.agentSendKeys, { keys: [...keys], target });
 
+    // `pane.send_text` attend `pane_id` là où `agent.send_keys` attend `target`.
+    // Les deux noms vivent dans la même API : les confondre échouerait sur un
+    // « missing field `pane_id` ».
+    const sendText = (target: string, text: string) =>
+      request(Method.paneSendText, { pane_id: target, text });
+
     return HerdrClient.of({
       closeTab,
       createTab,
@@ -347,6 +362,7 @@ export class HerdrClient extends Context.Service<HerdrClient, HerdrApi>()(
       readAgent,
       request,
       sendKeys,
+      sendText,
       snapshot,
       startAgent,
       focusAgent,

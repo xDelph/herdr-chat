@@ -186,6 +186,21 @@ export const Method = {
   agentPrompt: "agent.prompt",
   agentRead: "agent.read",
   agentSendKeys: "agent.send_keys",
+  /**
+   * Écrire du **texte littéral** dans un pane (`{pane_id, text}`).
+   *
+   * ⚠️ **On ne l'écrit pas par déduction.** Le schéma déclarait 112 méthodes et
+   * n'en implémentait pas autant (la leçon du projet : le schéma n'est pas la
+   * source de vérité). Mesuré le 2026-10-16 en interrogeant le serveur sur une
+   * **cible inexistante** — donc sans aucun effet : l'erreur rendue liste les
+   * **103** variantes réellement acceptées, et `pane.send_text` en fait partie.
+   * Il n'existe pas de `pane.run` (c'est une commodité du CLI, qui enchaîne
+   * `send_text` puis une touche `enter`).
+   *
+   * ⚠️ Le paramètre s'appelle `pane_id`, pas `target` — contrairement à
+   * `agent.send_keys`. Les deux formes cohabitent dans la même API.
+   */
+  paneSendText: "pane.send_text",
   agentFocus: "agent.focus",
   agentStart: "agent.start",
   eventsSubscribe: "events.subscribe",

@@ -78,6 +78,22 @@ const PromptBody = Schema.Struct({ text: Schema.String });
 const decodePromptBody = Schema.decodeUnknownOption(PromptBody);
 
 /**
+ * Le **statut** d'un agent tel qu'Herdr le rend.
+ *
+ * ⚠️ On ne lit que ce champ, et on le compare à `"blocked"` : c'est la seule
+ * valeur qui change le mode d'envoi (prompt ou frappes). Un statut absent, d'une
+ * autre forme, ou inconnu retombe sur le mode « prompt » — c'est-à-dire le
+ * comportement d'avant, jamais un mode deviné.
+ */
+const decodeAgentStatus = Schema.decodeUnknownOption(
+  Schema.Struct({
+    agent: Schema.optional(
+      Schema.NullOr(Schema.Struct({ agent_status: Schema.optional(Schema.String) })),
+    ),
+  }),
+);
+
+/**
  * Étapes du lancement, dans l'ordre (B08).
  *
  * Union fermée, pas une chaîne libre : une étape nommée est ce qui permet à
@@ -601,7 +617,29 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     }
     const paneId = request.params["paneId"] ?? "";
 
-    const result = await Effect.runPromise(Effect.result(sender.send(paneId, body.text)));
+    /*
+      ⚠️ **Un agent bloqué attend des FRAPPES, pas un prompt.** Herdr refuse
+      lui-même `agent.prompt` dans ce cas — c'est sa propre réponse, mesurée le
+      2026-10-16 sur un agent opencode bloqué sur une question :
+
+        « agent … is blocked and requires interactive input »
+
+      Sans ce branchement, « type your own answer » était **impossible** : le
+      seul chemin d'écriture existant était précisément celui que Herdr refuse.
+
+      ⚠️ Le statut est relu **ici, depuis Herdr** — jamais reçu du client. Un
+      client périmé enverrait le mauvais mode, et c'est Herdr qui décide de ce
+      qu'il accepte.
+    */
+    const agentLivre = await Effect.runPromise(Effect.result(herdr.getAgent(paneId)));
+    const statut = Result.isSuccess(agentLivre)
+      ? Option.getOrUndefined(decodeAgentStatus(Result.getSuccess(agentLivre)))
+      : undefined;
+    const saisie = statut?.agent?.agent_status === "blocked";
+
+    const result = await Effect.runPromise(
+      Effect.result(sender.send(paneId, body.text, undefined, saisie)),
+    );
 
     if (Result.isSuccess(result)) {
       const outcome = Option.getOrUndefined(Result.getSuccess(result));

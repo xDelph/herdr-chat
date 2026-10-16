@@ -92,15 +92,40 @@ export class TransportTag extends Context.Service<TransportTag, Transport>()(
       }),
     );
 
-  /** Implémentation de test : file d'attente de réponses ou échec forcé. */
-  static readonly layerTest = (responses: ReadonlyArray<string | TransportError>) =>
+  /**
+   * Implémentation de test : file d'attente de réponses ou échec forcé.
+   *
+   * ⚠️ `envoyees` recoit la **methode** de chaque requete, dans l'ordre. Sans
+   * cela, le faux transport ne dit que « il y a eu un appel » — et deux chemins
+   * tres differents (soumettre un prompt, ecrire des frappes) deviennent
+   * indistinguables. C'est exactement ce qu'il faut pouvoir separer ici.
+   */
+  static readonly layerTest = (
+    responses: ReadonlyArray<string | TransportError>,
+    envoyees?: Array<string>,
+  ) =>
     Layer.effect(
       TransportTag,
       Effect.gen(function* () {
         const queue = yield* Effect.sync(() => [...responses]);
         return TransportTag.of({
-          send: () =>
+          send: (ligne) =>
             Effect.gen(function* () {
+              yield* Effect.sync(() => {
+                let analyse: unknown;
+                try {
+                  analyse = JSON.parse(ligne);
+                } catch {
+                  envoyees?.push("?");
+                  return;
+                }
+                if (typeof analyse !== "object" || analyse === null) {
+                  envoyees?.push("?");
+                  return;
+                }
+                const methode = Reflect.get(analyse, "method");
+                envoyees?.push(typeof methode === "string" ? methode : "?");
+              });
               const next = yield* Effect.sync(() => queue.shift());
               if (next === undefined) {
                 return yield* Effect.fail(

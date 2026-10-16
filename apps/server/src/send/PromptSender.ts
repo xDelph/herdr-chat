@@ -50,10 +50,26 @@ export interface SendOutcome {
 }
 
 export interface PromptSenderApi {
+  /**
+   * Envoie un texte vers un agent.
+   *
+   * ⚠️ **Deux modes, et la différence n'est pas cosmétique.**
+   *
+   * - `saisie: false` (défaut) — un **prompt** : `agent.prompt`. Herdr le refuse
+   *   quand l'agent est bloqué sur une invite interactive.
+   * - `saisie: true` — des **frappes** : le texte est écrit dans le pane, puis
+   *   `enter`. C'est le seul chemin pour répondre à une invite — « type your own
+   *   answer », chez opencode, exige d'écrire dans l'invite.
+   *
+   * ⚠️ Le succès d'une saisie prouve que Herdr a **écrit** le texte, pas que
+   * l'agent l'a appliqué : `pane.send_text` ne renvoie pas d'`agent_prompted`.
+   * L'état exposé (« Received by Herdr ») dit exactement ce qui est prouvé.
+   */
   readonly send: (
     target: string,
     text: string,
     now?: number,
+    saisie?: boolean,
   ) => Effect.Effect<SendOutcome, DuplicatePrompt | PromptNotConfirmed>;
   /** Nombre d'entrées suivies — utile pour vérifier la purge dans les tests. */
   readonly tracked: () => Effect.Effect<number>;
@@ -79,7 +95,7 @@ export class PromptSender extends Context.Service<PromptSender, PromptSenderApi>
           (entry) => entry.confirmedAt !== undefined && now - entry.confirmedAt < windowMs,
         );
 
-      const send = (target: string, text: string, now?: number) =>
+      const send = (target: string, text: string, now?: number, saisie = false) =>
         Effect.gen(function* () {
           const at = now ?? Date.now();
           const fingerprint = fingerprintOf(target, text);
@@ -95,7 +111,17 @@ export class PromptSender extends Context.Service<PromptSender, PromptSenderApi>
             return yield* Effect.fail(new DuplicatePrompt({ fingerprint, target }));
           }
 
-          const outcome = yield* Effect.result(herdr.promptAgent(target, text));
+          /*
+            ⚠️ **Deux primitives, deux significations.** `agent.prompt` soumet un
+            prompt ; `pane.send_text` écrit des frappes. Herdr refuse la première
+            sur un agent bloqué — c'est lui qui l'a dit, mesuré le 2026-10-16 :
+            « agent … is blocked and requires interactive input ».
+          */
+          const envoi = saisie
+            ? Effect.flatMap(herdr.sendText(target, text), () => herdr.sendKeys(target, ["enter"]))
+            : herdr.promptAgent(target, text);
+
+          const outcome = yield* Effect.result(envoi);
 
           if (outcome._tag === "Failure") {
             // Échec : on n'enregistre RIEN. Le prochain envoi doit passer.
