@@ -13,6 +13,7 @@ import {
   expliquerEchec,
   expliquerEnvoi,
   expliquerSuppression,
+  libelleRefus,
 } from "./etats-envoi.ts";
 
 describe("U08 — les trois échecs se distinguent", () => {
@@ -107,6 +108,15 @@ describe("U08 — « transmise » n'est pas « accordée »", () => {
     expect(issue.texte).toContain("nothing was written");
   });
 
+  /*
+    ⚠️ **Refuser arrête l'agent** — les deux familles mesurées l'écrivent :
+    codex `2. Quit`, claude `No, exit`. Le texte disait seulement « nothing was
+    written » et laissait croire que l'agent restait bloqué.
+  */
+  test("refusée : le texte dit que l'agent s'arrête", () => {
+    expect(expliquerConfiance("refusee").texte).toContain("quit");
+  });
+
   test("non applicable : rien à demander", () => {
     expect(expliquerConfiance("non-applicable").resolue).toBe(true);
   });
@@ -124,6 +134,26 @@ describe("U08 — « transmise » n'est pas « accordée »", () => {
       (etat) => expliquerConfiance(etat).texte,
     );
     expect(new Set(textes).size).toBe(4);
+  });
+});
+
+/**
+ * Le libellé du refus dit sa conséquence (U08).
+ *
+ * ⚠️ Le défaut : le bouton disait « Deny », et un commentaire affirmait que
+ * l'agent restait bloqué. En réalité l'option de refus **quitte** l'agent dans
+ * les deux familles mesurées (`2. Quit`, `No, exit`). Un libellé qui cache un
+ * arrêt est un piège.
+ */
+describe("U08 — le libellé du refus dit ce que le refus fait", () => {
+  test("il nomme la famille et l'arrêt", () => {
+    const libelle = libelleRefus("claude");
+    expect(libelle).toContain("claude");
+    expect(libelle.toLowerCase()).toContain("quit");
+  });
+
+  test("sans famille connue, il reste lisible plutôt que troué", () => {
+    expect(libelleRefus(null)).toBe("Deny and quit the agent");
   });
 });
 

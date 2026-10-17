@@ -175,8 +175,14 @@ export const respondToTrust = (
       accepted: accept,
       state: accept ? ("acceptee" as const) : ("refusee" as const),
       detail: accept
-        ? "trust granted for this folder — codex will be able to run code there"
-        : "trust denied: the folder stays unapproved and the agent stays blocked",
+        ? `trust granted for this folder — ${kind} will be able to run code there`
+        : /*
+            ⚠️ Le refus **arrête** l'agent : codex l'écrit (`2. Quit`), claude
+            aussi (`No, exit`). Le texte précédent affirmait « the agent stays
+            blocked » — faux dans les deux familles. On nomme la conséquence au
+            lieu de la masquer.
+          */
+          "trust denied: the folder stays unapproved, and this option quits the agent",
     };
   });
 

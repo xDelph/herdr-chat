@@ -94,15 +94,33 @@ export type IssueConfiance = {
   readonly texte: string;
 };
 
+/**
+ * Le libellé du bouton de refus — il dit ce que le refus **fait**.
+ *
+ * ⚠️ Dans les deux familles mesurées, l'option qui refuse **quitte** l'agent :
+ * codex l'étiquette `2. Quit`, claude `No, exit`. « Deny » seul laissait croire
+ * à un « non, mais je continue ». Le libellé porte donc la conséquence.
+ */
+export const libelleRefus = (kind: string | null): string => `Deny and quit ${kind ?? "the agent"}`;
+
 export const expliquerConfiance = (state: string): IssueConfiance => {
   switch (state) {
     case "acceptee":
       // Seule issue favorable : la permission est écrite, l'agent démarre.
       return { resolue: true, texte: "Folder access approved — the agent can start" };
     case "refusee":
-      // Un refus est une décision, pas une panne : rien n'est écrit, et
-      // l'agent reste bloqué. L'écran peut se séparer.
-      return { resolue: true, texte: "Folder access denied — nothing was written" };
+      /*
+        ⚠️ **Refuser, c'est arrêter l'agent** — les deux familles mesurées
+        l'écrivent elles-mêmes : codex propose `2. Quit`, claude `No, exit`.
+        L'ancien texte (« nothing was written », et l'agent reste bloqué) était
+        hérité de codex sans mesure et se lisait comme un simple refus sans
+        conséquence. Un refus reste une décision — pas une panne — mais il a un
+        effet, et l'écran le dit.
+      */
+      return {
+        resolue: true,
+        texte: "Folder access denied — nothing was written, and the agent quit",
+      };
     case "transmise":
       return {
         resolue: false,

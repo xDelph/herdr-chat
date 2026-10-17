@@ -14,7 +14,7 @@ import { useState } from "react";
 import { answerTrust } from "./api.ts";
 import type { TrustRequired } from "./api.ts";
 import { Notice } from "./Notice.tsx";
-import { expliquerConfiance } from "./etats-envoi.ts";
+import { expliquerConfiance, libelleRefus } from "./etats-envoi.ts";
 import type { IssueConfiance } from "./etats-envoi.ts";
 
 interface Props {
@@ -79,11 +79,15 @@ export const TrustCard = ({ request, onDone }: Props) => {
             type="button"
             className="ghost"
             disabled={busy}
-            // ⚠️ Refuser n'est pas un échec : l'agent reste simplement bloqué,
-            // et rien n'est écrit dans la configuration.
+            /*
+              ⚠️ Le refus **arrête** l'agent : codex propose `2. Quit`, claude
+              `No, exit`. L'ancien libellé (« Deny ») héritait d'un commentaire
+              faux — « l'agent reste simplement bloqué » — hérité de codex sans
+              mesure. Le libellé porte désormais la conséquence.
+            */
             onClick={() => void answer(false)}
           >
-            Deny
+            {libelleRefus(request.kind)}
           </button>
         </div>
       )}

@@ -151,6 +151,28 @@ describe("TrustPrompt — rien n'est envoyé si l'invite n'est pas là", () => {
     expect(outcome.state).toBe("refusee");
     expect(sent).toEqual([["2"]]);
   });
+
+  /*
+    ⚠️ **Le refus ARRÊTE l'agent, dans les deux familles.** Codex l'étiquette
+    lui-même `2. Quit`, claude `No, exit`. Le texte précédent affirmait « the
+    agent stays blocked » — hérité de codex, jamais mesuré. C'est le genre de
+    phrase qui fait cliquer un bouton sans en comprendre la conséquence.
+  */
+  test("le refus dit que l'agent s'arrête — il ne le cache pas", async () => {
+    const outcome = await Effect.runPromise(
+      respondToTrust(herdrWith(TRUST_SCREEN, [], "Trust declined"), "w:p", false, "codex"),
+    );
+    expect(outcome.detail).toContain("quits the agent");
+    expect(outcome.detail).not.toContain("stays blocked");
+  });
+
+  test("l'accord nomme la VRAIE famille, pas toujours codex", async () => {
+    const claude = await Effect.runPromise(
+      respondToTrust(herdrWith("Trust this folder?", [], "ok"), "w:p", true, "claude"),
+    );
+    expect(claude.detail).toContain("claude");
+    expect(claude.detail).not.toContain("codex");
+  });
 });
 
 /**
