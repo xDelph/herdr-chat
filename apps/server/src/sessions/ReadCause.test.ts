@@ -10,7 +10,14 @@
  * toutes les 2 s.
  */
 import { describe, expect, test } from "bun:test";
-import { classifyReadFailure, invalidSession, statusFor, verdictOf } from "./ReadCause.ts";
+import {
+  classifyReadFailure,
+  estAbsence,
+  invalidSession,
+  statusFor,
+  verdictOf,
+} from "./ReadCause.ts";
+import { isMissingFile } from "./SessionReader.ts";
 
 const rejet = (reason: string) => ({
   _tag: "SessionPathRejected",
@@ -131,5 +138,61 @@ describe("un chemin absent est bénin, un refus ne l'est pas", () => {
     expect(classifyReadFailure({ _tag: "SessionPathRejected", detail: "refus" }).benign).toBe(
       false,
     );
+  });
+});
+
+/**
+ * Une absence se reconnaît de **deux** façons, et elles doivent tomber d'accord.
+ *
+ * ⚠️ **Le désaccord existait, et il a rendu un pane inutilisable.** L'absence
+ * arrive soit par un `ENOENT` d'E/S, soit par le rejet `chemin-absent` de la
+ * garde de chemin — qui vérifie l'existence **avant** d'ouvrir. Le lecteur de
+ * fichier ne testait que le premier : pour un agent neuf, dont Herdr annonce le
+ * chemin avant que le fichier existe, le rejet passait donc pour une **panne** —
+ * 403 sur la route, `error` dans la liste, et « forme de réponse inattendue »
+ * à l'écran.
+ */
+describe("estAbsence — les deux formes d'une même absence", () => {
+  test("un ENOENT d'E/S est une absence", () => {
+    expect(estAbsence(Object.assign(new Error("no such file"), { code: "ENOENT" }))).toBe(true);
+  });
+
+  test("un rejet `chemin-absent` de la garde en est une aussi", () => {
+    expect(
+      classifyReadFailure({
+        _tag: "SessionPathRejected",
+        detail: "missing session",
+        reason: "chemin-absent",
+      }).cause,
+    ).toBe("absente");
+    expect(
+      estAbsence({
+        _tag: "SessionPathRejected",
+        detail: "missing session",
+        reason: "chemin-absent",
+      }),
+    ).toBe(true);
+  });
+
+  test("une intrusion n'est PAS une absence", () => {
+    // ⚠️ C'est la distinction que la garde construit : `hors-racine` et
+    // `lien-sortant` ne doivent jamais être confondus avec « il n'y a rien ici ».
+    expect(estAbsence({ _tag: "SessionPathRejected", detail: "x", reason: "hors-racine" })).toBe(
+      false,
+    );
+    expect(estAbsence({ _tag: "SessionPathRejected", detail: "x", reason: "lien-sortant" })).toBe(
+      false,
+    );
+  });
+
+  test("une permission refusée n'en est pas une non plus", () => {
+    expect(estAbsence(Object.assign(new Error("denied"), { code: "EACCES" }))).toBe(false);
+  });
+
+  test("le lecteur et le classificateur disent la MÊME chose", () => {
+    // Une seule règle : `isMissingFile` délègue à `estAbsence`.
+    const enoCnt = Object.assign(new Error("x"), { code: "ENOENT" });
+    const refusDeChemin = { _tag: "SessionPathRejected", detail: "x", reason: "chemin-absent" };
+    for (const e of [enoCnt, refusDeChemin]) expect(isMissingFile(e)).toBe(estAbsence(e));
   });
 });

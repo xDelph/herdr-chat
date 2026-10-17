@@ -185,7 +185,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
           if (before !== undefined) {
             const taille = yield* Effect.result(fileSize(path, config.sessionRoots));
             if (Result.isFailure(taille)) {
-              const failure = Result.getFailure(taille);
+              const failure = Option.getOrUndefined(Result.getFailure(taille));
               if (isMissingFile(failure)) return { kind: "cursor-stale" as const };
               return yield* Effect.fail(failure);
             }
@@ -200,7 +200,9 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
             const page = yield* Effect.result(
               readBefore(path, before.offset, SESSION_TAIL_BYTES, config.sessionRoots),
             );
-            if (Result.isFailure(page)) return yield* Effect.fail(Result.getFailure(page));
+            if (Result.isFailure(page)) {
+              return yield* Effect.fail(Option.getOrUndefined(Result.getFailure(page)));
+            }
             const older = Option.getOrUndefined(Result.getSuccess(page));
             if (older === undefined) return { kind: "cursor-stale" as const };
             return {
@@ -231,7 +233,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
             // afficherait des entrées qui ne sont plus dans le fichier.
             const taille = yield* Effect.result(fileSize(path, config.sessionRoots));
             if (Result.isFailure(taille)) {
-              const failure = Result.getFailure(taille);
+              const failure = Option.getOrUndefined(Result.getFailure(taille));
               if (isMissingFile(failure)) {
                 // Absente : le JSONL naît au premier message. Ce n'est pas une
                 // panne, et l'annoncer comme telle fit crier tout nouvel agent.
@@ -277,6 +279,13 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
             };
           }
 
+          /*
+  ⚠️ **`Result.getFailure` rend un `Option`, pas l'erreur** (vérifié dans
+  `effect/dist/Result.d.ts`). Le passer tel quel à un classificateur le fait
+  tomber sur son cas par défaut : l'absence redevient une panne, et l'écran
+  affiche « forme de réponse inattendue ». Le piège s'est produit deux fois —
+  ici et dans la liste. On déballe donc, systématiquement.
+*/
           const finite =
             Number.isInteger(tailBytes) && tailBytes > 0
               ? Math.min(tailBytes, SESSION_TAIL_HARD_CAP)
@@ -328,19 +337,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
         const failure = failureOf(result);
         // Un chemin refusé (S03) est une **décision**, pas une panne : 403 et la
         // cause exacte, là où tout le reste reste un 502.
-        /*
-          ⚠️ **Toutes les raisons de rejet ne sont pas des intrusions.**
-
-          Cette branche rendait un 403 pour **tout** `SessionPathRejected`, y
-          compris `chemin-absent` — c'est-à-dire « le fichier n'existe pas
-          encore ». Elle passait donc **avant** la classification ajoutée dans
-          `ReadCause`, et la rendait inopérante : un agent qui venait de démarrer
-          répondait 403 « missing session », et la liste l'affichait en `error`.
-
-          Seules les vraies intrusions gardent leur 403. `chemin-absent` tombe
-          dans la classification, qui en fait une absence — bénigne.
-        */
-        if (failure instanceof SessionPathRejected && failure.reason !== "chemin-absent") {
+        if (failure instanceof SessionPathRejected) {
           return respond(
             config.logPath,
             decoderOf(ApiErrorResponse),
@@ -352,6 +349,7 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
         // panne réseau là où c'est une permission refusée, et l'utilisateur
         // relancerait pour rien.
         const classified = classifyReadFailure(failure);
+
         return respond(
           config.logPath,
           decoderOf(ApiErrorResponse),

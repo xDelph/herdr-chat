@@ -25,6 +25,7 @@ import {
   SESSION_HEADER_BYTES,
 } from "@herdr-remote/shared";
 import { describeRejection, resolveWithin } from "./PathGuard.ts";
+import { estAbsence } from "./ReadCause.ts";
 
 /** En-tête de session, tel qu'écrit en première ligne. */
 const HeaderLine = Schema.Struct({
@@ -97,24 +98,7 @@ const openGuarded = async (
  * faisait échouer l'ouverture de tout nouvel agent, en boucle toutes les deux
  * secondes.
  */
-export const isMissingFile = (error: unknown): boolean => {
-  // Décodage plutôt qu'assertion : on cherche un code `ENOENT` où qu'il soit.
-  const decoded = Option.getOrUndefined(
-    Schema.decodeUnknownOption(
-      Schema.Struct({
-        cause: Schema.optional(Schema.Struct({ code: Schema.optional(Schema.String) })),
-      }),
-    )(error),
-  );
-  if (decoded?.cause?.code === "ENOENT") return true;
-
-  return (
-    error instanceof Error &&
-    Option.getOrUndefined(
-      Schema.decodeUnknownOption(Schema.Struct({ code: Schema.optional(Schema.String) }))(error),
-    )?.code === "ENOENT"
-  );
-};
+export const isMissingFile = (error: unknown): boolean => estAbsence(error);
 
 export interface RawEntry {
   readonly type: string;

@@ -1015,13 +1015,6 @@ export const ChatScreen = ({
           */}
           <TabPanes agents={voisins} courant={agent.paneId} onOpen={onOuvrirVoisin} />
 
-          {agent.sessionPath === null ? (
-            <Notice ton="avertissement">
-              Herdr does not expose a session path for this agent. Its conversation cannot be
-              displayed or reconstructed.
-            </Notice>
-          ) : null}
-
           {error !== null ? <Notice ton="erreur">{error}</Notice> : null}
 
           {/*
@@ -1041,17 +1034,27 @@ export const ChatScreen = ({
           */}
           {phase === "ready" &&
           error === null &&
-          agent.sessionPath !== null &&
           messages.length === 0 &&
           envoisLocaux.length === 0 ? (
             <div className="messages__empty">
               <strong>No messages</strong>
               <p>
-                Nothing to show for this agent. Pi creates a session when it receives its first
-                message.
+                Nothing to show for this agent yet. Some agents announce their session only once
+                they have received their first message.
               </p>
+              {/*
+                ⚠️ **Les deux causes sont dites, et sur le même ton.** Cet écran
+                affichait auparavant un **avis alarmant** quand Herdr n'exposait
+                pas de chemin — « its conversation cannot be displayed or
+                reconstructed » — pour exactement la même situation que ce
+                panneau-ci, qui lui est neutre. Un agent qui vient de démarrer
+                passait donc pour un agent cassé, alors que sa session apparaît
+                dès qu'il a tourné.
+              */}
               <p className="muted small">
-                If this agent has worked before, Herdr no longer exposes its session file.
+                {agent.sessionPath === null
+                  ? "Herdr does not expose a session for this agent — nothing is lost: this panel shows the conversation as soon as there is one."
+                  : "If this agent has worked before, Herdr no longer exposes its session."}
               </p>
             </div>
           ) : null}

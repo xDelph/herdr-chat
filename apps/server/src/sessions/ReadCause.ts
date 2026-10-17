@@ -139,3 +139,21 @@ export const statusFor = (cause: ReadCause): number => {
       return 502;
   }
 };
+
+/**
+ * Le fichier n'existe **pas encore** : c'est une absence, pas une panne.
+ *
+ * ⚠️ **Une seule règle, et elle couvre les deux formes.** L'absence arrive de
+ * deux façons : un `ENOENT` d'E/S, ou le rejet `chemin-absent` de la garde de
+ * chemin — qui vérifie l'existence avant d'ouvrir. Deux tests séparés auraient
+ * fini par diverger, et le désaccord s'est déjà produit : le chemin qui lit une
+ * session traitait le rejet comme une panne alors que le classificateur, lui, le
+ * tenait pour bénin. L'agent neuf s'affichait donc en `error`.
+ *
+ * ⚠️ **Pourquoi ça compte.** Herdr annonce un `agent_session` valide vers un
+ * fichier que l'agent n'a pas encore écrit : un JSONL de Pi naît au premier
+ * message. Traiter ça comme une panne fait échouer l'ouverture de tout nouvel
+ * agent, en boucle.
+ */
+export const estAbsence = (error: unknown): boolean =>
+  classifyReadFailure(error).cause === "absente";
