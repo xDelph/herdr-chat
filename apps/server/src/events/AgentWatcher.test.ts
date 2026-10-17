@@ -16,7 +16,7 @@
 import { describe, expect, test } from "bun:test";
 import { Effect, Option, Schema } from "effect";
 import type { AgentStatus } from "@herdr-remote/shared";
-import { AgentWatcher, startWatchLoop } from "./AgentWatcher.ts";
+import { AgentWatcher, fautNotifier, startWatchLoop } from "./AgentWatcher.ts";
 import type { EventHubApi, BusEvent } from "./EventHub.ts";
 import { HerdrProtocolError } from "../herdr/HerdrClient.ts";
 import type { HerdrApi, HerdrError } from "../herdr/HerdrClient.ts";
@@ -222,5 +222,47 @@ describe("WatchLoop — lit les agents au BON niveau de la réponse", () => {
       )({ agents: [], tabs: [] }),
     );
     expect(decoded).toBeDefined();
+  });
+});
+
+/**
+ * Un agent qui **disparaît** doit se voir — et seulement s'il y avait quelque
+ * chose en cours.
+ *
+ * ⚠️ **Le trou que cette règle ferme.** Une notification ne partait **jamais**
+ * pour une disparition : la boucle l'excluait explicitement (`to === "gone"`).
+ * Un agent pouvait donc s'arrêter pendant son travail, ou alors qu'il attendait
+ * une réponse, et l'application n'en disait pas un mot — la ligne disparaissait
+ * de la liste, c'est tout.
+ *
+ * ⚠️ Et on ne prévient **que** si quelque chose était en cours : un agent `idle`
+ * ou `done` qu'on ferme est une fin normale, et le notifier userait l'alerte.
+ */
+describe("U21 — qui mérite une notification", () => {
+  test("un agent qui TRAVAILLE et s'arrête : oui", () => {
+    // Son travail a été interrompu, et rien d'autre ne le dirait.
+    expect(fautNotifier({ from: "working", to: "gone" })).toBe(true);
+  });
+
+  test("un agent qui ATTENDAIT une réponse et s'arrête : oui", () => {
+    // C'était le seul agent qui demandait quelque chose : le taire le rendrait
+    // invisible deux fois — plus de ligne, et plus d'alerte.
+    expect(fautNotifier({ from: "blocked", to: "gone" })).toBe(true);
+  });
+
+  test("un agent au repos qu'on ferme : non", () => {
+    for (const from of ["idle", "done", "unknown", null]) {
+      expect(`${String(from)} → ${String(fautNotifier({ from, to: "gone" }))}`).toBe(
+        `${String(from)} → false`,
+      );
+    }
+  });
+
+  test("la règle d'avant ne change pas : on annonce la FIN d'un travail", () => {
+    expect(fautNotifier({ from: "working", to: "done" })).toBe(true);
+    expect(fautNotifier({ from: "working", to: "blocked" })).toBe(true);
+    expect(fautNotifier({ from: "working", to: "working" })).toBe(false);
+    expect(fautNotifier({ from: "idle", to: "idle" })).toBe(false);
+    expect(fautNotifier({ from: null, to: "idle" })).toBe(false);
   });
 });

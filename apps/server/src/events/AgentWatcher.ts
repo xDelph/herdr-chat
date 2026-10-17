@@ -35,6 +35,33 @@ const signatureOf = (agent: AgentView): string =>
     agent.sessionPath ?? "",
   ].join("\u0000");
 
+/**
+ * Faut-il prévenir l'utilisateur de ce changement d'état ?
+ *
+ * ⚠️ **La règle ignorait les disparitions, et c'est un trou.** Un agent pouvait
+ * s'arrêter — son processus se terminait — sans que rien ne le dise : la ligne
+ * disparaissait de la liste, et une notification ne partait jamais. Mesuré sur
+ * un vrai pane : un agent lancé à 00:25, l'invite affichée 11 h 33, puis le
+ * shell est revenu **sans un mot**, sans rapport de plantage, et Claude Code
+ * avait supprimé son propre fichier d'état — une sortie **propre**.
+ *
+ * ⚠️ **On ne prévient que si quelque chose était en cours** : un agent qui
+ * `working` ou qui `blocked` disparaît, c'est un travail interrompu ou une
+ * question qui n'attend plus. Un agent `idle` ou `done` qu'on ferme est une
+ * fin normale, et le notifier serait du bruit.
+ *
+ * ⚠️ Et la cause n'est **jamais** inventée : Herdr rend `pane.exited` avec son
+ * seul type, **sans code de sortie ni raison** (vérifié au schéma). On dit donc
+ * que l'agent n'est plus là, jamais pourquoi.
+ */
+export const fautNotifier = (change: {
+  readonly from: string | null;
+  readonly to: string;
+}): boolean => {
+  if (change.to === "gone") return change.from === "working" || change.from === "blocked";
+  return change.from === "working" && change.to !== "working";
+};
+
 export interface WatchTick {
   readonly agents: ReadonlyArray<AgentView>;
   readonly changes: ReadonlyArray<{
@@ -42,6 +69,14 @@ export interface WatchTick {
     readonly from: string | null;
     readonly to: string;
     readonly kind: "status" | "appeared" | "disappeared";
+    /**
+     * Dernière vue connue de l'agent, quand il a **disparu**.
+     *
+     * ⚠️ Sans elle, un agent qui s'en va ne peut pas être **nommé** : il n'est
+     * plus dans la liste courante, donc le message serait générique — exactement
+     * le défaut que `nomDeNotification` existe pour éviter.
+     */
+    readonly disparu?: AgentView | undefined;
   }>;
 }
 
@@ -55,18 +90,18 @@ export class AgentWatcher extends Context.Service<AgentWatcher, AgentWatcherApi>
 ) {
   static readonly make = (hub: EventHubApi, notifications?: PushNotificationsApi) =>
     Effect.gen(function* () {
-      const previous = yield* Ref.make<ReadonlyMap<string, { signature: string; status: string }>>(
-        new Map(),
-      );
+      const previous = yield* Ref.make<
+        ReadonlyMap<string, { signature: string; status: string; vue: AgentView }>
+      >(new Map());
 
       const tick = (agents: ReadonlyArray<AgentView>) =>
         Ref.modify(previous, (before) => {
-          const next = new Map<string, { signature: string; status: string }>();
+          const next = new Map<string, { signature: string; status: string; vue: AgentView }>();
           const changes: WatchTick["changes"][number][] = [];
 
           for (const agent of agents) {
             const signature = signatureOf(agent);
-            next.set(agent.paneId, { signature, status: agent.status });
+            next.set(agent.paneId, { signature, status: agent.status, vue: agent });
             const old = before.get(agent.paneId);
             if (old === undefined) {
               // Premier passage : on n'annonce pas « apparu » pour tout le parc,
@@ -91,8 +126,10 @@ export class AgentWatcher extends Context.Service<AgentWatcher, AgentWatcherApi>
 
           for (const paneId of before.keys()) {
             if (!next.has(paneId)) {
+              const connue = before.get(paneId);
               changes.push({
-                from: before.get(paneId)?.status ?? null,
+                ...(connue === undefined ? {} : { disparu: connue.vue }),
+                from: connue?.status ?? null,
                 kind: "disappeared",
                 paneId,
                 to: "gone",
@@ -118,9 +155,11 @@ export class AgentWatcher extends Context.Service<AgentWatcher, AgentWatcherApi>
           Effect.tap((result) =>
             Effect.sync(() => {
               for (const change of result.changes) {
-                if (change.from !== "working" || change.to === "working" || change.to === "gone")
-                  continue;
-                const agent = result.agents.find((candidate) => candidate.paneId === change.paneId);
+                if (!fautNotifier(change)) continue;
+                const agent =
+                  change.to === "gone"
+                    ? change.disparu
+                    : result.agents.find((candidate) => candidate.paneId === change.paneId);
                 void (async () => {
                   try {
                     await notifications?.agentFinished(agent, change.paneId, change.to);

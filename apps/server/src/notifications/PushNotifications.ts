@@ -85,19 +85,35 @@ export const payloadDeNotification = (
   readonly url: string;
 } => {
   const attend = statut === "blocked";
+  /*
+    ⚠️ **Un agent qui n'est plus là n'a pas « fini ».** Son processus s'est
+    terminé — mesuré : un vrai agent a rendu la main sans un mot, sans rapport de
+    plantage, et Claude Code avait supprimé son propre fichier d'état, donc une
+    sortie **propre**. Annoncer « has finished working » ferait croire à une
+    réussite, et c'est faux : son travail a pu être interrompu.
+
+    ⚠️ Et la cause n'est **pas** inventée : Herdr rend `pane.exited` avec son seul
+    type, **sans code de sortie ni raison** (vérifié au schéma). On dit donc
+    qu'il n'est plus là, jamais pourquoi.
+  */
+  const disparu = statut === "gone";
   const connu = titre.length > 0;
+  const corps = (phrase: string, generique: string): string =>
+    connu ? `${titre} ${phrase}` : generique;
   return {
     body: attend
-      ? connu
-        ? `${titre} is waiting for your answer.`
-        : "An agent is waiting for your answer."
-      : connu
-        ? `${titre} has finished working.`
-        : "Your agent has finished working.",
-    // Deux étiquettes distinctes : une question en attente ne doit pas être
-    // remplacée en silence par un « finished » plus tardif pour le même pane.
-    tag: paneId === undefined ? "herdr-agent" : `${attend ? "waiting" : "done"}-${paneId}`,
-    title: attend ? "Agent needs you" : "Agent finished",
+      ? corps("is waiting for your answer.", "An agent is waiting for your answer.")
+      : disparu
+        ? corps("is no longer running.", "An agent is no longer running.")
+        : corps("has finished working.", "Your agent has finished working."),
+    // Trois étiquettes distinctes : une question en attente ne doit pas être
+    // remplacée en silence par un « finished » plus tardif pour le même pane, et
+    // une sortie ne doit pas effacer une question restée sans réponse.
+    tag:
+      paneId === undefined
+        ? "herdr-agent"
+        : `${attend ? "waiting" : disparu ? "gone" : "done"}-${paneId}`,
+    title: attend ? "Agent needs you" : disparu ? "Agent stopped" : "Agent finished",
     url: paneId === undefined ? "/" : `/#/agent/${encodeURIComponent(paneId)}`,
   };
 };

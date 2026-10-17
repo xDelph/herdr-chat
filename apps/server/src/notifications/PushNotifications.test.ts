@@ -61,3 +61,46 @@ describe("payloadDeNotification", () => {
     expect(payloadDeNotification("x", "wB:p16", "done").tag).toBe("done-wB:p16");
   });
 });
+
+/**
+ * Un agent qui **n'est plus là** — et on ne dit pas pourquoi, parce qu'on ne le
+ * sait pas.
+ *
+ * ⚠️ **Mesuré sur un vrai pane.** Un agent lancé à `00:25`, son invite affichée
+ * 11 h 33, puis le shell est revenu **sans un mot** : aucun message à l'écran,
+ * aucun rapport de plantage, et Claude Code avait supprimé son propre fichier
+ * d'état — une sortie **propre**. Herdr, lui, rend `pane.exited` avec son seul
+ * type, **sans code de sortie ni raison** (vérifié au schéma).
+ *
+ * Annoncer « has finished working » ferait croire à une réussite : c'est faux, et
+ * c'est le genre de mensonge qui fait ignorer une alerte.
+ */
+describe("payloadDeNotification — un agent qui n'est plus là", () => {
+  test("il n'a pas « fini », et le message le dit", () => {
+    const payload = payloadDeNotification("pixel · tab 1 · claude", "wF:p5", "gone");
+
+    expect(payload.body).toContain("no longer running");
+    expect(payload.body).not.toContain("finished");
+  });
+
+  test("sans nom connu, la phrase reste générique et lisible", () => {
+    const payload = payloadDeNotification("", "wF:p5", "gone");
+
+    expect(payload.body).toBe("An agent is no longer running.");
+  });
+
+  test("sa propre étiquette, pour ne pas effacer une question sans réponse", () => {
+    // ⚠️ Le `tag` est ce qui fait **coexister** deux bannières : une question en
+    // attente ne doit pas disparaître parce que l'agent s'est arrêté ensuite.
+    expect(payloadDeNotification("x", "wF:p5", "gone").tag).toBe("gone-wF:p5");
+    expect(payloadDeNotification("x", "wF:p5", "blocked").tag).toBe("waiting-wF:p5");
+  });
+
+  test("son propre titre, ni « needs you » ni « finished »", () => {
+    expect(payloadDeNotification("x", "wF:p5", "gone").title).toBe("Agent stopped");
+  });
+
+  test("le clic mène toujours au pane concerné", () => {
+    expect(decodeURIComponent(payloadDeNotification("x", "wF:p5", "gone").url)).toContain("wF:p5");
+  });
+});
