@@ -321,7 +321,9 @@ describe("U19 — un agent qui demande quelque chose reste visible", () => {
     */
     const muet = agent({ agent_status: "blocked", pane_id: "w1:p1" });
 
-    expect(estVisible({ sessionPath: null, status: "blocked", tabPaneCount: 1 })).toBe(true);
+    expect(
+      estVisible({ kind: "claude", sessionPath: null, status: "blocked", tabPaneCount: 1 }),
+    ).toBe(true);
     expect(
       repartirAgents([
         {
@@ -351,13 +353,40 @@ describe("U19 — un agent qui demande quelque chose reste visible", () => {
   });
 
   test("un agent au travail sans session aussi", () => {
-    expect(estVisible({ sessionPath: null, status: "working", tabPaneCount: 1 })).toBe(true);
+    expect(estVisible({ kind: "pi", sessionPath: null, status: "working", tabPaneCount: 1 })).toBe(
+      true,
+    );
   });
 
-  test("un agent au repos et sans session, SEUL dans son onglet, reste masqué", () => {
-    // Il n'a rien à dire, et l'afficher remplirait la liste au démarrage.
-    expect(estVisible({ sessionPath: null, status: "idle", tabPaneCount: 1 })).toBe(false);
-    expect(estVisible({ sessionPath: null, status: "done", tabPaneCount: 1 })).toBe(false);
+  test("un agent au repos, sans session, de type INCONNU, seul : masqué", () => {
+    // Un pane sans agent reconnu n'a rien à dire, et l'afficher remplirait la
+    // liste au démarrage. Le `null` ici n'est pas un détail : c'est ce qui
+    // distingue ce cas du suivant.
+    expect(estVisible({ kind: null, sessionPath: null, status: "idle", tabPaneCount: 1 })).toBe(
+      false,
+    );
+    expect(estVisible({ kind: null, sessionPath: null, status: "done", tabPaneCount: 1 })).toBe(
+      false,
+    );
+  });
+
+  /*
+    ⚠️ **La régression du 2026-10-17, et le seul cas où ce test pouvait échouer.**
+    `wB:p1B`, un agent codex du workspace `herdr-pwa` qui avait réellement
+    travaillé : sa session est sur le disque, mais Herdr ne la publiait plus
+    (`pane.report_agent_session` en erreur). Sans session exposée, `done`, seul
+    dans son onglet, il **disparaissait de la liste** — l'utilisateur ne voyait
+    plus l'agent. On ne conclut plus « pas de session » = « rien à dire » pour une
+    famille dont on sait lire la session : on refuse de faire disparaître
+    l'agent. Aucun contenu n'est inventé pour autant — son panneau reste neutre.
+  */
+  test("un agent codex sans session exposée ne DISPARAÎT pas", () => {
+    expect(estVisible({ kind: "codex", sessionPath: null, status: "done", tabPaneCount: 1 })).toBe(
+      true,
+    );
+    expect(estVisible({ kind: "codex", sessionPath: null, status: "idle", tabPaneCount: 1 })).toBe(
+      true,
+    );
   });
 
   test("dans un onglet à plusieurs panes, même au repos il est visible", () => {
@@ -366,11 +395,15 @@ describe("U19 — un agent qui demande quelque chose reste visible", () => {
       ensemble. Masquer les vérificateurs au repos cacherait la moitié du tab, et
       l'utilisateur ne saurait même pas qu'ils existent.
     */
-    expect(estVisible({ sessionPath: null, status: "idle", tabPaneCount: 5 })).toBe(true);
+    expect(estVisible({ kind: null, sessionPath: null, status: "idle", tabPaneCount: 5 })).toBe(
+      true,
+    );
   });
 
   test("une session lisible reste visible, quel que soit l'état", () => {
-    expect(estVisible({ sessionPath: "/s/a.jsonl", status: "done", tabPaneCount: 1 })).toBe(true);
+    expect(
+      estVisible({ kind: null, sessionPath: "/s/a.jsonl", status: "done", tabPaneCount: 1 }),
+    ).toBe(true);
   });
 
   test("le rang vient de la DISPOSITION, pas de l'ordre des agents", async () => {

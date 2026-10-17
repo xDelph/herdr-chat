@@ -269,6 +269,7 @@ export const makeConversationRoutes = (config: ServerConfig, herdr: HerdrApi) =>
       // un chemin de fichier ? » — opencode lit une base.
       const source = sessionSourceOf(agent);
       return estVisible({
+        kind: agent.agent ?? null,
         sessionPath: source?.base ?? null,
         status: agent.agent_status,
         tabPaneCount: naming.panes.get(pane.pane_id)?.tabPaneCount ?? 1,

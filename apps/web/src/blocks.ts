@@ -1002,15 +1002,30 @@ export const ID_TRAVAIL_EN_COURS = "travail:en-cours";
  * encore. « Working » sans durée est exact ; une durée calculée sur l'horloge de
  * l'écran mesurerait l'écran, pas l'agent.
  *
- * ⚠️ **Rien n'est ajouté sur une conversation vide** : l'état vide dit déjà sa
- * cause (« Pi creates a session when it receives its first message »), et un
- * « Working » posé dessus le contredirait.
+ * ⚠️ **Le bloc ne dépend PAS d'une session lisible.** Le statut `working` vient
+ * d'Herdr et il est vérifié ; l'absence de transcription en est un **autre** fait,
+ * et les deux ne se contredisent pas.
+ *
+ * Défaut mesuré le 2026-10-17 sur `wB:p1B`, un agent codex qui a réellement
+ * tourné : sa session existe sur le disque
+ * (`~/.codex/sessions/2026/10/17/rollout-…-01a14a74-….jsonl`, cwd `herdr-pwa`),
+ * mais Herdr ne l'expose plus — son propre journal le dit, au moment exact de
+ * la création de la session :
+ *
+ * ```
+ * api request completed outcome=error method="pane.report_agent_session"
+ * ```
+ *
+ * L'agent travaillait, la route rendait `404 no usable session path`, donc la
+ * conversation était vide, donc `items` était vide — et l'écran **muet** pendant
+ * tout le travail. C'est exactement le « je n'ai pas le bloc de travail » du
+ * rapport. Le bloc doit donc se décider sur le **statut**, pas sur le contenu.
  */
 export const avecTravailEnCours = (
   items: ReadonlyArray<Item>,
   enCours: boolean,
 ): ReadonlyArray<Item> => {
-  if (!enCours || items.length === 0) return items;
+  if (!enCours) return items;
   // Un groupe d'outils déjà en cours montre déjà son propre « Working ».
   if (items.at(-1)?.kind === "tools") return items;
   return [

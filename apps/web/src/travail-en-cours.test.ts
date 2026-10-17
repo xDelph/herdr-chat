@@ -103,9 +103,30 @@ describe("le bloc de travail démarre avec le statut", () => {
     expect(idDe(items.at(-1))).toBe("travail:m2");
   });
 
-  test("une conversation vide ne reçoit pas de « Working »", () => {
-    // L'état vide dit déjà sa cause ; un « Working » posé dessus le contredirait.
-    expect(avecTravailEnCours([], true).length).toBe(0);
+  /*
+    ⚠️ **Le contraire était vrai, et c'est la régression du 2026-10-17.**
+    La règle disait « une conversation vide ne reçoit pas de Working : l'état vide
+    dit déjà sa cause et un Working le contredirait ». Or les deux faits sont
+    distincts : l'état vide dit « la **transcription** n'est pas publiée », le
+    bloc dit « l'**agent** tourne ». Un agent codex réel (`wB:p1B`) travaillait
+    pendant des minutes avec cet écran muet, parce qu'Herdr ne publiait plus sa
+    session (`pane.report_agent_session` en erreur). Le statut est vérifié ; on
+    l'affiche.
+  */
+  test("une conversation vide reçoit quand même « Working »", () => {
+    const items = avecTravailEnCours([], true);
+
+    expect(items.length).toBe(1);
+    expect(items.at(-1)?.kind).toBe("tools");
+  });
+
+  test("ce « Working » se voit à l'écran, sans contenu", () => {
+    const html = rendu(avecTravailEnCours([], true), true);
+
+    expect(html).toContain('class="group__titre">Working<');
+    // Rien à montrer, rien de montré : ni corps, ni chevron, ni chiffre.
+    expect(html).not.toContain("group__body");
+    expect(html).not.toContain("group__chevron");
   });
 });
 

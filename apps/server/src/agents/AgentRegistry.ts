@@ -23,7 +23,7 @@ import type {
   WorkspaceInfo,
 } from "@herdr-remote/shared";
 import { readHeader } from "../sessions/SessionReader.ts";
-import { sessionLisible } from "./Lisibilite.ts";
+import { sessionLisible, typeLisible } from "./Lisibilite.ts";
 import { sourceSession } from "./SessionLocator.ts";
 
 /** Vue d'un agent exposée à l'interface. */
@@ -315,12 +315,26 @@ export const toWorkspaceViews = (
  *    restaient invisibles, alors que le tab est justement l'unite de travail
  *    qu'on veut voir entiere.
  *
- * La regle est donc : **lisible, OU l'etat demande quelque chose, OU le tab
- * compte plusieurs panes.**
+ * 3. Elle ignorait le **type** de l'agent. Un agent dont on **sait** lire la
+ *    session n'est pourtant pas un agent muet : c'est un agent dont Herdr n'a pas
+ *    publie la session.
  *
- * ⚠️ `idle` et `done` sans session restent masques **quand l'agent est seul dans
- * son tab** : ils n'ont rien a dire, et les afficher remplirait la liste au
- * demarrage de chaque agent.
+ * ⚠️ **Mesure du 2026-10-17, `wB:p1B`.** Un agent codex qui avait reellement
+ * travaille (sa session est sur le disque, `~/.codex/sessions/2026/10/17/`) a
+ * **disparu de la liste** : plus de session exposee, etat `done`, seul dans son
+ * onglet. Sa session existait ; c'est `pane.report_agent_session` du cote
+ * d'Herdr qui echouait (« api request completed outcome=error », au moment exact
+ * de la creation de la session). L'application l'a donc masque **alors qu'il
+ * venait de travailler** — le seul agent qu'on veut voir est celui qu'on ne voit
+ * plus. Conclure « pas de session » = « rien a dire » etait une premisse fausse.
+ *
+ * La regle est donc : **lisible, OU l'etat demande quelque chose, OU le tab
+ * compte plusieurs panes, OU le type est un type dont on sait lire la session.**
+ *
+ * ⚠️ Le dernier cas est le plus faible des quatre, et c'est assume : il dit
+ * seulement « cette famille d'agent produit une session que nous savons lire ».
+ * Il ne montre **aucun** contenu — un agent sans session ouverte garde son
+ * panneau neutre. Il refuse juste de faire disparaitre l'agent.
  *
  * ⚠️ La signature est **structurelle** et pas `AgentView` : la route des
  * conversations travaille sur l'`AgentInfo` brut, et elle doit appliquer la meme
@@ -331,17 +345,36 @@ export const attireLeRegard = (status: AgentStatus): boolean =>
   status === "blocked" || status === "working";
 
 export const estVisible = (agent: {
+  readonly kind: string | null;
   readonly sessionPath: string | null;
   readonly status: AgentStatus;
   readonly tabPaneCount: number;
 }): boolean =>
-  sessionLisible(agent.sessionPath) || attireLeRegard(agent.status) || agent.tabPaneCount > 1;
+  sessionLisible(agent.sessionPath) ||
+  attireLeRegard(agent.status) ||
+  agent.tabPaneCount > 1 ||
+  typeLisible(agent.kind ?? "");
 
 export const repartirAgents = (
   tous: ReadonlyArray<AgentView>,
 ): { readonly agents: ReadonlyArray<AgentView>; readonly masquees: number } => ({
-  agents: tous.filter((agent) => estVisible(agent)),
-  masquees: tous.filter((agent) => !estVisible(agent)).length,
+  agents: tous.filter((agent) =>
+    estVisible({
+      kind: agent.agent,
+      sessionPath: agent.sessionPath,
+      status: agent.status,
+      tabPaneCount: agent.tabPaneCount,
+    }),
+  ),
+  masquees: tous.filter(
+    (agent) =>
+      !estVisible({
+        kind: agent.agent,
+        sessionPath: agent.sessionPath,
+        status: agent.status,
+        tabPaneCount: agent.tabPaneCount,
+      }),
+  ).length,
 });
 
 /**
