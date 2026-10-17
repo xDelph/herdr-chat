@@ -202,3 +202,78 @@ describe("PromptSender — prompt ou frappes, jamais confondus", () => {
     expect(second.status).toBe("sent");
   });
 });
+
+/**
+ * Le mode se décide sur le **refus**, pas sur le statut.
+ *
+ * ⚠️ **Le défaut que cette section verrouille, et il a rendu un pane
+ * inutilisable.** Le choix « prompt ou frappes » se faisait sur `agent_status`.
+ * Or ce statut ment : mesuré sur un onglet à cinq panes, codex attendait une
+ * décision (« Hooks need review ») pendant que Herdr le déclarait **`idle`**. Le
+ * prompt partait donc par `agent.prompt`, était refusé, et il n'y avait **aucun
+ * moyen d'agir sur ce pane depuis le téléphone**.
+ *
+ * Herdr nomme lui-même la raison de son refus : dans ce cas, on refait par les
+ * frappes — le seul chemin vers une invite interactive.
+ */
+describe("PromptSender — le refus déclenche les frappes", () => {
+  const refus = JSON.stringify({
+    error: {
+      code: "agent_prompt_failed",
+      message: "agent w1:p1 is blocked and requires interactive input",
+    },
+    id: "r1",
+  });
+
+  test("un prompt refusé pour saisie interactive repart en FRAPPES", async () => {
+    const trace: Array<string> = [];
+    const sender = senderTrace(trace, [refus, prompted("r2"), prompted("r3")]);
+
+    const outcome = await Effect.runPromise(sender.send("w1:p1", "ma réponse", 1_000));
+
+    expect(outcome.status).toBe("sent");
+    expect(trace).toEqual(["agent.prompt", "pane.send_text", "agent.send_keys"]);
+  });
+
+  test("la confirmation dit ce qui est PROUVÉ, pas ce qu'on espère", async () => {
+    /*
+      ⚠️ `agent.prompt` répond `agent_prompted` : Herdr a soumis le prompt. Les
+      frappes, elles, prouvent seulement qu'il a **écrit** le texte. Annoncer
+      « confirmed » dans les deux cas afficherait comme envoyé un texte que
+      personne n'a lu.
+    */
+    const trace: Array<string> = [];
+    const sender = senderTrace(trace, [refus, prompted("r2"), prompted("r3")]);
+
+    const outcome = await Effect.runPromise(sender.send("w1:p1", "ma réponse", 1_000));
+
+    expect(outcome.confirmation).toBe("unknown");
+  });
+
+  test("un refus d'une AUTRE nature ne bascule pas en frappes", async () => {
+    // ⚠️ Garde-fou : sans lui, tout refus essaierait les frappes, y compris une
+    // panne de transport — on écrirait du texte dans des panes au hasard.
+    const trace: Array<string> = [];
+    const autre = JSON.stringify({
+      error: { code: "agent_prompt_failed", message: "target not found" },
+      id: "r1",
+    });
+    const sender = senderTrace(trace, [autre]);
+
+    const result = await Effect.runPromise(Effect.result(sender.send("w1:p1", "x", 1_000)));
+
+    expect(Result.isFailure(result)).toBe(true);
+    expect(trace).toEqual(["agent.prompt"]);
+  });
+
+  test("en mode frappes déclaré, rien n'est tenté par `agent.prompt`", async () => {
+    // Le mode explicite reste : il évite un aller-retour inutile quand le statut
+    // est fiable (un agent bloqué le dit alors correctement).
+    const trace: Array<string> = [];
+    const sender = senderTrace(trace, [prompted("r1"), prompted("r2")]);
+
+    await Effect.runPromise(sender.send("w1:p1", "ma réponse", 1_000, true));
+
+    expect(trace).toEqual(["pane.send_text", "agent.send_keys"]);
+  });
+});

@@ -33,11 +33,13 @@ import type { TailedSession } from "../sessions/SessionReader.ts";
 import { moteurOpencode } from "../sessions/OpencodeReader.ts";
 import { moteurDevin } from "../sessions/DevinReader.ts";
 import type { SourceSession } from "../agents/SessionLocator.ts";
+import { isTrustPrompt } from "../agents/TrustPrompt.ts";
 import { questionDeLEcran } from "@herdr-remote/shared";
 import { brancheDe as branchOf } from "../git/Branche.ts";
 import { sessionSourceOf } from "./routes-sessions.ts";
 import { decodeSnapshot } from "./Reply.ts";
 import { ConversationsResponse } from "@herdr-remote/shared";
+import type { AgentStatus } from "@herdr-remote/shared";
 import type { HerdrApi } from "../herdr/HerdrClient.ts";
 import type { ServerConfig } from "../config.ts";
 
@@ -137,6 +139,33 @@ const toRawPane = (
     title: null,
   };
 };
+
+/**
+ * Faut-il lire l'écran de cette conversation ?
+ *
+ * ⚠️ **La règle a changé, et une mesure l'a imposée.** Elle était
+ * `status === "blocked"`. Or Herdr peut déclarer **`idle`** un agent qui attend
+ * une décision : mesuré sur un onglet à cinq panes, codex affichait « Hooks need
+ * review » pendant que son statut était `idle`. Son écran n'était donc jamais lu,
+ * aucune carte n'apparaissait, et le pane était **inutilisable depuis le
+ * téléphone** — alors que l'analyseur aurait lu ses trois choix très bien.
+ *
+ * La règle est donc : on lit l'écran d'un agent **qui n'a rien à montrer** (ni
+ * aperçu, ni dernière demande) ou qui est bloqué. C'est exactement l'agent neuf
+ * qui attend une décision — et sur une installation où tous les agents ont déjà
+ * parlé, cela ne coûte **aucune lecture supplémentaire**.
+ *
+ * ⚠️ Jamais pour un agent **au travail** : il ne peut pas attendre une réponse en
+ * même temps, et lire son écran à chaque rafraîchissement serait une dépense sans
+ * contrepartie.
+ */
+export const fautLireLEcran = (ligne: {
+  readonly status: AgentStatus;
+  readonly preview?: string | undefined;
+  readonly lastPrompt?: string | undefined;
+}): boolean =>
+  ligne.status !== "working" &&
+  (ligne.status === "blocked" || (ligne.preview === undefined && ligne.lastPrompt === undefined));
 
 export const makeConversationRoutes = (config: ServerConfig, herdr: HerdrApi) => {
   // Gardé au niveau du routeur pour que le résumé réutilise son cache entre
@@ -269,32 +298,68 @@ export const makeConversationRoutes = (config: ServerConfig, herdr: HerdrApi) =>
     });
 
     /*
-      La question posée à l'écran, pour les seuls panes **bloqués**.
+      Les invites posées à l'écran — **lues sur le terminal**, jamais dans la
+      session.
 
       ⚠️ **Pourquoi ici, et pas dans la session.** Une invite n'est écrite nulle
-      part dans le JSONL : elle n'existe que sur le terminal. `agent.read` la
-      donne. On ne la lit que pour les panes bloqués : c'est le seul état où
-      quelqu'un attend une réponse, et lire 200 lignes d'écran pour un agent au
-      repos serait une dépense sans contrepartie.
+      part dans le JSONL : elle n'existe que sur l'écran. `agent.read` la donne.
+
+      ⚠️ **Quand on lit, et pourquoi ce n'est plus « quand c'est bloqué ».** La
+      condition était `status === "blocked"`. Mesuré le 2026-10-16 sur un onglet
+      à cinq panes : codex attendait une décision (« Hooks need review ») pendant
+      que Herdr le déclarait **`idle`**. Son écran n'était donc jamais lu, aucune
+      carte n'apparaissait, et le pane était **inutilisable depuis le
+      téléphone** — alors que l'analyseur aurait lu ses trois choix très bien.
+
+      La règle est donc : on lit l'écran d'un agent **qui n'a rien à montrer**
+      (ni aperçu, ni dernière demande) ou qui est bloqué. C'est exactement l'agent
+      neuf qui attend une décision — et, sur une installation où tous les agents
+      ont déjà parlé, **aucune lecture supplémentaire**.
     */
-    const avecQuestion = await Promise.all(
+    const dossiers = new Map(
+      (decoded.agents ?? []).map((agent) => [agent.pane_id, agent.cwd ?? null]),
+    );
+
+    const avecInvites = await Promise.all(
       lignes.map(async (ligne) => {
-        if (ligne.status !== "blocked") return ligne;
-        const lecture = // `visible` : un agent bloqué est en écran alternatif, où l'historique
+        if (!fautLireLEcran(ligne)) return ligne;
+
+        const lecture = // `visible` : un agent bloque est en ecran alternatif, ou l'historique
           // est illisible — seule la vue courante l'est.
           await Effect.runPromise(Effect.result(herdr.readAgent(ligne.paneId, 200, "visible")));
         if (Result.isFailure(lecture)) return ligne;
         const ecran = (Option.getOrUndefined(Result.getSuccess(lecture))?.text ?? "").trim();
         if (ecran.length === 0) return ligne;
+
         const question = questionDeLEcran(ecran);
-        // Pas de `{ ...ligne, question }` : la recopie d'objet dans un `map`
-        // est le motif que le lint refuse ici (no-map-spread).
-        return question === undefined ? ligne : Object.assign({}, ligne, { question });
+        // Pas de `{ ...ligne, question }` : la recopie d'objet dans un `map` est
+        // le motif que le lint refuse ici (no-map-spread).
+        if (question !== undefined) return Object.assign({}, ligne, { question });
+
+        /*
+          ⚠️ **L'invite de confiance, et pas seulement les choix numérotés.**
+          Claude présente une sélection sans numéro, que `questionDeLEcran` refuse
+          à juste titre (ce n'est pas une question à choix numérotés). Sans ce
+          second détecteur, son pane restait bloqué **sans rien à l'écran** pour
+          le dire.
+        */
+        if (!isTrustPrompt(ecran)) return ligne;
+        const dossier = dossiers.get(ligne.paneId) ?? null;
+        const lisible = dossier ?? ligne.title;
+        return Object.assign({}, ligne, {
+          trust: {
+            folder: lisible,
+            kind: ligne.agent ?? "agent",
+            message: `${ligne.agent ?? "this agent"} is asking to trust “${lisible}”. It will be able to read, write and run code there — including without asking again. This answer is recorded permanently.`,
+            paneId: ligne.paneId,
+            status: "trust-required" as const,
+          },
+        });
       }),
     );
 
     return respond(config.logPath, decoderOf(ConversationsResponse), {
-      conversations: avecQuestion,
+      conversations: avecInvites,
     });
   };
 

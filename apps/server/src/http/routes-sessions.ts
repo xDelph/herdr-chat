@@ -328,7 +328,19 @@ export const makeSessionRoutes = (config: ServerConfig, herdr: HerdrApi) => {
         const failure = failureOf(result);
         // Un chemin refusé (S03) est une **décision**, pas une panne : 403 et la
         // cause exacte, là où tout le reste reste un 502.
-        if (failure instanceof SessionPathRejected) {
+        /*
+          ⚠️ **Toutes les raisons de rejet ne sont pas des intrusions.**
+
+          Cette branche rendait un 403 pour **tout** `SessionPathRejected`, y
+          compris `chemin-absent` — c'est-à-dire « le fichier n'existe pas
+          encore ». Elle passait donc **avant** la classification ajoutée dans
+          `ReadCause`, et la rendait inopérante : un agent qui venait de démarrer
+          répondait 403 « missing session », et la liste l'affichait en `error`.
+
+          Seules les vraies intrusions gardent leur 403. `chemin-absent` tombe
+          dans la classification, qui en fait une absence — bénigne.
+        */
+        if (failure instanceof SessionPathRejected && failure.reason !== "chemin-absent") {
           return respond(
             config.logPath,
             decoderOf(ApiErrorResponse),

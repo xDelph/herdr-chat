@@ -533,6 +533,18 @@ export const ConversationSummary = Schema.Struct({
    */
   question: Schema.optional(Question),
   /**
+   * Invite de **confiance** à l'écran : un agent attend qu'on approuve un dossier.
+   *
+   * ⚠️ **Même forme que celle du lancement**, et c'est volontaire : la carte qui
+   * la présente et la route qui y répond sont **les mêmes**. Deux formes
+   * auraient donné deux cartes et deux décisions pour une seule question.
+   *
+   * ⚠️ Distincte de `question` : l'invite de confiance n'a pas toujours de choix
+   * numérotés (claude présente une **sélection**), donc elle ne passe pas par le
+   * même chemin de réponse.
+   */
+  trust: Schema.optional(TrustRequiredResponse),
+  /**
    * Niveau de raisonnement en vigueur (`thinking_level_change`, ou le message).
    *
    * ⚠️ Chaque source lui donne un nom différent — `thinkingLevel` chez pi,

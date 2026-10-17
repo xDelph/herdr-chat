@@ -109,3 +109,31 @@ describe("le chargement d'une session ne dépend pas du statut", () => {
     );
   });
 });
+
+/**
+ * Sans session, on ne demande rien — et on ne crie pas au loup.
+ *
+ * ⚠️ **Le défaut mesuré.** Herdr n'annonce `agent_session` qu'à partir du premier
+ * message : un agent neuf a `sessionPath === null`, et la route répond 404
+ * « no usable session path for this agent ». L'écran affichait alors un **avis**
+ * *et* une **erreur rouge** pour la même absence — sur un agent qui venait
+ * simplement de démarrer, et dont l'écran portait par ailleurs l'invite de
+ * confiance.
+ */
+describe("U20 — sans chemin de session, aucun appel", () => {
+  const ecran = readFileSync(join(import.meta.dir, "ChatScreen.tsx"), "utf8");
+
+  test("le chargement sort avant tout appel", () => {
+    expect(ecran).toContain("if (agent.sessionPath === null) {");
+    const garde = ecran.slice(ecran.indexOf("if (agent.sessionPath === null) {"));
+    // ⚠️ La garde doit précéder l'appel : la sortie est ce qui évite le 404.
+    expect(garde.slice(0, 200)).toContain("return;");
+    expect(garde.slice(0, 200)).not.toContain("fetchSession");
+  });
+
+  test("un chemin qui apparaît plus tard est REPRIS", () => {
+    // ⚠️ Sans `sessionPath` dans les dépendances, la garde resterait figée sur
+    // « pas de session » et l'écran ne chargerait jamais rien.
+    expect(ecran).toContain("[agent.paneId, agent.sessionPath],");
+  });
+});

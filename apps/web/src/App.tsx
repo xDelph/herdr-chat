@@ -550,6 +550,17 @@ export const App = () => {
       ? undefined
       : conversations.find((ligne) => ligne.paneId === agentAffiche.paneId)?.question;
 
+  /**
+   * L'invite de confiance de cet agent, si son écran en porte une.
+   *
+   * ⚠️ Elle vient de la **liste**, comme la question : elle suit donc le même
+   * rafraîchissement, et la carte disparaît d'elle-même dès que l'agent reprend.
+   */
+  const trustAffiche =
+    agentAffiche === null
+      ? undefined
+      : conversations.find((ligne) => ligne.paneId === agentAffiche.paneId)?.trust;
+
   if (route.kind === "agent" && agentAffiche !== null) {
     return (
       <div className="app">
@@ -573,6 +584,7 @@ export const App = () => {
           currentThinking={selectedConversation?.thinking}
           onBack={closeAgent}
           question={questionAffichee}
+          trust={trustAffiche}
         />
       </div>
     );

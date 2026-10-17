@@ -94,7 +94,14 @@ const decodePromptBody = Schema.decodeUnknownOption(PromptBody);
 const decodeAgentStatus = Schema.decodeUnknownOption(
   Schema.Struct({
     agent: Schema.optional(
-      Schema.NullOr(Schema.Struct({ agent_status: Schema.optional(Schema.String) })),
+      Schema.NullOr(
+        Schema.Struct({
+          // ⚠️ Le champ `agent` **d'un agent** est son type (« pi », « claude »).
+          // Le nom est trompeur, mais c'est celui de Herdr.
+          agent: Schema.optional(Schema.NullOr(Schema.String)),
+          agent_status: Schema.optional(Schema.String),
+        }),
+      ),
     ),
   }),
 );
@@ -214,8 +221,17 @@ const makeAnswerTrust =
       );
     }
     const paneId = request.params["paneId"] ?? "";
+    /*
+      ⚠️ **La famille d'agent est lue depuis Herdr, jamais reçue du client.** Les
+      touches qui accordent la confiance en dépendent (options numérotées chez
+      codex, sélection chez claude), et un client périmé enverrait les mauvaises.
+    */
+    const fiche = await Effect.runPromise(Effect.result(herdr.getAgent(paneId)));
+    const decodee = Result.isSuccess(fiche)
+      ? Option.getOrUndefined(decodeAgentStatus(Result.getSuccess(fiche)))
+      : undefined;
     const result = await Effect.runPromise(
-      Effect.result(respondToTrust(herdr, paneId, body.accept)),
+      Effect.result(respondToTrust(herdr, paneId, body.accept, decodee?.agent?.agent ?? null)),
     );
     if (Result.isFailure(result)) {
       const failure = failureOf(result);

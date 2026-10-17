@@ -12,6 +12,7 @@
  * - **Aucun « non lu »** : Herdr n'expose aucun compteur exploitable.
  */
 import { Effect, Option, Result } from "effect";
+import { classifyReadFailure } from "../sessions/ReadCause.ts";
 import type { AgentStatus, ConversationSummary } from "@herdr-remote/shared";
 import {
   fileSize,
@@ -435,7 +436,30 @@ export const summaryOf = (
 
     const tailed = yield* Effect.result(read(path));
     if (Result.isFailure(tailed)) {
-      return { ...base, sessionState: "error" as const };
+      /*
+        ⚠️ **La cause est classée, elle n'est pas devinée.** Cette branche
+        marquait `error` pour **toute** lecture en échec — y compris un fichier
+        pas encore écrit. Un agent qui venait de démarrer s'affichait donc en
+        `error` dans la liste, ce qui envoie chercher une panne inexistante ;
+        mesure faite sur un onglet à cinq panes, le pane `pi` était dans ce cas.
+
+        Une absence reste une absence : la session existe, elle est vide. Seules
+        les causes non bénignes (E/S, permission, contenu illisible) sont des
+        erreurs.
+      */
+      /*
+        ⚠️ `Result.getFailure` rend un **`Option`**, pas l'erreur : vérifié dans
+        `effect/dist/Result.d.ts` (« extract the failure value as an Option »). Le
+        passer tel quel au classificateur le faisait tomber sur son cas par défaut
+        — `io` — et **toute** absence redevenait une erreur. La correction
+        ci-dessus ne servait donc à rien tant que ce déballage manquait.
+      */
+      const verdict = classifyReadFailure(Option.getOrUndefined(Result.getFailure(tailed)));
+      return {
+        ...base,
+        ...(verdict.benign ? {} : { cause: verdict.cause }),
+        sessionState: verdict.benign ? ("available" as const) : ("error" as const),
+      };
     }
 
     const value = Option.getOrUndefined(Result.getSuccess(tailed));

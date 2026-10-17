@@ -33,6 +33,35 @@ import type { HerdrApi, HerdrError } from "../herdr/HerdrClient.ts";
  */
 const TRUST_MARKERS = ["trust this folder", "trust this directory"];
 
+/**
+ * Les touches qui **accordent** la confiance, par famille d'agent.
+ *
+ * ⚠️ **Mesuré, pas deviné — et il fallait le mesurer, car les deux familles ne
+ * répondent pas du même geste.**
+ *
+ * - **codex** présente des options **numérotées** (`› 1. … / 2. …`) : on choisit
+ *   par le chiffre, puis `enter` ;
+ * - **claude** présente une **sélection** sans numéro :
+ *
+ *       ❯ No, exit
+ *         Yes, I trust this folder
+ *
+ *   L'option qui accorde n'est ni la première ni numérotée, donc le chiffre `1`
+ *   de codex ne ferait **rien** — ou pire, choisirait « No, exit ». Il faut
+ *   descendre la surbrillance puis valider.
+ *
+ * ⚠️ Vocabulaire des touches mesuré le 2026-10-16 sur un pane réel
+ * (`agent.send_keys` avec `["down"]` a déplacé la surbrillance de « No, exit » à
+ * « Yes, I trust this folder », puis `["up"]` l'a remise — **sans jamais
+ * valider**, donc sans accorder la confiance). Herdr ne déclare pas ses noms de
+ * touches au schéma : « key names are herdr's own spellings ».
+ */
+export const touchesDeConfiance = (kind: string | null, accept: boolean): ReadonlyArray<string> => {
+  if (kind === "claude") return accept ? ["down", "enter"] : ["enter"];
+  // codex et les autres : options numérotées. `1` accorde, `2` refuse.
+  return accept ? ["1", "enter"] : ["2"];
+};
+
 /** `true` si l'invite de confiance est réellement à l'écran. */
 export const isTrustPrompt = (screen: string): boolean => {
   const normalized = screen.toLowerCase();
@@ -59,6 +88,8 @@ export const respondToTrust = (
   herdr: HerdrApi,
   paneId: string,
   accept: boolean,
+  /** Famille de l'agent : les touches en dépendent, et c'est mesuré. */
+  kind: string | null = null,
 ): Effect.Effect<
   {
     readonly accepted: boolean;
@@ -82,9 +113,8 @@ export const respondToTrust = (
       };
     }
 
-    // `1` puis `enter` : l'option « faire confiance » est la première, mais on
-    // ne suppose pas qu'elle est déjà sélectionnée.
-    const keys = accept ? ["1", "enter"] : ["2"];
+    // Les touches viennent de la famille d'agent : voir `touchesDeConfiance`.
+    const keys = touchesDeConfiance(kind, accept);
     yield* herdr.sendKeys(paneId, keys);
 
     // Relecture : l'acceptation est un **fait observé**, pas une intention.

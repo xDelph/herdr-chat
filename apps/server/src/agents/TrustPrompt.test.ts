@@ -11,7 +11,7 @@ import { Effect } from "effect";
 import { isTrustPrompt } from "./TrustPrompt.ts";
 import type { HerdrApi, HerdrError } from "../herdr/HerdrClient.ts";
 import { HerdrProtocolError } from "../herdr/HerdrClient.ts";
-import { respondToTrust } from "./TrustPrompt.ts";
+import { respondToTrust, touchesDeConfiance } from "./TrustPrompt.ts";
 
 /** Écran réel relevé sur un pane de test (codex, dossier non approuvé). */
 const TRUST_SCREEN = `
@@ -139,5 +139,47 @@ describe("TrustPrompt — rien n'est envoyé si l'invite n'est pas là", () => {
     expect(outcome.accepted).toBe(false);
     expect(outcome.state).toBe("refusee");
     expect(sent).toEqual([["2"]]);
+  });
+});
+
+/**
+ * Les touches qui accordent la confiance **dépendent de la famille**, et c'est
+ * mesuré.
+ *
+ * ⚠️ **Le défaut que cette section verrouille.** `respondToTrust` envoyait
+ * `["1", "enter"]`, ce qui est la forme de codex — des options **numérotées**.
+ * Claude présente une **sélection** sans numéro :
+ *
+ *     ❯ No, exit
+ *       Yes, I trust this folder
+ *
+ * `1` n'y fait rien (ou pire, si la liste était numérotée dans un autre ordre,
+ * choisirait « No, exit »). Il faut **descendre la surbrillance** puis valider.
+ *
+ * ⚠️ Le vocabulaire des touches est mesuré, pas deviné : `["down"]` a réellement
+ * déplacé la surbrillance de « No, exit » à « Yes, I trust this folder » sur un
+ * pane réel, puis `["up"]` l'a remise — **sans jamais valider**, donc sans
+ * accorder la confiance. Herdr ne déclare pas ses noms de touches.
+ */
+describe("les touches de confiance, par famille", () => {
+  test("claude : une SÉLECTION, donc descendre puis valider", () => {
+    expect(touchesDeConfiance("claude", true)).toEqual(["down", "enter"]);
+  });
+
+  test("claude : refuser, c'est valider l'option déjà surlignée", () => {
+    // `❯ No, exit` est la première : elle est surlignée d'origine (relevé).
+    expect(touchesDeConfiance("claude", false)).toEqual(["enter"]);
+  });
+
+  test("codex : des options NUMÉROTÉES, donc un chiffre", () => {
+    expect(touchesDeConfiance("codex", true)).toEqual(["1", "enter"]);
+    expect(touchesDeConfiance("codex", false)).toEqual(["2"]);
+  });
+
+  test("une famille inconnue suit la forme numérotée", () => {
+    // Le cas mesuré à l'origine, et le plus répandu : on ne devine pas une
+    // sélection pour un agent dont on n'a rien mesuré.
+    expect(touchesDeConfiance(null, true)).toEqual(["1", "enter"]);
+    expect(touchesDeConfiance("pasunagent", false)).toEqual(["2"]);
   });
 });

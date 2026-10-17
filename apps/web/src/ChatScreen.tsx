@@ -28,6 +28,8 @@ import { avecTravailEnCours, toItems, toMessages, touchedFilesOf } from "./block
 import { fusionnerEntrees } from "./messages.ts";
 import { agentName, headerContext, headerReglages, statusClass } from "./labels.tsx";
 import { TabPanes } from "./TabPanes.tsx";
+import { TrustCard } from "./TrustCard.tsx";
+import type { TrustRequired } from "./api.ts";
 import { FileOpenerContext, ItemsView, UrlOpenerContext } from "./Blocks.tsx";
 import { FilesSheet } from "./Files.tsx";
 import { ModelSheet } from "./ModelSheet.tsx";
@@ -41,6 +43,7 @@ export const ChatScreen = ({
   currentThinking,
   onBack,
   question,
+  trust,
   voisins,
   onOuvrirVoisin,
 }: {
@@ -54,6 +57,16 @@ export const ChatScreen = ({
   onBack: () => void;
   /** Question posée à l'écran, quand l'agent en attend une. */
   question?: Question | undefined;
+  /**
+   * Invite de confiance à l'écran.
+   *
+   * ⚠️ **Distincte de la question, et pas par commodité** : une invite de
+   * confiance n'a pas toujours de choix numérotés (claude présente une
+   * sélection), donc elle ne peut pas passer par le chemin de réponse d'une
+   * question. La carte est celle du lancement — une seule carte, une seule
+   * route, une seule décision.
+   */
+  trust?: TrustRequired | undefined;
 }) => {
   type EnvoiLocal = {
     readonly baseline: number;
@@ -182,6 +195,22 @@ export const ChatScreen = ({
 
   const load = useCallback(
     async (mode: "initial" | "incremental") => {
+      /*
+        ⚠️ **Pas de session : il n'y a rien à lire, donc on ne demande rien.**
+
+        Herdr n'annonce `agent_session` qu'à partir du premier message : un agent
+        neuf a `sessionPath === null`, et la route répond alors 404 « no usable
+        session path for this agent ». L'écran affichait donc un **avis** *et* une
+        **erreur rouge** pour la même absence — crier au loup sur un agent qui
+        démarre. L'absence est déjà dite par l'avis ; ici on constate simplement
+        qu'il n'y a rien à appeler.
+      */
+      if (agent.sessionPath === null) {
+        setPhase("ready");
+        // Le chargement des pages précédentes n'a plus d'objet non plus.
+        setPreviousCursor(null);
+        return;
+      }
       if (loading.current) return;
       loading.current = true;
       if (mode === "initial") setPhase("loading");
@@ -233,7 +262,10 @@ export const ChatScreen = ({
         loading.current = false;
       }
     },
-    [agent.paneId],
+    // ⚠️ `sessionPath` est une dépendance : sans elle, la garde ci-dessus
+    // resterait figée sur « pas de session » et l'écran ne chargerait jamais rien
+    // quand l'agent finit par écrire la sienne.
+    [agent.paneId, agent.sessionPath],
   );
 
   /**
@@ -1180,6 +1212,12 @@ export const ChatScreen = ({
             ⚠️ On ne fabrique aucun choix : les boutons sont **exactement** ceux
             lus à l'écran. Le serveur revalide de son côté.
           */}
+          {/*
+            ⚠️ **Avant la question**, et pas après : approuver un dossier est un
+            préalable — tant qu'il n'est pas tranché, l'agent ne fera rien, et sa
+            question éventuelle ne se posera pas.
+          */}
+          {trust === undefined ? null : <TrustCard onDone={() => undefined} request={trust} />}
           {question === undefined ? null : (
             <section className="question" aria-label="Agent question">
               <p className="question__texte">❓ {question.texte}</p>

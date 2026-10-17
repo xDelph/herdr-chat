@@ -32,6 +32,22 @@ export class PromptNotConfirmed extends Schema.TaggedError<PromptNotConfirmed>()
   },
 ) {}
 
+/**
+ * Herdr a-t-il refusé parce que l'agent attend une **saisie interactive** ?
+ *
+ * ⚠️ **Sur le texte, faute de code typé.** Herdr ne renvoie qu'un code générique
+ * (`agent_prompt_failed`) et un message ; le message est donc ce qu'on a de plus
+ * précis. Le dépôt s'appuie déjà sur le même genre de texte mesuré ailleurs
+ * (« is not an available shell », au lancement). La comparaison est insensible à
+ * la casse, et un refus d'une autre nature garde son comportement d'origine.
+ */
+const refusDeSaisie = (failure: unknown): boolean => {
+  const message =
+    typeof failure === "object" && failure !== null ? Reflect.get(failure, "message") : undefined;
+  const texte = typeof message === "string" ? message : String(failure);
+  return texte.toLowerCase().includes("blocked and requires interactive input");
+};
+
 export const fingerprintOf = (target: string, text: string): string =>
   createHash("sha256").update(`${target}\u0000${text}`).digest("hex").slice(0, 32);
 
@@ -114,14 +130,37 @@ export class PromptSender extends Context.Service<PromptSender, PromptSenderApi>
           /*
             ⚠️ **Deux primitives, deux significations.** `agent.prompt` soumet un
             prompt ; `pane.send_text` écrit des frappes. Herdr refuse la première
-            sur un agent bloqué — c'est lui qui l'a dit, mesuré le 2026-10-16 :
-            « agent … is blocked and requires interactive input ».
+            sur un agent qui attend une saisie — c'est lui qui l'a dit, mesuré le
+            2026-10-16 : « agent … is blocked and requires interactive input ».
           */
-          const envoi = saisie
-            ? Effect.flatMap(herdr.sendText(target, text), () => herdr.sendKeys(target, ["enter"]))
-            : herdr.promptAgent(target, text);
+          const frappes = Effect.flatMap(herdr.sendText(target, text), () =>
+            herdr.sendKeys(target, ["enter"]),
+          );
 
-          const outcome = yield* Effect.result(envoi);
+          let parFrappes = saisie;
+          let outcome = yield* Effect.result(
+            parFrappes ? frappes : herdr.promptAgent(target, text),
+          );
+
+          /*
+            ⚠️ **On ne prédit pas le mode, on réagit au refus.**
+
+            Le choix « prompt ou frappes » se faisait sur le **statut** de l'agent
+            — et ce statut ment. Mesuré sur un onglet à cinq panes : codex
+            attendait une décision (« Hooks need review ») pendant que Herdr le
+            déclarait `idle`, si bien que l'envoi partait en `agent.prompt`, était
+            refusé, et le pane était **inutilisable depuis le téléphone**.
+
+            Herdr nomme lui-même la raison de son refus : dans ce cas précis, on
+            refait par les frappes, qui sont le seul chemin vers une invite. Le
+            texte du refus est ce qu'on a de plus précis — il n'expose pas de code
+            typé, et le dépôt s'appuie déjà sur le même genre de texte mesuré
+            (« is not an available shell », au lancement).
+          */
+          if (outcome._tag === "Failure" && !saisie && refusDeSaisie(outcome.failure)) {
+            parFrappes = true;
+            outcome = yield* Effect.result(frappes);
+          }
 
           if (outcome._tag === "Failure") {
             // Échec : on n'enregistre RIEN. Le prochain envoi doit passer.
@@ -136,8 +175,15 @@ export class PromptSender extends Context.Service<PromptSender, PromptSenderApi>
           const entry: Record_ = { confirmedAt: at, fingerprint, target };
           yield* Ref.update(history, (current) => [...purge(current, at), entry]);
 
+          /*
+            ⚠️ **La preuve dépend du chemin, et elle ne se confond pas.**
+            `agent.prompt` répond `agent_prompted` : Herdr a **soumis** le prompt.
+            `pane.send_text` répond qu'il a **écrit** des frappes — pas que
+            l'agent les a appliquées. Renvoyer « confirmed » dans les deux cas
+            aurait affiché comme envoyé un texte que personne n'a lu.
+          */
           return {
-            confirmation: "confirmed" as const,
+            confirmation: parFrappes ? ("unknown" as const) : ("confirmed" as const),
             fingerprint,
             status: "sent" as const,
           };
