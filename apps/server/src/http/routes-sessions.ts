@@ -24,7 +24,7 @@ import {
   encodeCursor,
   SessionResponse,
 } from "@herdr-remote/shared";
-import { sourceSession } from "../agents/SessionLocator.ts";
+import { sourceSessionDe } from "../agents/SessionLocator.ts";
 import type { SourceSession } from "../agents/SessionLocator.ts";
 import { moteurOpencode } from "../sessions/OpencodeReader.ts";
 import { moteurDevin } from "../sessions/DevinReader.ts";
@@ -47,6 +47,10 @@ const AgentSessionSlot = Schema.Struct({
   agent_session: Schema.optional(
     Schema.NullOr(Schema.Struct({ kind: Schema.String, value: Schema.String })),
   ),
+  // ⚠️ Nécessaires au **repli codex** : quand Herdr ne publie pas de session,
+  // c'est le titre du pane qui nomme le fil, et le dossier qui le vérifie.
+  cwd: Schema.optional(Schema.NullOr(Schema.String)),
+  terminal_title: Schema.optional(Schema.NullOr(Schema.String)),
 });
 
 const decodeSessionSlot = Schema.decodeUnknownOption(AgentSessionSlot);
@@ -59,19 +63,21 @@ const decodeAgentKind = Schema.decodeUnknownOption(
 /**
  * Chemin du fichier de session, ou `undefined` si l'agent n'en a pas.
  *
- * `kind` n'est lu que s'il vaut `"path"` : Herdr modélise aussi un slot par
- * identifiant, dont la résolution n'est pas vérifiée (D008, `[INCONNU]`). Une
- * capacité non vérifiée n'est pas exposée.
+ * La règle — publication d'Herdr d'abord, repli codex par titre ensuite — vit
+ * dans `sourceSessionDe`. Ici on ne fait que la lire.
  */
 export const sessionSourceOf = (agent: unknown): SourceSession | undefined => {
   const decoded = Option.getOrUndefined(decodeSessionSlot(agent));
   if (decoded === undefined) return undefined;
-  const info = decoded.agent_session;
-  if (info === undefined || info === null) return undefined;
   // ⚠️ `agent` porte aussi le nom du type : c'est lui qui dit si un `id` est
-  // résoluble. La décision est prise dans `sourceSession`, et nulle part ici.
+  // résoluble. La décision est prise dans `sourceSessionDe`, et nulle part ici.
   const kind = Option.getOrUndefined(decodeAgentKind(agent))?.agent ?? null;
-  return sourceSession(kind, info);
+  return sourceSessionDe(
+    kind,
+    decoded.agent_session ?? null,
+    decoded.terminal_title ?? null,
+    decoded.cwd ?? null,
+  );
 };
 
 /** Le chemin, quand la session vit dans un **fichier**. `undefined` sinon. */

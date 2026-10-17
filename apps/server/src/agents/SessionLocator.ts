@@ -27,9 +27,128 @@
  * fichier, il renvoie `undefined` : l'agent est alors traité comme illisible,
  * plutôt que d'être rattaché au mauvais fichier.
  */
-import { globSync } from "node:fs";
+import { globSync, existsSync } from "node:fs";
+import { Option, Schema } from "effect";
+import { Database } from "bun:sqlite";
 import { homedir } from "node:os";
 import { join } from "node:path";
+
+/**
+ * Dossier de configuration de codex.
+ *
+ * Surchargeable pour les tests, comme la racine des sessions.
+ */
+export const dossierCodex = (): string => process.env["CODEX_HOME"] ?? join(homedir(), ".codex");
+
+/**
+ * Les bases d'état de codex, de la plus récente à la plus ancienne.
+ *
+ * ⚠️ Le nom porte une **version** (`state_5.sqlite`) : coder ce numéro en dur
+ * ferait taire l'index le jour où codex le change, sans que rien ne le dise. On
+ * prend le plus haut trouvé, et une base absente ne rend simplement rien.
+ */
+const basesCodex = (): ReadonlyArray<string> => {
+  const dossier = dossierCodex();
+  return globSync("state_*.sqlite", { cwd: dossier })
+    .toSorted()
+    .toReversed()
+    .map((nom) => join(dossier, nom));
+};
+
+/**
+ * Nom de la session codex, lu dans le titre de son pane.
+ *
+ * ⚠️ **Mesuré, pas supposé.** codex met `<nom du fil> | <dossier>` en titre ;
+ * relevé sur `wB:p1B` :
+ *
+ * ```
+ * terminal_title = "Audit PWA and webapp | herdr-pwa"
+ * ```
+ *
+ * et c'est **exactement** la valeur que l'index de codex porte pour la session
+ * `01a14a74-…`. Le dossier doit être celui du pane : sans cette vérification, un
+ * titre qui contiendrait ` | ` pour une autre raison serait pris pour un nom. Un
+ * titre qui n'est que le dossier (« perso », un pane jamais utilisé) ne dit rien
+ * — et c'est correct, il n'y a alors aucune session à retrouver.
+ */
+export const nomDeSessionCodex = (titre: string | null, cwd: string | null): string | undefined => {
+  if (titre === null || cwd === null || cwd.length === 0) return undefined;
+  const barre = titre.lastIndexOf(" | ");
+  if (barre <= 0) return undefined;
+  const nom = titre.slice(0, barre).trim();
+  if (nom.length === 0) return undefined;
+  const dossier = titre.slice(barre + 3).trim();
+  return dossier === cwd.replace(/\/+$/, "").split("/").at(-1) ? nom : undefined;
+};
+
+/**
+ * Une ligne de l'index de codex, réduite à ce qu'on lui demande.
+ *
+ * ⚠️ **Décodée, jamais affirmée par un `as`.** Une ligne SQLite arrive en
+ * `unknown` : la forcer en objet serait une promesse sur une forme qu'on n'a pas
+ * vérifiée. Le schéma, lui, échoue proprement — et on préfère « pas de session »
+ * à « session d'un autre ».
+ */
+const LigneIndex = Schema.Struct({ rollout_path: Schema.optional(Schema.String) });
+const decodeLigneIndex = Schema.decodeUnknownOption(LigneIndex);
+
+/**
+ * Chemin du fichier de session codex, retrouvé par le **nom du fil** et le
+ * dossier, dans l'index de codex.
+ *
+ * ⚠️ **Pourquoi cette fonction existe alors que `cheminCodexParId` suffisait.**
+ * Le 2026-10-17, Herdr a cessé de publier `agent_session` pour codex : son propre
+ * journal porte, au moment exact où la session naît,
+ *
+ * ```
+ * api request completed outcome=error method="pane.report_agent_session"
+ * ```
+ *
+ * La session existait pourtant. codex tient son propre index
+ * (`threads (id, name, cwd, rollout_path, archived)`), écrit par lui : c'est une
+ * **preuve**, pas une déduction. Deux garde-fous rendent la preuve vérifiable :
+ * le nom **et** le dossier doivent correspondre, et le fichier doit exister.
+ * Sans les trois, on renvoie `undefined` — jamais la session d'un autre.
+ */
+export const cheminCodexParNom = (nom: string, cwd: string): string | undefined => {
+  if (nom.trim().length === 0 || cwd.length === 0) return undefined;
+  for (const base of basesCodex()) {
+    try {
+      const db = new Database(base, { readonly: true });
+      try {
+        const brute = db
+          .query(
+            "select rollout_path from threads where name = ? and cwd = ? and archived = 0 order by updated_at desc limit 1",
+          )
+          .get(nom, cwd);
+        const chemin = Option.getOrUndefined(decodeLigneIndex(brute))?.rollout_path;
+        if (chemin !== undefined && existsSync(chemin)) return chemin;
+      } finally {
+        db.close();
+      }
+    } catch {
+      // Une base illisible, absente, ou d'un schéma inattendu ne **prouve** rien :
+      // on essaie la suivante, puis on renonce. Jamais de substitution.
+    }
+  }
+  return undefined;
+};
+
+/**
+ * Emplacement de session d'un pane codex, déduit de son **titre**.
+ *
+ * Rend `undefined` dès que le titre ne nomme pas un fil, ou que l'index ne le
+ * confirme pas : le pane garde alors son panneau neutre, ce qui est exact.
+ */
+export const sessionCodexParTitre = (
+  titre: string | null,
+  cwd: string | null,
+): SessionSlot | undefined => {
+  const nom = nomDeSessionCodex(titre, cwd);
+  if (nom === undefined || cwd === null) return undefined;
+  const chemin = cheminCodexParNom(nom, cwd);
+  return chemin === undefined ? undefined : { kind: "path", value: chemin };
+};
 
 /** Référentiel dans lequel Herdr désigne la session. */
 export interface SessionSlot {
@@ -162,6 +281,33 @@ export const localiserSession = (
   // Un chemin n'existe que pour un **fichier** : la base opencode n'est pas un
   // chemin de session, et la faire passer pour tel tromperait l'appelant.
   return source?.kind === "fichier" ? source.base : undefined;
+};
+
+/**
+ * Emplacement de session d'un agent — **le seul point de décision**.
+ *
+ * Il empile deux questions, dans cet ordre :
+ *
+ * 1. Herdr a-t-il publié un emplacement ? Si oui, il fait **foi**.
+ * 2. Sinon, et seulement pour codex, son **titre** nomme-t-il un fil que son
+ *    index confirme ? (voir `sessionCodexParTitre`).
+ *
+ * ⚠️ **Pourquoi la décision vit ici et pas chez les appelants.** Le registre et
+ * les deux routes doivent répondre la même chose ; deux expressions de cette
+ * règle divergeraient — le défaut s'est déjà produit (D013). Le repli vit donc
+ * au même endroit que la résolution, et les appelants ne font que le lire.
+ */
+export const sourceSessionDe = (
+  kind: string | null,
+  slot: SessionSlot | null,
+  titre: string | null,
+  cwd: string | null,
+): SourceSession | undefined => {
+  const annonce = sourceSession(kind, slot);
+  if (annonce !== undefined) return annonce;
+  if (kind !== KIND_CODEX) return undefined;
+  const repli = sessionCodexParTitre(titre, cwd);
+  return repli === undefined ? undefined : sourceSession(kind, repli);
 };
 
 /**

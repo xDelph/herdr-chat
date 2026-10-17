@@ -24,7 +24,7 @@ import type {
 } from "@herdr-remote/shared";
 import { readHeader } from "../sessions/SessionReader.ts";
 import { sessionLisible, typeLisible } from "./Lisibilite.ts";
-import { sourceSession } from "./SessionLocator.ts";
+import { sourceSessionDe } from "./SessionLocator.ts";
 
 /** Vue d'un agent exposée à l'interface. */
 export interface AgentView {
@@ -198,10 +198,22 @@ export const enrichAgent = (
   naming: NamingContext = emptyNaming,
 ): Effect.Effect<AgentView> =>
   Effect.gen(function* () {
-    const session = agent.agent_session ?? null;
-    // ⚠️ Résolution unique : `path` passe tel quel, `id` est résolu pour codex
-    // (nom de fichier) et pour opencode (clé de base).
-    const source = sourceSession(agent.agent ?? null, session);
+    /*
+      ⚠️ **Herdr ne publie plus la session codex, et ce n'est pas une raison pour
+      la perdre.** Mesure du 2026-10-17 : `pane.report_agent_session` echoue cote
+      Herdr, `agent_session` reste nul, et le fil devenait illisible alors que son
+      fichier existait. Le repli — nom du fil lu dans le titre, confirme par
+      l'index de codex — vit dans `sourceSessionDe`, avec la resolution : le
+      registre et les deux routes lisent donc la MEME decision.
+    */
+    const annoncee = agent.agent_session ?? null;
+    const source = sourceSessionDe(
+      agent.agent ?? null,
+      annoncee,
+      agent.terminal_title ?? null,
+      agent.cwd ?? null,
+    );
+    const session = source === undefined ? annoncee : { kind: "path", value: source.base };
     // Pour opencode, `base` est le fichier SQLite : c'est ce qui rend l'agent
     // **visible**, puisque c'est la présence d'un chemin qui le fait figurer dans
     // la liste. Le chemin du magasin est donc le bon, et non un chemin de session.
@@ -241,7 +253,9 @@ export const enrichAgent = (
       // `null` = non vérifiable, volontairement distinct de `false`.
       sessionCwdMatches: sessionCwd !== null && herdrCwd !== null ? sessionCwd === herdrCwd : null,
       sessionId,
-      sessionKind: session?.kind ?? null,
+      // Le repli par titre rend toujours un emplacement de **fichier** ; quand
+      // Herdr a parle, c'est son `kind` qui fait foi.
+      sessionKind: annoncee?.kind ?? (session === null ? null : "path"),
       sessionPath: path,
       status: agent.agent_status,
       tabId: agent.tab_id,
