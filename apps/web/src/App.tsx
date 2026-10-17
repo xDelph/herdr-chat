@@ -561,6 +561,22 @@ export const App = () => {
       ? undefined
       : conversations.find((ligne) => ligne.paneId === agentAffiche.paneId)?.trust;
 
+  /**
+   * Ce que l'agent affiche quand il attend, sans question numérotée lisible.
+   *
+   * ⚠️ **Le cas opencode.** Ses formulaires ont plusieurs champs puis une étape
+   * **Review** : cet écran n'a aucun choix numéroté, donc aucune carte de
+   * question. L'agent restait `blocked` sans que rien ne dise sur quoi. On
+   * affiche l'écran, brut, sans inventer de choix.
+   *
+   * Elle vient de la **liste** comme la question, et disparaît donc d'elle-même
+   * dès que l'agent reprend.
+   */
+  const attenteAffichee =
+    agentAffiche === null
+      ? undefined
+      : conversations.find((ligne) => ligne.paneId === agentAffiche.paneId)?.waiting;
+
   if (route.kind === "agent" && agentAffiche !== null) {
     return (
       <div className="app">
@@ -585,6 +601,7 @@ export const App = () => {
           onBack={closeAgent}
           question={questionAffichee}
           trust={trustAffiche}
+          waiting={attenteAffichee}
         />
       </div>
     );

@@ -44,6 +44,7 @@ export const ChatScreen = ({
   onBack,
   question,
   trust,
+  waiting,
   voisins,
   onOuvrirVoisin,
 }: {
@@ -67,6 +68,19 @@ export const ChatScreen = ({
    * route, une seule décision.
    */
   trust?: TrustRequired | undefined;
+  /**
+   * Ce que l'agent affiche quand il attend, mais qu'aucune question numérotée
+   * n'a pu être lue.
+   *
+   * ⚠️ **Distinct de `question`, et pas par commodité.** opencode pose ses
+   * questions en formulaires à plusieurs champs, puis passe par une étape
+   * **Review** qui n'a aucun choix numéroté : il n'y a rien à cliquer, mais
+   * l'agent attend quand même. Sans ce champ, l'écran était **muet** sur un
+   * agent bloqué — et l'utilisateur sans recours.
+   *
+   * ⚠️ C'est l'écran **brut**. Aucun choix n'est fabriqué à partir de lui.
+   */
+  waiting?: string | undefined;
 }) => {
   type EnvoiLocal = {
     readonly baseline: number;
@@ -1269,6 +1283,37 @@ export const ChatScreen = ({
                   {reponse.detail}
                 </p>
               )}
+            </section>
+          )}
+
+          {/*
+            ⚠️ **Un agent bloqué sans question n'est pas un agent sans attente.**
+
+            opencode pose ses questions en formulaires à plusieurs champs, puis
+            affiche une étape **Review** dont l'écran n'a aucun choix numéroté.
+            Il n'y a donc rien à cliquer — mais l'agent attend bel et bien, et
+            l'écran restait muet : « agent marqué comme bloqué, mais plus de
+            question ».
+
+            On montre l'écran, **brut**, et on ne fabrique aucun choix à partir
+            de lui : une touche inventée serait une décision que l'utilisateur
+            n'a pas prise.
+          */}
+          {question !== undefined || waiting === undefined ? null : (
+            <section
+              className="question question--attente"
+              aria-label="What the agent is waiting on"
+            >
+              <p className="question__texte">⏳ The agent is waiting</p>
+              <p className="question__contexte">
+                Its prompt is not a numbered question — there is nothing to choose here. This is
+                what it shows:
+              </p>
+              <pre className="question__ecran">{waiting}</pre>
+              <p className="question__contexte">
+                Write your answer below and send: for a blocked agent, your message is typed into
+                its prompt rather than sent as a new request.
+              </p>
             </section>
           )}
 

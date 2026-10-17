@@ -167,6 +167,38 @@ export const fautLireLEcran = (ligne: {
   ligne.status !== "working" &&
   (ligne.status === "blocked" || (ligne.preview === undefined && ligne.lastPrompt === undefined));
 
+/**
+ * Les dernières lignes non vides d'un écran — ce que l'agent attend, montré tel quel.
+ *
+ * ⚠️ **Borné et brut.** On ne reformule rien : ces lignes sont ce que le terminal
+ * affiche. L'écran entier ferait remonter toute la conversation dans une carte ;
+ * une douzaine de lignes suffit à voir l'état courant, et l'état courant est en
+ * bas. On garde l'indentation de tête (elle porte la structure du TUI) et on
+ * coupe seulement les espaces de fin.
+ */
+export const attenteDeLEcran = (ecran: string, lignes = 12): string | undefined => {
+  const retenues = ecran
+    .split("\n")
+    .map((ligne) => ligne.trimEnd())
+    .filter((ligne) => ligne.trim().length > 0)
+    .slice(-lignes);
+  return retenues.length === 0 ? undefined : retenues.join("\n");
+};
+
+/**
+ * Ce qu'il faut montrer pour un agent donné, ou `undefined`.
+ *
+ * ⚠️ **Le `blocked` est la garde, pas une décoration.** La lecture d'écran est
+ * déclenchée aussi pour un agent **muet** (`fautLireLEcran` couvre « pas d'aperçu
+ * et pas de dernière demande ») : un agent qui n'a rien écrit montrerait donc son
+ * panneau de démarrage comme s'il attendait une réponse. On ne l'attache que
+ * quand Herdr dit `blocked` — le seul état qui veut dire « il attend ».
+ */
+export const attenteDeLigne = (
+  ligne: { readonly status: AgentStatus },
+  ecran: string,
+): string | undefined => (ligne.status === "blocked" ? attenteDeLEcran(ecran) : undefined);
+
 export const makeConversationRoutes = (config: ServerConfig, herdr: HerdrApi) => {
   // Gardé au niveau du routeur pour que le résumé réutilise son cache entre
   // deux rafraîchissements de la liste.
@@ -344,18 +376,34 @@ export const makeConversationRoutes = (config: ServerConfig, herdr: HerdrApi) =>
           second détecteur, son pane restait bloqué **sans rien à l'écran** pour
           le dire.
         */
-        if (!isTrustPrompt(ecran)) return ligne;
-        const dossier = dossiers.get(ligne.paneId) ?? null;
-        const lisible = dossier ?? ligne.title;
-        return Object.assign({}, ligne, {
-          trust: {
-            folder: lisible,
-            kind: ligne.agent ?? "agent",
-            message: `${ligne.agent ?? "this agent"} is asking to trust “${lisible}”. It will be able to read, write and run code there — including without asking again. This answer is recorded permanently.`,
-            paneId: ligne.paneId,
-            status: "trust-required" as const,
-          },
-        });
+        if (isTrustPrompt(ecran)) {
+          const dossier = dossiers.get(ligne.paneId) ?? null;
+          const lisible = dossier ?? ligne.title;
+          return Object.assign({}, ligne, {
+            trust: {
+              folder: lisible,
+              kind: ligne.agent ?? "agent",
+              message: `${ligne.agent ?? "this agent"} is asking to trust “${lisible}”. It will be able to read, write and run code there — including without asking again. This answer is recorded permanently.`,
+              paneId: ligne.paneId,
+              status: "trust-required" as const,
+            },
+          });
+        }
+
+        /*
+          ⚠️ **Un agent bloqué sans question lisible n'est pas un agent sans
+          attente.** opencode pose ses questions en **formulaires à plusieurs
+          champs**, puis affiche une étape **Review** dont l'écran n'a **aucun
+          choix numéroté**. `questionDeLEcran` rend alors `undefined`, la carte
+          disparaissait, et l'agent restait `blocked` **sans que rien ne dise sur
+          quoi** — l'utilisateur n'avait plus rien à quoi répondre. Mesuré le
+          2026-10-17 : « agent marqué comme bloqué, mais plus de question ».
+
+          On montre donc l'écran, qui est un **fait**, et on n'invente aucun
+          choix : les lignes sont brutes, jamais reformulées.
+        */
+        const attente = attenteDeLigne(ligne, ecran);
+        return attente === undefined ? ligne : Object.assign({}, ligne, { waiting: attente });
       }),
     );
 

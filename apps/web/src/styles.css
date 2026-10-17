@@ -3354,6 +3354,29 @@ button:disabled {
   margin: 0;
 }
 
+/*
+  L'écran d'un agent bloqué sans question numérotée — brut.
+
+  ⚠️ **Défilement horizontal, retour à la ligne désactivé.** Ces lignes sont des
+  sorties de terminal : leur alignement porte du sens (options, colonnes,
+  valeurs). Les replier ferait perdre ce que l'écran dit. On borne la hauteur
+  plutôt, pour que la carte ne pousse pas le fil hors de l'écran.
+*/
+.question__ecran {
+  background: var(--surface-1);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  font-family: var(--mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11px;
+  line-height: 1.4;
+  margin: 0;
+  max-height: 40vh;
+  overflow: auto;
+  padding: var(--space-sm);
+  white-space: pre;
+}
+
 /* Une colonne : chaque choix reste une cible large, atteignable au pouce. */
 .question__choix {
   display: flex;

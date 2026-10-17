@@ -533,6 +533,21 @@ export const ConversationSummary = Schema.Struct({
    */
   question: Schema.optional(Question),
   /**
+   * Ce que l'agent affiche quand il **attend**, mais qu'aucune question
+   * numérotée n'a pu être lue.
+   *
+   * ⚠️ **Pourquoi ce champ existe.** opencode pose ses questions en
+   * **formulaires à plusieurs champs** : on répond champ par champ, puis l'écran
+   * passe en **Review** et attend une validation finale. Cet écran de revue n'a
+   * **aucun choix numéroté** — `questionDeLEcran` rend `undefined`, la carte
+   * disparaît, et l'agent reste `blocked` sans que rien ne dise sur quoi. Mesuré
+   * le 2026-10-17 : un agent bloqué sans question, donc **sans recours**.
+   *
+   * ⚠️ On n'invente **aucun** choix pour autant : on montre l'écran, qui est un
+   * fait. Ses dernières lignes non vides, jamais plus, et jamais reformulées.
+   */
+  waiting: Schema.optional(Schema.String),
+  /**
    * Invite de **confiance** à l'écran : un agent attend qu'on approuve un dossier.
    *
    * ⚠️ **Même forme que celle du lancement**, et c'est volontaire : la carte qui

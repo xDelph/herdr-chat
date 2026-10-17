@@ -86,6 +86,8 @@ const fakeHerdr = (options: {
   listFails?: boolean;
   /** Instantané fourni : sert aux lancements, qui ont besoin d'un projet réel. */
   snapshot?: Readonly<Record<string, unknown>>;
+  /** Écran rendu par `readAgent` : sert à éprouver la lecture de l'invite. */
+  screen?: string;
 }): HerdrApi => {
   return {
     closeTab: fail,
@@ -111,7 +113,7 @@ const fakeHerdr = (options: {
         ? Effect.succeed({ protocol: 22, version: "0.9.3" })
         : Effect.fail(protocolError()),
     promptAgent: () => Effect.succeed({}),
-    readAgent: () => Effect.succeed({ text: "sortie", truncated: false }),
+    readAgent: () => Effect.succeed({ text: options.screen ?? "sortie", truncated: false }),
     // `integration.list` : seuls `pi` et `codex` sont installés sur cette
     // machine. C'est le **seul** endroit qui en décide désormais.
     request: (method: string) => {
@@ -174,7 +176,11 @@ const fakeWatch: WatchLoop = {
 
 const build = async (
   healthy: boolean,
-  extra: { listFails?: boolean; snapshot?: Readonly<Record<string, unknown>> } = {},
+  extra: {
+    listFails?: boolean;
+    snapshot?: Readonly<Record<string, unknown>>;
+    screen?: string;
+  } = {},
 ) => {
   createTabCalls = 0;
   startCalls = 0;
@@ -678,6 +684,82 @@ describe("contrat HTTP — /api/conversations", () => {
       expect("unread" in ligne).toBe(false);
       expect("nonLu" in ligne).toBe(false);
     }
+  });
+
+  /*
+    ⚠️ **Le cas opencode, mesuré le 2026-10-17.** Ses questions sont des
+    formulaires à plusieurs champs, et l'étape **Review** n'a aucun choix
+    numéroté : `questionDeLEcran` rend `undefined`, la carte disparaissait, et
+    l'agent restait `blocked` sans que rien ne dise sur quoi. L'écran doit donc
+    être remonté — brut — au lieu d'être perdu.
+  */
+  test("un agent bloqué sans question numérotée remonte son ÉCRAN", async () => {
+    const routes = await build(true, {
+      screen: "  ┃  Review\n  ┃  enter Submit form   esc dismiss\n",
+      snapshot: {
+        agents: [
+          {
+            agent: "opencode",
+            agent_status: "blocked",
+            focused: false,
+            pane_id: "w1:p1",
+            revision: 1,
+            tab_id: "w1:t1",
+            terminal_id: "term-1",
+            workspace_id: "w1",
+          },
+        ],
+        panes: [{ cwd: "/dev/pixel", pane_id: "w1:p1", workspace_id: "w1" }],
+        protocol: 22,
+        tabs: [],
+        version: "0.9.3",
+        workspaces: [{ label: "pixel", pane_count: 1, tab_count: 1, workspace_id: "w1" }],
+      },
+    });
+    const response = await handler(routes, "/api/conversations")(request({}, undefined));
+    const body = await decodeBody(response, ConversationsResponse, "conversations");
+    const ligne = body.conversations.find((candidat) => candidat.paneId === "w1:p1");
+
+    expect(ligne).toBeDefined();
+    expect(ligne?.waiting).toContain("Review");
+    expect(ligne?.waiting).toContain("Submit form");
+    // Aucun choix n'est fabriqué : pas de question, donc pas de boutons.
+    expect(ligne?.question).toBeUndefined();
+  });
+
+  test("un agent AU REPOS ne remonte pas son écran", async () => {
+    /*
+      ⚠️ La garde, et c'est elle qui empêche le mensonge : un agent qui n'a rien
+      écrit afficherait sinon son panneau de démarrage comme s'il attendait une
+      réponse.
+    */
+    const routes = await build(true, {
+      screen: "  ┃  Review\n  ┃  enter Submit form\n",
+      snapshot: {
+        agents: [
+          {
+            agent: "opencode",
+            agent_status: "idle",
+            focused: false,
+            pane_id: "w1:p1",
+            revision: 1,
+            tab_id: "w1:t1",
+            terminal_id: "term-1",
+            workspace_id: "w1",
+          },
+        ],
+        panes: [{ cwd: "/dev/pixel", pane_id: "w1:p1", workspace_id: "w1" }],
+        protocol: 22,
+        tabs: [],
+        version: "0.9.3",
+        workspaces: [{ label: "pixel", pane_count: 1, tab_count: 1, workspace_id: "w1" }],
+      },
+    });
+    const response = await handler(routes, "/api/conversations")(request({}, undefined));
+    const body = await decodeBody(response, ConversationsResponse, "conversations");
+    const ligne = body.conversations.find((candidat) => candidat.paneId === "w1:p1");
+
+    expect(ligne?.waiting).toBeUndefined();
   });
 });
 
