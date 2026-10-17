@@ -20,7 +20,7 @@
  * place de l'utilisateur — c'est exactement le genre de porte qui doit être
  * prouvée capable d'échouer.
  */
-import { Effect } from "effect";
+import { Effect, Result } from "effect";
 import type { HerdrApi, HerdrError } from "../herdr/HerdrClient.ts";
 
 /**
@@ -56,10 +56,26 @@ const TRUST_MARKERS = ["trust this folder", "trust this directory"];
  * valider**, donc sans accorder la confiance). Herdr ne déclare pas ses noms de
  * touches au schéma : « key names are herdr's own spellings ».
  */
-export const touchesDeConfiance = (kind: string | null, accept: boolean): ReadonlyArray<string> => {
+export const touchesDeConfiance = (
+  kind: string | null,
+  accept: boolean,
+): ReadonlyArray<string> | undefined => {
   if (kind === "claude") return accept ? ["down", "enter"] : ["enter"];
-  // codex et les autres : options numérotées. `1` accorde, `2` refuse.
-  return accept ? ["1", "enter"] : ["2"];
+  if (kind === "codex") return accept ? ["1", "enter"] : ["2"];
+  /*
+    ⚠️ **Aucune touche pour une famille qu'on n'a pas mesurée** — et c'est un
+    garde-fou, pas une timidité.
+
+    Le défaut mesuré : le type d'agent n'était pas lu (un `Option` non déballé),
+    donc la famille valait `null`, et la table retombait sur les touches de
+    **codex** — `1` puis `enter`. Sur l'invite de claude, qui est une **sélection
+    sans numéros**, le `1` est ignoré et le `enter` valide l'option déjà
+    surlignée : **« No, exit »**. L'agent **sortait**.
+
+    Envoyer une touche non mesurée, c'est appuyer au hasard sur une invite dont on
+    ne connaît pas les options. On refuse, et on dit pourquoi.
+  */
+  return undefined;
 };
 
 /** `true` si l'invite de confiance est réellement à l'écran. */
@@ -115,8 +131,30 @@ export const respondToTrust = (
 
     // Les touches viennent de la famille d'agent : voir `touchesDeConfiance`.
     const keys = touchesDeConfiance(kind, accept);
+    if (keys === undefined) {
+      return {
+        accepted: false,
+        detail: `no known key sequence for the prompt of “${kind ?? "this agent"}” — answer it on the Mac`,
+        state: "non-applicable" as const,
+      };
+    }
     yield* herdr.sendKeys(paneId, keys);
 
+    /*
+      ⚠️ **La preuve, c'est deux choses, pas une.** L'invite qui disparaît ne
+      suffit pas : un agent qui **meurt** n'affiche plus d'invite non plus. Le
+      défaut a été vu en vrai — la carte annonçait « accordé » alors que l'agent
+      venait de sortir, et la confiance n'était **pas** écrite. On exige donc
+      aussi que l'agent soit encore là.
+    */
+    const vivant = yield* Effect.result(herdr.getAgent(paneId));
+    if (Result.isFailure(vivant)) {
+      return {
+        accepted: false,
+        detail: `the agent of ${paneId} is gone — nothing is proven about the trust`,
+        state: "transmise" as const,
+      };
+    }
     // Relecture : l'acceptation est un **fait observé**, pas une intention.
     const apres = yield* herdr.readAgent(paneId);
     const toujoursLa = isTrustPrompt(apres.text);

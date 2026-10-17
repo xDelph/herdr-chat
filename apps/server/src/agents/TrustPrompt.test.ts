@@ -61,12 +61,21 @@ const unused = <A>(): Effect.Effect<A, HerdrError> =>
  * rejouer le même écran ferait croire que l'acceptance n'a pas eu lieu — ce qui
  * est justement le cas que B06 veut rendre visible.
  */
-const herdrWith = (screen: string, sent: string[][], apres?: string): HerdrApi => {
+const herdrWith = (
+  screen: string,
+  sent: string[][],
+  apres?: string,
+  /** `true` = l'agent n'est PLUS là quand on vérifie l'issue. */
+  agentMort = false,
+): HerdrApi => {
   let lu = 0;
   return {
     closeTab: unused,
     createTab: unused,
-    getAgent: unused,
+    // ⚠️ L'agent doit être **vivant** pour que l'acceptation soit prouvée : une
+    // invite qui disparaît parce que l'agent est mort n'est pas une acceptation.
+    getAgent: () =>
+      agentMort ? unused() : Effect.succeed({ agent: { agent: "codex", agent_status: "blocked" } }),
     listAgents: unused,
     ping: unused,
     promptAgent: unused,
@@ -106,7 +115,9 @@ describe("TrustPrompt — rien n'est envoyé si l'invite n'est pas là", () => {
     // L'écran après la frappe ne contient plus l'invite : c'est la **preuve**
     // que la décision a été appliquée, pas la frappe qui la constituait.
     const outcome = await Effect.runPromise(
-      respondToTrust(herdrWith(TRUST_SCREEN, sent, "Welcome to Codex"), "w:p", true),
+      // ⚠️ La famille est **dite** : depuis qu'un type inconnu ne reçoit
+      // aucune touche, un appel sans famille ne répondrait plus rien du tout.
+      respondToTrust(herdrWith(TRUST_SCREEN, sent, "Welcome to Codex"), "w:p", true, "codex"),
     );
     expect(outcome.accepted).toBe(true);
     expect(outcome.state).toBe("acceptee");
@@ -122,7 +133,7 @@ describe("TrustPrompt — rien n'est envoyé si l'invite n'est pas là", () => {
   test("frappe partie mais invite toujours là → « transmise », jamais « accordée »", async () => {
     const sent: string[][] = [];
     const outcome = await Effect.runPromise(
-      respondToTrust(herdrWith(TRUST_SCREEN, sent, TRUST_SCREEN), "w:p", true),
+      respondToTrust(herdrWith(TRUST_SCREEN, sent, TRUST_SCREEN), "w:p", true, "codex"),
     );
     expect(outcome.accepted).toBe(false);
     expect(outcome.state).toBe("transmise");
@@ -134,7 +145,7 @@ describe("TrustPrompt — rien n'est envoyé si l'invite n'est pas là", () => {
   test("invite présente et refusée → « 2 », et rien n'est déclaré accordé", async () => {
     const sent: string[][] = [];
     const outcome = await Effect.runPromise(
-      respondToTrust(herdrWith(TRUST_SCREEN, sent, "Trust declined"), "w:p", false),
+      respondToTrust(herdrWith(TRUST_SCREEN, sent, "Trust declined"), "w:p", false, "codex"),
     );
     expect(outcome.accepted).toBe(false);
     expect(outcome.state).toBe("refusee");
@@ -176,10 +187,75 @@ describe("les touches de confiance, par famille", () => {
     expect(touchesDeConfiance("codex", false)).toEqual(["2"]);
   });
 
-  test("une famille inconnue suit la forme numérotée", () => {
-    // Le cas mesuré à l'origine, et le plus répandu : on ne devine pas une
-    // sélection pour un agent dont on n'a rien mesuré.
-    expect(touchesDeConfiance(null, true)).toEqual(["1", "enter"]);
-    expect(touchesDeConfiance("pasunagent", false)).toEqual(["2"]);
+  test("une famille INCONNUE ne reçoit aucune touche", () => {
+    /*
+      ⚠️ **Le repli sur les touches de codex a TUÉ un agent.** Mesuré : le type
+      n'était pas lu (un `Option` non déballé), la famille valait `null`, et la
+      table envoyait `1` puis `enter` — les touches de codex. Sur l'invite de
+      claude, qui est une **sélection sans numéros**, le `1` est ignoré et le
+      `enter` valide l'option surlignée : « No, exit ». L'agent sortait.
+
+      Envoyer une touche non mesurée, c'est appuyer au hasard sur une invite dont
+      on ne connaît pas les options. On refuse, et on le dit.
+    */
+    expect(touchesDeConfiance(null, true)).toBeUndefined();
+    expect(touchesDeConfiance(null, false)).toBeUndefined();
+    expect(touchesDeConfiance("pasunagent", true)).toBeUndefined();
+  });
+});
+
+/**
+ * Un type d'agent **inconnu** ne reçoit aucune touche — et surtout pas celles
+ * d'un autre.
+ *
+ * ⚠️ **Le défaut mesuré, et il a tué un agent.** Le type n'était pas lu (un
+ * `Option` non déballé), donc la famille valait `null` et la table retombait sur
+ * les touches de **codex** : `1` puis `enter`. Sur l'invite de claude — une
+ * **sélection sans numéros** — le `1` est ignoré et le `enter` valide l'option
+ * déjà surlignée, qui est « No, exit ». L'agent **sortait**, et la confiance
+ * n'était pas écrite.
+ */
+describe("un type inconnu ne fait rien", () => {
+  test("aucune touche n'est envoyée", async () => {
+    const sent: string[][] = [];
+    const outcome = await Effect.runPromise(
+      respondToTrust(herdrWith(TRUST_SCREEN, sent, "Welcome"), "w:p", true),
+    );
+
+    expect(sent).toEqual([]);
+    expect(outcome.accepted).toBe(false);
+    expect(outcome.state).toBe("non-applicable");
+  });
+
+  test("le refus dit POURQUOI, et où répondre", async () => {
+    const sent: string[][] = [];
+    const outcome = await Effect.runPromise(
+      respondToTrust(herdrWith(TRUST_SCREEN, sent, "Welcome"), "w:p", true),
+    );
+
+    expect(outcome.detail).toContain("no known key sequence");
+    expect(outcome.detail).toContain("Mac");
+  });
+});
+
+/**
+ * Un agent qui **meurt** pendant la réponse n'est pas un succès.
+ *
+ * ⚠️ **La preuve ne peut pas être la seule disparition de l'invite** : un agent
+ * mort n'affiche plus d'invite non plus. Le défaut a été vu en vrai — la carte
+ * annonçait « accordé » alors que l'agent venait de sortir, et la confiance
+ * n'était pas écrite. On exige donc aussi que l'agent soit **encore là**.
+ */
+describe("un agent mort n'est jamais « accordé »", () => {
+  test("l'invite partie mais l'agent disparu → « transmise »", async () => {
+    const sent: string[][] = [];
+    // L'écran n'a plus l'invite (l'agent est mort), et `agent.get` échoue.
+    const outcome = await Effect.runPromise(
+      respondToTrust(herdrWith(TRUST_SCREEN, sent, "shell $", true), "w:p", true, "codex"),
+    );
+
+    expect(outcome.accepted).toBe(false);
+    expect(outcome.state).toBe("transmise");
+    expect(outcome.detail).toContain("gone");
   });
 });

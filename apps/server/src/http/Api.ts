@@ -91,17 +91,25 @@ const decodePromptBody = Schema.decodeUnknownOption(PromptBody);
  * autre forme, ou inconnu retombe sur le mode « prompt » — c'est-à-dire le
  * comportement d'avant, jamais un mode deviné.
  */
+/**
+ * L'agent d'un `agent_info` : son **type** et son état.
+ *
+ * ⚠️ **`agent` est obligatoire, et c'est une garde.** Il était optionnel : une
+ * charge utile de mauvaise forme — un `Option` non déballé, par exemple — passait
+ * donc le décodage **en silence**, et la conséquence n'était pas une erreur mais
+ * une valeur `null` que l'appelant prenait pour « type inconnu ». Un schéma qui
+ * accepte n'importe quoi ne prouve rien ; celui-ci doit **échouer** quand la forme
+ * n'est pas la bonne.
+ */
 const decodeAgentStatus = Schema.decodeUnknownOption(
   Schema.Struct({
-    agent: Schema.optional(
-      Schema.NullOr(
-        Schema.Struct({
-          // ⚠️ Le champ `agent` **d'un agent** est son type (« pi », « claude »).
-          // Le nom est trompeur, mais c'est celui de Herdr.
-          agent: Schema.optional(Schema.NullOr(Schema.String)),
-          agent_status: Schema.optional(Schema.String),
-        }),
-      ),
+    agent: Schema.NullOr(
+      Schema.Struct({
+        // ⚠️ Le champ `agent` **d'un agent** est son type (« pi », « claude »).
+        // Le nom est trompeur, mais c'est celui de Herdr.
+        agent: Schema.optional(Schema.NullOr(Schema.String)),
+        agent_status: Schema.optional(Schema.String),
+      }),
     ),
   }),
 );
@@ -226,10 +234,22 @@ const makeAnswerTrust =
       touches qui accordent la confiance en dépendent (options numérotées chez
       codex, sélection chez claude), et un client périmé enverrait les mauvaises.
     */
+    /*
+      ⚠️ **`Result.getSuccess` rend un `Option`, il faut le déballer AVANT de
+      décoder.** Il était passé tel quel au décodeur : celui-ci ne voyait donc pas
+      de champ `agent`… et comme ce champ était **optionnel**, le décodage
+      **réussissait sans rien**. Résultat mesuré : le type d'agent valait `null`,
+      la table retombait sur les touches de codex, et l'invite de claude se
+      répondait par `enter` — c'est-à-dire **« No, exit »**. L'agent sortait.
+
+      ⚠️ Et c'est le troisième `Option` non déballé de la journée (`Result.getFailure`
+      deux fois, `Result.getSuccess` ici). Le piège est dans l'API, pas dans l'usage :
+      les deux accesseurs rendent un `Option`, pas la valeur.
+    */
     const fiche = await Effect.runPromise(Effect.result(herdr.getAgent(paneId)));
-    const decodee = Result.isSuccess(fiche)
-      ? Option.getOrUndefined(decodeAgentStatus(Result.getSuccess(fiche)))
-      : undefined;
+    const payload = Option.getOrUndefined(Result.getSuccess(fiche));
+    const decodee =
+      payload === undefined ? undefined : Option.getOrUndefined(decodeAgentStatus(payload));
     const result = await Effect.runPromise(
       Effect.result(respondToTrust(herdr, paneId, body.accept, decodee?.agent?.agent ?? null)),
     );
@@ -664,7 +684,12 @@ export const makeRoutes = (deps: ApiDeps): Routes => {
     */
     const agentLivre = await Effect.runPromise(Effect.result(herdr.getAgent(paneId)));
     const statut = Result.isSuccess(agentLivre)
-      ? Option.getOrUndefined(decodeAgentStatus(Result.getSuccess(agentLivre)))
+      ? Option.getOrUndefined(
+          // ⚠️ On déballe AVANT de décoder — le même piège que partout ailleurs :
+          // `Result.getSuccess` rend un `Option`, et le passer au décodeur faisait
+          // décoder l'enveloppe au lieu de la charge utile.
+          decodeAgentStatus(Option.getOrUndefined(Result.getSuccess(agentLivre))),
+        )
       : undefined;
     const saisie = statut?.agent?.agent_status === "blocked";
 
