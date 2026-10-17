@@ -70,16 +70,53 @@ const basesCodex = (): ReadonlyArray<string> => {
  * titre qui contiendrait ` | ` pour une autre raison serait pris pour un nom. Un
  * titre qui n'est que le dossier (« perso », un pane jamais utilisé) ne dit rien
  * — et c'est correct, il n'y a alors aucune session à retrouver.
+ *
+ * ⚠️ **Le titre porte un GLYPHE D'ÉTAT quand codex travaille.** Mesuré le
+ * 2026-10-18, sur le même pane :
+ *
+ * ```
+ * au repos : "Audit PWA and webapp | herdr-pwa"
+ * en travail : "⠼ Audit PWA and webapp | herdr-pwa"
+ * ```
+ *
+ * Le `⠼` est un braille de spinner. Sans le retirer, le nom lu valait
+ * « ⠼ Audit PWA and webapp » : l'index ne le connaît pas, donc **aucune session**
+ * — et la conversation disparaissait precisement **pendant** le travail, quand on
+ * la regarde. On rend donc les **deux lectures**, et c'est l'index qui tranche.
  */
-export const nomDeSessionCodex = (titre: string | null, cwd: string | null): string | undefined => {
-  if (titre === null || cwd === null || cwd.length === 0) return undefined;
+export const nomsDeSessionCodex = (
+  titre: string | null,
+  cwd: string | null,
+): ReadonlyArray<string> => {
+  if (titre === null || cwd === null || cwd.length === 0) return [];
   const barre = titre.lastIndexOf(" | ");
-  if (barre <= 0) return undefined;
-  const nom = titre.slice(0, barre).trim();
-  if (nom.length === 0) return undefined;
+  if (barre <= 0) return [];
+  const prefixe = titre.slice(0, barre).trim();
+  if (prefixe.length === 0) return [];
   const dossier = titre.slice(barre + 3).trim();
-  return dossier === cwd.replace(/\/+$/, "").split("/").at(-1) ? nom : undefined;
+  if (dossier !== cwd.replace(/\/+$/, "").split("/").at(-1)) return [];
+
+  /*
+    ⚠️ **Deux lectures, pas une correction.** On ne « nettoie » pas le titre en
+    esperant tomber juste : on propose la lecture brute **et** la lecture sans
+    decoration, et l'index de codex decide. Un nom qui commence vraiment par un
+    glyphe reste donc trouvable, et un faux nettoyage ne peut pas produire une
+    session : il produit un nom que l'index ignore.
+  */
+  const sansDecoration = prefixe.replace(/^[^\p{L}\p{N}]+\s+/u, "").trim();
+  return sansDecoration.length > 0 && sansDecoration !== prefixe
+    ? [prefixe, sansDecoration]
+    : [prefixe];
 };
+
+/**
+ * Le nom de session codex, quand il n'y en a qu'un de plausible.
+ *
+ * ⚠️ Rend le **premier** candidat : c'est la lecture brute, celle qui ne suppose
+ * rien. `sessionCodexParTitre` les essaie tous les deux contre l'index.
+ */
+export const nomDeSessionCodex = (titre: string | null, cwd: string | null): string | undefined =>
+  nomsDeSessionCodex(titre, cwd)[0];
 
 /**
  * Une ligne de l'index de codex, réduite à ce qu'on lui demande.
@@ -144,10 +181,19 @@ export const sessionCodexParTitre = (
   titre: string | null,
   cwd: string | null,
 ): SessionSlot | undefined => {
-  const nom = nomDeSessionCodex(titre, cwd);
-  if (nom === undefined || cwd === null) return undefined;
-  const chemin = cheminCodexParNom(nom, cwd);
-  return chemin === undefined ? undefined : { kind: "path", value: chemin };
+  if (cwd === null) return undefined;
+  /*
+    ⚠️ **On essaie chaque lecture contre l'index, et c'est lui qui tranche.**
+    Le titre peut porter une decoration (le spinner `⠼` du travail en cours) ;
+    plutot que de nettoyer au jugé, on demande à l'index de codex laquelle de ces
+    lectures **existe**. La premiere confirmee gagne, et aucune autre n'est
+    inventee.
+  */
+  for (const nom of nomsDeSessionCodex(titre, cwd)) {
+    const chemin = cheminCodexParNom(nom, cwd);
+    if (chemin !== undefined) return { kind: "path", value: chemin };
+  }
+  return undefined;
 };
 
 /** Référentiel dans lequel Herdr désigne la session. */

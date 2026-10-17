@@ -27,6 +27,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test";
 import {
   cheminCodexParNom,
   nomDeSessionCodex,
+  nomsDeSessionCodex,
   sessionCodexParTitre,
   sourceSessionDe,
 } from "./SessionLocator.ts";
@@ -168,6 +169,64 @@ describe("l'emplacement se déduit du titre, bout en bout", () => {
     index([{ cwd: CWD, name: "Audit PWA and webapp", rollout: chemin }]);
 
     expect(sessionCodexParTitre("herdr-pwa", CWD)).toBeUndefined();
+  });
+});
+
+describe("le titre porte un glyphe d'état pendant le travail", () => {
+  /**
+   * ⚠️ **Le défaut du 2026-10-18.** Le même pane, la même session, mais codex
+   * travaille :
+   *
+   * ```
+   * au repos : "Audit PWA and webapp | herdr-pwa"
+   * en travail : "⠼ Audit PWA and webapp | herdr-pwa"
+   * ```
+   *
+   * Le nom lu valait « ⠼ Audit PWA and webapp », que l'index ne connaît pas :
+   * aucune session, donc conversation vide **pendant** le travail — exactement
+   * quand on la regarde.
+   */
+  const TITRE_SPINNER = "⠼ Audit PWA and webapp | herdr-pwa";
+
+  test("deux lectures sont proposées : brute, puis sans la décoration", () => {
+    expect(nomsDeSessionCodex(TITRE_SPINNER, CWD)).toEqual([
+      "⠼ Audit PWA and webapp",
+      "Audit PWA and webapp",
+    ]);
+  });
+
+  test("sans décoration, une seule lecture — on n'invente rien", () => {
+    expect(nomsDeSessionCodex(TITRE, CWD)).toEqual(["Audit PWA and webapp"]);
+  });
+
+  test("la session est retrouvée malgré le spinner", () => {
+    const chemin = session("01a14a74");
+    index([{ cwd: CWD, name: "Audit PWA and webapp", rollout: chemin }]);
+
+    expect(sessionCodexParTitre(TITRE_SPINNER, CWD)).toEqual({ kind: "path", value: chemin });
+  });
+
+  test("un nom réellement décoré reste trouvable par la lecture BRUTE", () => {
+    /*
+      ⚠️ C'est pourquoi on ne « nettoie » pas : un fil qui s'appelle vraiment
+      `⠼ quelque chose` doit rester trouvable. La lecture brute est essayée
+      d'abord, et c'est l'index qui tranche.
+    */
+    const chemin = session("01a14a74");
+    index([{ cwd: CWD, name: "⠼ Audit PWA and webapp", rollout: chemin }]);
+
+    expect(sessionCodexParTitre(TITRE_SPINNER, CWD)).toEqual({ kind: "path", value: chemin });
+  });
+
+  test("un titre décoré dont AUCUNE lecture n'existe ne rend rien", () => {
+    const chemin = session("01a14a74");
+    index([{ cwd: CWD, name: "Un autre fil", rollout: chemin }]);
+
+    expect(sessionCodexParTitre(TITRE_SPINNER, CWD)).toBeUndefined();
+  });
+
+  test("le dossier reste la garde, spinner ou pas", () => {
+    expect(nomsDeSessionCodex(TITRE_SPINNER, "/Users/someone/ailleurs")).toEqual([]);
   });
 });
 
