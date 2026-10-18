@@ -842,4 +842,20 @@ Le cast `u64::MAX as i64 = -1` (la borne haute fausse) est le genre d'incident q
 | L'annulation après effet | Structurel : la file n'a AUCUNE relecture — deux appels successifs = deux tours (le compteur le prouve), jamais de rejeu. |
 | 4 tests | Parallélisme inter-panes, non-entrelacement intra-pane, saturation dans la fenêtre réelle, deux tours sans rejeu. |
 
-Commit préfixé `T034:` contenant `crates/application/src/{commands.rs, lib.rs}`, `crates/application/tests/**` et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T035 — `application::commands::prompt` : le service prompt (C05–C06)
+
+| Livrable | Détail |
+|---|---|
+| L'empreinte | `empreinte_de` = SHA-256 de `cible\0texte` (32 hex) — **l'empreinte actuelle** (le contenu), par pane. |
+| **D007.2, la sémantique corrigée** | Le fil cherchait le doublon dans TOUTE la fenêtre (le A→B→A bloqué à tort) — ici la règle de l'utilisateur : **le dernier envoi confirmé PAR CIBLE** ; le même texte consécutif et confirmé → `Doublon` supprimé ; **A→B→A passe** (le dernier est B — testé) ; une cible voisine reste indépendante. |
+| Le retry débloqué | Un échec (timeout, transport), une preuve étrangère, une frappe partielle (le texte écrit, l'enter raté) : **RIEN n'est enregistré** — le prochain envoi passe (testé pour chaque cas ; `suivi()` = 0). |
+| **C05 — le discriminateur exigé** | La confirmation portant une AUTRE empreinte = jamais un succès — rapportée en inconnu, non enregistrée (le détail cite l'empreinte portée). |
+| Le repli interactif | **Sur refus connu seulement** : le texte mesuré « blocked and requires interactive input » bascule en FRAPPES (texte puis enter) — et la confirmation reste **`Inconnu`** (les frappes écrites ≠ l'application prouvée) ; un refus d'une autre nature ne bascule PAS (testé : aucun texte envoyé). |
+| La fenêtre monotone | 60 s sur `Instant` (jamais la date du jour). |
+| 7 tests (11 sur la crate) | SHA-256, doublon, A→B→A, échec/inconnu/frappe partielle, discriminateur, repli, fenêtre. |
+
+Commit préfixé `T035:` contenant `crates/application/src/commands/**` (admission + prompt), `tests/unit/**` et cette section. Cargo.lock inchangé (sha2 déjà au workspace).

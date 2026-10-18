@@ -9,6 +9,7 @@ license.workspace = true
 
 [dependencies]
 tokio = { workspace = true }
+sha2 = { workspace = true }
 tracing = { workspace = true }
 domain = { path = "../domain" }
 interactions = { path = "../interactions" }

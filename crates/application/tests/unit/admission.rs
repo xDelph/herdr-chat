@@ -1,7 +1,7 @@
 //! L'admission (T034) : A/B indépendants (parallèles), non-entrelacement par
 //! pane, saturation explicite, annulation après effet sans rejeu.
 
-use application::commands::{ErreurAdmission, FILE_PANE_MAX, Tourniquet};
+use application::commands::admission::{ErreurAdmission, FILE_PANE_MAX, Tourniquet};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
