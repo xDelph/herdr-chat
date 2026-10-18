@@ -1041,3 +1041,37 @@ Périmètre : `crates/application/src/{git,permis}.rs` (+`lib.rs`), `crates/appl
 4. **Le lecteur de sortie est un fil par git** : borné par l'exécuteur (2), il s'arrête à la fin de la sortie ou au plafond — un `recv` court après la sortie du processus, jamais une lecture sans fin.
 
 Commit préfixé `T040:` contenant tout ce qui précède et cette section.
+
+---
+
+## T041 — `application::events::watcher` : le veilleur du direct (E01–E03, E06)
+
+Périmètre : `crates/application/src/events/{mod,watcher}.rs` (+`lib.rs`), `crates/application/tests/unit/events/{mod,watcher}.rs` (+`mod.rs`). Aucun service réel contacté, aucun agent de l'utilisateur, aucun test sous `src/`.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `Veilleur` | Le diff par **signature** (statut, titre, cwd, type, session — E02) ; apparu (jamais au premier parcours, E03), statut (métadonnées peuvent émettre de→vers identiques), disparu avec la **dernière vue conservée** (E03 : l'agent sortant reste nommable). |
+| `CibleDeChangement` | `Statut(AgentStatus) | Disparu` — « gone » n'est PAS un état Herdr, c'est un artefact du veilleur ; l'union fermée du domaine n'est pas polluée. |
+| `faut_notifier` | E06 : `working`→tout autre état ; `working`/`blocked`→gone ; `idle`/`done` disparus = fin normale, pas de bruit ; cause jamais inventée (Herdr ne rend ni code ni raison). |
+| `BoucleDeVeille` | E01 : itération complète PUIS 2 s (une lecture à la fois, prouvé par le pic derrière une porte) ; cache des dernières vues, instant du dernier succès (horloge injectée), compte d'erreurs ; **panne ≠ disparition** : une source injoignable compte une erreur, ne publie rien, ne vide pas le parc ; au rétablissement, le diff repart de la dernière vue réussie (un agent réellement nouveau est annoncé, jamais la masse). |
+| Frontières | `SourceDeVues` (la panne est un `Err`, jamais une liste vide) et `PublicateurDeChangements` (le journal T042 le câblera) sont INJECTÉS — le veilleur ne connaît ni Herdr ni le journal. |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p application --test unit_tests` | PASS — **104 tests** (89 + 15 watcher). |
+| `cargo clippy -p application --all-targets` | zéro avertissement. |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** (graphe inchangé). |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **La réapparition après disparition TOTALE est muette** : le fil teste `before.size > 0` — un parc précédent vide est traité comme un premier passage (pas de rafale). Mesuré sur la référence, reproduit à l'identique, documenté par un test dédié ; la réapparition pendant que d'autres agents restent est, elle, annoncée.
+1. **Le publicateur reçoit les tours vides** : le fil publie chaque tick (le journal T042 filtrera ou non) — la preuve « la panne ne publie rien » compare le NOMBRE de publications, pas leur contenu.
+2. **Le premier tour d'un veilleur vierge ne publie rien** : la règle E03 vit dans le diff, pas dans la boucle — une boucle qui démarre sur un parc non vide annonce les apparitions dès le premier tour (c'est le cas normal après un démarrage à froid ? non : le premier tour d'un veilleur neuf est TOUJOURS muet, le parc précédent est vide). La boucle ne fait que consommer le diff.
+3. **La cadence se teste par le pic, pas par le compteur** : « 2 s après une itération complète » se prouve par « jamais deux lectures simultanées » (porte + pic = 1), pas par un décompte d'itérations qui serait flaky.
+4. **`en_marche` est un drapeau de sortie, pas un mutex** : la boucle vérifie au point de contrôle ; `arreter` ne coupe pas une lecture en cours (une lecture en cours finit, puis la boucle sort).
+
+Commit préfixé `T041:` contenant tout ce qui précède et cette section.

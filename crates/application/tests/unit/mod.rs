@@ -2,6 +2,7 @@
 
 pub(crate) mod admission;
 pub(crate) mod conversations;
+pub(crate) mod events;
 pub(crate) mod focus;
 pub(crate) mod git;
 pub(crate) mod launch;
