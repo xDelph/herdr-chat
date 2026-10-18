@@ -1,0 +1,43 @@
+# Portes de vérification pour la migration Rust (T003) — le système TS
+# restant continue d'être protégé tant qu'il est la référence (T057.)
+#
+# - "frontend-legacy" rejoue les contrôles TS (format/lint/typecheck/tests)
+#   exactement comme `release.yml` au moment du tag.
+# - "rust" exécute `cargo xtask verify` : layout, graphe TECH, format, clippy
+#   (deny warnings) et cibles de tests externes — toutes au moyen d'un seul
+#   point d'entrée consigné dans EXECUTION.md.
+name: verify
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  frontend-legacy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - run: bun install --frozen-lockfile
+      - run: bun run verify
+
+  rust:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@1.94.1
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: xtask verify (layout, graphe, fmt, clippy, tests externes)
+        run: cargo run --locked -p xtask -- verify

@@ -1,0 +1,308 @@
+//! Standing negative fixtures for the layout/graph doors (TECH §11: "has a
+//! negative fixture proving rejection", §9: probes stay, though nothing here
+//! touches the real `src/` trees).
+//!
+//! These are unit assertions over pure analyzers: they build synthetic
+//! structures in memory (and never apply them to the working tree), then try
+//! to prove that each rule can fail as well as stay silent. No `unwrap`/`expect`
+//! anywhere — CI runs clippy with `--deny warnings`, including this target.
+
+use std::path::Path;
+
+use xtask::allowlist::{self, Allowlist};
+use xtask::graph;
+use xtask::layout::{self, Violation};
+
+// Probe bodies are literal here: this file lives under `tests/`, where the
+// scanner itself is exempt. Nothing in this target touches the real src trees.
+
+#[test]
+fn inline_test_module_under_src_is_flagged() {
+    let body = "//! doc\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn t() {}\n}\n";
+    let path = "crates/foo/src/lib.rs";
+    let violations = layout::scan_rust_file(path, body);
+    let rules: Vec<&str> = violations.iter().map(|v| v.rule).collect();
+    assert!(rules.contains(&"rust-cfg-test"), "cfg(test) doit être vu");
+    assert!(
+        rules.contains(&"rust-inline-test-module"),
+        "mod tests doit être vu"
+    );
+    assert!(
+        rules.contains(&"rust-inline-test-attr"),
+        "#[test] doit être vu"
+    );
+    for v in &violations {
+        assert_eq!(v.path, path);
+    }
+}
+
+#[test]
+fn same_body_under_tests_dir_is_clean() {
+    let body =
+        "//! doc\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn t() {}\n}\n#[tokio::test]\n";
+    let path = "crates/foo/tests/unit/foo.rs";
+    assert!(
+        layout::scan_rust_file(path, body).is_empty(),
+        "un fichier sous tests/ est exempt du scan"
+    );
+}
+
+#[test]
+fn tokio_test_attr_outside_tests_is_flagged() {
+    let body = "use std::path::Path;\n#[tokio::test]\nfn t() {}\n";
+    let violations = layout::scan_rust_file("xtask/src/run.rs", body);
+    assert_eq!(violations.len(), 1);
+    assert_eq!(violations[0].rule, "rust-inline-tokio-test-attr");
+    assert_eq!(violations[0].line, 2);
+}
+
+#[test]
+fn include_of_tests_from_src_is_flagged_and_silent_under_tests() {
+    let body = "include!(\"../tests/unit/fixt.rs\");\n";
+    let outside = layout::scan_rust_file("xtask/src/main.rs", body);
+    assert_eq!(
+        outside.len(),
+        1,
+        "include! vers tests/ hors tests/ doit violer"
+    );
+    assert_eq!(outside[0].rule, "rust-tests-include-from-src");
+    assert!(layout::scan_rust_file("xtask/tests/unit_tests.rs", body).is_empty());
+}
+
+#[test]
+fn comments_never_trigger_rust_rules() {
+    let body = "// #[cfg(test)] mod tests\n/* #[tokio::test] */\n/*\n#[test]\n*/\nlet x = 1;\n";
+    assert!(
+        layout::scan_rust_file("crates/foo/src/arbitre.rs", body).is_empty(),
+        "les commentaires sont neutralisés sans décaler les lignes"
+    );
+}
+
+#[test]
+fn ts_test_files_under_src_are_path_violations() {
+    assert_eq!(
+        layout::scan_ts_path("apps/web/src/étape.test.ts").map(|v| v.rule),
+        Some("ts-test-under-src")
+    );
+    assert_eq!(
+        layout::scan_ts_path("packages/shared/src/schema.spec.tsx").map(|v| v.rule),
+        Some("ts-test-under-src")
+    );
+    assert!(layout::scan_ts_path("apps/server/src/crypto.ts").is_none());
+    assert!(layout::scan_ts_path("apps/web/tests/étape.test.ts").is_none());
+    assert!(layout::scan_ts_path("packages/shared/scripts/build.ts").is_none());
+    assert!(layout::scan_ts_path("xtask/layout-allowlist.json").is_none());
+}
+
+#[test]
+fn nested_worktrees_and_build_outputs_are_skipped_not_scanned() {
+    let paths = vec![
+        ".worktrees/other/Cargo.toml".to_string(),
+        "target/debug/build.rs".to_string(),
+        "node_modules/@x/y/index.ts".to_string(),
+        "crates/domain/src/ids.rs".to_string(),
+    ];
+    let outcome = layout::scan_file_list(Path::new("/nonexistent-root"), &paths);
+    assert_eq!(
+        outcome.skipped_worktrees, 1,
+        ".worktrees/ n'est jamais analysé"
+    );
+    assert_eq!(
+        outcome.skipped_paths, 2,
+        "target/node_modules ne sont jamais analysés"
+    );
+    // crates/domain/src/ids.rs est le seul chemin non sauté; la racine est
+    // fictive, donc sa lecture échoue — et le moteur le DIT au lieu de feindre
+    // un scan silencieux (honnêteté > confort).
+    assert_eq!(outcome.violations.len(), 1);
+    assert_eq!(outcome.violations[0].rule, "unreadable-rust-source");
+    assert_eq!(outcome.violations[0].path, "crates/domain/src/ids.rs");
+}
+
+#[test]
+fn allowlist_suppresses_only_listed_ts_paths_and_remains_fail_open() {
+    // Entries are exact paths; a Rust violation path that sneaks into the list
+    // is NOT forgivable (only the ts historical rule may be exempted).
+    let list = Allowlist {
+        note: "sondes".to_string(),
+        until_task: "T004".to_string(),
+        entries: vec![
+            "apps/server/src/agents/AgentRegistry.test.ts".to_string(),
+            "crates/foo/src/lib.rs".to_string(),
+        ],
+    };
+    let root = Path::new("/nonexistent-root");
+    let subject = vec![
+        Violation {
+            path: "apps/server/src/agents/AgentRegistry.test.ts".to_string(),
+            rule: "ts-test-under-src",
+            line: 0,
+            token: String::new(),
+        },
+        Violation {
+            path: "crates/foo/src/lib.rs".to_string(),
+            rule: "rust-cfg-test",
+            line: 3,
+            token: String::new(),
+        },
+        Violation {
+            path: "apps/server/src/herdr/HerdrClient.test.ts".to_string(),
+            rule: "ts-test-under-src",
+            line: 0,
+            token: String::new(),
+        },
+    ];
+    let verdict = match allowlist::validate(&list, &subject, root) {
+        Ok(v) => v,
+        Err(e) => panic!("validate doit marcher: {e}"),
+    };
+    assert_eq!(
+        verdict.allowed,
+        vec!["apps/server/src/agents/AgentRegistry.test.ts".to_string()]
+    );
+    assert_eq!(verdict.open.len(), 2, "rust + non-listé restent ouverts");
+    assert!(
+        verdict.open.iter().any(|v| v.rule == "rust-cfg-test"),
+        "une entrée allowlist ne pardonne jamais une règle rust"
+    );
+    assert!(
+        verdict.open.iter().any(|v| v.rule == "ts-test-under-src"),
+        "un ts hors liste reste un échec"
+    );
+}
+
+#[test]
+fn allowlist_stale_entries_fail_the_door() {
+    // A listed file that disappeared is proof the list was not maintained.
+    let list = Allowlist {
+        note: "sondes".to_string(),
+        until_task: "T004".to_string(),
+        entries: vec!["apps/server/src/gone.test.ts".to_string()],
+    };
+    let verdict = match allowlist::validate(
+        &list,
+        &[Violation {
+            path: "crates/foo/src/lib.rs".to_string(),
+            rule: "rust-cfg-test",
+            line: 1,
+            token: String::new(),
+        }],
+        Path::new("/nonexistent-root"),
+    ) {
+        Ok(v) => v,
+        Err(e) => panic!("validate doit marcher: {e}"),
+    };
+    assert_eq!(
+        verdict.stale_entries,
+        vec!["apps/server/src/gone.test.ts".to_string()]
+    );
+    assert!(!verdict.stale_entries.is_empty(), "porte prête à échouer");
+}
+
+#[test]
+fn allowlist_expiry_is_part_of_the_contract() {
+    let list = Allowlist {
+        note: "sondes".to_string(),
+        until_task: "never".to_string(),
+        entries: vec![],
+    };
+    assert!(
+        allowlist::validate(&list, &[], Path::new("/nonexistent-root")).is_err(),
+        "une exception sans échéance est illégale"
+    );
+}
+
+#[test]
+fn expected_graph_accepts_itself_and_rejects_extra_edge() {
+    // 1) The frozen TECH table trivially matches itself.
+    let exact: Vec<(String, Vec<String>)> = {
+        let raw = graph::expected_internal_edges();
+        raw.iter()
+            .map(|(k, deps)| {
+                (
+                    (*k).to_string(),
+                    deps.iter().map(|d| d.to_string()).collect::<Vec<String>>(),
+                )
+            })
+            .collect()
+    };
+    match graph::check_internal_graph(&exact) {
+        Ok(order) => assert!(order.len() >= 13, "ordre topologique couvre les membres"),
+        Err(e) => panic!("le graphe figé doit passer sa propre porte: {e}"),
+    }
+
+    // 2) A forbidden dependency (files → sessions) must be named exactly.
+    let mut mutant = exact.clone();
+    for (name, deps) in mutant.iter_mut() {
+        if name == "files" {
+            deps.push("sessions".to_string());
+            deps.sort();
+        }
+    }
+    assert!(
+        graph::check_internal_graph(&mutant).is_err(),
+        "dépendance interdite doit faire échouer la porte"
+    );
+
+    // 3) An extra member fails with a legible count.
+    let mut mutant2 = exact.clone();
+    mutant2.push(("bypass".to_string(), vec![]));
+    match graph::check_internal_graph(&mutant2) {
+        Ok(_) => panic!("membre surnuméraire doit échouer"),
+        Err(e) => assert!(e.contains("nombre de membres inattendu"), "{e}"),
+    }
+
+    // 4) A reversed edge (application depends on nothing, domain on
+    //    application) must fail even though the edge count matches.
+    let mut mutant3 = exact.clone();
+    mutant3.retain(|(n, _)| n != "application" && n != "domain");
+    mutant3.push(("application".to_string(), vec![]));
+    mutant3.push(("domain".to_string(), vec!["application".to_string()]));
+    assert!(graph::check_internal_graph(&mutant3).is_err());
+}
+
+#[test]
+fn cycle_detection_names_the_origin() {
+    let cyclic = vec![
+        ("a".to_string(), vec!["b".to_string()]),
+        ("b".to_string(), vec!["c".to_string()]),
+        ("c".to_string(), vec!["a".to_string()]),
+    ];
+    match graph::assert_acyclic(&cyclic) {
+        Ok(_) => panic!("un cycle doit échouer"),
+        Err(e) => assert!(e.contains("cyclique"), "{e}"),
+    }
+    let acyclic = vec![
+        ("a".to_string(), vec![]),
+        ("b".to_string(), vec!["a".to_string()]),
+        ("c".to_string(), vec!["a".to_string(), "b".to_string()]),
+    ];
+    match graph::assert_acyclic(&acyclic) {
+        Ok(order) => assert_eq!(order.first().map(String::as_str), Some("a")),
+        Err(e) => panic!("graphe sain doit passer: {e}"),
+    }
+}
+
+#[test]
+fn the_scanner_must_stay_silent_on_its_own_source() {
+    // Self-guard: this file is read from its real location; the gate that
+    // scans `src/` must not flag the gate itself.
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    for name in [
+        "src/layout.rs",
+        "src/graph.rs",
+        "src/allowlist.rs",
+        "src/run.rs",
+        "src/lib.rs",
+        "src/main.rs",
+    ] {
+        let full = Path::new(manifest_dir).join(name);
+        let body = match std::fs::read_to_string(&full) {
+            Ok(b) => b,
+            Err(e) => panic!("lecture impossible {name}: {e}"),
+        };
+        let rel = format!("xtask/{name}");
+        let violations = layout::scan_rust_file(&rel, &body);
+        assert!(violations.is_empty(), "le scanner se drape: {violations:?}");
+    }
+}
