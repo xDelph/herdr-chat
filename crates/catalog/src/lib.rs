@@ -2,4 +2,5 @@
 //! validation des arguments de lancement (TECH §2).
 
 pub mod adapters;
+pub mod args;
 pub mod process;

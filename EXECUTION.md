@@ -772,4 +772,17 @@ Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'ex
 | Le chemin d'exécution | `catalogue_d_adaptateur(adaptateur, commande_injectée)` — via l'exécuteur borné T028 (les tests passent par des CLIs factices ; **aucun CLI d'agent réel jamais lancé**) ; le code non-nul + le stderr = l'échec **déclaré** (jamais stderr comme sortie). |
 | 6 tests (12 sur la crate) | Les cinq formes du tableau CURRENT + l'absence + le chemin d'exécution factice. |
 
-Commit préfixé `T029:` contenant `crates/catalog/src/adapters.rs` + `lib.rs`, `tests/unit/{adapters,mod}.rs` et cette section. Cargo.lock inchangé (serde_json déjà au workspace).
+
+
+---
+
+## T030 — `catalog::args` : les profils d'args de lancement (T030)
+
+| Livrable | Détail |
+|---|---|
+| `construit_args` | Le vocabulaire est celui de l'agent, et nulle part ailleurs : pi `--model/--thinking`, claude `--model/--effort`, codex `-m/--config model_reasoning_effort="<n>"`, cursor `--model` **seul** (le niveau est dans le nom — un thinking demandé = refus, le modèle reste proposé) ; le kind hors table = « no verified launch mechanism » ; le trim du fil respecté. |
+| La matrice complète | 4 kinds × model présent/absent × thinking présent/absent — **chaque case a son verdict testé** ; un thinking SANS modèle : claude seul l'applique (`--effort` indépendant), les autres refusent (on ne devine pas de modèle). |
+| Le fournisseur | **Explicitement non appliqué** (`fournisseur_applique: false`, historiquement vrai) — le champ `provider` de la demande ne fuite jamais dans les args et rien ne le présente comme appliqué (testé sur les quatre kinds). |
+| `niveau_supporte` | La vérification respecte ce que l'agent DÉCLARE : niveau offert = passe ; non offert = refus **citant les disponibles** ; modèle absent du catalogue ou muet (niveaux vides) = on ne tranche pas à sa place ; kind hors table = « unverified reasoning level » ; thinking blanc = rien à vérifier. |
+
+Commit préfixé `T030:` contenant `crates/catalog/src/args.rs` + `lib.rs`, `tests/unit/{args,mod}.rs` et cette section. Cargo.lock inchangé.
