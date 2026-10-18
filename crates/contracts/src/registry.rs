@@ -253,6 +253,12 @@ pub const ROUTES: [Route; 18] = [
                     nom: "before",
                     requis: false,
                 },
+                // T025 : observe=0/1 (défaut 1) — la lecture qui ne
+                // renouvelle pas le lease d'observation.
+                ParametreRequete {
+                    nom: "observe",
+                    requis: false,
+                },
             ],
             entete: &[],
             corps: None,

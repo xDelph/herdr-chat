@@ -47,5 +47,17 @@ pub struct SessionResponse {
     pub previous_cursor: Field<String>,
     pub has_more: bool,
     pub reset: bool,
+    /// **Additif T025** : `caughtUp` = vrai au seul watermark COMPLET
+    /// observé — le client sait que rien ne reste derrière lui. Présent sur
+    /// le fil seulement quand vrai : les réponses du fil actuel (sans ce
+    /// champ) restent fidèles, et le corpus gelé passe inchangé.
+    #[serde(default, skip_serializing_if = "est_faux")]
+    pub caught_up: bool,
     pub session_path: String,
+}
+
+/// Le prédicat d'omission de `caughtUp` — vrai = présent, faux = omis.
+#[must_use]
+pub fn est_faux(valeur: &bool) -> bool {
+    !valeur
 }

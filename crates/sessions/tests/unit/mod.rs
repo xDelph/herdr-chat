@@ -5,6 +5,7 @@ pub(crate) mod agents_codex;
 pub(crate) mod agents_devin;
 pub(crate) mod agents_opencode;
 pub(crate) mod agents_pi;
+pub(crate) mod borne;
 pub(crate) mod codecs;
 pub(crate) mod cursor;
 pub(crate) mod jsonl;

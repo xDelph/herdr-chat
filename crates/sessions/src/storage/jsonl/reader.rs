@@ -127,3 +127,66 @@ pub fn page_arriere(
         },
     })
 }
+
+/// La cible d'une page — **2 MiB de JSON** (T025).
+pub const CIBLE_PAGE_OCTETS: usize = 2 * 1024 * 1024;
+
+/// Le plafond **absolu** d'une réponse — 16 MiB (T025).
+pub const PLAFOND_ABSOLU_OCTETS: usize = 16 * 1024 * 1024;
+
+/// L'erreur du bornage — le record hors plafond : **422 sans avancer son
+/// curseur** (le client peut demander la suite autrement, la position reste
+/// la sienne).
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum ErreurBorne {
+    /// Un SEUL record dépasse le plafond absolu : il ne sera jamais servi
+    /// — 422, curseur intact (T025 : « sans avancer son curseur »).
+    RecordHorsPlafond { taille: u64 },
+    /// Une panne d'I/O réelle — rapportée telle quelle, jamais requalifiée
+    /// en refus de taille.
+    Io(String),
+}
+
+/// La page **bornée** du forward : cible 2 MiB, plafond absolu 16 MiB, et
+/// `caught_up` — **vrai au seul watermark complet observé** (aucune queue
+/// en attente derrière).
+///
+/// ⚠️ `hasMore` reste **historique** (l'indicateur du backward, porté par la
+/// route comme le fil l'a toujours fait) — la page bornée ne l'invente pas.
+pub fn page_bornee(
+    chemin: &Path,
+    curseur: &CurseurFichier,
+    observe: bool,
+) -> Result<PageAvant, ErreurBorne> {
+    // Le paramètre observe est porté (la RENEWAL du lease appartient à
+    // l'index T027) — la lecture elle-même ne dépend pas de lui.
+    let _ = observe;
+    let page = page_avant(chemin, curseur, CIBLE_PAGE_OCTETS)
+        .map_err(|cause| ErreurBorne::Io(cause.to_string()))
+        .and_then(|page| {
+            for cadre in &page.cadres {
+                if cadre.consomme as usize > PLAFOND_ABSOLU_OCTETS {
+                    return Err(ErreurBorne::RecordHorsPlafond {
+                        taille: cadre.consomme,
+                    });
+                }
+            }
+            Ok(page)
+        })?;
+    Ok(page)
+}
+
+/// L'erreur du paramètre `observe` — toute autre valeur que `0`/`1`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct ObserveInvalide;
+
+/// La validation du paramètre `observe` — `"0"`/`"1"` seulement, défaut 1 ;
+/// toute autre valeur est un **400** (l'appelant refuse, jamais devine).
+pub fn observe_valide(param: Option<&str>) -> Result<bool, ObserveInvalide> {
+    match param {
+        None => Ok(true),
+        Some("0") => Ok(false),
+        Some("1") => Ok(true),
+        _ => Err(ObserveInvalide),
+    }
+}

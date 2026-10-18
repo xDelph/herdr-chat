@@ -698,4 +698,18 @@ Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'ex
 | Les erreurs 400/409 | `Illisible` (base64/JSON cassé, **version inconnue** `hc3:` refusée — jamais devinée, offset négatif, non-entier), `Exclusifs` (cursor+before ensemble), `SessionEtrangere` → **400** ; `Perime` → **409** — la cartographie vit AVEC le type (`statut()`), http-api n'en refait pas une couche (le graphe l'interdit et la règle n'a pas à être réécrite). |
 | 6 tests (69 sur la crate) | Aller-retour fidèle, legacy fichier + SQLite (byte-exact du fil), A ≠ B (les deux sens + le bon appariement), les illisibilités nommées (×5), l'exclusivité, la cartographie 400/409. |
 
-Commit préfixé `T024:` contenant `crates/sessions/src/cursor.rs`, `lib.rs`, `tests/unit/{cursor,mod}.rs` et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T025 — le bornage du forward : `caughtUp`, pages 2 MiB/16 MiB, `observe` (C18/C26)
+
+| Livrable | Détail |
+|---|---|
+| `page_bornee` (sessions) | La cible = **2 MiB**, le plafond **absolu = 16 MiB** ; un record au-dessus de la cible **mais sous le plafond** se rend **seul** (le géant avance) ; un record **hors plafond** = `ErreurBorne::RecordHorsPlafond{taille}` → **422 sans avancer son curseur** (l'appelant garde sa position) ; les I/O restent des I/O (jamais requalifiées en refus de taille). |
+| `caughtUp` (contrat additif) | `SessionResponse.caught_up` : **vrai au seul watermark complet observé** — une queue pendante (l'agent écrit) le garde faux ; présent sur le fil **seulement quand vrai** (`skip_serializing_if`) : les réponses du fil actuel et le corpus gelé restent fidèles (17 tests contracts verts). |
+| `observe=0/1` (défaut 1) | La query **acceptée** (registre H04 + `observe_valide`) : `"2"`/`"vrai"`/vide → refus nommé (**400**) ; `observe=0` = la lecture **sans renouveler le lease** — le paramètre est porté, la RENEWAL appartient à l'index (T027). |
+| `hasMore` | **Reste historique** — l'indicateur du backward, porté par la route comme le fil l'a toujours fait ; la page bornée ne l'invente pas. |
+| 4 tests (73 sur la crate) | **Le Delta 32 MiB sans perte ni duplication** (2 001 lignes paginées, chaque n vu UNE fois, ordre exact) ; `caughtUp` faux à la queue pendante puis vrai au complet (+ l'aller-retour du curseur opaque) ; le 17 MiB → 422 sans avancer vs le 3 MiB rendu seul et avançant ; `observe` aux bornes. |
+
+Commit préfixé `T025:` contenant `crates/sessions/src/storage/jsonl/reader.rs` (bornes + page + observe), `crates/contracts/src/http/sessions.rs` (`caught_up`) + `registry.rs` (`observe`), `tests/unit/{borne,mod}.rs` et cette section. Cargo.lock inchangé.
