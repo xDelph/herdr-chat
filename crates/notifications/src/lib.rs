@@ -1,1 +1,6 @@
-//! notifications — module layout and API surface are delivered by their owning tasks (TECH §2).
+//! notifications — le store push compatible, le cycle de vie VAPID, les
+//! profils de payload et la livraison avec élagage des abonnements expirés
+//! (TECH §4) ; les modules arrivent avec leurs tâches.
+
+pub mod store;
+pub mod vapid;

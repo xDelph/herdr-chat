@@ -1141,3 +1141,38 @@ Périmètre : `crates/application/src/events/subscription.rs` (+`mod.rs`), `crat
 3. **Le journal reste l'autorité** : la sonnette est une sonnette — le heartbeat vide déclenche la relecture depuis le curseur, qui retrouve tout. C'est le modèle TECH §7 (« broadcast receiver is a wakeup hint; replay authority is the journal »).
 
 Commit préfixé `T043:` contenant tout ce qui précède et cette section.
+
+---
+
+## T044 — `notifications::store/vapid` + `files::atomic` (E08, C14)
+
+Périmètre : `crates/files/src/atomic.rs` (+`lib.rs`), `crates/files/tests/unit/atomic.rs` (+`mod.rs`), `crates/notifications/src/{store,vapid}.rs` (+`lib.rs`), `crates/notifications/tests/unit/{store,vapid}.rs` (+`mod.rs` + `unit_tests.rs`). Aucun service réel contacté, aucun agent de l'utilisateur, aucun test sous `src/`.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `files::atomic::ecrit_atomique` | temp + flush (sync_all) + rename dans le MÊME répertoire ; répertoire parent créé 0700, fichier final 0600 (l'inode du temporaire survit au rename) ; panne à chaque étape → temporaire supprimé, ancien fichier intact (prouvé : rename sur un répertoire cible échoue, l'ancien contenu reste, aucun `.tmp` ne traîne). |
+| `notifications::store` | La forme legacy EXACTE (`{subscriptions, vapidKeys}` camelCase, indenté) — clés et abonnements existants inchangés (test d'aller-retour + forme filaire vérifiée) ; fichier absent = store vide ; fichier corrompu = ERREUR visible (jamais de régénération silencieuse) ; `GardienDeStore` = écrivain sérialisé (E08), upsert par endpoint, désabonnement par endpoint. |
+| `notifications::vapid` | `depuis_env` : paire partielle REFUSÉE, paire complète vérifiée par **équivalence** (la privée doit dériver la publique — une paire mélangée est refusée avant toute utilisation, TECH §7) ; génération persistée (env > store > génération) ; forme des clés Node : publique = point P-256 non compressé 65 octets, privée = scalaire 32 octets, base64url sans padding (vérifié). |
+| `rapatrie_store` | Migration du store ENTIER (abonnements ET VAPID — les abonnements sont liés à la clé publique qui les a créés) ; nouveau store absent ou vide seulement ; nouveau peuplé = vérité intacte ; pas d'ancien store = installation neuve, pas une panne. |
+| Dépendances | `jwt-simple` (déjà vendu par web-push, `pure-rust` sans défaut — le conflit de features avec web-push a été évité) + `base64` (déjà au workspace). |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p files` | PASS — **18 tests** (12 + 6 atomic). |
+| `cargo test -p notifications` | PASS — **18 tests** (14 store + 4 vapid). |
+| `cargo clippy -p notifications -p files --all-targets` | zéro avertissement. |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** (graphe inchangé : `notifications → files` était déjà l'arête TECH §2). |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **`jwt-simple` en `pure-rust`, sans défaut** : les features par défaut entrent en conflit avec l'usage de web-push (compile_error) — la même configuration que web-push lui-même, version alignée.
+1. **La clé publique non compressée passe par le trait `ECDSAP256PublicKeyLike`** : `ES256PublicKey::to_bytes()` est la forme COMPRESSÉE (33 octets) — inutilisable pour VAPID ; le trait expose le point non compressé (65 octets, `0x04` en tête), vérifié par test.
+2. **Divergence volontaire : un NOUVEAU store corrompu est une erreur visible** au rapatriement — le fil le traitait comme « non peuplé » et l'écrasait en silence. C'est exactement la régénération silencieuse que C14 interdit ; documenté dans le code et le test.
+3. **`sync_all` est le « flush » honnête** : `File::flush` est un no-op pour un fichier — la durabilité réelle (octets sur disque avant le rename) passe par `sync_all`.
+4. **La validation d'équivalence s'applique aux paires importées** (env ET store) : une paire du store mélangée est une erreur visible, jamais une régénération silencieuse qui invaliderait les abonnements.
+
+Commit préfixé `T044:` contenant tout ce qui précède et cette section.
