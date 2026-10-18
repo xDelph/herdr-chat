@@ -1211,3 +1211,35 @@ Périmètre : `crates/notifications/src/{payload,delivery,webpush}.rs` (+`lib.rs
 4. **Le délai est un échec compté, pas une expiration** : un service muet ne fait pas retirer l'abonnement — la cause est réelle, jamais inventée.
 
 Commit préfixé `T045:` contenant tout ce qui précède et cette section.
+
+---
+
+## T046 — `files::authorized_file` + `files::mime` (S05–S07)
+
+Périmètre : `crates/files/src/{authorized_file,mime}.rs`, `confined.rs` (+`RacineAutorisee::brute`), `contracts/src/limits.rs` (+`MAX_FILE_BYTES`), tests `crates/files/tests/unit/{authorized_file,mime}.rs`. Aucun service réel, aucun agent, aucun test sous `src/`.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `lit_fichier_autorise` | S05–S06 : racines **réévaluées à chaque demande** (le snapshot Herdr est la seule source — pas de racine globale, pas de Desktop/Downloads/Pictures implicites) ; résolution puis vérification (le `..` et le frère ne passent pas) ; racines résolues AUSSI (piège macOS `/var` → `/private/var`) ; contrôles sur le descripteur (régularité, taille ≤ 12 MiB) ; longueur servie = octets réellement lus. |
+| `RacineAutorisee::brute` | Une racine du snapshot qui a disparu reste dans sa forme brute : elle ne sert rien, mais ne fait pas échouer la lecture des autres (le fil : `realpathSync` en `catch`). |
+| `content_type_de` / `est_inline` | S07 : la liste blanche EXACTE du fil — images + pdf inline, textes en `text/plain; charset=utf-8`, **SVG jamais inline** (script possible → téléchargé), l'inconnu en octet-stream. |
+| `ErreurFichier` + `describe_erreur_fichier` | Les raisons exactes du fil (`no authorized project`, `outside the project folders`, `symlink escaping the project folders`, `not a file`, `fichier trop gros (N Mo, maximum 12 Mo)`, `fichier introuvable`) — une cause réelle, jamais générique. |
+| `contracts::limits::MAX_FILE_BYTES` | La valeur canonique (12 MiB), miroir de `packages/shared/src/limits.ts` ; `files` la porte aussi en local (le graphe interdit `files → contracts`) — même recours que `MAX_SESSION_READS`. |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p files` | PASS — **35 tests** (18 + 10 authorized_file + 6 mime + 1). |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** (graphe inchangé). |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **Le répertoire demandé directement** : le fil l'ouvre puis le refuse via `isFile()` ; ici l'ouverture relative d'un chemin vide échoue avant le fstat. La vérification porte sur le chemin résolu (`canonique` + `is_dir`), et le descripteur re-valide la régularité — la course (fichier remplacé entre les deux) reste fermée : un répertoire devenu fichier est servi, un fichier devenu répertoire est refusé par le fstat.
+1. **Le type MIME suit le chemin RÉEL, pas l'extension d'appel** : un lien interne vers un `.png` sert un png — le nom aussi vient de la cible réelle (prouvé).
+2. **La taille du fichier PNG de test** : `\x89PNG\r\n\x1a\n` + `contenu` = 15 octets, mon premier `assert` comptait 14 — corrigé par l'exécution.
+3. **`MAX_FILE_BYTES` en double** (contrats + files) : le graphe l'impose ; la valeur canonique vit dans `contracts` (la source de vérité pour http-api en T052), le local de `files` est documenté comme miroir.
+
+Commit préfixé `T046:` contenant tout ce qui précède et cette section.

@@ -53,6 +53,17 @@ impl RacineAutorisee {
         &self.canonique
     }
 
+    /// Une racine BRUTE : le chemin déclaré, sans résolution — le recours
+    /// d'une racine disparue (T046, S05) : elle ne fera passer aucun
+    /// fichier, mais ne fait pas échouer la lecture des autres.
+    #[must_use]
+    pub fn brute(chemin: &Path) -> Self {
+        Self {
+            brut: chemin.to_path_buf(),
+            canonique: chemin.to_path_buf(),
+        }
+    }
+
     /// La racine couvre-t-elle ce chemin **avant résolution réelle** ? —
     /// lexicale contre l'une ou l'autre forme.
     #[must_use]

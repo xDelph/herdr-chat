@@ -32,3 +32,9 @@ pub const MAX_BODY_BYTES: usize = 64 * 1024;
 /// Limite propre au prompt (H05) : texte au-delà → 413, compté en octets
 /// UTF-8 (CURRENT.md §2, H05).
 pub const MAX_PROMPT_BYTES: usize = 32 * 1024;
+
+/// Taille maximale d'un fichier servi (S06) : 12 MiB — au-delà, refus
+/// explicite, jamais une troncature muette. Miroir de
+/// `packages/shared/src/limits.ts` ; `files` la porte aussi en local
+/// (le graphe interdit `files → contracts`).
+pub const MAX_FILE_BYTES: u64 = 12 * 1024 * 1024;
