@@ -514,3 +514,21 @@ Périmètre : `crates/files/src/confined.rs (+tests)`, `crates/sessions/src/path
 ### Commit
 
 Commit préfixé `T011:` contenant `crates/files/src/confined.rs` + `lib.rs` + `tests/**`, `crates/sessions/src/path_policy.rs` + `lib.rs` + `tests/**`, `Cargo.toml` (workspace deps) + `Cargo.lock` et cette section. Aucun test sous `src/`, aucune écriture hors dépôt.
+
+---
+
+## T012 — `herdr-client::transport` : le transport Unix (T012)
+
+Périmètre : `crates/herdr-client/src/transport.rs (+tests)` — JSONL ligne par ligne, corrélation par identifiant, cadre borné 16 MiB, UTF-8 fragmenté, fermeture, deadline par méthode ; zéro relance mutante automatique.
+
+| Livrable | Détail |
+|---|---|
+| `TransportUnix` | Un socket Unix, un compteur d'ids monotone ; `appelle(methode, params)` : un cadre demande (id/method/params + saut de ligne), un cadre réponse corrélé — `result` → Ok, `error` → `AmontRefus{code, message}` (structuré, jamais une chaîne opaque), `result`+`error` → enveloppe ambiguë refusée. |
+| Bornes et délais | Cadre > 16 MiB refusé **avant** de lire la suite ; deadlines par méthode (`delai_de`) : 15 s défaut (mesuré C07), catalogage 20 s (limite partagée) — posées en `set_read/write_timeout`. |
+| UTF-8 fragmenté | Lecture **par octets** jusqu'au saut de ligne : un « é » coupé en deux se reconstitue (le décodage n'arrive qu'à la fin du cadre) — testé avec trois fragments espacés. |
+| Erreurs nommées | `Ferme` (EOF), `CadreTropGrand`, `JsonInvalide`, `EnveloppeInvalide` (id absent, ni result ni error, les deux à la fois), `MauvaiseCorrelation{attendu, recu}`, `DelaiDepasse`, `Socket`, `AmontRefus{code, message}` — **aucune relance automatique** : un délai dépassé rend la main, le serveur reçoit UN cadre, l'appelant rejoue **explicitement** (`prochain_identifiant` avance). |
+| 8 tests contre un faux socket | Échange corrélé, cadre fragmenté UTF-8, mauvaise corrélation, JSON invalide, enveloppe sans id / vide, refus amont structuré, EOF, délai, surtaille, aucune relance + ids qui avancent. |
+
+Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'exigent simplement ; l'adaptateur asynchrone l'enveloppera (T021) sans re-décoder ici.
+
+Commit préfixé `T012:` contenant `crates/herdr-client/src/{transport.rs, lib.rs}`, `crates/herdr-client/tests/**` et cette section. Cargo.lock inchangé.

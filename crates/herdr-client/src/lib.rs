@@ -1,1 +1,4 @@
-//! herdr-client — module layout and API surface are delivered by their owning tasks (TECH §2).
+//! herdr-client — transport Unix, décodage du fil amont, port de contrôle
+//! (TECH §2) ; les modules arrivent avec leurs tâches (T012, T013, T021).
+
+pub mod transport;
