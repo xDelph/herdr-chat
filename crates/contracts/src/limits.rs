@@ -24,3 +24,11 @@ pub const MIN_TAP_TARGET_PX: f64 = 44.0;
 
 /// Contraste de texte minimal (accessibilité, ratio WCAG).
 pub const MIN_TEXT_CONTRAST: f64 = 4.5;
+
+/// Garde partagée des routes POST : Content-Length déclaré au-delà → 413
+/// (CURRENT.md §2, branche de rejet commune).
+pub const MAX_BODY_BYTES: usize = 64 * 1024;
+
+/// Limite propre au prompt (H05) : texte au-delà → 413, compté en octets
+/// UTF-8 (CURRENT.md §2, H05).
+pub const MAX_PROMPT_BYTES: usize = 32 * 1024;

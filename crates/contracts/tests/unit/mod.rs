@@ -2,3 +2,4 @@
 
 pub(crate) mod corpus;
 pub(crate) mod presence;
+pub(crate) mod registry;

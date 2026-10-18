@@ -349,3 +349,44 @@ Périmètre : `crates/contracts/src + crates/contracts/tests` — tous les DTO p
 ### Commit
 
 Commit préfixé `T007:` contenant `crates/contracts/src/**` (lib + presence + limits + events + http/12 modules), `crates/contracts/tests/**` et cette section. `Cargo.lock` inchangé. Aucune autre crate touchée, aucun test sous `src/`, aucune écriture hors dépôt.
+
+---
+
+## T008 — `contracts::registry` : le manifeste typé des 18 routes
+
+Périmètre : `crates/contracts/src/registry.rs + tests` — méthodes, gabarits, entrées (corps/query/chemin/entête), variantes de statuts avec leur Content-Type, politique mutante, gardes POST partagées, recherche nommée. Les DTO amont restent séparés (famille `herdr_client::wire`, T021) — le registre ne décode rien.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `RouteId` (18 variants) + `Methode` (Get/Post) + `Politique` (Lecture/Mutation) | Unions fermées serde — l'ordre du manifeste suit H01…H18, testé position par position. |
+| `Route` + `Entree` + `Corps` + `ParametreRequete` + `Forme` + `Variante` | Le gabarit exact du fil (`/api/agents/{paneId}/prompt`…), la politique mutante mesurée, les paramètres de chemin/query/entête (H04 : trois query optionnelles ; H17 : `path` **requise** ; H14 : entête `Last-Event-ID`), les corps **nommés** (`PromptRequest`, `LaunchAgentRequest`, `AnswerRequest`, `TrustRequest`, `ClientLogRequest`, `PushBody`) avec la limite propre du prompt (32 KiB), les corps **ignorés après garde** (H06/H11, mesuré), et les variantes de réponse : JSON nommé, **texte brut** (H15, 200 et 503), **corps de fichier** (H17), **204 vide** (H16), **flux SSE** (H14). |
+| Les variantes explicites, transcription de CURRENT.md §2 | Route par route, y compris les deux 200 du prompt (envoyé ou supprimé), le 409 `TrustRequiredResponse` du lancement, le 400 `{ok:false}` du journal (**même** schéma `ClientLogResponse`, pas une ApiError), et H09 **sans aucune branche non-200** documentée (le non-soutenu/indisponible est une valeur du 200). |
+| `GARDES_POST` | Les quatre gardes partagées des POST (403/415/413/405, toutes en `ApiErrorResponse` — le corps du 405 aussi, mesuré) + `variantes_totales()` qui compose. |
+| Recherche nommée | `entree_de(id)` (totale, manifeste complet testé), `cherche(methode, gabarit)` — `None` nommé pour un chemin inconnu, une méthode absente d'une route existante (le 405 du routeur s'en sert), ou un gabarit voisin mal nommé. |
+| `limits.rs` complété | `MAX_BODY_BYTES` (64 KiB, garde partagée 413) et `MAX_PROMPT_BYTES` (32 KiB, H05) — mesurés CURRENT.md §2. |
+| 10 tests de registre (17 au total sur la crate) | Manifeste complet et sans doublon, chemins/méthodes verbatim, politique mesurée, variantes documentées une à une, formes non JSON nommées, corps nommés réels, gardes composées, **deux négatifs** : route absente (chemin/méthode/gabarit) et réponse absente (H09 sans non-200, H11 sans explicite au-delà du 200, vocabulaire de statuts fermé). |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p contracts --all-targets --locked` | **17 passed / 0 failed** (10 registre + 7 corpus/présence). |
+| `cargo clippy -p contracts --all-targets -- -D warnings` | OK après corrections : `Deserialize` retiré des dérivations du registre (impossible sur des champs `&'static str`, et inutile — le manifeste se lit, il ne se décode pas), import mort retiré. |
+| `cargo fmt -p contracts` puis `--check` | OK. |
+| `cargo run --locked -p xtask -- verify` | **Cinq portes vertes** : layout (383 fichiers, 0 autorisés, 0 ouverts), graph, format, clippy, tests. |
+| Portes TS | Non relancées : aucun fichier TypeScript touché (le hook de commit les relance). |
+
+### Décisions / honnêteté
+
+1. **Le registre ne décode pas — il nomme.** Chaque corps pointe vers un contrat de `http/` ; le test vérifie que les six noms restent dans la liste des contrats réels. La preuve que le type décode VRAIMENT le corps appartient au coureur de corpus (T007) et aux handlers (T050+).
+2. **Le 403 des lectures n'est pas la garde POST.** Premier run du test : H04 (chemin de session rejeté) et H17 (fichier refusé) portent un 403 **explicite documenté** — l'invariant négatif ne porte que sur 415/413/405. L'échec a enseigné la distinction, elle est maintenant dans le test.
+3. **Le 405 n'existe pas comme variante propre** : c'est le fait « pas de route pour cette méthode » du manifeste (`cherche` → `None`) qui le fonde — testé négativement.
+4. **Le défaut documenté de H12 est consigné, pas modélisé.** CURRENT.md note que la construction actuelle omet `state` (500 de validation au fil) : le manifeste porte le contrat **intended** (`200 TrustResolvedResponse`) ; la correction du défaut appartient à la tâche qui branche H12 (T051).
+5. **Les réponses nommées par route (enums de conversion HTTP, TECH §5) ne sont pas encore posées** : elles deviennent utiles quand les handlers convertissent les résultats du domaine (T050–T053) — les poser maintenant ferait des enums sans consommateur. Décision consignée ici, à reprendre par ces tâches.
+6. **`schema.rs` reste hors T008** (exports de schémas, T009).
+
+### Commit
+
+Commit préfixé `T008:` contenant `crates/contracts/src/registry.rs`, `crates/contracts/src/limits.rs` (deux constantes mesurées), `crates/contracts/tests/unit/registry.rs`, les mises à jour de `lib.rs`/`mod.rs` et cette section. `Cargo.lock` inchangé. Aucune autre crate touchée, aucun test sous `src/`, aucune écriture hors dépôt.

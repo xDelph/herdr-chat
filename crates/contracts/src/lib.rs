@@ -18,6 +18,7 @@ pub mod events;
 pub mod http;
 pub mod limits;
 pub mod presence;
+pub mod registry;
 
 // Les unions fermées primitives vivent dans `domain` — réexportées ici
 // (C01 : une seule définition par union, jamais une copie).
