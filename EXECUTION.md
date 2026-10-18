@@ -1378,3 +1378,44 @@ Périmètre : `crates/http-api/src/{services,convertir}.rs`, `crates/http-api/sr
 5. **Le port de session rend des `ErreurDomaine`** : `PortError` est l'erreur de TRANSPORT (Herdr) ; la lecture de session (fichier/base) a ses propres clauses — mélanger les deux aurait re-décidé la carte H04 au port.
 
 Commit préfixé `T050:` contenant tout ce qui précède et cette section.
+
+## T051 — `http-api::handlers::commands` (H05–H07, H10–H12 ; C03, C05–C07, C17)
+
+Périmètre : `crates/http-api/src/handlers/{prompt,arret,lancement,reponse,focus,confiance,mod}.rs`, `services.rs` (les services de commande + leurs dépendances injectées), `router.rs` (six routes branchées, politique et fallback inchangés) ; `crates/interactions/src/confiance.rs` (répondeur + touches par famille), `crates/application/src/{types_installes.rs, commands/mod.rs, commands/prompt.rs}` ; `crates/test-support/src/fake_herdr.rs` (écrans et snapshots scriptés) ; tests `crates/http-api/tests/unit/{prompt,arret,lancement,reponse,focus,confiance,support,mod}.rs`, `crates/interactions/tests/unit/confiance.rs`, `crates/application/tests/unit/types_installes.rs`. Aucun service réel contacté, aucun agent, aucun test sous `src/`.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `handlers/prompt.rs` (H05) | Corps `{text}` (400 nommé, jamais un envoi à moitié décidé) ; **413 en octets UTF-8** sur le TEXTE, avant toute action ; mode `saisie` relu **depuis Herdr** (`lecture_forcee`) et non du client — une lecture de statut qui échoue ne bloque pas l'envoi, elle laisse `saisie=false` (comme le fil) ; 200 `PromptSentResponse` (confirmed/unknown), 200 **suppressed** sur doublon (aucune action rejouée), 502 `PromptFailedResponse` avec l'état **B05** décidé sur la NATURE de la panne (`attente` = délai, `inconnu` = transport muet, `erreur` = refus amont). |
+| `handlers/arret.rs` (H06) | Décision sur photo fraîche (le moteur T036) ; 200 `interrupt-sent`, 200 `not-running` (agent au repos **ou** course « fini entre la photo et l'envoi »), 404 agent absent, 502 snapshot indisponible / illisible (causes **distinctes**) / transmission refusée. |
+| `handlers/lancement.rs` (H07) | Corps `LaunchAgentRequest` (400 `kind` manquant) ; **la liste réellement installée** vérifiée AVANT tout onglet (C16) : 400 `agent type not installed: “x”` + indice des types offerts, 503 découverte en panne **avec sa cause** ; 201 `LaunchAgentResponse` (onglet puis agent), **409 `TrustRequiredResponse`** quand l'agent est bloqué sur l'invite (aucune touche envoyée), 502 pour validation/onglet/agent/ambigu (l'onglet gardé est dit). |
+| `handlers/reponse.rs` (H10) | Corps `{numero, texte?}` (400 nommé) ; 200 `QuestionAnsweredResponse` avec les trois états (`appliquee | transmise | refusee`) — un refus est une **valeur**, et rien n'est envoyé hors des choix offerts ; 502 échec Herdr. |
+| `handlers/focus.rs` (H11) | 200 `{focused, status}` — **l'échec Herdr reste une valeur** (`focused:false`), la ligne de journal porte le verdict. |
+| `handlers/confiance.rs` (H12) | Corps `{accept}` (400 nommé) ; la **famille** vient de Herdr (jamais du client) ; 200 `TrustResolvedResponse` **avec `state`** (C03 — le fil l'omettait, la validation de contrat rendait 500 pour tout résultat) ; 502 échec Herdr. |
+| `interactions::confiance` | `touches_de_confiance` par famille **mesurée** (claude : `down,enter` / `enter` ; codex : `1,enter` / `2` ; toute autre : **aucune** touche) et `repondre_confiance` : lire avant, refuser une famille inconnue, relire après, **et exiger que l'agent soit encore vivant** (une invite disparue sur un agent mort ne prouve rien). |
+| `application::types_installes` | La politique, une seule fois : `TypeInstalle::kind` (la commande si elle est au vocabulaire connu, sinon la cible), `types_lancables` (installé **ET** lisible — `cursor` est écarté), `verifie_type` → `RefusType::{Decouverte, Inconnu}`. Le menu (T052/H08) lira la même liste. |
+| `test-support` | `scripte_ecrans` (file d'écrans, le dernier se répète) et `scripte_snapshots` (file partagée par `snapshot` et `list_agents`) — les scénarios « invite avant / disparue après » et « l'agent disparaît entre la lecture et la preuve » s'écrivent sans état dans le test. |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p http-api` | PASS — **121 tests** (dont 28 nouveaux : 12 prompt, 7 arret, 7 lancement, 7 reponse, 3 focus, 9 confiance, 1 routeur réécrit). |
+| `cargo test -p interactions` | PASS — **25 tests** (7 nouveaux sur le répondeur). |
+| `cargo test -p application` | PASS — **132 tests** (6 nouveaux sur les types lançables). |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** (2 passages). |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **`RefusEnvoi::NonConfirme` porte désormais sa `cause: PortError`** : l'état B05 se décide sur la **nature** de la panne, jamais en relisant une phrase. Le fil devinait sur le texte (`timeout`, `econnrefused`…) — un message réécrit aurait changé le statut affiché. Le `Display` et la forme restent compatibles (les tests T035 matchent avec `..`).
+1. **Le 404 d'arrêt ne peut pas interpoler le paneId** : le port retire les identifiants internes de tout message destiné à l'écran (`supprime_identifiants`, la règle de `describe()`), et l'interpolation produisait « no Herdr agent in pane le nouvel onglet ». Le message devient « no Herdr agent in this pane » — vrai, sans identifiant mangé ; le client sait quel pane il a demandé. **Écart assumé** avec le texte du fil, noté ici.
+2. **Le 409 de confiance nomme le dossier par le libellé du projet** (`pixel`), exactement comme le fil (`folderLabel`) — pas le chemin interne. Mon premier test attendait `/projets/atelier` : c'était mon erreur, corrigée.
+3. **Les touches de codex à l'acceptation sont `1` puis `enter`** (le fil) : `1` sélectionne, `enter` valide. J'avais d'abord écrit `1` seul — corrigé sur le code du fil, pas sur une intuition.
+4. **La file d'admission (T034) n'est PAS branchée sur ces routes** : aucune réponse de surcharge n'est prévue au baseline/CURRENT pour H05–H12, et en inventer une (503) créerait une capacité non listée. Le service existe et reste composable ; le branchement viendra avec une entrée de correction explicite. **Ce n'est pas un oubli, c'est un report nommé.**
+5. **`provider` du corps de lancement n'est pas consommé** (mesuré : il ne l'a jamais été) — il n'est ni rejeté ni présenté comme appliqué ; la réponse ne le mentionne pas.
+6. **La famille d'agent lue par `lecture_forcee` peut manquer** (agent absent ou snapshot illisible) : le répondeur refuse alors **toute** touche (`non-applicable`) — surtout pas un repli codex, le défaut mesuré qui faisait SORTIR l'agent claude.
+7. **Le contrat `TrustResolvedResponse` n'a pas de `detail`** (contrairement au retour interne du fil) : mes tests l'assertaient — c'est le contrat partagé qui fait foi, assertions corrigées.
+8. **`types_installes` duplique le vocabulaire de 25 commandes du fil** : c'est la politique du lancement (C16), pas une liste d'invitation — un type absent du vocabulaire prend sa cible comme `kind`. Le filtre de lisibilité, lui, est **réutilisé** (`visibilite::type_lisible`), pas recopié.
+
+Commit préfixé `T051:` contenant tout ce qui précède et cette section.

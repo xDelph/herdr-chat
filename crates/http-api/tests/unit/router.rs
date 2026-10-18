@@ -73,8 +73,10 @@ async fn routes_read_en_attente_501() {
     }
 }
 
+/// Les mutations H05–H07/H10–H12 sont branchées (T051) : la garde passe et
+/// le handler répond — plus jamais 501 pour elles.
 #[tokio::test(flavor = "multi_thread")]
-async fn routes_mutation_en_attente_501_avec_origine() {
+async fn routes_mutation_branchees_repondent() {
     for chemin in [
         "/api/agents/w1:p1/prompt",
         "/api/agents/w1:p1/stop",
@@ -82,8 +84,6 @@ async fn routes_mutation_en_attente_501_avec_origine() {
         "/api/agents/w1:p1/answer",
         "/api/agents/w1:p1/focus",
         "/api/agents/w1:p1/trust",
-        "/api/log",
-        "/api/notifications/subscriptions",
     ] {
         let reponse = envoie(
             "POST",
@@ -92,7 +92,30 @@ async fn routes_mutation_en_attente_501_avec_origine() {
                 ("origin", "http://localhost"),
                 ("content-type", "application/json"),
             ],
-            br#"{"prompt":"bonjour"}"#.to_vec(),
+            br#"{"text":"bonjour","numero":1,"accept":true,"kind":"pi"}"#.to_vec(),
+        )
+        .await;
+        assert_ne!(
+            reponse.status(),
+            StatusCode::NOT_IMPLEMENTED,
+            "{chemin} — un handler est branché"
+        );
+    }
+}
+
+/// Les mutations qui restent en attente de handler (T052) répondent 501
+/// NOMÉ — jamais un 200 inventé.
+#[tokio::test(flavor = "multi_thread")]
+async fn routes_mutation_en_attente_501_avec_origine() {
+    for chemin in ["/api/log", "/api/notifications/subscriptions"] {
+        let reponse = envoie(
+            "POST",
+            chemin,
+            &[
+                ("origin", "http://localhost"),
+                ("content-type", "application/json"),
+            ],
+            br#"{}"#.to_vec(),
         )
         .await;
         assert_eq!(

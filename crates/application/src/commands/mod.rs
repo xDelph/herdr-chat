@@ -4,6 +4,12 @@
 use domain::errors::PortError;
 use domain::ports::PortFuture;
 
+/// Réexportés pour l'assembleur HTTP : `http-api` n'importe pas
+/// `interactions` (graphe), et les deux gestes interactifs — répondre à une
+/// question, trancher une confiance — y vivent.
+pub use interactions::confiance::{EtatConfiance, ReponseConfiance, repondre_confiance};
+pub use interactions::repondre::{EtatReponse, ReponseQuestion, repondre_question};
+
 pub mod admission;
 pub mod focus;
 pub mod launch;

@@ -1,6 +1,10 @@
 //! L'équipement de test du crate : services composés avec des faux, aucune
 //! dépendance au réel (ni socket, ni fichiers, ni horloge système).
 
+use application::commands::focus::FocaliseurAgent;
+use application::commands::launch::{HorlogeMoteur, LanceurAgent};
+use application::commands::prompt::EnvoieurPrompt;
+use application::commands::stop::ArreteurAgent;
 use application::conversations::{
     BrancheDeProjet, EntreeLu, ErreurDeLecture, LitSessions, ServiceConversations,
 };
@@ -8,6 +12,7 @@ use application::overview::ResoutSessions;
 pub(crate) use application::overview::SourceDeSession;
 use application::refresh::{ServiceSnapshots, SourceMaintenant};
 use application::state::ObservationBorne;
+use application::types_installes::{ErreurInventaire, InventaireTypes, TypeInstalle};
 use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
@@ -27,7 +32,7 @@ use http_api::services::Services;
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use test_support::fake_herdr::HerdrFaux;
 use tower::ServiceExt;
 
@@ -346,6 +351,23 @@ pub(crate) fn services(
         maintenant,
         debut,
         journal_chemin: Some("/tmp/herdr-remote/herdr.log".to_string()),
+        prompt: Arc::new(EnvoieurPrompt::nouveau()),
+        arret: ArreteurAgent::nouveau(),
+        focus: FocaliseurAgent::nouveau(),
+        lancement: Arc::new(LanceurAgent::nouveau()),
+        args: Arc::new(Box::new(
+            |kind: &str, _modele: Option<&str>, _thinking: Option<&str>| {
+                // La validation INJECTÉE (T030) : les types mesurés passent, les
+                // autres sont refusés — jamais devinés.
+                if matches!(kind, "pi" | "claude" | "codex") {
+                    Ok(vec![String::from("--mode"), String::from(kind)])
+                } else {
+                    Err(format!("unsupported kind: {kind}"))
+                }
+            },
+        )),
+        horloge: Arc::new(HorlogeTest),
+        types: Arc::new(InventaireFaux::defaut()),
     });
     (services, herdr)
 }
@@ -374,6 +396,38 @@ pub(crate) async fn requete_get(
     (statut, valeur)
 }
 
+/// Une mutation complète (origine loopback + JSON) : la garde passe, le
+/// handler est le sujet. Le corps est rendu en JSON décodé.
+pub(crate) async fn envoie_post(
+    routeur: Router<()>,
+    chemin: &str,
+    corps: Vec<u8>,
+) -> (StatusCode, serde_json::Value) {
+    let reponse = routeur
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri(chemin)
+                .header("origin", "http://localhost")
+                .header("content-type", "application/json")
+                .body(Body::from(corps))
+                .unwrap_or_else(|cause| panic!("requête construite : {cause:?}")),
+        )
+        .await
+        .unwrap_or_else(|cause| panic!("reponse recue : {cause:?}"));
+    let statut = reponse.status();
+    let octets = axum::body::to_bytes(reponse.into_body(), 256 * 1024)
+        .await
+        .unwrap_or_else(|cause| panic!("corps lu : {cause:?}"));
+    // Un corps vide (204) rend une valeur nulle, jamais une erreur de lecture.
+    let valeur: serde_json::Value = if octets.is_empty() {
+        serde_json::Value::Null
+    } else {
+        serde_json::from_slice(&octets).unwrap_or_else(|cause| panic!("JSON illisible : {cause:?}"))
+    };
+    (statut, valeur)
+}
+
 /// Une requête complète (méthode/chemin libres) — pour la politique 405.
 #[allow(clippy::needless_pass_by_value)]
 pub(crate) async fn requete(
@@ -391,4 +445,86 @@ pub(crate) async fn requete(
         )
         .await
         .unwrap_or_else(|cause| panic!("reponse recue : {cause:?}"))
+}
+
+/// L'horloge du moteur de lancement : rien n'attend réellement.
+pub(crate) struct HorlogeTest;
+
+impl HorlogeMoteur for HorlogeTest {
+    fn attend(&self, _duree: Duration) {}
+    fn ecoule(&self) -> Duration {
+        Duration::ZERO
+    }
+}
+
+/// L'inventaire des types installés — scripté, jamais un processus lancé.
+pub(crate) struct InventaireFaux {
+    types: Vec<TypeInstalle>,
+    panne: Option<ErreurInventaire>,
+}
+
+impl InventaireFaux {
+    /// Le défaut : `pi` et `claude` installés et lisibles, `cursor` installé
+    /// mais NON lisible (rien n'a été mesuré pour lui), `gemini` absent.
+    pub(crate) fn defaut() -> Self {
+        Self {
+            types: vec![
+                TypeInstalle {
+                    commande: String::from("pi"),
+                    cible: String::from("pi"),
+                    installe: true,
+                },
+                TypeInstalle {
+                    commande: String::from("claude"),
+                    cible: String::from("claude"),
+                    installe: true,
+                },
+                TypeInstalle {
+                    commande: String::from("cursor-agent"),
+                    cible: String::from("cursor"),
+                    installe: true,
+                },
+                TypeInstalle {
+                    commande: String::from("gemini"),
+                    cible: String::from("gemini"),
+                    installe: false,
+                },
+            ],
+            panne: None,
+        }
+    }
+
+    /// La découverte en panne : le lancement doit refuser (503), pas créer
+    /// un onglet pour un agent qui n'existe peut-être pas.
+    pub(crate) fn en_panne(detail: &str) -> Self {
+        Self {
+            types: Vec::new(),
+            panne: Some(ErreurInventaire::Indisponible {
+                detail: String::from(detail),
+            }),
+        }
+    }
+
+    pub(crate) fn avec(mut self, type_installe: TypeInstalle) -> Self {
+        self.types.push(type_installe);
+        self
+    }
+}
+
+impl InventaireTypes for InventaireFaux {
+    fn installes(&self) -> Result<Vec<TypeInstalle>, ErreurInventaire> {
+        match &self.panne {
+            Some(panne) => Err(panne.clone()),
+            None => Ok(self.types.clone()),
+        }
+    }
+}
+
+/// Les services avec un inventaire de types choisi — les autres services de
+/// commande restent ceux du défaut.
+pub(crate) fn services_avec_types(herdr: HerdrFaux, inventaire: InventaireFaux) -> Arc<Services> {
+    let (services, _) = services(herdr, FauxSessions::default(), Arc::default());
+    let mut copie = (*services).clone();
+    copie.types = Arc::new(inventaire);
+    Arc::new(copie)
 }

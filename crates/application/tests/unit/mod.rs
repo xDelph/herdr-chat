@@ -10,4 +10,5 @@ pub(crate) mod overview;
 pub(crate) mod prompt;
 pub(crate) mod refresh;
 pub(crate) mod stop;
+pub(crate) mod types_installes;
 pub(crate) mod visibilite;

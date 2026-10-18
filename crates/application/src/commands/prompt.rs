@@ -58,7 +58,16 @@ pub enum RefusEnvoi {
     Doublon { empreinte: String, cible: String },
     /// L'envoi n'a pas été confirmé (transport, délai, preuve étrangère) —
     /// le prochain envoi passe.
-    NonConfirme { cible: String, detail: String },
+    ///
+    /// ⚠️ La **cause de transport est conservée** : l'état B05
+    /// (`attente | erreur | inconnu`) se décide sur la nature de la panne,
+    /// jamais en relisant une phrase (un message réécrit changerait le
+    /// statut affiché).
+    NonConfirme {
+        cible: String,
+        detail: String,
+        cause: PortError,
+    },
 }
 
 impl std::fmt::Display for RefusEnvoi {
@@ -70,7 +79,7 @@ impl std::fmt::Display for RefusEnvoi {
                     "doublon confirmé dans la fenêtre ({cible}) : {empreinte}"
                 )
             }
-            RefusEnvoi::NonConfirme { cible, detail } => {
+            RefusEnvoi::NonConfirme { cible, detail, .. } => {
                 write!(f, "envoi non confirmé ({cible}) : {detail}")
             }
         }
@@ -189,6 +198,7 @@ impl EnvoieurPrompt {
                 return Err(RefusEnvoi::NonConfirme {
                     cible: cible.as_str().to_string(),
                     detail: format!("send not confirmed: {cause}"),
+                    cause,
                 });
             }
         };

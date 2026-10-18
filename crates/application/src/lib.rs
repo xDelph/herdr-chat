@@ -9,4 +9,5 @@ pub mod overview;
 pub mod permis;
 pub mod refresh;
 pub mod state;
+pub mod types_installes;
 pub mod visibilite;

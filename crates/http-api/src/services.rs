@@ -6,9 +6,14 @@
 //! conversation sont des ports `dyn` — le graphe interdit `http-api →
 //! sessions` ; la composition réelle vit au sommet (T056).
 
+use application::commands::focus::FocaliseurAgent;
+use application::commands::launch::{ConstructeurArgs, HorlogeMoteur, LanceurAgent};
+use application::commands::prompt::EnvoieurPrompt;
+use application::commands::stop::ArreteurAgent;
 use application::conversations::ServiceConversations;
 use application::overview::ResoutSessions;
 use application::refresh::{ServiceSnapshots, SourceMaintenant};
+use application::types_installes::InventaireTypes;
 use domain::ports::{ControlPort, SessionPort};
 use std::sync::Arc;
 use std::time::Instant;
@@ -34,6 +39,21 @@ pub struct Services {
     pub debut: Instant,
     /// Le chemin du journal — H01 le publie (`log`) quand il est connu.
     pub journal_chemin: Option<String>,
+    /// L'envoi de prompt (H05) — la déduplication vit ici, entre les appels.
+    pub prompt: Arc<EnvoieurPrompt>,
+    /// L'arrêt (H06) — sans état : chaque appel reprend une photo fraîche.
+    pub arret: ArreteurAgent,
+    /// Le focus (H11) — toujours une valeur, jamais une erreur.
+    pub focus: FocaliseurAgent,
+    /// Le moteur de lancement (H07) — la réservation de noms est commune.
+    pub lancement: Arc<LanceurAgent>,
+    /// La validation des args de modèle, INJECTÉE (T030 compose le vrai) :
+    /// un refus tombe avant tout onglet (C07).
+    pub args: Arc<ConstructeurArgs>,
+    /// L'horloge du moteur de lancement — injectable pour les tests.
+    pub horloge: Arc<dyn HorlogeMoteur>,
+    /// Les types réellement installés (H07) — la découverte, injectée.
+    pub types: Arc<dyn InventaireTypes>,
 }
 
 impl Services {

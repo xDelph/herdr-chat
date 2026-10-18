@@ -88,15 +88,24 @@ pub fn routeur(services: Arc<Services>, origines: Vec<String>) -> Router<()> {
         );
 
     let mutations = Router::new()
-        .route("/api/agents/{paneId}/prompt", post(non_branche.clone()))
-        .route("/api/agents/{paneId}/stop", post(non_branche.clone()))
+        .route(
+            "/api/agents/{paneId}/prompt",
+            post(handlers::prompt::prompt),
+        )
+        .route("/api/agents/{paneId}/stop", post(handlers::arret::arret))
         .route(
             "/api/workspaces/{workspaceId}/agents",
-            post(non_branche.clone()),
+            post(handlers::lancement::lancement),
         )
-        .route("/api/agents/{paneId}/answer", post(non_branche.clone()))
-        .route("/api/agents/{paneId}/focus", post(non_branche.clone()))
-        .route("/api/agents/{paneId}/trust", post(non_branche.clone()))
+        .route(
+            "/api/agents/{paneId}/answer",
+            post(handlers::reponse::reponse),
+        )
+        .route("/api/agents/{paneId}/focus", post(handlers::focus::focus))
+        .route(
+            "/api/agents/{paneId}/trust",
+            post(handlers::confiance::confiance),
+        )
         .route("/api/log", post(non_branche.clone()))
         .route(
             "/api/notifications/subscriptions",

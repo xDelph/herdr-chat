@@ -62,7 +62,15 @@ struct Reglages {
     pannes_par_operation: BTreeMap<Op, PortError>,
     ping: Option<UpstreamPing>,
     snapshot: Option<Snapshot>,
+    /// Les snapshots **scriptés** : joués dans l'ordre, le dernier se répète.
+    /// Consommés par `snapshot` ET `list_agents` (le même monde) — le
+    /// scénario « l'agent disparaît entre la lecture et la preuve » s'écrit
+    /// d'une seule règle.
+    snapshots_scriptes: std::collections::VecDeque<Snapshot>,
     ecrans: BTreeMap<PaneId, ScreenObservation>,
+    /// Les écrans **scriptés** : joués dans l'ordre, le dernier se répète —
+    /// la relecture d'un geste interactif (avant/après) s'écrit par une file.
+    ecrans_scriptes: BTreeMap<PaneId, std::collections::VecDeque<ScreenObservation>>,
     prompt: Option<PromptEvidence>,
     texte: Option<TransportEvidence>,
     touches: Option<TransportEvidence>,
@@ -105,10 +113,41 @@ impl HerdrFaux {
         self.verrou().snapshot = Some(snapshot);
     }
 
+    /// Règle une **file** de snapshots : chaque lecture (photo ou liste) en
+    /// consomme un, le dernier se répète.
+    pub fn scripte_snapshots(&self, snapshots: Vec<Snapshot>) {
+        self.verrou().snapshots_scriptes = snapshots.into();
+    }
+
+    /// Le snapshot de la prochaine lecture : la file scriptée prime, puis
+    /// le réglage fixe, puis le vide documenté.
+    fn prochain_snapshot(interieur: &mut Reglages) -> Snapshot {
+        if interieur.snapshots_scriptes.len() > 1
+            && let Some(snapshot) = interieur.snapshots_scriptes.pop_front()
+        {
+            return snapshot;
+        }
+        interieur
+            .snapshots_scriptes
+            .front()
+            .cloned()
+            .or_else(|| interieur.snapshot.clone())
+            .unwrap_or_default()
+    }
+
     /// Remplace l'écran simulé d'un pane (le dernier réglé gagne).
     pub fn remplace_ecran(&self, observation: ScreenObservation) {
         let pane = observation.pane_id.clone();
         self.verrou().ecrans.insert(pane, observation);
+    }
+
+    /// Règle une **file** d'écrans pour un pane : chaque lecture en consomme
+    /// un, le dernier se répète — le scénario « invite avant, disparue
+    /// après » s'écrit d'une seule règle, sans état dans le test.
+    pub fn scripte_ecrans(&self, pane: &str, ecrans: Vec<ScreenObservation>) {
+        self.verrou()
+            .ecrans_scriptes
+            .insert(PaneId::from(pane.to_string()), ecrans.into());
     }
 
     pub fn repond_prompt(&self, preuve: PromptEvidence) {
@@ -227,12 +266,9 @@ impl ControlPort for HerdrFaux {
                 detail: String::from("photo complète"),
             });
             Self::note_panne(&interieur, Op::Snapshot)?;
-            match &interieur.snapshot {
-                Some(reponse) => Ok(reponse.clone()),
-                // Un snapshot simulé sans réglage est **vide** : observation
-                // valable, rien de plus.
-                None => Ok(Snapshot::default()),
-            }
+            // Un snapshot simulé sans réglage est **vide** : observation
+            // valable, rien de plus.
+            Ok(Self::prochain_snapshot(&mut interieur))
         })
     }
 
@@ -245,12 +281,9 @@ impl ControlPort for HerdrFaux {
                 detail: String::from("liste des agents"),
             });
             Self::note_panne(&interieur, Op::ListeAgents)?;
-            match &interieur.snapshot {
-                Some(reponse) => Ok(AgentListObservation {
-                    agents: reponse.agents.clone(),
-                }),
-                None => Ok(AgentListObservation { agents: Vec::new() }),
-            }
+            Ok(AgentListObservation {
+                agents: Self::prochain_snapshot(&mut interieur).agents,
+            })
         })
     }
 
@@ -265,6 +298,17 @@ impl ControlPort for HerdrFaux {
                 detail,
             });
             Self::note_panne(&interieur, Op::LectureEcran)?;
+            // La file scriptée prime sur l'écran fixe ; le dernier élément
+            // se répète (même règle que les lancements).
+            if let Some(file) = interieur.ecrans_scriptes.get_mut(&request.pane) {
+                if file.len() > 1 {
+                    if let Some(ecran) = file.pop_front() {
+                        return Ok(ecran);
+                    }
+                } else if let Some(ecran) = file.front() {
+                    return Ok(ecran.clone());
+                }
+            }
             match interieur.ecrans.get(&request.pane) {
                 Some(ecran) => Ok(ecran.clone()),
                 // Pas de règle = pas d'écran : absence constatée, aucun
