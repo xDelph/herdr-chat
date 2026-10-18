@@ -668,4 +668,20 @@ Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'ex
 | Capacités mesurées | Lisible/catalogue/lancement **oui** ; interactions **NON établies** (aucune session réelle n'en montre) — la capacité reste fausse tant qu'aucune preuve (règle du dépôt : aucune capacité supposée). |
 | 6 tests (56 sur la crate) | Les requêtes + le `system` écarté mais LU, **row_id ≠ node_id** (deux sessions, node_id 1 chacune — la bonne conversation relue, ids `devin:4`), réflexion en clair + modèle + ISO, le garde-fou (sans name → rien ; avec name → retenu ; sans blocs → pas de bulle vide), le profil sur le socle (pas de repli), la borne mutée relue. |
 
-Commit préfixé `T022:` contenant `crates/sessions/src/families/codecs/{devin.rs,mod.rs}`, `crates/sessions/src/agents/devin/**`, `agents/mod.rs`, `tests/unit/{agents_devin,mod}.rs` et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T023 — `sessions::resolver` : le SEUL point de décision (C15, régression d19f98d)
+
+| Livrable | Détail |
+|---|---|
+| **state_10 bat state_9** | Les bases d'index codex (`state_*.sqlite` dans CODEX_HOME) se trient par version **NUMÉRIQUE** décroissante — le tri lexicographique du fil plaçait `state_9` devant `state_10` (la régression d19f98d, corrigée et testée avec state_2/9/10). |
+| Les DEUX lectures du titre | `noms_de_session_codex` : le titre porte `<nom> \| <dossier>` + un **glyphe d'état quand codex travaille** — on rend la lecture **brute ET** la lecture sans décoration, et c'est l'INDEX qui tranche : un vrai titre à glyphe reste trouvable, un faux nettoyage ne produit pas de session (le dossier doit concorder, le ` \| ` doit exister). |
+| L'index qui tranche | `chemin_codex_par_nom` : nom + cwd + `archived = 0` + le rollout DOIT exister — sans les trois, `None`, jamais la session d'un autre (Herdr a cessé de publier agent_session pour codex : l'index est une preuve, pas une déduction). |
+| Le cache positif/négatif invalidable | La validité = (mtime, taille) de la base : une session ajoutée change la base → le cache négatif s'invalide et la session devient **visible** (testé : négatif puis ajout puis trouvé). |
+| La source unique (C15/D013) | `source_session` / `source_session_de` / `localise_session` : le seul point de décision — path fait foi, id résout par kind (codex/claude par NOM de fichier ancré `rollout-*-id.jsonl`, opencode/devin en base SQLite avec identifiant vide REFUSÉ), le repli par titre est **codex-SEUL** ; une base n'est pas un chemin (localise rend None pour opencode). |
+| Racines injectées | Aucune lecture d'environnement (TECH §6) : les cinq racines viennent de la config — les tests n'écrivent jamais dans les vrais dossiers. |
+| 7 tests (63 sur la crate) | Tri numérique, deux lectures du titre (mesuré « Audit PWA and webapp \| herdr-pwa », glyphe ⠼), index + les trois garde-fous, cache négatif invalidable, source unique (base ≠ chemin, identifiant vide refusé, repli codex-seul), identifiants ancrés, racines injectées. |
+
+Commit préfixé `T023:` contenant `crates/sessions/src/resolver.rs`, `lib.rs`, `tests/unit/{resolver,mod}.rs` et cette section. Cargo.lock inchangé.
