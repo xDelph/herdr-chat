@@ -172,3 +172,15 @@ fn rangee_valeur(
         }
     })
 }
+
+impl std::fmt::Display for ErreurOuvrier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ErreurOuvrier::Requete(cause) => write!(f, "requête : {cause}"),
+            ErreurOuvrier::FilePleine => f.write_str("file de travaux pleine (32)"),
+            ErreurOuvrier::OuvrierAbsent => f.write_str("l'ouvrier ne répond plus"),
+        }
+    }
+}
+
+impl std::error::Error for ErreurOuvrier {}

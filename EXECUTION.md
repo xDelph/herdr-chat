@@ -642,4 +642,17 @@ Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'ex
 | Slash commands + erreurs d'outil | La commande XML rendue **utile** (`/rapport --bref`), l'échec d'outil porte `isError` — testés. |
 | 4 tests (44 sur la crate) | Corpus sans perte, D14 jamais de retour du filtré, slash + isError, coexistence des trois profils (claude/codex/pi) sans repli. |
 
-Commit préfixé `T020:` contenant `crates/sessions/src/agents/claude/**`, `agents/mod.rs`, `tests/unit/{agents_claude,mod}.rs` et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T021 — `sessions::agents::opencode` : la base SQLite, le curseur par `seq` (D15/D17)
+
+| Livrable | Détail |
+|---|---|
+| `families/codecs/opencode.rs` | Le port de `opencode.ts` : les parties `text/reasoning/tool/file` (réflexion **en clair, `redacted:false`** — contrairement à codex), l'appel **puis** le résultat dans le même message (le regroupement rattache), `state.error` = le SEUL marqueur d'échec, images `data:` base64 gardées (le reste refusé, pas interprété), `state.input` non-objet conservé **sous une clé** (la commande d'un appel ne se perd pas), `horodatage_iso` (algorithme civil sans dépendance ; 0/au-delà = rien), `variant` = le niveau de raisonnement **mesuré** mais **`default` refusé** (D17 : le nom d'« aucun niveau choisi », 52 occurrences mesurées). |
+| `agents/opencode/moteur.rs` | Les requêtes **mesurées** sur l'ouvrier T015 : `session_existe` (erreur ≠ vide — diagnostic), `lire_derniere` (limite+1 descendante, la plus ancienne jetée — pas de second count), `lire_depuis` (**`seq >= ?` inclus — D15 : 97 % des lignes réécrites ; une ligne relue assumée, le client remplace par identifiant**), `lire_avant` (`< ?` DESC, remise en ordre UNE fois), `page_session` (pure, testable sans serveur), `ProfilOpencode` posé sur le socle. |
+| Les types au fil | Une entrée TRADUITE porte `type: "message"` ; une ligne **non traduite** (`idle/system/synthetic/compaction` — refus délibérés et mesurés) garde son type **et fait avancer le curseur** (sinon relecture infinie). |
+| 5 tests (50 sur la crate) | Requêtes sur base factice (session existe/inconnu), **D15** : réécriture relue via `>=`, id stable `opencode:m2`, `<` strict sans doublon ; **D17** : variant default ≠ thinkingLevel, image data-URI + isError, réflexion en clair ; non-traduits lus et avançant ; le profil sur le socle + pas de repli ; ISO aux bornes. |
+
+Commit préfixé `T021:` contenant `crates/sessions/src/families/codecs/{opencode.rs,mod.rs}`, `crates/sessions/src/agents/opencode/**`, `tests/unit/{agents_opencode,mod}.rs` et cette section. Cargo.lock inchangé.

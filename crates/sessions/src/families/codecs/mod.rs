@@ -1,2 +1,3 @@
-//! Les codecs par format (T016+) — pi d'abord, opencode à sa tâche.
+//! Les codecs par format (T016+) — pi, opencode.
+pub mod opencode;
 pub mod pi;
