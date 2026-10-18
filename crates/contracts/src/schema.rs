@@ -232,6 +232,13 @@ pub fn definitions() -> Vec<(&'static str, Value)> {
             "AgentStatusChanged",
             schema_de::<crate::events::AgentStatusChanged>(),
         ),
+        // La charge de `session_changed` (événement AJOUTÉ, C26) : nommée
+        // séparément pour que le client puisse la typer seule, pas seulement
+        // à l'intérieur de l'enveloppe SSE.
+        (
+            "SessionChanged",
+            schema_de::<crate::events::SessionChanged>(),
+        ),
         ("PromptStatus", schema_de::<crate::events::PromptStatus>()),
         ("Confirmation", schema_de::<crate::events::Confirmation>()),
         ("ChangeKind", schema_de::<crate::events::ChangeKind>()),

@@ -1104,6 +1104,44 @@
           "type": "object"
         },
         {
+          "description": "Événement AJOUTÉ par la migration (C26), jamais mesuré sur le fil :\nla source de session d'un pane a changé, le client relit la page.\nLe nom garde le soulignement de `agent_status`, pas un trait d'union.",
+          "properties": {
+            "data": {
+              "description": "La source de session d'un pane a changé (`event: session_changed`) —\n**événement AJOUTÉ par la migration** (C26), pas mesuré sur le fil.\n\n⚠️ La matière est **l'observation de la source seule** : le chemin publié\npar Herdr (ou son absence). Aucun compteur de messages n'existe côté\nHerdr — prétendre « nouveau message » exigerait de lire la session, ce\nque le flux ne fait pas. Le client invalide, il ne devine pas.",
+              "properties": {
+                "paneId": {
+                  "type": "string"
+                },
+                "path": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "La source APRÈS le changement — `null` quand elle a disparu (agent\nparti ou chemin retiré) : un null mesuré, jamais un absent."
+                }
+              },
+              "required": [
+                "path",
+                "paneId"
+              ],
+              "type": "object"
+            },
+            "event": {
+              "const": "session_changed",
+              "type": "string"
+            }
+          },
+          "required": [
+            "event",
+            "data"
+          ],
+          "type": "object"
+        },
+        {
           "properties": {
             "data": {
               "description": "L'ordre de resynchronisation : la continuité du journal n'est plus\ngarantie — recharger l'état complet, jamais croire à un trou.\n(`event: resync`, mesuré — `{ reason: \"truncated journal\", resumeFrom }`.)",
@@ -2261,6 +2299,32 @@
       "title": "SendState",
       "type": "string"
     },
+    "SessionChanged": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "description": "La source de session d'un pane a changé (`event: session_changed`) —\n**événement AJOUTÉ par la migration** (C26), pas mesuré sur le fil.\n\n⚠️ La matière est **l'observation de la source seule** : le chemin publié\npar Herdr (ou son absence). Aucun compteur de messages n'existe côté\nHerdr — prétendre « nouveau message » exigerait de lire la session, ce\nque le flux ne fait pas. Le client invalide, il ne devine pas.",
+      "properties": {
+        "paneId": {
+          "type": "string"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "La source APRÈS le changement — `null` quand elle a disparu (agent\nparti ou chemin retiré) : un null mesuré, jamais un absent."
+        }
+      },
+      "required": [
+        "path",
+        "paneId"
+      ],
+      "title": "SessionChanged",
+      "type": "object"
+    },
     "SessionEntry": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "description": "Une entrée de session **rendue au client** : la ligne brute entière, plus\nles trois champs de position (mesuré sur `SessionEntrySchema`).",
@@ -2312,6 +2376,10 @@
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "description": "La réponse de session : quatre clauses nommées du fil (l'union\n[`ReadCause`]), la page, et les curseurs **opaques** (le codec interne\nappartient à `sessions`, TECH §5).",
       "properties": {
+        "caughtUp": {
+          "description": "**Additif T025** : `caughtUp` = vrai au seul watermark COMPLET\nobservé — le client sait que rien ne reste derrière lui. Présent sur\nle fil seulement quand vrai : les réponses du fil actuel (sans ce\nchamp) restent fidèles, et le corpus gelé passe inchangé.",
+          "type": "boolean"
+        },
         "cause": {
           "description": "Cause d'une réponse de session : `absente | vide | invalide | io`.\n\n⚠️ Ces quatre cas se confondent de loin, et les confondre produit soit une\nerreur rouge en boucle, soit — pire — une vue qui ment :\n\n| Cause       | Sens                                     | Réponse          |\n|-------------|------------------------------------------|------------------|\n| [`Absente`] | le fichier n'existe pas encore            | 200, vide        |\n| [`Vide`]    | le fichier existe, zéro entrée            | 200, vide        |\n| [`Invalide`]| contenu illisible ou ligne tronquée       | 422              |\n| [`Io`]      | permission, disque, erreur du système     | 502              |\n\n`absente` n'est **pas** une panne : Herdr annonce un `agent_session` valide\nvers un fichier que Pi n'a pas encore créé (le JSONL naît au premier\nmessage — mesuré sur un vrai agent devin). Les codes d'orthographe viennent\ndu fil actuel ; ne jamais requalifier un autre code.",
           "oneOf": [

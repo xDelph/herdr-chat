@@ -15,12 +15,15 @@ use std::process::Command;
 
 /// Les cinq documents générés — l'ensemble est fermé : un fichier de plus ou
 /// de moins dans `generated` est un échec de `check`.
-const GENERES: [&str; 5] = [
+const GENERES: [&str; 6] = [
     "contracts.schema.json",
     "openapi.json",
     "cibles.json",
     "contracts.d.ts",
     "valider.mjs",
+    // T057 : la façade Effect dérivée du bundle — le client décode avec
+    // elle, comme le serveur sérialise avec le contrat.
+    "schemas.ts",
 ];
 
 /// Écrit un document JSON en pretty + saut final — l'unique format d'export.
@@ -100,6 +103,15 @@ pub fn exporter(root: &Path, destination: &Path) -> Result<(), String> {
         &[
             &destination.join("contracts.schema.json"),
             &destination.join("valider.mjs"),
+        ],
+    )?;
+    // La façade Effect : même source, même déterminisme (noms triés).
+    lance_bun(
+        root,
+        "scripts/contracts-schemas.ts",
+        &[
+            &destination.join("contracts.schema.json"),
+            &destination.join("schemas.ts"),
         ],
     )?;
     Ok(())

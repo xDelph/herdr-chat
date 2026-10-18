@@ -1,5 +1,5 @@
 // Généré par `cargo xtask contracts export` — ne pas éditer.
-// Source : contracts.schema.json (60 définitions).
+// Source : contracts.schema.json (61 définitions).
 
 /**
  * Un focus appliqué (`AgentFocusedResponse`).
@@ -774,6 +774,26 @@ export type EvenementSse =
         workspaceId: string;
       };
       event: "agent-launched";
+    }
+  | {
+      /**
+       * La source de session d'un pane a changé (`event: session_changed`) —
+       * **événement AJOUTÉ par la migration** (C26), pas mesuré sur le fil.
+       *
+       * ⚠️ La matière est **l'observation de la source seule** : le chemin publié
+       * par Herdr (ou son absence). Aucun compteur de messages n'existe côté
+       * Herdr — prétendre « nouveau message » exigerait de lire la session, ce
+       * que le flux ne fait pas. Le client invalide, il ne devine pas.
+       */
+      data: {
+        paneId: string;
+        /**
+         * La source APRÈS le changement — `null` quand elle a disparu (agent
+         * parti ou chemin retiré) : un null mesuré, jamais un absent.
+         */
+        path: string | null;
+      };
+      event: "session_changed";
     }
   | {
       /**
@@ -1557,6 +1577,24 @@ export interface Resync {
 export type SendState = "attente" | "erreur" | "inconnu";
 
 /**
+ * La source de session d'un pane a changé (`event: session_changed`) —
+ * **événement AJOUTÉ par la migration** (C26), pas mesuré sur le fil.
+ *
+ * ⚠️ La matière est **l'observation de la source seule** : le chemin publié
+ * par Herdr (ou son absence). Aucun compteur de messages n'existe côté
+ * Herdr — prétendre « nouveau message » exigerait de lire la session, ce
+ * que le flux ne fait pas. Le client invalide, il ne devine pas.
+ */
+export interface SessionChanged {
+  paneId: string;
+  /**
+   * La source APRÈS le changement — `null` quand elle a disparu (agent
+   * parti ou chemin retiré) : un null mesuré, jamais un absent.
+   */
+  path: string | null;
+}
+
+/**
  * Une entrée de session **rendue au client** : la ligne brute entière, plus
  * les trois champs de position (mesuré sur `SessionEntrySchema`).
  */
@@ -1593,6 +1631,13 @@ export type SessionRefKind = "id" | "path";
  * appartient à `sessions`, TECH §5).
  */
 export interface SessionResponse {
+  /**
+   * **Additif T025** : `caughtUp` = vrai au seul watermark COMPLET
+   * observé — le client sait que rien ne reste derrière lui. Présent sur
+   * le fil seulement quand vrai : les réponses du fil actuel (sans ce
+   * champ) restent fidèles, et le corpus gelé passe inchangé.
+   */
+  caughtUp?: boolean;
   /**
    * Cause d'une réponse de session : `absente | vide | invalide | io`.
    *

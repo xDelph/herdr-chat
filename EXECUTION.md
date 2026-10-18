@@ -1598,3 +1598,37 @@ Périmètre : `crates/herdrchat/src/{cycle.rs, composition.rs, main.rs}`, `crate
 6. **Le test de déconnexion** se connecte puis part sans requête complète : le serveur répond encore, l'arrêt reste propre — le cas « request disconnect » du fil.
 
 Commit préfixé `T056:` contenant tout ce qui précède et cette section.
+
+## T057 (tranche A) — la façade de contrat générée (C01, C18, C26)
+
+Périmètre : `scripts/contracts-schemas.ts` (nouveau), `xtask/src/contracts.rs` (6ᵉ document généré), `crates/contracts/src/schema.rs` (`SessionChanged` nommée), `packages/shared/generated/schemas.ts` (généré), `packages/shared/src/api.ts` (`caughtUp`, `SessionChanged`), `packages/shared/tests/contrat-genere.test.ts` (nouveau). Aucun service réel, aucun agent.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `scripts/contracts-schemas.ts` | Le générateur **JSON Schema → schemas Effect**. Formes reconnues (mesurées sur le bundle) : `$ref`, `enum`, `const`, `oneOf` de littéraux **et** unions de formes (l'enveloppe SSE), `anyOf` + nullabilité, tableau, objet (requis/omissibles), schéma booléen (`true` → `Unknown`, `false` → `Never`). **Toute autre forme lève avec le nom du schéma et de la clé** — un générateur qui saute en silence produirait un client plus permissif que le serveur. |
+| `xtask contracts export/check` | Le fichier `schemas.ts` entre dans l'ensemble **fermé** des six documents : généré deux fois, comparé octet pour octet, puis comparé au dépôt. Une modification de DTO sans régénération échoue. |
+| `packages/shared/generated/schemas.ts` | 61 définitions, noms triés, déterministe. `EvenementSse` est une **union de formes** `{event, data}` (les six genres), pas une union de littéraux : le client décode la même enveloppe que le serveur émet. |
+| `api.ts` (ajouts mesurés) | `SessionResponse.caughtUp` (**C18**, omissible) et `SessionChanged` (**C26**, `{paneId, path nullable}`) — les deux côtés du contrat les portent maintenant. |
+| `contrat-genere.test.ts` | **Parité** : pour 7 DTO représentatifs (santé, erreur, session, question, conversations, catalogue, confiance), la façade générée et les schemas manuels rendent le **même verdict** (accepté/refusé) et la **même valeur**. Plus : `session_changed` décodé, les six genres d'enveloppe SSE acceptés, un genre inconnu refusé. |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `bun test packages/shared/tests/contrat-genere.test.ts` | PASS — **10 tests**. |
+| `bun test` (racine) | PASS — **1090 tests** (+10). |
+| `cargo xtask contracts check` | PASS — corpus JS 214 échantillons « acceptés/refusés comme serde », **et** `schemas.ts` identique entre deux passes et au dépôt. |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** (3 passages). |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **Ce n'est PAS le basculement complet de T057.** La façade générée existe, est déterministe, et sa parité avec les schemas manuels est **prouvée** ; `api.ts` reste l'autorité active pour cette tranche. Le basculement (T057b) est mécanique : il consiste à faire de `api.ts` un ré-export de `schemas.ts` plus les alias de noms.
+1. **La liste exacte du travail restant est écrite dans le test** (`RENOMMAGES`) : `AgentView` ↔ `AgentViewSchema`, `RecentImage` ↔ `RecentImageSchema`, `SessionEntry` ↔ `SessionEntrySchema`, `WorkspaceView` ↔ `WorkspaceViewSchema`. Ce ne sont pas des oublis : le bundle Rust nomme les DTO, le client historique suffixe les schémas.
+2. **Les noms non-DTO restent côté client** : `PaneLayout`, `SnapshotPayload`, `SnapshotPane`, `TabInfo`, `SessionCursor`, `encodeCursor`/`decodeCursor` — vérifié : le web ne les importe pas, et les charges Herdr amont appartiennent à `herdr-client` (T13) ou au domaine, pas au contrat HTTP (TECH §5). Les mettre dans `contracts` aurait été un mélange.
+3. **`SessionChanged` est désormais une définition de premier niveau** du bundle : elle était inlinée dans l'enveloppe SSE, donc non typable séparément. Le test l'a révélé (export absent) ; la correction est dans le contrat, pas dans le test.
+4. **Une flake est apparue une fois sur la porte `tests`**, sans reproduction sur les trois passages suivants (mécanisme connu : `herdr-client` sous charge parallèle, T047). Elle n'est pas effacée du journal, et elle n'est pas imputée à cette tranche.
+5. **Effect 4** : `Schema.Union` prend un **tableau** de membres et `decodeUnknownOption` rend un `Option` — le générateur et le test suivent l'API réelle, pas mes souvenirs d'Effect 3.
+
+Commit préfixé `T057a:` contenant tout ce qui précède et cette section.

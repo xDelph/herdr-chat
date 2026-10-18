@@ -202,9 +202,30 @@ export const SessionResponse = Schema.Struct({
    * **remplacer** sa vue, pas y ajouter.
    */
   reset: Schema.Boolean,
+  /**
+   * **C18** : vrai au seul watermark COMPLET observé — le client sait que
+   * rien ne reste derrière lui. Présent seulement quand vrai (le serveur
+   * l'omet autrement).
+   */
+  caughtUp: Schema.optional(Schema.Boolean),
   sessionPath: Schema.String,
 });
 export type SessionResponse = typeof SessionResponse.Type;
+
+/**
+ * La source de session d'un pane a changé (`event: session_changed`).
+ *
+ * ⚠️ **Événement AJOUTÉ par la migration Rust (C26)** : il n'existe pas dans
+ * le fil historique. La matière est l'observation de la **source** (le chemin
+ * publié par Herdr, ou son absence) — jamais une lecture de messages : Herdr
+ * n'expose aucun compteur. Le client invalide sa vue, il ne devine pas.
+ */
+export const SessionChanged = Schema.Struct({
+  /** La source APRÈS le changement — `null` quand elle a disparu. */
+  path: Schema.NullOr(Schema.String),
+  paneId: Schema.String,
+});
+export type SessionChanged = typeof SessionChanged.Type;
 
 /** Envoi confirmé. `confirmation` vient du serveur, pas du client. */
 export const PromptSentResponse = Schema.Struct({
