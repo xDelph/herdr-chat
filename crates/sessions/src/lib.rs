@@ -3,4 +3,5 @@
 
 pub mod families;
 pub mod path_policy;
+pub mod pipeline;
 pub mod storage;

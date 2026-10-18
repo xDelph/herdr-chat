@@ -587,4 +587,17 @@ Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'ex
 | `codecs/pi.rs` | L'identité vérifiée : `type` + `message` objet requis — la forme cible se lit par validation, pas par traduction (le format PLAT du corpus se décode au profil T018). |
 | 8 tests codecs (26 sur la crate) | Fixtures positives/négatives **indépendantes des agents** : chaque piège mesuré a son cas (developer, AGENTS.md parlé vs injecté, reasoning chiffrée, commande dernière, diff → edits, modèle substitut, chat/Responses séparés, api-request-blob, slash command, sans_message). |
 
-Commit préfixé `T016:` contenant `crates/sessions/src/families/**`, `crates/sessions/src/lib.rs`, `tests/unit/{codecs,mod}.rs` et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T017 — `sessions::pipeline` + registre : la chaîne sans branche sur un agent (T017)
+
+| Livrable | Détail |
+|---|---|
+| `Capacites` | Quatre capacités **indépendantes** (lisible / catalogue / lancement / interactions) — posées **mesurées** par chaque profil, jamais déduites d'un voisin. |
+| `Codec` + `Profil` | Le codec = deux pointeurs de fonction (ligne → pi, éventuellement réglage → pi) — un profil est une **donnée** (genre, capacités, codec) : le socle ne fait jamais `match genre {"pi" => …}` (preuve T017 : l'indépendance est structurelle). |
+| `Registre` | Un genre = un profil (`BTreeMap`) ; `pose` ne touche que son genre ; `profil(inconnu)` = **`None`, jamais un repli** ; `traite` fait passer la ligne par le pipeline (codec → politique fine à T018+ → normalisation) et sort `Message`/`Reglage` par leurs étapes propres. |
+| 5 tests (31 sur la crate) | Deux familles inventées passent par le même socle ; **l'inconnu avec une ligne de même forme ne bascule pas** ; **modifier Devin (codec + capacités) laisse Codex bit-pour-bit inchangé** ; quatre capacités indépendantes ; réglage vs message par leurs étapes. |
+
+Commit préfixé `T017:` contenant `crates/sessions/src/pipeline.rs`, `lib.rs`, `tests/unit/{pipeline,mod}.rs` et cette section. Cargo.lock inchangé.

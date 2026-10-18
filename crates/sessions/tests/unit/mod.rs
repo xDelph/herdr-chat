@@ -3,4 +3,5 @@
 pub(crate) mod codecs;
 pub(crate) mod jsonl;
 pub(crate) mod path_policy;
+pub(crate) mod pipeline;
 pub(crate) mod sqlite;
