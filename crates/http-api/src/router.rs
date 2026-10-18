@@ -52,14 +52,14 @@ pub fn routeur(services: Arc<Services>, origines: Vec<String>) -> Router<()> {
         )
         .route(
             "/api/agents/kinds",
-            get(non_branche.clone())
-                .head(non_branche.clone())
+            get(handlers::catalogues::types)
+                .head(handlers::catalogues::types)
                 .fallback(en_async(methode_non_autorisee_lecture)),
         )
         .route(
             "/api/agents/{kind}/models",
-            get(non_branche.clone())
-                .head(non_branche.clone())
+            get(handlers::catalogues::modeles)
+                .head(handlers::catalogues::modeles)
                 .fallback(en_async(methode_non_autorisee_lecture)),
         )
         .route(
@@ -70,20 +70,20 @@ pub fn routeur(services: Arc<Services>, origines: Vec<String>) -> Router<()> {
         )
         .route(
             "/api/notifications/vapid-key",
-            get(non_branche.clone())
-                .head(non_branche.clone())
+            get(handlers::push::cle_vapid)
+                .head(handlers::push::cle_vapid)
                 .fallback(en_async(methode_non_autorisee_lecture)),
         )
         .route(
             "/api/file",
-            get(non_branche.clone())
-                .head(non_branche.clone())
+            get(handlers::fichiers::fichier)
+                .head(handlers::fichiers::fichier)
                 .fallback(en_async(methode_non_autorisee_lecture)),
         )
         .route(
             "/api/images",
-            get(non_branche.clone())
-                .head(non_branche.clone())
+            get(handlers::fichiers::images)
+                .head(handlers::fichiers::images)
                 .fallback(en_async(methode_non_autorisee_lecture)),
         );
 
@@ -106,10 +106,10 @@ pub fn routeur(services: Arc<Services>, origines: Vec<String>) -> Router<()> {
             "/api/agents/{paneId}/trust",
             post(handlers::confiance::confiance),
         )
-        .route("/api/log", post(non_branche.clone()))
+        .route("/api/log", post(handlers::journal_client::journal_client))
         .route(
             "/api/notifications/subscriptions",
-            post(non_branche.clone()),
+            post(handlers::push::abonnements),
         )
         // La garde partagée de TOUTES les mutations : origine, Content-Type,
         // taille déclarée — avant toute action.

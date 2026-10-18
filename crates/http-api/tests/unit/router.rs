@@ -57,13 +57,8 @@ async fn routes_read_branchees_200() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn routes_read_en_attente_501() {
-    for chemin in [
-        "/api/agents/kinds",
-        "/api/events",
-        "/api/notifications/vapid-key",
-        "/api/file",
-        "/api/images",
-    ] {
+    // `/api/events` est la seule lecture encore en attente (T053).
+    for chemin in ["/api/events"] {
         let reponse = envoie("GET", chemin, &[], Vec::new()).await;
         assert_eq!(
             reponse.status(),
@@ -103,11 +98,30 @@ async fn routes_mutation_branchees_repondent() {
     }
 }
 
+/// Les lectures H08–H09/H17–H18 sont branchées (T052) : elles répondent,
+/// jamais 501.
+#[tokio::test(flavor = "multi_thread")]
+async fn routes_read_branchees_t052() {
+    for chemin in [
+        "/api/agents/kinds",
+        "/api/agents/pi/models",
+        "/api/file?path=/projets/atelier/notes.txt",
+        "/api/images",
+    ] {
+        let reponse = envoie("GET", chemin, &[], Vec::new()).await;
+        assert_ne!(
+            reponse.status(),
+            StatusCode::NOT_IMPLEMENTED,
+            "{chemin} — un handler est branché"
+        );
+    }
+}
+
 /// Les mutations qui restent en attente de handler (T052) répondent 501
 /// NOMÉ — jamais un 200 inventé.
 #[tokio::test(flavor = "multi_thread")]
 async fn routes_mutation_en_attente_501_avec_origine() {
-    for chemin in ["/api/log", "/api/notifications/subscriptions"] {
+    for chemin in [] as [&str; 0] {
         let reponse = envoie(
             "POST",
             chemin,

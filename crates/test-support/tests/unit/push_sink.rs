@@ -140,21 +140,72 @@ fn la_panne_injectee_est_rendue_telle_quelle_et_neanmoins_notee() {
     );
 }
 
+/// L'attente d'un port : les faux répondent au premier poll.
+fn attend<T: Send>(
+    mut fut: domain::ports::PortFuture<'_, T>,
+) -> Result<T, domain::errors::PortError> {
+    let mut contexte = std::task::Context::from_waker(std::task::Waker::noop());
+    match fut.as_mut().poll(&mut contexte) {
+        std::task::Poll::Ready(reponse) => reponse,
+        std::task::Poll::Pending => panic!("un faux répond au premier poll"),
+    }
+}
+
 #[test]
 fn la_cle_vapid_absente_est_absente() {
     let puits = PuitsPushFaux::nouveau();
-    match puits.vapid_public_key() {
-        None => (),
-        Some(cle) => panic!("sans règle, aucune clef, pas {cle:?}"),
+    match attend(puits.vapid_public_key()) {
+        Ok(None) => (),
+        Ok(Some(cle)) => panic!("sans règle, aucune clef, pas {cle:?}"),
+        Err(panne) => panic!("sans règle, aucune panne : {panne:?}"),
     }
     puits.regle_vapid(Some(VapidPublicKey::from(String::from(
         "cle-fausse-du-test",
     ))));
-    match puits.vapid_public_key() {
-        Some(cle) => assert!(
+    match attend(puits.vapid_public_key()) {
+        Ok(Some(cle)) => assert!(
             cle.as_str() == "cle-fausse-du-test",
             "la clef réglée est publiée telle quelle"
         ),
-        None => panic!("la clef réglée doit paraître"),
+        Ok(None) => panic!("la clef réglée doit paraître"),
+        Err(panne) => panic!("pas de panne ici : {panne:?}"),
     }
+}
+
+#[test]
+fn la_panne_de_resolution_n_est_pas_une_absence() {
+    // Une panne de magasin n'est JAMAIS « pas de clef » : le fil doit
+    // répondre 500, pas 503 (une capacité absente ne se répare pas).
+    let puits = PuitsPushFaux::nouveau();
+    puits.panne_vapid(domain::errors::PortError::Upstream {
+        code: String::from("EACCES"),
+        message: String::from("store illisible"),
+    });
+    match attend(puits.vapid_public_key()) {
+        Err(_) => (),
+        autre => panic!("la panne est portée telle quelle : {autre:?}"),
+    }
+}
+
+#[test]
+fn les_abonnements_sont_captures() {
+    let puits = PuitsPushFaux::nouveau();
+    let abonnement = domain::notifications::BrowserSubscription {
+        endpoint: String::from("https://push.example/ep-1"),
+        keys: domain::notifications::PushSubscriptionKeys {
+            p256dh: String::from("p256dh"),
+            auth: String::from("auth"),
+        },
+    };
+    attend(puits.subscribe(abonnement)).unwrap_or_else(|panne| panic!("abonnement : {panne:?}"));
+    attend(puits.unsubscribe(String::from("https://push.example/ep-2")))
+        .unwrap_or_else(|panne| panic!("désabonnement : {panne:?}"));
+    assert_eq!(
+        puits.abonnes(),
+        vec![String::from("https://push.example/ep-1")]
+    );
+    assert_eq!(
+        puits.desabonnes(),
+        vec![String::from("https://push.example/ep-2")]
+    );
 }

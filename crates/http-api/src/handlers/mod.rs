@@ -2,12 +2,16 @@
 //! cartographie HTTP en face du registre (`contracts::registry`).
 
 pub mod arret;
+pub mod catalogues;
 pub mod confiance;
 pub mod conversations;
+pub mod fichiers;
 pub mod focus;
+pub mod journal_client;
 pub mod lancement;
 pub mod overview;
 pub mod prompt;
+pub mod push;
 pub mod reponse;
 pub mod sante;
 pub mod session;

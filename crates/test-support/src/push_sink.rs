@@ -40,8 +40,17 @@ pub struct RemiseCapturee {
 #[derive(Debug, Default)]
 struct Interieur {
     vapid: Option<VapidPublicKey>,
+    /// La panne de résolution de la clef — `Some` fait échouer la lecture
+    /// (une panne de magasin n'est pas « pas de clef »).
+    vapid_panne: Option<PortError>,
     remises: Vec<RemiseCapturee>,
     regle: Option<ReglageRemise>,
+    /// Les abonnements enregistrés, dans l'ordre — l'endpoint **reçu**.
+    abonnes: Vec<String>,
+    /// Les désabonnements reçus, dans l'ordre.
+    desabonnes: Vec<String>,
+    /// La panne d'écriture du magasin d'abonnements (abonner/désabonner).
+    abonnement_panne: Option<PortError>,
 }
 
 /// Le puits : `NotificationPort` qui ne communique avec rien. Partage
@@ -74,6 +83,46 @@ impl PuitsPushFaux {
             .lock()
             .unwrap_or_else(PoisonError::into_inner);
         interieur.vapid = cle;
+        interieur.vapid_panne = None;
+    }
+
+    /// Fait échouer la RÉSOLUTION de la clef — la panne de magasin, qui doit
+    /// être un 500 et jamais un « pas de clef » (503).
+    pub fn panne_vapid(&self, panne: PortError) {
+        let mut interieur = self
+            .interieur
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        interieur.vapid_panne = Some(panne);
+    }
+
+    /// Fait échouer les écritures d'abonnement.
+    pub fn panne_abonnements(&self, panne: PortError) {
+        let mut interieur = self
+            .interieur
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        interieur.abonnement_panne = Some(panne);
+    }
+
+    /// Les endpoints abonnés, dans l'ordre d'arrivée.
+    #[must_use]
+    pub fn abonnes(&self) -> Vec<String> {
+        self.interieur
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .abonnes
+            .clone()
+    }
+
+    /// Les endpoints désabonnés, dans l'ordre d'arrivée.
+    #[must_use]
+    pub fn desabonnes(&self) -> Vec<String> {
+        self.interieur
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .desabonnes
+            .clone()
     }
 
     /// Règle la réponse de la prochaine remise — et des suivantes jusqu'à
@@ -107,8 +156,45 @@ impl PuitsPushFaux {
 }
 
 impl NotificationPort for PuitsPushFaux {
-    fn vapid_public_key(&self) -> Option<VapidPublicKey> {
-        self.cle_vapid()
+    fn vapid_public_key(&self) -> PortFuture<'_, Option<VapidPublicKey>> {
+        Box::pin(async move {
+            let interieur = self
+                .interieur
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            match &interieur.vapid_panne {
+                Some(panne) => Err(panne.clone()),
+                None => Ok(interieur.vapid.clone()),
+            }
+        })
+    }
+
+    fn subscribe(&self, subscription: BrowserSubscription) -> PortFuture<'_, ()> {
+        Box::pin(async move {
+            let mut interieur = self
+                .interieur
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            if let Some(panne) = &interieur.abonnement_panne {
+                return Err(panne.clone());
+            }
+            interieur.abonnes.push(subscription.endpoint);
+            Ok(())
+        })
+    }
+
+    fn unsubscribe(&self, endpoint: String) -> PortFuture<'_, ()> {
+        Box::pin(async move {
+            let mut interieur = self
+                .interieur
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            if let Some(panne) = &interieur.abonnement_panne {
+                return Err(panne.clone());
+            }
+            interieur.desabonnes.push(endpoint);
+            Ok(())
+        })
     }
 
     fn deliver(

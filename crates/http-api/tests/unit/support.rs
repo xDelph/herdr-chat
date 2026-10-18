@@ -16,11 +16,17 @@ use application::types_installes::{ErreurInventaire, InventaireTypes, TypeInstal
 use axum::Router;
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
+use domain::catalog::{CatalogObservation, ValidatedArgs};
 use domain::errors::ErreurDomaine;
+use domain::errors::PortError as ErreurPort;
 use domain::ids::{PaneId, TabId, WorkspaceId};
 use domain::observation::{
     AgentObservation, AgentSessionRef, SessionRefKind, Snapshot, SnapshotProvenance,
     TabObservation, WorkspaceObservation,
+};
+use domain::ports::{
+    ArtifactBody, ArtifactPort, AuthorizedFileRequest, AuthorizedRoots, CatalogPort, ImageScan,
+    PortFuture, RecentImageObservation,
 };
 use domain::ports::{SessionFuture, SessionPort};
 use domain::session::{
@@ -368,6 +374,10 @@ pub(crate) fn services(
         )),
         horloge: Arc::new(HorlogeTest),
         types: Arc::new(InventaireFaux::defaut()),
+        catalogue: Arc::new(FauxCatalogue::defaut()),
+        artefacts: Arc::new(FauxArtefacts::defaut()),
+        racines_extra: Vec::new(),
+        notifications: None,
     });
     (services, herdr)
 }
@@ -394,6 +404,22 @@ pub(crate) async fn requete_get(
     let valeur: serde_json::Value =
         serde_json::from_slice(&corps).unwrap_or_else(|cause| panic!("JSON illisible : {cause:?}"));
     (statut, valeur)
+}
+
+/// Une requête GET **brute** : statut, en-têtes et octets — pour les corps
+/// non JSON (fichier, clef VAPID en texte brut) que `requete_get` refuse de
+/// décoder en JSON (et c'est voulu : un JSON illisible doit se voir).
+pub(crate) async fn get_brut(routeur: Router<()>, chemin: &str) -> axum::response::Response {
+    routeur
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(chemin)
+                .body(Body::empty())
+                .unwrap_or_else(|cause| panic!("requête construite : {cause:?}")),
+        )
+        .await
+        .unwrap_or_else(|cause| panic!("reponse recue : {cause:?}"))
 }
 
 /// Une mutation complète (origine loopback + JSON) : la garde passe, le
@@ -520,11 +546,179 @@ impl InventaireTypes for InventaireFaux {
     }
 }
 
+/// Les services du défaut, avec une retouche — les tests qui ont besoin d'un
+/// faux précis n'écrivent pas la composition entière (et le défaut reste le
+/// même pour tous).
+pub(crate) fn services_retouches(
+    herdr: HerdrFaux,
+    retouche: impl FnOnce(&mut Services),
+) -> Arc<Services> {
+    let (services, _) = services(herdr, FauxSessions::default(), Arc::default());
+    let mut copie = (*services).clone();
+    retouche(&mut copie);
+    Arc::new(copie)
+}
+
 /// Les services avec un inventaire de types choisi — les autres services de
 /// commande restent ceux du défaut.
 pub(crate) fn services_avec_types(herdr: HerdrFaux, inventaire: InventaireFaux) -> Arc<Services> {
-    let (services, _) = services(herdr, FauxSessions::default(), Arc::default());
-    let mut copie = (*services).clone();
-    copie.types = Arc::new(inventaire);
-    Arc::new(copie)
+    services_retouches(herdr, |services| {
+        services.types = Arc::new(inventaire);
+    })
+}
+
+/// Le faux catalogue (H09) : un catalogue par type, ou une panne nommée.
+pub(crate) struct FauxCatalogue {
+    observations: BTreeMap<String, CatalogObservation>,
+    panne: Option<ErreurPort>,
+}
+
+impl FauxCatalogue {
+    /// Le défaut : un catalogue mesuré pour `pi`, rien pour les autres.
+    pub(crate) fn defaut() -> Self {
+        let mut observations = BTreeMap::new();
+        observations.insert(
+            String::from("pi"),
+            CatalogObservation {
+                kind: domain::ids::AgentKind::from(String::from("pi")),
+                error: None,
+                models: vec![domain::catalog::AgentModel {
+                    label: Some(String::from("Claude Sonnet 4.5")),
+                    id: String::from("anthropic/claude-sonnet-4-5"),
+                    thinking_levels: vec![String::from("low"), String::from("high")],
+                }],
+                thinking_levels: vec![String::from("low"), String::from("high")],
+                source: String::from("pi --list-models"),
+            },
+        );
+        // Un type sans mécanisme de listage : liste VIDE et erreur nommée,
+        // jamais une liste inventée.
+        observations.insert(
+            String::from("cursor"),
+            CatalogObservation {
+                kind: domain::ids::AgentKind::from(String::from("cursor")),
+                error: Some(String::from("no catalog mechanism for cursor")),
+                models: Vec::new(),
+                thinking_levels: Vec::new(),
+                source: String::new(),
+            },
+        );
+        Self {
+            observations,
+            panne: None,
+        }
+    }
+
+    pub(crate) fn en_panne(panne: ErreurPort) -> Self {
+        Self {
+            observations: BTreeMap::new(),
+            panne: Some(panne),
+        }
+    }
+}
+
+impl CatalogPort for FauxCatalogue {
+    fn catalog(&self, kind: &domain::ids::AgentKind) -> PortFuture<'_, CatalogObservation> {
+        let resultat = match (&self.panne, self.observations.get(kind.as_str())) {
+            (Some(panne), _) => Err(panne.clone()),
+            (None, Some(observation)) => Ok(observation.clone()),
+            // Un type inconnu du faux : catalogue vide avec son erreur —
+            // c'est une VALEUR, jamais une panne du port.
+            (None, None) => Ok(CatalogObservation {
+                kind: kind.clone(),
+                error: Some(format!("unsupported kind: {}", kind.as_str())),
+                models: Vec::new(),
+                thinking_levels: Vec::new(),
+                source: String::new(),
+            }),
+        };
+        Box::pin(async move { resultat })
+    }
+
+    fn installed(&self) -> PortFuture<'_, Vec<domain::catalog::InstalledKindInstance>> {
+        Box::pin(async { Ok(Vec::new()) })
+    }
+
+    fn validate_launch(
+        &self,
+        _choice: domain::catalog::LaunchChoice,
+    ) -> PortFuture<'_, ValidatedArgs> {
+        Box::pin(async {
+            Err(ErreurPort::Unsupported {
+                feature: String::from("la validation n'est pas le sujet de ce faux"),
+            })
+        })
+    }
+}
+
+/// Le faux port d'artefacts (H17/H18) : un corps scripté, des images
+/// scriptées, ou un refus nommé — et la capture des demandes.
+#[derive(Clone)]
+pub(crate) struct FauxArtefacts {
+    corps: Result<ArtifactBody, ErreurPort>,
+    images: Result<Vec<RecentImageObservation>, ErreurPort>,
+    demandes: Arc<Mutex<Vec<AuthorizedFileRequest>>>,
+}
+
+impl FauxArtefacts {
+    /// Le défaut : un fichier texte rendu inline — jamais un binaire inventé.
+    pub(crate) fn defaut() -> Self {
+        Self {
+            corps: Ok(ArtifactBody {
+                content_type: String::from("text/plain; charset=utf-8"),
+                filename: Some(String::from("notes.txt")),
+                inline: true,
+                bytes: b"bonjour".to_vec(),
+            }),
+            images: Ok(Vec::new()),
+            demandes: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    pub(crate) fn avec_corps(corps: ArtifactBody) -> Self {
+        Self {
+            corps: Ok(corps),
+            images: Ok(Vec::new()),
+            demandes: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    pub(crate) fn refuse(panne: ErreurPort) -> Self {
+        Self {
+            corps: Err(panne.clone()),
+            images: Err(panne),
+            demandes: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    pub(crate) fn avec_images(images: Vec<RecentImageObservation>) -> Self {
+        Self {
+            corps: Self::defaut().corps,
+            images: Ok(images),
+            demandes: Arc::new(Mutex::new(Vec::new())),
+        }
+    }
+
+    pub(crate) fn demandes(&self) -> Vec<AuthorizedFileRequest> {
+        self.demandes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone()
+    }
+}
+
+impl ArtifactPort for FauxArtefacts {
+    fn open(&self, request: AuthorizedFileRequest) -> PortFuture<'_, ArtifactBody> {
+        self.demandes
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(request);
+        let resultat = self.corps.clone();
+        Box::pin(async move { resultat })
+    }
+
+    fn recent_images(&self, _roots: AuthorizedRoots) -> PortFuture<'_, ImageScan> {
+        let resultat = self.images.clone().map(|images| ImageScan { images });
+        Box::pin(async move { resultat })
+    }
 }

@@ -177,10 +177,15 @@ pub struct ScreenRead {
 /// qui vérifie la racine et le chemin. Ce type n'exprime que la demande.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct AuthorizedFileRequest {
-    /// Racine déclarée par la configuration (une racine parmi les autorisées).
-    pub root: String,
-    /// Chemin relatif, jamais absolu, jamais sortant de sa racine (S03).
-    pub relative_path: String,
+    /// Les racines AUTORISÉES de cette requête (dossiers des projets du
+    /// snapshot + racines médias de la configuration), réévaluées à chaque
+    /// requête.
+    pub roots: AuthorizedRoots,
+    /// Le chemin demandé, tel que le client l'a donné (jamais pré-nettoyé).
+    /// La résolution puis le contrôle d'appartenance vivent dans le port
+    /// (S03/S04) — un handler qui découperait le chemin réécrirait la garde
+    /// ailleurs.
+    pub requested: String,
 }
 
 /// Racines autorisées à l'exploration d'images récentes.
@@ -211,6 +216,9 @@ pub struct ArtifactBody {
     pub content_type: String,
     /// Nom proposé au téléchargement — omission = nom naturel du chemin.
     pub filename: Option<String>,
+    /// `true` : rendu dans le navigateur ; `false` : téléchargé (S07 — ce
+    /// qui n'est pas dans la liste blanche n'est jamais interprété).
+    pub inline: bool,
     pub bytes: Vec<u8>,
 }
 
@@ -297,7 +305,13 @@ pub trait ArtifactPort: Send + Sync {
 pub trait NotificationPort: Send + Sync {
     /// La clef publique VAPID, que le frontend doit voir pour s'abonner.
     /// `None` = non configurée — la capacité s'affiche absente, tout court.
-    fn vapid_public_key(&self) -> Option<VapidPublicKey>;
+    /// L'échec de résolution est nommé (une panne de magasin n'est pas
+    /// « pas de clef » : le fil répond 500, pas 503).
+    fn vapid_public_key(&self) -> PortFuture<'_, Option<VapidPublicKey>>;
+    /// Enregistre un abonnement navigateur (upsert par endpoint, E08).
+    fn subscribe(&self, subscription: BrowserSubscription) -> PortFuture<'_, ()>;
+    /// Retire un abonnement par endpoint — sans effet s'il est inconnu.
+    fn unsubscribe(&self, endpoint: String) -> PortFuture<'_, ()>;
     /// Remet un payload à un abonnement navigateur. `Ok` = accepté par le
     /// service push ; toute incertitude passe par [`DeliveryOutcome::Unknown`]
     /// — jamais « envoyé » sans preuve (A02).

@@ -14,7 +14,7 @@ use application::conversations::ServiceConversations;
 use application::overview::ResoutSessions;
 use application::refresh::{ServiceSnapshots, SourceMaintenant};
 use application::types_installes::InventaireTypes;
-use domain::ports::{ControlPort, SessionPort};
+use domain::ports::{ArtifactPort, CatalogPort, ControlPort, NotificationPort, SessionPort};
 use std::sync::Arc;
 use std::time::Instant;
 
@@ -54,6 +54,17 @@ pub struct Services {
     pub horloge: Arc<dyn HorlogeMoteur>,
     /// Les types réellement installés (H07) — la découverte, injectée.
     pub types: Arc<dyn InventaireTypes>,
+    /// Les catalogues mesurés et la validation des args (H09).
+    pub catalogue: Arc<dyn CatalogPort>,
+    /// Les fichiers autorisés et les images récentes (H17/H18) — les racines
+    /// sont réévaluées à chaque requête depuis le snapshot.
+    pub artefacts: Arc<dyn ArtifactPort>,
+    /// Les racines médias de la configuration, ajoutées aux dossiers des
+    /// projets (H17/H18).
+    pub racines_extra: Vec<String>,
+    /// Le service Web Push (H15/H16) — `None` = capacité ABSENTE : 503, et
+    /// l'interface l'affiche absente (aucun substitut inventé).
+    pub notifications: Option<Arc<dyn NotificationPort>>,
 }
 
 impl Services {

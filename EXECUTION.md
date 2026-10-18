@@ -1419,3 +1419,42 @@ Périmètre : `crates/http-api/src/handlers/{prompt,arret,lancement,reponse,focu
 8. **`types_installes` duplique le vocabulaire de 25 commandes du fil** : c'est la politique du lancement (C16), pas une liste d'invitation — un type absent du vocabulaire prend sa cible comme `kind`. Le filtre de lisibilité, lui, est **réutilisé** (`visibilite::type_lisible`), pas recopié.
 
 Commit préfixé `T051:` contenant tout ce qui précède et cette section.
+
+## T052 — `http-api::handlers::catalog/files/push/log` (H08–H09, H13, H15–H18)
+
+Périmètre : `crates/http-api/src/handlers/{catalogues,journal_client,push,fichiers}.rs`, `services.rs` (catalogue, artefacts, notifications, racines médias), `router.rs` (sept routes branchées ; `/api/events` seul reste en 501) ; `crates/domain/src/ports.rs` (contrats des ports artefacts/notifications) ; `crates/test-support/src/push_sink.rs` (clef fallible, abonnements capturés) ; tests `crates/http-api/tests/unit/{catalogues,journal_client,push,fichiers,support,router,mod}.rs`, `crates/test-support/tests/unit/push_sink.rs`. Aucun service réel contacté, aucun fichier de l'utilisateur lu (les faux rendent le corps), aucun agent.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `handlers/catalogues.rs` (H08) | 200 `InstalledKindsResponse` depuis la **même liste que le lancement** (C16 : `types_lancables`) — `cursor` installé mais illisible n'y est pas, `gemini` absent non plus ; 502 nommé quand la découverte échoue, **avec la cause réelle** (jamais une liste vide présentée comme vraie). |
+| `handlers/catalogues.rs` (H09) | 200 `ModelCatalogResponse` ; **aucune branche non-200** (CURRENT §2) : un type sans mécanisme de listage et une panne du port sont des **valeurs** du 200 (`error` nommé, `models` vide). `error` est nullable **obligatoire** — présent, souvent null. |
+| `handlers/journal_client.rs` (H13) | 200 `{ok:true}` ; 400 `{ok:false}` pour un corps sans `message` ou un niveau ≠ `error` (le fil ne connaît qu'un niveau) ; **jamais 500** — un journal en panne ne casse pas l'écran qui signale une panne. |
+| `handlers/push.rs` (H15) | 200 **texte brut** `text/plain; charset=utf-8` + `no-store` ; 503 texte brut quand le service est **absent** ou sans clé ; 500 JSON quand la **résolution** échoue (panne de magasin ≠ capacité absente). La clé **privée** n'apparaît dans aucun corps ni journal (message = cause seule). |
+| `handlers/push.rs` (H16) | 204 **sans corps** + `no-store` (jamais un `{ok}` inventé) ; **désabonnement prioritaire** quand les deux formes sont reçues (précédence mesurée) ; 400 endpoint non `https://` ou corps incomplet ; 503 service absent ; 500 écriture/lecture ratée. |
+| `handlers/fichiers.rs` (H17) | 200 avec `content-type` mesuré, `content-disposition` (`inline` si la liste blanche l'autorise, **`attachment` sinon** — SVG jamais rendu), `content-length` = octets réellement servis, `no-store` ; 403 nommé (paramètre absent/vide, refus du port avec **sa raison**, snapshot illisible ⇒ aucune racine autorisée). |
+| `handlers/fichiers.rs` (H18) | 200 `RecentImagesResponse` ; 502 nommé sur balayage ou snapshot en panne. |
+| Ports du domaine | `AuthorizedFileRequest { roots, requested }` — le chemin voulu **et** les racines voyagent ensemble (la résolution puis le contrôle d'appartenance restent dans le port, S03/S04) ; `ArtifactBody.inline` (la politique d'affichage vient de la couche qui mesure le type) ; `NotificationPort` gagne `subscribe`/`unsubscribe` et une clef **fallible** (`PortFuture<Option<…>>`) — une panne de magasin n'est pas « pas de clef ». |
+| `test-support` | `PuitsPushFaux` : panne de résolution, panne d'abonnement, endpoints abonnés/désabonnés capturés. |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p http-api` | PASS — **152 tests** (dont 31 nouveaux : 5 catalogues, 5 journal client, 9 push, 11 fichiers, 1 routeur réécrit). |
+| `cargo test -p test-support` | PASS — **28 tests** (2 nouveaux : panne de résolution ≠ absence, abonnements capturés). |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** (2 passages). |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **La liste de H08 est littéralement celle du lancement** : `types_installes::types_lancables` est appelée par les deux handlers. Une seconde liste aurait divergé — c'est exactement le défaut B07 (menu proposant ce que le lancement refuse).
+1. **`ArtifactPort` change de forme** (`roots` + `requested` au lieu de `root` + `relative_path`) : l'ancienne forme obligeait le handler à découper lui-même le chemin, c'est-à-dire à réécrire la garde S03/S04 hors de la crate qui la possède. Aucun autre utilisateur du port n'existait.
+2. **`vapid_public_key` devient fallible** : le fil a trois issues (200 / 503 capacité absente / 500 panne de setup) ; un `Option` seul ne peut pas distinguer « pas de clé » de « magasin illisible » — les confondre aurait affiché une capacité absente là où il y a une panne réparable.
+3. **H09 n'a pas de 502** : le contrat du fil le dit explicitement. Le réflexe « panne ⇒ 502 » aurait introduit un statut que le baseline ne liste pas ; la panne est donc **dans le corps du 200**, nommée.
+4. **Le niveau de journal ≠ `error` est un 400** : le fil décode `level: "error"` littéral. Accepter d'autres niveaux serait une capacité nouvelle, pas un portage.
+5. **`expirationTime` n'est pas transmis au port** : `BrowserSubscription` du domaine ne le porte pas (mesuré : le store ne le conserve pas non plus). Il est **décodé puis ignoré explicitement** — pas silencieusement perdu dans un `serde(flatten)`, et pas présenté comme appliqué.
+6. **H17 sans branche 500 documentée** : le fil a un 500 « résultat interne illisible » que le port ne peut pas produire (il rend `Ok(ArtifactBody)` ou `Err`). Je ne l'ai pas inventé : toutes les issues du port ont un statut du baseline (200/403).
+7. **`requete_get` refuse un corps non JSON, exprès** : deux tests l'ont révélé (clef VAPID en texte, corps de fichier). Un helper brut (`get_brut`) a été ajouté plutôt que de rendre le décodeur tolérant — un JSON illisible doit se voir.
+
+Commit préfixé `T052:` contenant tout ce qui précède et cette section.
