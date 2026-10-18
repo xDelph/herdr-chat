@@ -22,6 +22,7 @@ import * as genere from "../generated/schemas.ts";
 
 /** Les noms qui diffèrent entre le bundle Rust et `api.ts` (basculement à faire). */
 const RENOMMAGES: Record<string, string> = {
+  Choice: "Choix",
   AgentView: "AgentViewSchema",
   RecentImage: "RecentImageSchema",
   SessionEntry: "SessionEntrySchema",
@@ -262,5 +263,56 @@ describe("événements du flux — la façade générée couvre le contrat", () 
       paneId: "w1:p1",
       path: null,
     });
+  });
+});
+
+/**
+ * La couverture du basculement : **quels** DTO de `api.ts` existent déjà dans
+ * la façade générée, et lesquels restent.
+ *
+ * ⚠️ Cette liste est un **inventaire**, pas une permission : chaque nom
+ * restant est soit un renommage (`RENOMMAGES`), soit un type qui n'appartient
+ * PAS au contrat HTTP (charge amont Herdr, structure de disposition, curseur
+ * client). Le test échoue si un nom « contrat » disparaît du bundle — c'est le
+ * seul moyen d'empêcher la duplication de revenir en silence (C01).
+ */
+describe("façade générée — couverture du basculement (T057b)", () => {
+  /** Les noms de `api.ts` qui ne sont pas des DTO de notre contrat HTTP. */
+  const HORS_CONTRAT = new Set([
+    // Structures de la disposition Herdr (charge amont, pas notre API).
+    "PaneLayout",
+    "PaneLayoutPane",
+    "PaneLayoutRect",
+    "SnapshotPane",
+    "SnapshotPayload",
+    "TabInfo",
+    // Curseurs : codec client (`hc2:`…), la forme interne appartient à `sessions`.
+    "SessionCursor",
+    "encodeCursor",
+    "decodeCursor",
+  ]);
+
+  /** Les schémas de `api.ts` qui sont des DTO de notre API. */
+  const dtoDeLApi = (): string[] =>
+    Object.keys(manuel).filter(
+      (nom) => !HORS_CONTRAT.has(nom) && estSchema((manuel as Record<string, unknown>)[nom]),
+    );
+
+  test("chaque DTO du client existe dans la façade générée (sous son nom ou son alias)", () => {
+    const manquants = dtoDeLApi().filter((nom) => {
+      const nomGenere =
+        Object.entries(RENOMMAGES).find(([, manuel_]) => manuel_ === nom)?.[0] ?? nom;
+      return schemaDe(genere, nomGenere) === undefined;
+    });
+    expect(manquants).toEqual([]);
+  });
+
+  test("aucun renommage n'est oublié : chaque alias pointe une définition réelle", () => {
+    for (const [nomGenere, nomManuel] of Object.entries(RENOMMAGES)) {
+      // La définition existe des deux côtés — un alias mort serait une dette
+      // invisible.
+      expect(estSchema((genere as Record<string, unknown>)[nomGenere])).toBe(true);
+      expect(estSchema((manuel as Record<string, unknown>)[nomManuel])).toBe(true);
+    }
   });
 });

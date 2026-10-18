@@ -1611,14 +1611,14 @@ Périmètre : `scripts/contracts-schemas.ts` (nouveau), `xtask/src/contracts.rs`
 | `xtask contracts export/check` | Le fichier `schemas.ts` entre dans l'ensemble **fermé** des six documents : généré deux fois, comparé octet pour octet, puis comparé au dépôt. Une modification de DTO sans régénération échoue. |
 | `packages/shared/generated/schemas.ts` | 61 définitions, noms triés, déterministe. `EvenementSse` est une **union de formes** `{event, data}` (les six genres), pas une union de littéraux : le client décode la même enveloppe que le serveur émet. |
 | `api.ts` (ajouts mesurés) | `SessionResponse.caughtUp` (**C18**, omissible) et `SessionChanged` (**C26**, `{paneId, path nullable}`) — les deux côtés du contrat les portent maintenant. |
-| `contrat-genere.test.ts` | **Parité** : pour 7 DTO représentatifs (santé, erreur, session, question, conversations, catalogue, confiance), la façade générée et les schemas manuels rendent le **même verdict** (accepté/refusé) et la **même valeur**. Plus : `session_changed` décodé, les six genres d'enveloppe SSE acceptés, un genre inconnu refusé. |
+| `contrat-genere.test.ts` | **Parité** : pour 7 DTO représentatifs (santé, erreur, session, question, conversations, catalogue, confiance), la façade générée et les schemas manuels rendent le **même verdict** (accepté/refusé) et la **même valeur**. Plus : `session_changed` décodé, les six genres d'enveloppe SSE acceptés, un genre inconnu refusé, **et la couverture du basculement** : chaque DTO du client existe dans la façade (sous son nom ou son alias), les alias pointent des définitions réelles, et la liste `HORS_CONTRAT` nomme les types qui ne sont pas des DTO de notre HTTP. |
 
 ### Commandes et résultats
 
 | Commande | Résultat |
 |---|---|
-| `bun test packages/shared/tests/contrat-genere.test.ts` | PASS — **10 tests**. |
-| `bun test` (racine) | PASS — **1090 tests** (+10). |
+| `bun test packages/shared/tests/contrat-genere.test.ts` | PASS — **12 tests**. |
+| `bun test` (racine) | PASS — **1092 tests** (+12). |
 | `cargo xtask contracts check` | PASS — corpus JS 214 échantillons « acceptés/refusés comme serde », **et** `schemas.ts` identique entre deux passes et au dépôt. |
 | `cargo run --locked -p xtask -- verify` | **5 portes vertes** (3 passages). |
 
