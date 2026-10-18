@@ -226,6 +226,10 @@ impl ControlPort for ContrôleSimulé {
     fn stop(&self, _pane: PaneId) -> PortFuture<'_, StopEvidence> {
         Box::pin(async { Ok(StopEvidence::NotRunning) })
     }
+
+    fn fermer_onglet(&self, _tab: domain::ids::TabId) -> PortFuture<'_, ()> {
+        Box::pin(async { Ok(()) })
+    }
 }
 
 fn task_context() -> Context<'static> {

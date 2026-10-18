@@ -13,7 +13,7 @@
 
 use crate::catalog::{CatalogObservation, InstalledKindInstance, LaunchChoice, ValidatedArgs};
 use crate::errors::PortError;
-use crate::ids::{DeliveryFingerprint, PaneId};
+use crate::ids::{DeliveryFingerprint, PaneId, TabId};
 use crate::notifications::{BrowserSubscription, PushPayload, VapidPublicKey};
 use crate::observation::{AgentListObservation, ScreenObservation, Snapshot, UpstreamPing};
 use crate::session::{
@@ -245,6 +245,11 @@ pub trait ControlPort: Send + Sync {
     /// Lance un agent dans LE pane issu de `create_tab` (C07 : l'ordre est
     /// validé d'abord remplaçable, mais la séquence reste la séquence).
     fn start_agent(&self, request: StartAgent) -> PortFuture<'_, StartEvidence>;
+    /// Ferme l'onglet **créé par cette opération** — le nettoyage possédé
+    /// seulement (T037/C07) : jamais un onglet d'une autre opération, jamais
+    /// un onglet qui pourrait porter un agent amorcé ou incertain. Les
+    /// erreurs sont ignorées par l'appelant (nettoyage au mieux).
+    fn fermer_onglet(&self, tab: TabId) -> PortFuture<'_, ()>;
     /// Demande l'interruption d'un agent courant.
     fn stop(&self, pane: PaneId) -> PortFuture<'_, StopEvidence>;
 }

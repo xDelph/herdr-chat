@@ -6,6 +6,7 @@ use domain::ports::PortFuture;
 
 pub mod admission;
 pub mod focus;
+pub mod launch;
 pub mod prompt;
 pub mod stop;
 

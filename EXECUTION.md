@@ -891,3 +891,42 @@ Périmètre : `crates/application/src/commands/{stop,focus}.rs`, `crates/applica
 2. **`pousse` partagé dans `commands/mod.rs`** : les services pollent leurs `PortFuture` au premier poll (contrat du transport T012 et de tout faux) — `Pending` est un branchement cassé signalé comme tel, jamais une attente silencieuse.
 
 Commit préfixé `T036:` contenant `crates/application/src/commands/{stop,focus}.rs` + `mod.rs`, `crates/application/tests/unit/{stop,focus}.rs` + `mod.rs`, `crates/application/Cargo.toml` (dev-dep `test-support`), `crates/test-support/src/fake_herdr.rs` (panne par opération) + son test, `xtask/src/{graph,run}.rs` (graphe de production), `Cargo.lock` (arête workspace, aucun paquet externe) et cette section. Aucun service réel contacté, aucun agent de l'utilisateur, aucun test sous `src/`.
+
+---
+
+## T037 — `application::commands::launch` : le moteur de lancement (A06–A08, C07)
+
+Périmètre : `crates/application/src/commands/launch.rs` (+`mod.rs`), `crates/application/tests/unit/launch.rs` (+`mod.rs`), `crates/interactions/src/confiance.rs` (+`lib.rs`, tests), `crates/domain/src/ports.rs` (port `fermer_onglet`), `crates/test-support` (file scriptée de lancements). Aucun service réel contacté, aucun agent de l'utilisateur, aucun test sous `src/`.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| **C07 — tout valider avant l'onglet** | La validation injectée (kind/modèle/raisonnement, T030) précède TOUT appel au port — une entrée invalide = `ValidationRefusee`, **zéro onglet, zéro appel** (testé : `actions()` vide). Puis snapshot frais → workspace → dossier → nom → onglet → coquille → démarrage. |
+| Le dossier | `checkout_path` du worktree lié GAGNE, sinon le premier pane du projet qui porte un cwd (les agents de la photo, ordre du snapshot) — jamais deviné (`DossierInconnu` 502 si rien). |
+| Le nom | Demandé → tel quel (conflit amont autoritaire) ; généré → `useful_label` + `-1..99` dès le premier, **réservé contre les concurrents du même libellé** (testé : même photo, second lancement `atelier-3`) ; 99 suffixes pris → `NomEpuise`, jamais un nom occupé repris. |
+| L'onglet | `CreateTab` non focalisé, cwd connu, libellé = nom ; `CreationTab` échouée → `OngletRefuse`, rien n'existe, rien à nettoyer. |
+| Le retry coquille | **Seul** `ShellNotReady` se rejoue (3 s × 10 = 30 s) ; tout autre refus casse immédiatement (testé : 1 essai, 0 attente). 10 essais → `CoquilleNonPrete` : l'agent n'a JAMAIS amorcé → **fermeture de l'onglet possédé, et lui seul** (testé : exactement `t-1`). |
+| Les délais | Démarrage borné 125 s (contrat port, T012) + budget global 160 s — coupés dans la boucle ; l'horloge EST INJECTÉE (les tests avancent 130 s d'un coup, sans dormir). |
+| L'ambigu | Un délai SANS verdict → `AmorcageAmbigu`, **jamais de relance, jamais de fermeture** : l'agent PEUT exister (testé : 1 démarrage, 0 fermeture). |
+| La confiance | Refus `blocked` (texte mesuré) + invite à l'écran → `ConfianceRequise` (409 au fil), la décision EXPOSÉE, **aucune touche envoyée** (testé : lecture d'écran seule). Bloqué sur un AUTRE dialogue → refus normal. Détection de l'invite = nouveau module `interactions::confiance` (4 tests, détection seulement, jamais de réponse). |
+| Le port | `ControlPort::fermer_onglet(tab)` — nettoyage **possédé** (jamais l'onglet d'autrui), documenté comme tel ; implémenté dans les 5 faux. |
+| Le test-support | `scripte_lancements(Vec<StartEvidence>)` : joué dans l'ordre, **le dernier se répète** (testé) — le scénario de retry s'écrit d'une règle, réutilisable T051. |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p test-support -p interactions -p application` | PASS — application 35 (23 + 12 lancement), interactions 18 (+4 confiance), test-support 26 (+1 file scriptée). |
+| `cargo clippy … --all-targets` | zéro avertissement (alias `ConstructeurArgs` pour le type complexe). |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** (graphe inchangé : `application → interactions` existe déjà dans TECH §2). |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **La réservation de noms expire d'elle-même** (180 s = budget + marge, purge à la lecture) mais l'expiration n'est PAS testable : elle repose sur `Instant` réel, comme la fenêtre 60 s de T035 — limite d'horloge assumée, l'expiration est un filet de sécurité au-delà de sa durée affichée. L'insertion précède `create_tab` : un concurrent ne peut pas piquer le nom en plein vol.
+1. **Le « retry non ambigu »** : le moteur ne rejoue QUE `ShellNotReady` — les textes mesurés ne servent qu'à distinguer la confiance (`blocked`) ; il n'existe pas de deuxième branche de retry par texte.
+2. **Le 125 s** : c'est le délai de la tentative port (à borner côté T012) ; le moteur le vérifie comme plafond conjoint avec le 160 s et l'exporte comme contrat.
+3. **Le nettoyage au mieux** : `ferme_le_possede` ignore l'échec de fermeture (le verdict est déjà décidé — `Effect.ignore` du fil) ; on ne ferme JAMAIS un onglet qu'on n'a pas créé, ni un agent au démarrage ambigu.
+4. **La lecture d'écran bornée** (256 lignes) pour la détection de confiance : une invite de fraîche démarre est en tête de log ; une lecture sans texte = pas d'invite (le fil fait de même).
+
+Commit préfixé `T037:` contenant tout ce qui précède et cette section.

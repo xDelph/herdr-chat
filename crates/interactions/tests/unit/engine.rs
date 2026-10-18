@@ -100,6 +100,10 @@ impl ControlPort for FauxPort {
     fn stop(&self, _pane: PaneId) -> PortFuture<'_, StopEvidence> {
         Box::pin(async { Ok(StopEvidence::InterruptSent) })
     }
+
+    fn fermer_onglet(&self, _tab: domain::ids::TabId) -> PortFuture<'_, ()> {
+        Box::pin(async { Ok(()) })
+    }
 }
 
 #[test]

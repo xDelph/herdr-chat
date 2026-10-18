@@ -36,6 +36,9 @@ pub enum Op {
     CreationTab,
     LancementAgent,
     Arret,
+    /// La fermeture d'onglet — capturée pour prouver que le nettoyage
+    /// possédé vise EXACTEMENT l'onglet créé (et seulement lui).
+    FermetureOnglet,
 }
 
 /// Une action capturée : quoi (opération), sur qui (cible), quel fait.
@@ -66,6 +69,12 @@ struct Reglages {
     focus: Option<FocusEvidence>,
     creation: Option<CreatedTab>,
     lancement: Option<StartEvidence>,
+    /// Les lancements **scriptés** : joués dans l'ordre, le dernier se
+    /// répète — le retry coquille d'un moteur s'écrit par une file.
+    lancements: std::collections::VecDeque<StartEvidence>,
+    /// Le dernier lancement scripté — la réponse qui se répète une fois la
+    /// file épuisée.
+    dernier_lancement: Option<StartEvidence>,
     arret: Option<StopEvidence>,
     actions: Vec<ActionCapturee>,
 }
@@ -125,6 +134,13 @@ impl HerdrFaux {
 
     pub fn repond_lancement(&self, preuve: StartEvidence) {
         self.verrou().lancement = Some(preuve);
+    }
+
+    /// Règle une **file** de réponses de démarrage : chaque appel en
+    /// consomme une, le dernier se répète à l'infini — le scénario de
+    /// retry (deux refus puis le succès) s'écrit d'une seule règle.
+    pub fn scripte_lancements(&self, preuves: Vec<StartEvidence>) {
+        self.verrou().lancements = preuves.into();
     }
 
     pub fn repond_arret(&self, preuve: StopEvidence) {
@@ -377,9 +393,22 @@ impl ControlPort for HerdrFaux {
                 detail,
             });
             Self::note_panne(&interieur, Op::LancementAgent)?;
-            match &interieur.lancement {
-                Some(preuve) => Ok(preuve.clone()),
-                None => Ok(StartEvidence::Started { pane: request.pane }),
+            match interieur.lancements.pop_front() {
+                Some(suivant) => {
+                    interieur.dernier_lancement = Some(suivant.clone());
+                    Ok(suivant)
+                }
+                // Le dernier scripté se répète : jamais de trou dans un
+                // scénario qui n'a pas dit où finir.
+                None => {
+                    if let Some(dernier) = &interieur.dernier_lancement {
+                        return Ok(dernier.clone());
+                    }
+                    match &interieur.lancement {
+                        Some(preuve) => Ok(preuve.clone()),
+                        None => Ok(StartEvidence::Started { pane: request.pane }),
+                    }
+                }
             }
         })
     }
@@ -401,6 +430,20 @@ impl ControlPort for HerdrFaux {
                 // jamais ici.
                 None => Ok(StopEvidence::InterruptSent),
             }
+        })
+    }
+
+    fn fermer_onglet(&self, tab: TabId) -> PortFuture<'_, ()> {
+        let cible = tab.as_str().to_string();
+        Box::pin(async move {
+            let mut interieur = self.verrou();
+            interieur.actions.push(ActionCapturee {
+                op: Op::FermetureOnglet,
+                cible,
+                detail: String::from("fermeture demandée"),
+            });
+            Self::note_panne(&interieur, Op::FermetureOnglet)?;
+            Ok(())
         })
     }
 }

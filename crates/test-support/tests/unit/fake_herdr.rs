@@ -273,6 +273,51 @@ fn la_panne_par_operation_ne_change_que_cette_operation() {
 }
 
 #[test]
+fn les_lancements_scriptes_sont_joues_dans_l_ordre_et_le_dernier_se_repete() {
+    use domain::ports::StartAgent;
+    // Deux refus coquille puis le succès : trois appels, trois réponses.
+    let faux = HerdrFaux::nouveau();
+    faux.scripte_lancements(vec![
+        StartEvidence::ShellNotReady {
+            detail: String::from("première coquille"),
+        },
+        StartEvidence::ShellNotReady {
+            detail: String::from("seconde coquille"),
+        },
+        StartEvidence::Started {
+            pane: pane("p-final"),
+        },
+    ]);
+    let demande = StartAgent {
+        pane: pane("p-1"),
+        kind: AgentKind::from(String::from("pi")),
+        name: None,
+        args: Vec::new(),
+    };
+    let mut premier = faux.start_agent(demande.clone());
+    let mut second = faux.start_agent(demande.clone());
+    let mut troisieme = faux.start_agent(demande.clone());
+    let mut quatrieme = faux.start_agent(demande);
+    match pousse(&mut premier) {
+        Ok(StartEvidence::ShellNotReady { detail }) => assert!(detail == "première coquille"),
+        autre => panic!("la file joue dans l'ordre : {autre:?}"),
+    }
+    match pousse(&mut second) {
+        Ok(StartEvidence::ShellNotReady { detail }) => assert!(detail == "seconde coquille"),
+        autre => panic!("deuxième élément : {autre:?}"),
+    }
+    match pousse(&mut troisieme) {
+        Ok(StartEvidence::Started { pane }) => assert!(pane.as_str() == "p-final"),
+        autre => panic!("troisième élément : {autre:?}"),
+    }
+    match pousse(&mut quatrieme) {
+        Ok(StartEvidence::Started { .. }) => (),
+        autre => panic!("le dernier scripté se répète : {autre:?}"),
+    }
+    assert!(faux.actions().len() == 4, "quatre démarrages notés");
+}
+
+#[test]
 fn les_identites_simulees_portent_le_suffixe_sim() {
     let faux = HerdrFaux::nouveau();
     let mut creation = faux.create_tab(CreateTab {
