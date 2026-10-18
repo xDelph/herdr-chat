@@ -1277,3 +1277,37 @@ Périmètre : `crates/files/src/scan.rs` (+`lib.rs`), tests `crates/files/tests/
 4. **`LIMITE_DEFAUT` = 60** exportée avec la signature `limite` explicite — le fil a `limit = 60` en défaut ; la route (T052) décidera.
 
 Commit préfixé `T047:` contenant tout ce qui précède et cette section.
+
+---
+
+## T048 — `herdrchat::config` (C10, O02, matrice CURRENT §8)
+
+Périmètre : `crates/herdrchat/src/{lib,config}.rs` (le crate devient lib+bin), `main.rs` réduit au stub, tests `crates/herdrchat/tests/unit/config.rs`. Aucun service réel contacté (la CLI Tailscale n'est JAMAIS lancée par les tests), aucun agent, aucun test sous `src/`.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `Config` immuable | Les 17 variables de CURRENT §8, figées à la lecture ; `HERDR_SOCKET` (couche B) délibérément JAMAIS lue (D008/E5) ; HOME/PATH injectés — aucune bibliothèque ne lit l'environnement. |
+| `config_depuis_avec` | La lecture + le lanceur Tailscale **injectés** : `config_depuis` monte le lanceur réel, les tests passent un stub — sans cela, `config_depuis` lançait la VRAIE CLI sur cette machine (Serve configuré) et le test des défauts voyait l'origine du tailnet réel. |
+| Bind strict (C10) | Par défaut `[IP_ADDRESS]` (le loopback — le code du fil ; les docs écrivent « [IP_ADDRESS] » par convention) ; toute autre valeur est PARCÉE en `IpAddr` et doit tomber dans `[IP_ADDRESS]/10` ou `fd7a:115c:a1e0::/48` — le préfixe textuel du fil (« 100. » / « fd7a: ») est remplacé par les plages (un `[IP_ADDRESS]` est refusé, un `fd7a:9999::1` aussi) ; wildcard et adresses publiques jamais. |
+| Port strict (C10) | `parse::<u16>` + ≥ 1 : « 8791abc », « 0 », « 65536 » refusés — pas d'`parseInt` permissif. |
+| `origines_de_serve` | Pure et testée contre les fixtures RÉELLES du fil (relevé 2026-10-15 : notre backend sur 8790, `print-cost-report` sur 8765 — autoriser les deux élargirait la porte) ; port 443 omis de l'origine (le navigateur l'omet — le défaut qui mettait toute la PWA en 403) ; comparaison par hôte ET port, jamais par chaîne ; hôte local = `[IP_ADDRESS]`/`localhost`/`::1` ; relevé illisible → liste vide, jamais un arrêt. |
+| `hote_url` | IPv6 entre crochets pour une URL analysable (`fd7a:…` seul donnerait `http://fd7a:…:8791` inanalysable). |
+| CLI Tailscale | `resolve_tailscale_bin` : chemins absolus macOS/Linux (sous `systemd` le PATH est minimal — sans eux, aucune origine, toute la PWA en 403), PATH en dernier recours ; argv exact `serve status --json`, délai 5 s, processus tardif tué par `try_wait` ; absence/non-JSON → liste vide (confort, pas dépendance). |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p herdrchat` | PASS — **15 tests**. |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** (graphe inchangé — herdrchat reste au sommet). |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **Découverte d'investigation : l'affichage de mes outils redacte les adresses IP en « [IP_ADDRESS] ».** Une grande partie de la lecture initiale de `config.ts` était corrompue : le code réel utilise `[IP_ADDRESS]` comme bind par défaut et comme hôte loopback (vérifié par HEXDUMP des octets, pas par l'affichage). Les docs (CURRENT §8, baseline) écrivent « [IP_ADDRESS] » par convention. Le port Rust suit le CODE, pas l'affichage.
+1. **Le quirk de `new URL` de bun** : selon l'environnement, `new URL("http://[IP_ADDRESS]:8791")` jette ou parse — les tests TS passent dans leur suite (l'import graph de config.ts charge un URL laxiste), mais un probe isolé jette. Le contrat EMPIRIQUE (23 tests verts) est porté tel quel : le placeholder est accepté, hôte + port exacts.
+2. **`config_depuis` doit être injectable** : sans `config_depuis_avec`, le test des valeurs par défaut lançait la vraie CLI Tailscale et découvrait l'origine du tailnet RÉEL de cette machine — le test devenait dépendant de la machine. L'injection garde les tests hermétiques ; la production monte le lanceur réel.
+3. **Le test « une autre machine ne suffit pas » du fil** repose sur le quirk de bun (URL sans barre finale qui jette dans certains environnements) : porté par l'INTENTION (un proxy vers un hôte non local est refusé), pas par le quirk.
+
+Commit préfixé `T048:` contenant tout ce qui précède et cette section.

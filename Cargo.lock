@@ -1009,6 +1009,7 @@ dependencies = [
  "http-api",
  "interactions",
  "notifications",
+ "serde_json",
  "sessions",
  "tokio",
  "tracing",

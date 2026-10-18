@@ -1,2 +1,3 @@
-//! Daemon entrypoint — delivered by T048+ (TECH §4).
+//! Daemon entrypoint — livré par T056+ (TECH §4).
+
 fn main() {}
