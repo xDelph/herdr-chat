@@ -179,3 +179,42 @@ Défaut d'édition corrigé en cours de tâche, consigné : la sonde E du premie
 ### Commit
 
 Commit préfixé `T003:` : `xtask/**` (lib/bin/allowlist/tests), `.github/workflows/verify.yml`. Aucune `src` de production modifiée, zéro test sous `src/`, zéro impact sur les 13 crates stub, zéro dump de contenu utilisateur.
+
+---
+
+## T004 — Déplacement des tests TS hors de `src/`
+
+Périmètre : `apps/*/tests, packages/shared/tests` — déplacer les 59 tests TS de `apps/*/src` et `packages/shared/src` vers leurs dossiers `tests/`, corriger imports et lectures de fixtures/CSS/source sans affaiblir les assertions, puis activer `verify-layout` global **sans exception historique**. Aucun refactoring fonctionnel.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| 59 fichiers déplacés en `git mv` | Miroir structurel : `apps/server/src/agents/T.test.ts → apps/server/tests/agents/T.test.ts`, etc. `apps/web` (src plat → tests plat), `packages/shared` idem. |
+| 76 lignes d'import recalculées | Chaque specifier relatif est résolu par **existence réelle du fichier cible** (extension conservée si présente, candidats testés sinon ; extension jamais inventée), puis re-dérivé depuis le nouveau dossier. Vérifié après coup : 0 specifier local `./x` résiduel (le seul littéral `./Feuille.tsx` restant est une **garde de texte source**, voir ci-dessous). |
+| Sauts `import.meta.dir` remappés | 44 sauts réécrits par résolution absolue ancienne→nouvelle (charger `styles.css`, `ChatScreen.tsx`, `Blocks.tsx`, `Api.ts`, `routes-sessions.ts`, `index.html`…), plus les cas dérivés : `lire()` et `readdirSync` de `focus.test.ts`, tableau-fichiers de `launch.test.ts` — tous pointés vers `../src` pour lire exactement les mêmes fichiers qu'avant le déplacement. |
+| Gardes de texte source intactes | Le déménageur a muté UNE garde (`toContain('from "./Feuille.tsx"')` — un littéral d'attente, pas un import réel). Attrapée par audit diff ancien/nouveau, restaurée à l'identique ; les gardes parlent du CONTENU des sources, dont les specifiers réels n'ont jamais bougé. |
+| `xtask/layout-allowlist.json` vidée | `entries: []` après preuve `git ls-files | grep -E '.(test|spec).'` = 0 sous `src/`. La porte layout est désormais **globale** : 329 fichiers analysés, 0 autorisés, 0 ouverts. |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| Déménageur (script dev-only, hors repo) | 59 déplacements `git mv` ; contenu corrigé AVANT le move (le fichier déplacé porte déjà ses imports corrigés) ; aucun fichier non-test touché. |
+| Remappeur de sauts + retouches ciblées | `chat-layout` (25 sauts), `chargement-session` (2), `Lisibilite`+`Fixture` (server), `focus` (`lire`, `readdirSync`), `launch`, `feuilles`, `feuilles.focus` — toutes cibles vérifiées existantes avant écriture. |
+| `bun run format / format:check / lint / typecheck` | Tous verts (153 fichiers). |
+| `bun test` | **1080 pass / 0 fail / 0 skip / 2109 expect() / 59 fichiers.** |
+| junit avant/après (comparaison programmatique) | **Manifeste IDENTIQUE à T001** : mêmes 59 fichiers appariés un à un (chemin `src→tests`), mêmes compteurs cas+assertions par fichier, `delta: AUCUN`. Un état intermédiaire avait révélé `focus.test.ts: 109→46 assertions` — corrigé avant commit (décision 2). |
+| `cargo run --locked -p xtask -- verify` | Vert sur les cinq portes — layout **sans aucune exception** désormais. |
+
+### Décisions / honnêteté
+
+1. **Le piège du `readdirSync` — attrapé par le manifeste, pas par les yeux.** `focus.test.ts` énumérait `readdirSync(import.meta.dir)` : après déplacement il listait `tests/` (0 `.tsx`) → boucle vide, test passant À VIDE, 63 assertions invisiblement perdues (junit : 109→46 sous le même compteur de cas 20→20). `bun test` seul donnait « 1080 pass » sans indice visible. La comparaison junit fichier par fichier (T001 vs T004) a fait surface, `readdirSync` repointé vers `../src`, retour à 109 expect() dans le fichier — la porte « zéro cas perdu » n'est pas une impression, c'est un diff.
+2. **Une garde corrompue, restaurée, jamais affaiblie.** Le déménageur générique réécrivait les littéraux `from "…"` AUSSI dans les chaînes d'assertion (`toContain`). Un seul site touché (diff programmatique ancien↔nouveau sur les 59 fichiers) ; littéral d'origine restauré. La leçon est consignée : un remappeur textuel d'imports doit exclure les chaînes d'attente — à T009 (contrats) cette classe d'outils sera réécrite avec un parseur.
+3. **Résolution par existence, jamais par invention.** Chaque specifier a été résolu contre des fichiers réellement présents ; en cas d'échec : rapport + non-écriture (zéro « extension inventée »). Les erreurs intermédiaires visibles en cours de tâche (7 échecs `ENoENT` feuilles/focus/launch puis corrigés) faisaient partie du chemin de preuve, pas de l'état final.
+4. **verify-layout activé global.** La liste historique est vidée (`entries: []`) après preuve chiffrée (0 fichier de test sous `src/`). Le fichier JSON reste présent et exigé par la porte (décision T003 n°5) : le supprimer maintenant serait une évasion silencieuse ; sa suppression complète, si souhaitée un jour, sera une décision de tâche explicitement consignée.
+5. **Aucune écriture dans un agent réel, aucun store touché** : uniquement des fichiers du worktree, des captures junit dans le tmp dir de l'environnement (jetables).
+
+### Commit
+
+Commit préfixé `T004:` contenant les renames `apps/*/tests/**`, `packages/*/tests/**`, la suppression des fichiers sous `src/`, l'allowlist vidée, la section du journal. Aucune modification des sources TS non-test, aucune modification Rust, aucun test sous `src/`.

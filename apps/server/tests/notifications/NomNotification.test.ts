@@ -1,0 +1,313 @@
+/**
+ * Une notification doit dire **qui**.
+ *
+ * ⚠️ **Le défaut, mesuré, est un doublon.** `wA` (projet `pixel`) porte deux
+ * agents `pi`. Jusqu'ici la notification ne portait que le titre du pane —
+ * identique pour les deux — donc deux notifications rigoureusement identiques,
+ * et aucun moyen de savoir lequel avait fini. Aller voir le bon relevait du
+ * hasard : c'est le seul cas où la notification échoue complètement, et c'est
+ * le cas normal dès qu'on travaille sur deux sujets dans le même projet.
+ *
+ * ⚠️ **La liste ci-dessous n'est pas inventée** : elle vient de
+ * `/api/overview` sur Herdr 0.9.3, le 2026-10-15. Elle porte ce que la mesure a
+ * appris et qu'aucune relecture du schéma n'aurait donné :
+ *
+ * - `tabLabel` est **`null` sur 3 des 7 agents** — un nom qui ne reposerait que
+ *   sur le libellé serait vide une fois sur deux ;
+ * - `tabNumber` est **renseigné sur les 7** — c'est le seul identifiant
+ *   d'onglet toujours disponible ;
+ * - `tabLabel` peut **répéter le projet** (`atcrea` dans `atcrea`) ;
+ * - `tabLabel` porte parfois le titre du terminal (`The chosen one`), et c'est
+ *   très bien : c'est ce que Herdr affiche dans sa barre d'onglets, donc c'est
+ *   reconnaissable pour l'utilisateur.
+ */
+import { describe, expect, test } from "bun:test";
+import {
+  nomDeNotification,
+  payloadDeNotification,
+} from "../../src/notifications/PushNotifications.ts";
+import type { IdentiteNotification } from "../../src/notifications/PushNotifications.ts";
+
+const dansLEMemeOnglet = (nom: string | null, rang: number | null): IdentiteNotification => ({
+  agent: "pi",
+  name: nom,
+  paneRank: rang,
+  tabLabel: "1",
+  tabNumber: 1,
+  tabPaneCount: 2,
+  title: "π - pixel",
+  workspaceLabel: "pixel",
+});
+
+/** Relevé le 2026-10-15 sur Herdr 0.9.3, via `/api/overview`. */
+const MESURES: ReadonlyArray<readonly [string, IdentiteNotification, string]> = [
+  [
+    "w2:p1",
+    {
+      agent: "pi",
+      tabLabel: null,
+      tabNumber: 1,
+      title: "π - devcli-private",
+      workspaceLabel: "devcli pi",
+      name: null,
+      paneRank: null,
+      tabPaneCount: 1,
+    },
+    "π - devcli-private · tab 1 · pi",
+  ],
+  [
+    "w7:p2",
+    {
+      agent: "pi",
+      tabLabel: "atcrea",
+      tabNumber: 2,
+      title: "π - atcrea",
+      workspaceLabel: "atcrea",
+      name: null,
+      paneRank: null,
+      tabPaneCount: 1,
+    },
+    "π - atcrea · tab 2 · pi",
+  ],
+  [
+    "w9:p1",
+    {
+      agent: "pi",
+      tabLabel: null,
+      tabNumber: 1,
+      title: "π - prusa-pi-setup",
+      workspaceLabel: "prusa-pi-setup",
+      name: null,
+      paneRank: null,
+      tabPaneCount: 1,
+    },
+    "π - prusa-pi-setup · tab 1 · pi",
+  ],
+  [
+    "wA:p1",
+    {
+      agent: "pi",
+      tabLabel: "The chosen one",
+      tabNumber: 1,
+      title: "π - pixel",
+      workspaceLabel: "pixel",
+      name: null,
+      paneRank: null,
+      tabPaneCount: 1,
+    },
+    "π - pixel · The chosen one · pi",
+  ],
+  [
+    "wA:p7",
+    {
+      agent: "pi",
+      tabLabel: "Eternal second",
+      tabNumber: 4,
+      title: "π - pixel",
+      workspaceLabel: "pixel",
+      name: null,
+      paneRank: null,
+      tabPaneCount: 1,
+    },
+    "π - pixel · Eternal second · pi",
+  ],
+  [
+    "wB:p1",
+    {
+      agent: "pi",
+      tabLabel: "The chosen one",
+      tabNumber: 1,
+      title: "π - herdr-pwa",
+      workspaceLabel: "herdr-pwa",
+      name: null,
+      paneRank: null,
+      tabPaneCount: 1,
+    },
+    "π - herdr-pwa · The chosen one · pi",
+  ],
+  [
+    "wC:p1",
+    {
+      agent: "pi",
+      tabLabel: null,
+      tabNumber: 1,
+      title: "π - lgc-back-end",
+      workspaceLabel: "lgc-back-end",
+      name: null,
+      paneRank: null,
+      tabPaneCount: 1,
+    },
+    "π - lgc-back-end · tab 1 · pi",
+  ],
+];
+
+/**
+ * Une identite neutre : un agent **seul dans son onglet**, sans nom.
+ *
+ * ⚠️ `tabPaneCount: 1` n'est pas un remplissage : c'est le cas de tres loin le
+ * plus courant, et celui ou l'etiquette de pane reste vide. Les tests qui
+ * portent sur l'etiquetage le surchargent explicitement.
+ */
+const vide = (): IdentiteNotification => ({
+  agent: null,
+  tabLabel: null,
+  tabNumber: null,
+  title: null,
+  workspaceLabel: null,
+  name: null,
+  paneRank: null,
+  tabPaneCount: 1,
+});
+
+describe("le nom de la notification dit de quel onglet il s'agit", () => {
+  test("les sept agents réels donnent sept noms distincts", () => {
+    // C'est LA propriété qui compte : si deux agents d'un même projet nomment
+    // pareil, la notification ne sert à rien.
+    expect(new Set(MESURES.map(([, agent]) => nomDeNotification(agent))).size).toBe(MESURES.length);
+  });
+
+  test.each(MESURES.map(([paneId, agent, attendu]) => [paneId, agent, attendu] as const))(
+    "%s",
+    (_paneId, agent, attendu) => {
+      expect(nomDeNotification(agent)).toBe(attendu);
+    },
+  );
+
+  test("les deux agents de `pixel` se distinguent", () => {
+    // Le cas d'origine, reproduit tel quel.
+    const premier = MESURES.find(([paneId]) => paneId === "wA:p1");
+    const second = MESURES.find(([paneId]) => paneId === "wA:p7");
+    if (premier === undefined || second === undefined) throw new Error("mesure absente");
+
+    expect(nomDeNotification(premier[1])).not.toBe(nomDeNotification(second[1]));
+  });
+
+  test("le titre du pane passe avant le libellé du projet", () => {
+    // Le titre est ce que l'utilisateur a sous les yeux dans Herdr.
+    expect(nomDeNotification({ ...vide(), title: "π - pixel", workspaceLabel: "pixel" })).toBe(
+      "π - pixel",
+    );
+  });
+
+  test("sans titre, le libellé du projet prend le relais", () => {
+    expect(nomDeNotification({ ...vide(), workspaceLabel: "pixel" })).toBe("pixel");
+  });
+});
+
+describe("le numéro d'onglet est le filet, jamais une invention", () => {
+  test("un libellé purement numérique devient `tab N`", () => {
+    // Herdr nomme ses onglets « 1 », « 2 »… : ce libellé n'apprend rien, le
+    // numéro est en revanche exact.
+    expect(nomDeNotification({ ...vide(), tabLabel: "3", tabNumber: 3 })).toBe("tab 3");
+  });
+
+  test("un libellé qui répète le projet cède la place au numéro", () => {
+    // Herdr donne `atcrea` comme libellé d'onglet dans le projet `atcrea` :
+    // répéter n'apprend rien, et le numéro, lui, distingue les onglets.
+    expect(
+      nomDeNotification({ ...vide(), tabLabel: "atcrea", tabNumber: 2, title: "π - atcrea" }),
+    ).toBe("π - atcrea · tab 2");
+  });
+
+  test("sans numéro connu, le libellé reste, même numérique", () => {
+    // Le libellé est exact, sinon : on ne le remplace pas par rien.
+    expect(nomDeNotification({ ...vide(), tabLabel: "7", tabNumber: null })).toBe("7");
+  });
+
+  test("les espaces autour d'un libellé ne comptent pas", () => {
+    expect(nomDeNotification({ ...vide(), tabLabel: "  atcrea  ", tabNumber: 2 })).toBe("atcrea");
+    expect(nomDeNotification({ ...vide(), title: " π - pixel " })).toBe("π - pixel");
+  });
+});
+
+describe("rien n'est inventé quand rien n'est connu", () => {
+  test("un agent vide donne une chaîne vide, pas un nom de remplacement", () => {
+    expect(nomDeNotification(vide())).toBe("");
+  });
+
+  test("un agent absent donne aussi une chaîne vide", () => {
+    expect(nomDeNotification(undefined)).toBe("");
+  });
+
+  test("un libellé fait d'espaces est traité comme absent", () => {
+    expect(nomDeNotification({ ...vide(), tabLabel: "   ", title: "   " })).toBe("");
+  });
+
+  test("et la phrase reste alors générique, jamais trouée", () => {
+    // Le payload reçoit la chaîne vide : il ne doit pas produire « a fini ».
+    const payload = payloadDeNotification(nomDeNotification(undefined), "wA:p1", "idle");
+
+    expect(payload.body).toBe("Your agent has finished working.");
+    expect(payload.body).not.toContain("  ");
+  });
+});
+
+describe("le nom arrive bien dans la notification", () => {
+  test("le corps nomme l'onglet, et le clic mène au bon agent", () => {
+    const agent = MESURES.find(([paneId]) => paneId === "wA:p7")?.[1];
+    if (agent === undefined) throw new Error("mesure absente");
+
+    const payload = payloadDeNotification(nomDeNotification(agent), "wA:p7", "idle");
+
+    expect(payload.body).toBe("π - pixel · Eternal second · pi has finished working.");
+    expect(payload.url).toBe("/#/agent/wA%3Ap7");
+  });
+
+  test("un agent bloqué demande une réponse, il n'a pas « fini »", () => {
+    const agent = MESURES.find(([paneId]) => paneId === "wA:p7")?.[1];
+    if (agent === undefined) throw new Error("mesure absente");
+
+    const payload = payloadDeNotification(nomDeNotification(agent), "wA:p7", "blocked");
+
+    expect(payload.body).toContain("is waiting for your answer");
+    expect(payload.title).toBe("Agent needs you");
+  });
+});
+
+/**
+ * Deux agents d'un **même onglet** — le défaut que cette section verrouille.
+ *
+ * ⚠️ **Mesuré sur un onglet réel à cinq panes.** `nomDeNotification` a été écrit
+ * pour « un projet peut contenir plusieurs onglets du même type » : il
+ * discrimine par **onglet**. Deux agents qui partagent un onglet n'avaient donc
+ * plus rien pour se distinguer — deux notifications au texte IDENTIQUE, deux
+ * bannières justes et indiscernables.
+ *
+ * ⚠️ Ce n'est pas le clic qui était cassé : le `tag` et l'URL portent le
+ * `paneId`, donc chaque bannière ouvre le bon agent. C'est le **texte**, et lui
+ * seul, qui ne disait pas de quel agent il parlait.
+ */
+describe("deux agents du même onglet ne disent plus la même chose", () => {
+  test("deux panes nommés donnent deux noms distincts", () => {
+    const premier = nomDeNotification(dansLEMemeOnglet("verif-ui", 1));
+    const second = nomDeNotification(dansLEMemeOnglet("verif-db", 2));
+
+    expect(premier).not.toBe(second);
+    expect(premier).toContain("verif-ui");
+    expect(second).toContain("verif-db");
+  });
+
+  test("sans nom, c'est la place dans la disposition qui distingue", () => {
+    const premier = nomDeNotification(dansLEMemeOnglet(null, 1));
+    const second = nomDeNotification(dansLEMemeOnglet(null, 2));
+
+    expect(premier).toBe("π - pixel · tab 1 · pane 1 · pi");
+    expect(second).not.toBe(premier);
+  });
+
+  test("seul dans son onglet, RIEN n'est ajouté — le nom reste celui d'avant", () => {
+    /*
+      ⚠️ Le cas ordinaire ne doit pas bouger : une notification qui gagnerait un
+      segment partout serait du bruit qu'on ne lit plus.
+    */
+    expect(nomDeNotification({ ...dansLEMemeOnglet("pixel", 1), tabPaneCount: 1 })).toBe(
+      "π - pixel · tab 1 · pi",
+    );
+  });
+
+  test("un nom qui répète le projet cède la place au rang", () => {
+    // `agent.start` reçoit le libellé du projet par défaut : l'afficher redirait
+    // la ligne du dessus.
+    expect(nomDeNotification(dansLEMemeOnglet("pixel", 2))).toBe("π - pixel · tab 1 · pane 2 · pi");
+  });
+});
