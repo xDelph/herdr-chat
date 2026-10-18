@@ -264,3 +264,46 @@ Périmètre : `crates/domain/src + crates/domain/tests` — IDs distincts, obser
 ### Commit
 
 Commit préfixé `T005:` contenant `crates/domain/src/**` (9 modules), `crates/domain/tests/**` (unit_tests + 9 sous-modules), `crates/domain/Cargo.toml`, `Cargo.lock` et cette section. Aucune autre crate modifiée, aucun test sous `src/`, aucune écriture hors dépôt.
+
+---
+
+## T006 — Crate `test-support` : faux ports, horloge contrôlée, magasins jetables, charges classées
+
+Périmètre : `crates/test-support/src + crates/test-support/tests` — faux ControlPort, capture ordonnée des actions/cibles, horloge contrôlée, faux processus de catalogue, magasins JSONL/SQLite jetables, faux push, génération de charges classées par stockage/famille/agent/version. Crate **dev-only** : rien ici ne peut devenir un défaut de production.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| 5 modules, exactement la liste TECH §2 | `fake_herdr, fake_clock, temp_stores, fixtures, push_sink` + `lib.rs`. Dépendance vers `domain` seul (tokio/rusqlite/serde_json déjà verrouillés par T002). |
+| `fake_herdr` — le faux ControlPort | Les 11 opérations, capture ordonnée (opération, cible, détail factuel) notée **avant** de répondre — même en panne. Panne globale injectable telle quelle. Absences honnêtes par défaut : écran absent = `text`/`source` à `None`, snapshot sans réglage = **vide** (observation valable), prompt par défaut = `Confirmed` portant **l'empreinte de la demande** (contrat du simulacre, documenté et testé). Identités simulées `t-sim`/`p-sim`, décelables en capture. |
+| `fake_clock` — l'horloge contrôlée | Aucun appel d'horloge système : le temps n'existe que poussé (`avance`, `pose_a` explicite pour le saut arrière). Avance hors bornes **refusée** (panic au motif, jamais de saturation silencieuse). Les clones partagent le même temps. |
+| `temp_stores` — magasins jetables | `RacineJetable` : `tmpdir + pid + nonce` par création exclusive, **sous le tmpdir, jamais sous le HOME** ; nettoyage à la dernière main (`Arc`) ; `detruit()` **prouvable** (erreur réelle retournée, idempotent), Drop au mieux documenté. `MagasinJsonl` : écriture **verbatim**, ligne vide comprise. `MagasinSqlite` : vrai fichier SQLite (rusqlite bundled), dossiers parents créés, erreurs rusqlite retournées telles quelles. |
+| `fixtures` — charges classées et processus factice | `Graine` (xorshift64, zéro réduit à 1 ; graine par défaut = celle du corpus T001, 20 240 310). `Classement` {stockage, famille, agent, version} → chemin relatif `jsonl|sqlite/{famille}/{agent}/version-{n}`. `snapshot_de_base` : disposition mesurée 190×82 (p1p2/p4p3/p5, focus p1), protocole 22 version 0.9.3, absences volontaires (worktree absent — le repli D02 s'exercera au T039 ; agent p2 sans nom ni session). `charges_snapshot` : panes libres mesurés (p4, p5) d'abord en ordre de lecture, puis rangées p6+ de 14 lignes, nommage `spawn-{n}`, genre alterné, statuts en rotation, une session simulée sur deux. `charges_pi` : les **deux formes mesurées du corpus** (utilisateur à plat, assistant enveloppé avec pensée) + une ligne `opaque-reste` sur cinq — le sort du type inconnu appartient au lecteur T023. `ProcessusFaux` : script `sh` **réel** sous la racine (journal d'arguments par `dirname "$0"`, sortie heredoc telle quelle, code programmé, refus si la sortie contient le délimiteur, `chmod 0o755` via std unix). |
+| `push_sink` — le faux push | `NotificationPort` complet : remises capturées **dans l'ordre**, tentatives ratées notées aussi ; règles `Delivree{empreinte}` / `Inconnue{detail}` / `Panne{panne}` ; **sans règle = `Unknown`** — jamais « délivré » au hasard (A02). Clef VAPID réglée ou absente, jamais inventée. |
+| 24 tests verts | `tests/unit_tests.rs` + `tests/unit/` (5 sous-modules + helper `pousse` : poll au waker no-op, `std` seul ; `Pending` = échec de test). Zéro `unwrap`/`expect` — les échecs annoncent leur motif. |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p test-support --all-targets --locked` | **24 passed / 0 failed / 0 ignored.** |
+| `cargo clippy -p test-support --all-targets -- -D warnings` | OK après corrections : `is_multiple_of` (×2), `Result` jeté de `pousse` traité, `matches!` pour la garde du tab. |
+| `cargo fmt -p test-support` puis `--check` | OK. |
+| `cargo run --locked -p xtask -- verify` | **Cinq portes vertes** : layout (361 fichiers, 0 autorisés, 0 ouverts), graph (ordre topologique conforme, `test-support` avant `xtask`), format, clippy, tests. |
+| Portes TS | Non relancées ici : aucun fichier TypeScript touché (le hook de commit les relance de toute façon). |
+
+### Décisions / honnêteté
+
+1. **Périmètre du faux mesuré sur la tâche.** T006 demande le faux ControlPort et le faux push — pas de faux `SessionPort` ni `CatalogPort` : les sessions de test passent par des magasins **réels** (JSONL/SQLite), le catalogue par un processus factice **réel** (script `sh`) — mécanique, jamais une simulation de décodage.
+2. **La capture note avant de répondre, même en panne.** Un échec non noté serait un état masqué ; les 5 opérations sous panne globale laissent 5 lignes au journal (testé).
+3. **Les défauts du simulacre sont des contrats écrits.** `prompt` sans règle → `Confirmed` avec l'empreinte de la demande ; `stop` sans règle → `InterruptSent` : documentés dans le code et testés. Aucun test contre le réel ne s'appuiera dessus — l'adaptateur réel arrive à T021+.
+4. **Le nettoyage Drop est au mieux, la preuve est ailleurs.** Drop ne peut pas remonter d'erreur : la preuve de nettoyage passe par `detruit()`, qui retourne l'erreur réelle — testée, y compris l'idempotence et l'attente de la dernière main.
+5. **`MagasinSqlite` crée les dossiers parents.** Premier run : « unable to open database file » — cause réelle (dossiers manquants), corrigée, pas contournée.
+6. **La règle du puits persiste jusqu'à changement.** Premier jet du test d'enchaînement empilait trois règles : les trois appels voyaient la dernière (règle persistante, mesuré, pas supposé). Réécrit en règle → appel → assertion.
+7. **Remplissage en ordre de lecture.** Premier run : `pop()` lisait depuis la fin et remplissait p5 avant p4 — choix arbitraire remplacé par un `VecDeque` (`pop_front`) : p4 puis p5, puis les rangées p6+.
+8. **Mêmes incidents de rédaction que T005, attrapés en relecture** (`vappute`, `BrokenCrumb`, `fausé`, une déclaration de fonction incidentée, un nom de test tronqué) — chaque fichier a été relu en entier avant validation, et la compilation/clippy/tests ont arbitré le reste. Le balayage final de double-mots et de symboles connus est reparti vide.
+
+### Commit
+
+Commit préfixé `T006:` contenant `crates/test-support/src/**` (5 modules + `lib.rs`), `crates/test-support/tests/**` et cette section. `Cargo.lock` inchangé (dépendances déjà verrouillées par T002). Aucune autre crate touchée, aucun test sous `src/`, aucune écriture hors dépôt (racines temporaires du système uniquement, nettoyées).
