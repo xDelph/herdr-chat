@@ -1075,3 +1075,35 @@ Périmètre : `crates/application/src/events/{mod,watcher}.rs` (+`lib.rs`), `cra
 4. **`en_marche` est un drapeau de sortie, pas un mutex** : la boucle vérifie au point de contrôle ; `arreter` ne coupe pas une lecture en cours (une lecture en cours finit, puis la boucle sort).
 
 Commit préfixé `T041:` contenant tout ce qui précède et cette section.
+
+---
+
+## T042 — `application::events::journal` : la mémoire du direct (E04, E05, C11)
+
+Périmètre : `crates/application/src/events/journal.rs` (+`mod.rs`), `crates/application/tests/unit/events/journal.rs` (+`mod.rs`). Aucun service réel contacté, aucun agent de l'utilisateur, aucun test sous `src/`.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `Journal` | Le journal borné en mémoire (E04) : **500 événements ET 4 MiB d'octets** — la cardinalité ne prétend pas borner une taille de payload arbitraire ; l'éviction par octets rompt la continuité EXPLICITEMENT (resync), jamais en silence. Publication = UNE étape de possession courte (attribution de l'identifiant, rétention, éviction) — prouvé par 8 publicateurs concurrents : 800 publiés, 500 retenus, séquences contiguës sans trou ni doublon. |
+| `IdJournal` | L'identifiant opaque `<boot>:<sequence>` (C11) — le boot change à CHAQUE démarrage (le journal est en mémoire, un redémarrage le perd) ; séquences monotones à partir de 1. Boot généré sans dépendance (nanos + compteur de processus), l'opacité suffit — EventSource ne parse pas les IDs. |
+| `Rattrapage` | Le rattrapage depuis un curseur : trou/éviction, curseur futur, boot étranger et curseur **legacy numérique** provoquent UN resync ; le resync porte `reprendre_de` = frontière courante (un seul resync, jamais deux, B04) ; **curseur absent → frontière courante après ready, sans rejouer l'historique** (C11). |
+| `ErreurJournal` | Un événement au-delà de **256 KiB** est REFUSÉ, jamais tronqué (contrat des budgets). |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p application --test unit_tests` | PASS — **117 tests** (104 + 13 journal). |
+| `cargo clippy -p application --all-targets` | zéro avertissement (les `expect()` de test remplacés par des `panic!` nommés). |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** (graphe inchangé). |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **Le filtre reste honnête sur un resync** : `depuis` rend ce qui est strictement après le curseur MÊME quand la continuité est rompue (comme le fil, qui envoie les deux) — c'est le consommateur (T053) qui décide de les envoyer ou non après un resync. Le journal ne tranche pas, il signale.
+1. **La frontière du resync est `ancien−1`, pas `ancien`** : un curseur juste avant le plus ancien retenu rejoue tout ce qui reste (continu) ; un curseur plus bas a manqué des événements disparus (resync). Mes deux premiers tests l'avaient mal calibré — corrigés par l'exécution, documenté dans le test de bord.
+2. **Le boot n'est pas un UUID RFC-4122** : aucune dépendance aléatoire dans le workspace ; nanos + compteur de processus suffisent à distinguer les époques. Documenté dans le code — l'opacité est le contrat, pas le format.
+3. **`depuis("")` ne rejoue rien** : C11 corrige le fil (qui rejouait tout l'historique sur un Last-Event-ID absent) — un nouveau client part de la frontière courante après `ready`, il ne reçoit pas l'historique entier dans une nouvelle fenêtre.
+
+Commit préfixé `T042:` contenant tout ce qui précède et cette section.
