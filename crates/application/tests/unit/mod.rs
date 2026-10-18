@@ -3,6 +3,7 @@
 pub(crate) mod admission;
 pub(crate) mod conversations;
 pub(crate) mod focus;
+pub(crate) mod git;
 pub(crate) mod launch;
 pub(crate) mod overview;
 pub(crate) mod prompt;

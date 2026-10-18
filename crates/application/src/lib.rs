@@ -3,7 +3,9 @@
 
 pub mod commands;
 pub mod conversations;
+pub mod git;
 pub mod overview;
+pub mod permis;
 pub mod refresh;
 pub mod state;
 pub mod visibilite;

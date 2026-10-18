@@ -1006,3 +1006,38 @@ Périmètre : `crates/application/src/{overview,conversations,visibilite}.rs` (+
 4. **`application` ne produit pas les DTO filaires** : les homologues `domain::observation::{AgentView, WorkspaceView}` existaient (T005) ; la traduction vers `contracts::http::overview` appartient à http-api (T050), les règles de remplissage sont ici (T039) — exactement la répartition que la doc de `domain` annonçait.
 
 Commit préfixé `T039:` contenant tout ce qui précède et cette section.
+
+---
+
+## T040 — `application::git` : la branche par git, bornée et partagée (D21)
+
+Périmètre : `crates/application/src/{git,permis}.rs` (+`lib.rs`), `crates/application/tests/unit/git.rs` (+`mod.rs`), `crates/application/src/conversations.rs` (le sas partagé). Aucun service réel contacté, aucun agent de l'utilisateur, aucun test sous `src/`.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `LecteurBranches` | `git -C <dossier> rev-parse --abbrev-ref HEAD` — la SEULE source de branche (Herdr n'en expose aucune) ; **argv fixe** (la frontière de test remplace le PROCESSUS, jamais la commande) ; cache 30 s avec horloge injectée + purge des entrées expirées à chaque lecture ; trois absences (pas de dépôt, délai, git absent) confondues en une branche ABSENTE, jamais une erreur (D21). |
+| **Un job par cwd** | Les demandes concurrentes du même dossier s'y joignent (vol + condvar) et retrouvent le cache à leur réveil — jamais deux git pour la même branche (prouvé : 2 threads, 1 lancement). |
+| **Exécuteur borné** | `SasDeLecture` extrait dans `permis.rs` (le plafond partagé, utilisé par les lectures de session T039 et git ici) ; au plus `GIT_CONCURRENTS = 2` processus en même temps, pic mesuré derrière une porte. |
+| **Délai 3 s** | Le poll tue le processus RETARDATAIRE, et lui seul (un compteur de tués prouve qu'aucun voisin n'est touché) ; la capture est bornée à `MAX_SORTIE = 4096` PENDANT la lecture (le lecteur de sortie s'arrête au plafond, le reste est jeté). |
+| **HEAD détaché** | `HEAD` n'est pas une branche : la réponse littérale est une branche absente (mesuré). |
+| **Câblage T039→T040** | `LecteurBranches` implémente `BrancheDeProjet` : la liste reçoit la vraie branche par le trait déjà injecté. |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p application --test unit_tests` | PASS — **89 tests** (78 + 11 git). |
+| `cargo clippy -p application --all-targets` | zéro avertissement (les `expect()` de test remplacés par des `panic!` nommés, convention du repo). |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** (graphe inchangé). |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **Le délai se teste sans dormir 3 s** : le lecteur accepte un délai injecté (`avec_delai`, 60 ms en test) ; le processus réel garde `DELAI_GIT = 3 s`. Le délai d'un processus réel s'écoule en TEMPS RÉEL (le poll dort 10 ms), le TTL du cache suit l'horloge injectée — deux temps, deux rôles, honnêtement distincts.
+1. **Le pic de l'exécuteur se mesure sur les processus RETENUS** : compter les lancements donnait toujours 1 (le faux rend son processus instantanément) ; le compteur vit dans l'interrogation d'état bloquée par la porte — la mesure réelle du plafond.
+2. **Le joineur revient à la case cache** : la première version relançait un job après un réveil (2 lancements pour 2 threads) ; le vol n'est qu'une porte, le cache est la réponse — corrigé par le test.
+3. **La purge précède la lecture** : à l'expiration, TOUTES les entrées périmées partent avant la relecture (le test de purge a d'abord été écrit sur un raisonnement faux, corrigé par l'exécution).
+4. **Le lecteur de sortie est un fil par git** : borné par l'exécuteur (2), il s'arrête à la fin de la sortie ou au plafond — un `recv` court après la sortie du processus, jamais une lecture sans fin.
+
+Commit préfixé `T040:` contenant tout ce qui précède et cette section.

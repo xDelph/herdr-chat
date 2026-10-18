@@ -21,6 +21,7 @@
 //! EXPOSÉE, jamais répondue (interactions::confiance).
 
 use crate::overview::{ResoutSessions, SourceDeSession};
+use crate::permis::SasDeLecture;
 use crate::state::ObservationBorne;
 use crate::visibilite::est_visible;
 use domain::ids::{AgentKind, AgentName, PaneId, TabId, WorkspaceId};
@@ -30,7 +31,6 @@ use domain::ports::{ControlPort, ScreenRead};
 use domain::status::{AgentStatus, SessionState};
 use interactions::confiance::est_invite_confiance;
 use interactions::ecran::question_de_l_ecran;
-use std::sync::{Condvar, Mutex, PoisonError};
 
 /// Le plafond du contrat : 4 lectures de session en même temps.
 pub const MAX_SESSION_READS: usize = 4;
@@ -160,41 +160,6 @@ pub trait LitSessions: ResoutSessions {
     ) -> Result<Vec<EntreeLu>, ErreurDeLecture>;
 }
 
-/// Le permis de lecture : au plus `max` fenêtres ouvertes en même temps.
-#[derive(Debug)]
-struct SasDeLecture {
-    en_vol: Mutex<usize>,
-    disponible: Condvar,
-    max: usize,
-}
-
-impl SasDeLecture {
-    fn nouveau(max: usize) -> Self {
-        Self {
-            en_vol: Mutex::new(0),
-            disponible: Condvar::new(),
-            max,
-        }
-    }
-
-    fn acquiere(&self) {
-        let mut en_vol = self.en_vol.lock().unwrap_or_else(PoisonError::into_inner);
-        while *en_vol >= self.max {
-            en_vol = self
-                .disponible
-                .wait(en_vol)
-                .unwrap_or_else(PoisonError::into_inner);
-        }
-        *en_vol += 1;
-    }
-
-    fn relache(&self) {
-        let mut en_vol = self.en_vol.lock().unwrap_or_else(PoisonError::into_inner);
-        *en_vol = en_vol.saturating_sub(1);
-        self.disponible.notify_one();
-    }
-}
-
 /// Le service de liste — sans état propre : assemble lignes par génération.
 pub struct ServiceConversations {
     lit: Box<dyn LitSessions>,
@@ -268,6 +233,7 @@ impl ServiceConversations {
         nommage: &NamingContext,
     ) -> Vec<LigneConversation> {
         use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::{Mutex, PoisonError};
 
         let sas = SasDeLecture::nouveau(MAX_SESSION_READS);
         let suivant = AtomicUsize::new(0);
