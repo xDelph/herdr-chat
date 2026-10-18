@@ -2,10 +2,12 @@
 //! fine de chaque agent, posée sur le pipeline commun (T017).
 pub mod claude;
 pub mod codex;
+pub mod devin;
 pub mod opencode;
 pub mod pi;
 
 pub use claude::ProfilClaude;
 pub use codex::ProfilCodex;
+pub use devin::ProfilDevin;
 pub use opencode::ProfilOpencode;
 pub use pi::ProfilPi;

@@ -655,4 +655,17 @@ Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'ex
 | Les types au fil | Une entrée TRADUITE porte `type: "message"` ; une ligne **non traduite** (`idle/system/synthetic/compaction` — refus délibérés et mesurés) garde son type **et fait avancer le curseur** (sinon relecture infinie). |
 | 5 tests (50 sur la crate) | Requêtes sur base factice (session existe/inconnu), **D15** : réécriture relue via `>=`, id stable `opencode:m2`, `<` strict sans doublon ; **D17** : variant default ≠ thinkingLevel, image data-URI + isError, réflexion en clair ; non-traduits lus et avançant ; le profil sur le socle + pas de repli ; ISO aux bornes. |
 
-Commit préfixé `T021:` contenant `crates/sessions/src/families/codecs/{opencode.rs,mod.rs}`, `crates/sessions/src/agents/opencode/**`, `tests/unit/{agents_opencode,mod}.rs` et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T022 — `sessions::agents::devin` : row_id comme curseur, `system` écarté, garde-fou tool_calls (T022/D16)
+
+| Livrable | Détail |
+|---|---|
+| `families/codecs/devin.rs` | Le port de `devin.ts` : `system` écarté (majoritaire : 129/163 mesuré — le piège `developer`, une fois de plus) ; la réflexion **en clair** (`redacted:false`) ; `metadata.created_at` **déjà ISO** (rien à convertir) ; le modèle = `metadata.generation_model` (mesuré : `swe-1-6-slow`) ; les appels d'outils selon la forme **OpenAI-compatible — réserve écrite** : la forme n'a PAS été mesurée (8 messages, `tool_calls` tous vides) → **le garde-fou est strict** : sans `function.name`, RIEN n'est retenu (le fil perd la ligne, n'affiche jamais d'inventé) ; les arguments JSON décodés ou bruts. |
+| `agents/devin/moteur.rs` | Les requêtes mesurées sur l'ouvrier — ⚠️ **le curseur = `row_id` (AUTOINCREMENT, unique à la table), jamais `node_id`** (un rang de forêt : deux sessions ont chacune le leur) ; `session_existe` (erreur ≠ vide), `lire_derniere`/`lire_depuis` (borne incluse — même correctif streaming)/`lire_avant` (`<` DESC) ; les non-traduits gardent leur type **et font avancer le curseur**. |
+| Capacités mesurées | Lisible/catalogue/lancement **oui** ; interactions **NON établies** (aucune session réelle n'en montre) — la capacité reste fausse tant qu'aucune preuve (règle du dépôt : aucune capacité supposée). |
+| 6 tests (56 sur la crate) | Les requêtes + le `system` écarté mais LU, **row_id ≠ node_id** (deux sessions, node_id 1 chacune — la bonne conversation relue, ids `devin:4`), réflexion en clair + modèle + ISO, le garde-fou (sans name → rien ; avec name → retenu ; sans blocs → pas de bulle vide), le profil sur le socle (pas de repli), la borne mutée relue. |
+
+Commit préfixé `T022:` contenant `crates/sessions/src/families/codecs/{devin.rs,mod.rs}`, `crates/sessions/src/agents/devin/**`, `agents/mod.rs`, `tests/unit/{agents_devin,mod}.rs` et cette section. Cargo.lock inchangé.

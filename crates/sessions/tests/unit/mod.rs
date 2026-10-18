@@ -2,6 +2,7 @@
 
 pub(crate) mod agents_claude;
 pub(crate) mod agents_codex;
+pub(crate) mod agents_devin;
 pub(crate) mod agents_opencode;
 pub(crate) mod agents_pi;
 pub(crate) mod codecs;
