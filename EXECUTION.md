@@ -628,4 +628,18 @@ Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'ex
 | Le socle inchangé | Pi posé à côté de codex : les deux profils coexistent par le pipeline générique — l'ajout de codex ne change rien au socle (testé). |
 | 2 tests (40 sur la crate) | Corpus complet sans perte + coexistence pi/codex. |
 
-Commit préfixé `T019:` contenant `crates/sessions/src/agents/codex/**`, `agents/mod.rs`, `tests/unit/{agents_codex,mod}.rs` et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T020 — `sessions::agents::claude` : le profil Claude (D14)
+
+| Livrable | Détail |
+|---|---|
+| Le profil | Le codec Anthropic (T016) posé sur le pipeline ; genre `claude`, capacités mesurées (les quatre). |
+| **La politique D14 — le piège propre à claude** | `ligne_traitee` : une ligne de conversation **refusée** est conservée **sans son message** (le reste survit — timestamp/type) ; le fallback raw ne réinjecte jamais ce qu'on vient d'écarter — sinon `[Request interrupted by user]` revenait comme « dernière demande » **alors que le filtre marchait** (mesuré). Les lignes hors conversation passent telles quelles. |
+| Le corpus frozen | `fixtures/claude/pane-01.jsonl` passe : demandes + appels d'outils préservés. |
+| Slash commands + erreurs d'outil | La commande XML rendue **utile** (`/rapport --bref`), l'échec d'outil porte `isError` — testés. |
+| 4 tests (44 sur la crate) | Corpus sans perte, D14 jamais de retour du filtré, slash + isError, coexistence des trois profils (claude/codex/pi) sans repli. |
+
+Commit préfixé `T020:` contenant `crates/sessions/src/agents/claude/**`, `agents/mod.rs`, `tests/unit/{agents_claude,mod}.rs` et cette section. Cargo.lock inchangé.
