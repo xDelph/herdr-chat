@@ -814,4 +814,18 @@ Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'ex
 
 Le cast `u64::MAX as i64 = -1` (la borne haute fausse) est le genre d'incident que la preuve par test attrape : aucune relecture ne l'aurait vu.
 
-Commit préfixé `T032:` contenant `crates/interactions/**`, `Cargo.toml` (membre workspace existant) et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T033 — `interactions::engine` : lire → valider → plan → exécuter → relire (C03/C17)
+
+| Livrable | Détail |
+|---|---|
+| **C03 — l'identité** | `preuve_reconnue` : une confirmation portant une AUTRE empreinte se rapporte en `Unknown` (le détail nomme les deux empreintes) — le client n'affiche jamais « envoyé » sur une preuve qu'il ne reconnaît pas ; les états honnêtes passent tels quels. |
+| **C17 — le choix** | `question_a_change` : le texte ET la place du `›` doivent être les mêmes avant/après — une NOUVELLE question après la frappe, ou une sélection déplacée (Claude, mesuré) = un changement ; la question partie = le succès attendu ; une question apparue là où il n'y en avait pas = la frappe a visé autre chose. |
+| Le moteur du prompt | `soumet_prompt` : exécuter puis rapporter l'empreinte reconnue — les résultats partiels (Unknown/Suppressed/Failed) se conservent TELS QUELS, jamais lissés en succès. |
+| La relecture | `relit_apres_frappe` : l'agent sorti (écran vide) = la question partie (pas de changement) ; la même question restante = la frappe non prise. |
+| 4 tests (14 sur la crate) | Les cinq cas du fil — questions périmées, sélection déjà déplacée, agent sorti, nouvelle question après frappe, empreinte étrangère — **aucun faux succès**. |
+
+Commit préfixé `T033:` contenant `crates/interactions/src/engine.rs` + `lib.rs`, `tests/unit/{engine,mod}.rs` et cette section. Cargo.lock inchangé.
