@@ -108,14 +108,15 @@ impl ServiceAbonnements {
         })
     }
 
-    /// Le nombre d'abonnements ouverts.
+    /// Le nombre d'abonnements **vivants** — un abonnement dont le flux est
+    /// tombé (drapeau posé par son `Drop`) ne compte plus, même si son
+    /// émetteur n'a pas encore été retiré de la liste.
     #[must_use]
     pub fn nb_abonnes(&self) -> usize {
-        self.etat
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .abonnes
-            .len()
+        let mut etat = self.etat.lock().unwrap_or_else(PoisonError::into_inner);
+        etat.abonnes
+            .retain(|(_, ferme)| !ferme.load(Ordering::SeqCst));
+        etat.abonnes.len()
     }
 }
 
@@ -156,6 +157,13 @@ impl Abonnement {
     #[must_use]
     pub fn rattrapage_depuis(&self, curseur: &str) -> Rattrapage {
         self.journal.depuis(curseur)
+    }
+
+    /// Le rattrapage depuis la dernière SÉQUENCE émise — la relecture du
+    /// flux : le journal dit ce qu'une file bornée a pu laisser tomber.
+    #[must_use]
+    pub fn rattrapage_apres(&self, sequence: u64) -> Rattrapage {
+        self.journal.depuis_sequence(sequence)
     }
 
     /// L'identifiant courant du journal — la frontière live.

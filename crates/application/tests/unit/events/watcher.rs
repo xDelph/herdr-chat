@@ -511,3 +511,72 @@ fn la_signature_distingue_les_champs_du_contrat() {
         "la session a changé la signature"
     );
 }
+
+// ──────────────── la source de session (T053, C26) ────────────────
+
+#[test]
+fn la_source_change_quand_le_chemin_change() {
+    // Le pane publie d'abord un chemin, puis un AUTRE : le chat doit être
+    // invalidé (le fichier lu n'est plus le même).
+    let veilleur = Veilleur::nouveau();
+    veilleur.tick(vec![vue("w1:p1", AgentStatus::Idle, "un", "/a")]);
+    let mut nouvelle = vue("w1:p1", AgentStatus::Idle, "un", "/a");
+    nouvelle.session_path = Some(String::from("/sessions/autre.jsonl"));
+    let tour = veilleur.tick(vec![nouvelle]);
+    assert_eq!(tour.changements.len(), 1);
+    let changement = &tour.changements[0];
+    assert!(
+        changement.source_change(),
+        "un autre chemin = une autre source"
+    );
+    assert_eq!(
+        changement.source_avant.as_deref(),
+        Some("/sessions/w1:p1.jsonl")
+    );
+    assert_eq!(
+        changement.source_apres.as_deref(),
+        Some("/sessions/autre.jsonl")
+    );
+}
+
+#[test]
+fn une_source_inchangee_ne_publie_rien_de_plus() {
+    // Un changement de statut sans changement de source : `session_changed`
+    // ne doit PAS être émis (il n'y a rien à invalider).
+    let veilleur = Veilleur::nouveau();
+    veilleur.tick(vec![vue("w1:p1", AgentStatus::Working, "un", "/a")]);
+    let tour = veilleur.tick(vec![vue("w1:p1", AgentStatus::Done, "un", "/a")]);
+    assert_eq!(tour.changements.len(), 1);
+    assert!(!tour.changements[0].source_change());
+}
+
+#[test]
+fn une_apparition_publie_la_source_quand_elle_existe() {
+    let veilleur = Veilleur::nouveau();
+    // Le premier tour établit le parc (aucune publication, E03).
+    veilleur.tick(vec![vue("w1:p1", AgentStatus::Idle, "un", "/a")]);
+    // Un nouvel agent : il apparaît, et sa source est une information neuve.
+    let tour = veilleur.tick(vec![
+        vue("w1:p1", AgentStatus::Idle, "un", "/a"),
+        vue("w1:p2", AgentStatus::Working, "deux", "/b"),
+    ]);
+    let apparu = tour
+        .changements
+        .iter()
+        .find(|changement| changement.genre == GenreDeChangement::Apparu)
+        .unwrap_or_else(|| panic!("un agent apparaît"));
+    assert!(apparu.source_change(), "aucune source avant, une après");
+    assert!(apparu.source_apres.is_some());
+}
+
+#[test]
+fn une_disparition_eteint_la_source() {
+    let veilleur = Veilleur::nouveau();
+    veilleur.tick(vec![vue("w1:p1", AgentStatus::Working, "un", "/a")]);
+    let tour = veilleur.tick(Vec::new());
+    assert_eq!(tour.changements.len(), 1);
+    let disparu = &tour.changements[0];
+    assert_eq!(disparu.genre, GenreDeChangement::Disparu);
+    assert!(disparu.source_change(), "la source s'éteint avec l'agent");
+    assert!(disparu.source_apres.is_none());
+}

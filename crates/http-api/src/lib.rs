@@ -6,5 +6,6 @@ pub mod corps;
 pub mod errors;
 pub mod handlers;
 pub mod origin;
+pub mod publication;
 pub mod router;
 pub mod services;

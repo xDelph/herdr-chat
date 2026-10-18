@@ -82,17 +82,29 @@ pub async fn lancement(
             nom,
             pane,
             tab,
-        }) => (
-            axum::http::StatusCode::CREATED,
-            axum::Json(LaunchAgentResponse {
-                kind: kind.as_str().to_string(),
-                name: nom.as_str().to_string(),
-                pane_id: pane.to_string(),
-                status: StartedStatus::Started,
-                tab_id: tab.to_string(),
-            }),
-        )
-            .into_response(),
+        }) => {
+            // Le direct : le lancement est publié avec son projet — la liste
+            // des conversations se met à jour sans sondage.
+            let _ = crate::handlers::events::publie(
+                services.journal.as_ref(),
+                &[crate::publication::evenement_de_lancement(
+                    &kind,
+                    pane.as_str(),
+                    demande.workspace.as_str(),
+                )],
+            );
+            (
+                axum::http::StatusCode::CREATED,
+                axum::Json(LaunchAgentResponse {
+                    kind: kind.as_str().to_string(),
+                    name: nom.as_str().to_string(),
+                    pane_id: pane.to_string(),
+                    status: StartedStatus::Started,
+                    tab_id: tab.to_string(),
+                }),
+            )
+                .into_response()
+        }
         // L'agent est là, bloqué sur l'invite de confiance : la décision est
         // exposée (409), jamais prise ici.
         Ok(IssueLancement::ConfianceRequise {

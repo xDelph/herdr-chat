@@ -5,6 +5,7 @@ pub mod arret;
 pub mod catalogues;
 pub mod confiance;
 pub mod conversations;
+pub mod events;
 pub mod fichiers;
 pub mod focus;
 pub mod journal_client;

@@ -188,6 +188,16 @@ impl Journal {
         self.depuis_id(&id)
     }
 
+    /// Le rattrapage depuis une SÉQUENCE de la même époque — l'outil du flux
+    /// qui a déjà émis jusqu'à ce numéro et veut savoir ce qui manque (la
+    /// sonnette bornée peut avoir laissé tomber un événement).
+    pub fn depuis_sequence(&self, sequence: u64) -> Rattrapage {
+        self.depuis_id(&IdJournal {
+            boot: self.boot.clone(),
+            sequence,
+        })
+    }
+
     /// Le rattrapage depuis un identifiant déjà parsé.
     pub fn depuis_id(&self, id: &IdJournal) -> Rattrapage {
         let etat = self.etat.lock().unwrap_or_else(PoisonError::into_inner);

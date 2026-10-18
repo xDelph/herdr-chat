@@ -269,3 +269,21 @@ fn la_publication_est_une_seule_etape() {
     let attendues: Vec<u64> = (sequences[0]..=sequences[sequences.len() - 1]).collect();
     assert_eq!(sequences, attendues, "aucun trou, aucun doublon");
 }
+
+#[test]
+fn le_rattrapage_par_sequence_rend_ce_qui_suit() {
+    // L'outil du flux (T053) : après avoir émis jusqu'à `n`, savoir ce que le
+    // journal a de PLUS — sans reconstruire un curseur opaque à la main.
+    let journal = Journal::nouveau();
+    let premier = journal
+        .publie("agent_status", b"{}".to_vec())
+        .unwrap_or_else(|cause| panic!("publication : {cause:?}"));
+    journal
+        .publie("prompt", b"{}".to_vec())
+        .unwrap_or_else(|cause| panic!("publication : {cause:?}"));
+    let rattrapage = journal.depuis_sequence(premier.id.sequence);
+    assert!(!rattrapage.resync_requis, "la même époque, pas de resync");
+    assert_eq!(rattrapage.evenements.len(), 1);
+    assert_eq!(rattrapage.evenements[0].genre, "prompt");
+    assert_eq!(rattrapage.evenements[0].id.sequence, 2);
+}

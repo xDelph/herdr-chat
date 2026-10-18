@@ -55,17 +55,19 @@ async fn routes_read_branchees_200() {
     assert_eq!(corps["error"], "no usable session path for this agent");
 }
 
+/// Le flux SSE est branché (T053) : plus AUCUNE route en attente — un 501
+/// n'existe plus dans le routeur.
 #[tokio::test(flavor = "multi_thread")]
-async fn routes_read_en_attente_501() {
-    // `/api/events` est la seule lecture encore en attente (T053).
-    for chemin in ["/api/events"] {
-        let reponse = envoie("GET", chemin, &[], Vec::new()).await;
-        assert_eq!(
-            reponse.status(),
-            StatusCode::NOT_IMPLEMENTED,
-            "{chemin} — pas encore de handler : 501, jamais un faux 200"
-        );
-    }
+async fn plus_aucune_route_en_attente() {
+    let reponse = envoie("GET", "/api/events", &[], Vec::new()).await;
+    assert_eq!(reponse.status(), StatusCode::OK);
+    assert_eq!(
+        reponse
+            .headers()
+            .get("content-type")
+            .and_then(|valeur| valeur.to_str().ok()),
+        Some("text/event-stream")
+    );
 }
 
 /// Les mutations H05–H07/H10–H12 sont branchées (T051) : la garde passe et

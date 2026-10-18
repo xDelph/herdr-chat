@@ -23,6 +23,11 @@ pub enum EvenementSse {
     Prompt(PromptDelivered),
     PromptSuppressed(PromptSuppressed),
     AgentLaunched(AgentLaunched),
+    /// Événement AJOUTÉ par la migration (C26), jamais mesuré sur le fil :
+    /// la source de session d'un pane a changé, le client relit la page.
+    /// Le nom garde le soulignement de `agent_status`, pas un trait d'union.
+    #[serde(rename = "session_changed")]
+    SessionChanged(SessionChanged),
     Resync(Resync),
 }
 
@@ -95,6 +100,22 @@ pub struct AgentLaunched {
     pub kind: String,
     pub pane_id: String,
     pub workspace_id: String,
+}
+
+/// La source de session d'un pane a changé (`event: session_changed`) —
+/// **événement AJOUTÉ par la migration** (C26), pas mesuré sur le fil.
+///
+/// ⚠️ La matière est **l'observation de la source seule** : le chemin publié
+/// par Herdr (ou son absence). Aucun compteur de messages n'existe côté
+/// Herdr — prétendre « nouveau message » exigerait de lire la session, ce
+/// que le flux ne fait pas. Le client invalide, il ne devine pas.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionChanged {
+    /// La source APRÈS le changement — `null` quand elle a disparu (agent
+    /// parti ou chemin retiré) : un null mesuré, jamais un absent.
+    pub path: Nullable<String>,
+    pub pane_id: String,
 }
 
 /// Le genre de changement d'état, union fermée mesurée d'AgentWatcher

@@ -1458,3 +1458,40 @@ Périmètre : `crates/http-api/src/handlers/{catalogues,journal_client,push,fich
 7. **`requete_get` refuse un corps non JSON, exprès** : deux tests l'ont révélé (clef VAPID en texte, corps de fichier). Un helper brut (`get_brut`) a été ajouté plutôt que de rendre le décodeur tolérant — un JSON illisible doit se voir.
 
 Commit préfixé `T052:` contenant tout ce qui précède et cette section.
+
+## T053 — `http-api::handlers::events` (H14 ; C11, C26)
+
+Périmètre : `crates/http-api/src/{publication.rs, handlers/events.rs, services.rs, router.rs}` (le flux branché, plus AUCUN 501 dans le routeur) ; `crates/contracts/src/events.rs` (l'événement `session_changed`, **ajouté**) ; `crates/application/src/events/{watcher,journal,subscription}.rs` (matière de la source + rattrapage par séquence + compte des abonnements vivants) ; publications dans `handlers/{prompt,lancement}.rs` ; tests `crates/http-api/tests/unit/{events,support,router,mod}.rs`, `crates/application/tests/unit/events/{watcher,journal}.rs`. Aucun service réel contacté, aucun agent, aucun fichier de l'utilisateur.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `handlers/events.rs` (H14) | 200 `text/event-stream` + `no-cache`, keep-alive 15 s ; `ready` **sans identifiant** à l'ouverture (`{cursor}` = frontière) ; `last-event-id` rejoue **exactement** ce qui a été manqué ; continuité rompue (journal tronqué, autre époque, curseur legacy numérique) ⇒ **un seul** `resync` avec le curseur de reprise du journal ; **pas de `Last-Event-ID` = pas d'historique** (C11) ; 9e flux ⇒ **503** nommé. |
+| Le travailleur du flux | Un `spawn_blocking` possède l'`Abonnement` et pousse dans une file **bornée** (64) ; la réponse est asynchrone (`unfold` sur le récepteur). Après un battement muet, il **relit le journal** depuis la dernière séquence émise : une file pleine ne perd rien (la sonnette n'est qu'une porte). Il s'arrête dès que la réponse tombe (`is_closed`) — donc **la coupure rend le permis**. |
+| `publication.rs` | Le pont application → **charges du contrat** → journal : `agent_status` (from null = apparition, `to:"gone"` = disparition), **`session_changed`** si et seulement si la source a changé, `prompt` (confirmation = **preuve**, jamais intention), `prompt-suppressed` (motif mesuré), `agent-launched`. Une fonction par genre : deux publications ne peuvent pas diverger. |
+| `contracts::events::SessionChanged` | **Événement ajouté (C26)**, jamais mesuré sur le fil : `{paneId, path}` — `path` nullable (source disparue). Nom `session_changed` (soulignement, comme `agent_status` ; le `rename_all` aurait donné un trait d'union). |
+| `application::events::watcher` | `Changement.source_avant/source_apres` + `source_change()` : la matière vient des **observations de source** (le chemin publié par Herdr), jamais d'une lecture de messages — Herdr n'expose aucun compteur. |
+| `application::events::journal/subscription` | `Journal::depuis_sequence(n)` et `Abonnement::rattrapage_apres(n)` (relire après un battement muet sans reconstruire un curseur opaque) ; `nb_abonnes()` ne compte que les **vivants** (drapeau du Drop). |
+| Publications dans les commandes | H05 publie `prompt` (avec sa preuve) et `prompt-suppressed` ; H07 publie `agent-launched` avec son projet. Un journal plein ne défait pas l'action : l'échec est rendu, l'appelant l'ignore **explicitement**. |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p http-api` | PASS — **160 tests** (dont 8 SSE + 1 routeur réécrit). |
+| `cargo test -p application` | PASS — **137 tests** (4 sur la source, 1 sur le rattrapage par séquence). |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** (2 passages). |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **Le travailleur bloquant ne voyait pas partir le client** (journal muet = boucle d'attente infinie). Deux tests ont *paru* se figer alors qu'ils passaient : le runtime attend les tâches bloquantes avant de rendre la main. Corrigé par `emetteur.is_closed()` à chaque tour — **et c'est ce qui rend vrai le test de coupure**, pas un délai de grâce.
+1. **`nb_abonnes` comptait les abonnements fermés** jusqu'à la publication suivante : un compte faux pendant une fenêtre. Il filtre maintenant sur le drapeau (le `Drop` le pose immédiatement), et c'est le contrat que le test de coupure vérifie.
+2. **Le battement du flux est injectable** (`Services::battement_flux`, défaut 15 s, 20 ms en test) : sans cela, chaque test laissait un fil bloqué 15 s derrière lui — et la suite devenait lente par accident.
+3. **`session_changed` n'est pas dans le fil** : c'est un AJOUT (C26), documenté comme tel dans le contrat et le module. Sa forme (`{paneId, path}`) est la plus petite qui permette au client d'invalider — pas de `from`, pas de compteur inventé.
+4. **`agent_status`/`session_changed` sont construits ici mais PUBLIÉS par la composition du veilleur** (T056, hors de ce crate) : `publication::evenements_de_changement` est la fonction unique, testée ; les trois autres genres sont publiés dès maintenant par les handlers H05/H07.
+5. **Pas de heartbeat comme événement nommé** : le client EventSource n'en a pas besoin, et axum écrit le commentaire `:` — un faux événement serait du bruit à décoder.
+6. **Le 9e flux est refusé avec sa cause** (« trop de flux ouverts (maximum 8) »), jamais une attente silencieuse.
+7. **`publie` rend son `ErreurJournal`** (clippy refusait `Result<_, ()>`) : l'échec est nommé, l'appelant choisit de l'ignorer — les handlers écrivent `let _ =` en le documentant.
+
+Commit préfixé `T053:` contenant tout ce qui précède et cette section.

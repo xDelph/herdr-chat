@@ -74,27 +74,51 @@ pub async fn prompt(
         .prompt
         .envoie(services.port.as_ref(), &cible, &corps.text, saisie)
     {
-        Ok(envoi) => (
-            axum::http::StatusCode::OK,
-            axum::Json(PromptSentResponse {
-                confirmation: match envoi.confirmation {
-                    ConfirmationEnvoi::Confirme => Confirmation::Confirmed,
-                    ConfirmationEnvoi::Inconnu => Confirmation::Unknown,
-                },
-                fingerprint: envoi.empreinte,
-                status: PromptStatus::Sent,
-            }),
-        )
-            .into_response(),
+        Ok(envoi) => {
+            // Le direct : l'envoi est publié AVEC sa preuve (A02), jamais
+            // une intention. Un journal plein ne fait pas échouer l'envoi
+            // déjà effectué — la trace est un confort, pas la preuve.
+            let confirme = envoi.confirmation == ConfirmationEnvoi::Confirme;
+            let _ = crate::handlers::events::publie(
+                services.journal.as_ref(),
+                &[crate::publication::evenement_de_prompt(
+                    cible.as_str(),
+                    &envoi.empreinte,
+                    confirme,
+                )],
+            );
+            (
+                axum::http::StatusCode::OK,
+                axum::Json(PromptSentResponse {
+                    confirmation: match envoi.confirmation {
+                        ConfirmationEnvoi::Confirme => Confirmation::Confirmed,
+                        ConfirmationEnvoi::Inconnu => Confirmation::Unknown,
+                    },
+                    fingerprint: envoi.empreinte,
+                    status: PromptStatus::Sent,
+                }),
+            )
+                .into_response()
+        }
         // Un double envoi n'est pas une erreur serveur : un no-op assumé.
-        Err(RefusEnvoi::Doublon { .. }) => (
-            axum::http::StatusCode::OK,
-            axum::Json(PromptSuppressedResponse {
-                reason: String::from("identical send already confirmed within the window"),
-                status: SuppressedStatus::Suppressed,
-            }),
-        )
-            .into_response(),
+        Err(RefusEnvoi::Doublon { .. }) => {
+            // Le no-op assumé est publié aussi : l'interface qui écoute le
+            // direct ne doit pas croire à un envoi.
+            let _ = crate::handlers::events::publie(
+                services.journal.as_ref(),
+                &[crate::publication::evenement_de_prompt_supprime(
+                    cible.as_str(),
+                )],
+            );
+            (
+                axum::http::StatusCode::OK,
+                axum::Json(PromptSuppressedResponse {
+                    reason: String::from("identical send already confirmed within the window"),
+                    status: SuppressedStatus::Suppressed,
+                }),
+            )
+                .into_response()
+        }
         // B05 : l'état vient de la NATURE de la panne, jamais d'une phrase.
         Err(RefusEnvoi::NonConfirme { detail, cause, .. }) => (
             axum::http::StatusCode::BAD_GATEWAY,

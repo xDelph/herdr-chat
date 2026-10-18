@@ -8,6 +8,8 @@ use application::commands::stop::ArreteurAgent;
 use application::conversations::{
     BrancheDeProjet, EntreeLu, ErreurDeLecture, LitSessions, ServiceConversations,
 };
+use application::events::journal::Journal;
+use application::events::subscription::ServiceAbonnements;
 use application::overview::ResoutSessions;
 pub(crate) use application::overview::SourceDeSession;
 use application::refresh::{ServiceSnapshots, SourceMaintenant};
@@ -378,6 +380,10 @@ pub(crate) fn services(
         artefacts: Arc::new(FauxArtefacts::defaut()),
         racines_extra: Vec::new(),
         notifications: None,
+        journal: Arc::new(ServiceAbonnements::nouveau(Arc::new(Journal::nouveau()))),
+        // Le battement de test : 20 ms — le travailleur d'un flux se réveille
+        // vite, et un test ne laisse pas un fil bloqué 15 s derrière lui.
+        battement_flux: Duration::from_millis(20),
     });
     (services, herdr)
 }

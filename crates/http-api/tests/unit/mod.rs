@@ -8,6 +8,7 @@ pub(crate) mod confiance;
 pub(crate) mod conversations;
 pub(crate) mod corps;
 pub(crate) mod errors;
+pub(crate) mod events;
 pub(crate) mod fichiers;
 pub(crate) mod focus;
 pub(crate) mod journal_client;

@@ -11,6 +11,7 @@ use application::commands::launch::{ConstructeurArgs, HorlogeMoteur, LanceurAgen
 use application::commands::prompt::EnvoieurPrompt;
 use application::commands::stop::ArreteurAgent;
 use application::conversations::ServiceConversations;
+use application::events::subscription::ServiceAbonnements;
 use application::overview::ResoutSessions;
 use application::refresh::{ServiceSnapshots, SourceMaintenant};
 use application::types_installes::InventaireTypes;
@@ -65,6 +66,13 @@ pub struct Services {
     /// Le service Web Push (H15/H16) — `None` = capacité ABSENTE : 503, et
     /// l'interface l'affiche absente (aucun substitut inventé).
     pub notifications: Option<Arc<dyn NotificationPort>>,
+    /// Le direct (H14) : le journal borné ET les abonnements — les
+    /// commandes publient ici, le flux SSE lit ici (même possession).
+    pub journal: Arc<ServiceAbonnements>,
+    /// L'attente maximale d'un flux avant de relire le journal (le
+    /// heartbeat). Injectable pour que les tests n'attendent pas 15 s : le
+    /// travailleur bloquant d'un flux se réveille à cette cadence.
+    pub battement_flux: std::time::Duration,
 }
 
 impl Services {

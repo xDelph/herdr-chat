@@ -85,6 +85,20 @@ pub struct Changement {
     pub genre: GenreDeChangement,
     /// La dernière vue connue quand l'agent a **disparu** (E03).
     pub disparu: Option<AgentView>,
+    /// La **source de session** avant et après (C26) — la seule matière de
+    /// `session_changed` : le chat est invalidé quand la source change, pas
+    /// quand un message arrive (Herdr n'expose aucun compteur de messages).
+    pub source_avant: Option<String>,
+    pub source_apres: Option<String>,
+}
+
+impl Changement {
+    /// La source de session a-t-elle changé ? (apparition, disparition ou
+    /// nouveau chemin) — la question que `session_changed` répond.
+    #[must_use]
+    pub fn source_change(&self) -> bool {
+        self.source_avant != self.source_apres
+    }
 }
 
 /// Un tour de veille : la vue à jour et les changements qu'elle entraîne.
@@ -146,6 +160,10 @@ impl Veilleur {
                             a: CibleDeChangement::Statut(agent.status),
                             genre: GenreDeChangement::Apparu,
                             disparu: None,
+                            // Aucune source avant : l'apparition EST un
+                            // changement de source si l'agent en publie une.
+                            source_avant: None,
+                            source_apres: agent.session_path.clone(),
                         });
                     }
                 }
@@ -156,6 +174,8 @@ impl Veilleur {
                         a: CibleDeChangement::Statut(agent.status),
                         genre: GenreDeChangement::Statut,
                         disparu: None,
+                        source_avant: ancienne.vue.session_path.clone(),
+                        source_apres: agent.session_path.clone(),
                     });
                 }
                 Some(_) => {}
@@ -171,6 +191,10 @@ impl Veilleur {
                     a: CibleDeChangement::Disparu,
                     genre: GenreDeChangement::Disparu,
                     disparu: connue.map(|entree| entree.vue.clone()),
+                    // La source s'éteint avec l'agent : le chat ne doit plus
+                    // croire à un direct sur ce pane.
+                    source_avant: connue.and_then(|entree| entree.vue.session_path.clone()),
+                    source_apres: None,
                 });
             }
         }

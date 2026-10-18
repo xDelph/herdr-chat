@@ -23,8 +23,6 @@ use std::sync::Arc;
 /// Le routeur complet — lectures (GET/HEAD), mutations (POST, gardées),
 /// repli. `origines` sont les origines exactes de la config (T048).
 pub fn routeur(services: Arc<Services>, origines: Vec<String>) -> Router<()> {
-    let non_branche = en_async(route_non_branche);
-
     let lectures = Router::new()
         .route(
             "/api/health",
@@ -64,8 +62,8 @@ pub fn routeur(services: Arc<Services>, origines: Vec<String>) -> Router<()> {
         )
         .route(
             "/api/events",
-            get(non_branche.clone())
-                .head(non_branche.clone())
+            get(handlers::events::flux)
+                .head(handlers::events::flux)
                 .fallback(en_async(methode_non_autorisee_lecture)),
         )
         .route(
@@ -119,17 +117,6 @@ pub fn routeur(services: Arc<Services>, origines: Vec<String>) -> Router<()> {
         .merge(mutations)
         .fallback(en_async(fallback_json_404))
         .with_state(services)
-}
-
-/// La route **pas encore branchée** — 501 nommé, jamais un faux 200.
-fn route_non_branche(_: Request) -> Response {
-    (
-        axum::http::StatusCode::NOT_IMPLEMENTED,
-        axum::Json(serde_json::json!({
-            "error": "handler non branché — T051+ l'installe"
-        })),
-    )
-        .into_response()
 }
 
 /// Enveloppe un `fn(Request) -> Response` (405, fallback) en handler axum.
