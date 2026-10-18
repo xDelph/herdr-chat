@@ -600,4 +600,19 @@ Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'ex
 | `Registre` | Un genre = un profil (`BTreeMap`) ; `pose` ne touche que son genre ; `profil(inconnu)` = **`None`, jamais un repli** ; `traite` fait passer la ligne par le pipeline (codec → politique fine à T018+ → normalisation) et sort `Message`/`Reglage` par leurs étapes propres. |
 | 5 tests (31 sur la crate) | Deux familles inventées passent par le même socle ; **l'inconnu avec une ligne de même forme ne bascule pas** ; **modifier Devin (codec + capacités) laisse Codex bit-pour-bit inchangé** ; quatre capacités indépendantes ; réglage vs message par leurs étapes. |
 
-Commit préfixé `T017:` contenant `crates/sessions/src/pipeline.rs`, `lib.rs`, `tests/unit/{pipeline,mod}.rs` et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T018 — `sessions::agents::pi` : le profil Pi (D11)
+
+| Livrable | Détail |
+|---|---|
+| Les deux formes du corpus | **À plat** (`{type:"message", content, role…}` — mesuré sur pi/pane-01.jsonl) : enveloppée à la lecture, pour que rien en aval ne connaisse les deux formes ; **enveloppée** (la forme normalisée) : passe par identité vérifiée (codec pi T016). |
+| Huit rôles + types non-message | `ROLES` (8, mesuré `MessageRole`) porté fermé ; les types hors message (`usage, compaction, custom_message, label, session_info, context_edit`…) → **`None`** — l'appelant garde la brute, rien n'est fabriqué. |
+| Filiation D11 | `parentSession` (l'en-tête) = le **seul** lien inter-sessions ; un `parentId` de ligne reste un champ de ligne **intra-session** — le profil ne réinvente JAMAIS une filiation depuis parentId, et ne suggère aucun sous-agent (mesuré deux fois : aucune source de sous-agents n'existe). |
+| Profil posé sur le socle | `ProfilPi::profil()` passe par le pipeline T017 (le corpus passe avec lui) ; capacités mesurées (les quatre, surface TS) ; l'inconnu ne bascule pas sur pi (revérifié ici). |
+| Aucune écriture source | Testé : la source est intacte octet pour octet après lecture. |
+| 7 tests (38 sur la crate) | Corpus préservé (id/timestamp/rôle/contenu), forme enveloppée (+modèle), types non-message en brut, huit rôles, filiation D11, pose sur le registre + pas de repli, source intacte. |
+
+Commit préfixé `T018:` contenant `crates/sessions/src/agents/**`, `tests/unit/{agents_pi,mod}.rs` et cette section. Cargo.lock inchangé.
