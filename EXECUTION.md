@@ -615,4 +615,17 @@ Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'ex
 | Aucune écriture source | Testé : la source est intacte octet pour octet après lecture. |
 | 7 tests (38 sur la crate) | Corpus préservé (id/timestamp/rôle/contenu), forme enveloppée (+modèle), types non-message en brut, huit rôles, filiation D11, pose sur le registre + pas de repli, source intacte. |
 
-Commit préfixé `T018:` contenant `crates/sessions/src/agents/**`, `tests/unit/{agents_pi,mod}.rs` et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T019 — `sessions::agents::codex` : le profil Codex (D12–D13)
+
+| Livrable | Détail |
+|---|---|
+| Le profil | Le codec Responses (T016, ligne + réglages) **posé sur le pipeline** ; genre `codex`, capacités mesurées (les quatre — la surface TS traite question/`Type your own answer` et confiance). |
+| D12–D13, prouvées sur le corpus FROZEN | `fixtures/codex/pane-01.jsonl` passe en entier : les contextes injectés (AGENTS.md + `<environment_context>`) sont **filtrés** (comptés, jamais servis), les VRAIS prompts (longs) **restent**, les horodatages passent, la réflexion chiffrée ne sort JAMAIS de texte inventé. |
+| Le socle inchangé | Pi posé à côté de codex : les deux profils coexistent par le pipeline générique — l'ajout de codex ne change rien au socle (testé). |
+| 2 tests (40 sur la crate) | Corpus complet sans perte + coexistence pi/codex. |
+
+Commit préfixé `T019:` contenant `crates/sessions/src/agents/codex/**`, `agents/mod.rs`, `tests/unit/{agents_codex,mod}.rs` et cette section. Cargo.lock inchangé.
