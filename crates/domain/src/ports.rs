@@ -25,6 +25,13 @@ use core::pin::Pin;
 /// Un résultat de port, en attente, exécutable sur n'importe quel exécuteur.
 pub type PortFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, PortError>> + Send + 'a>>;
 
+/// Le futur du port de session : l'erreur y est une [`ErreurDomaine`] typée
+/// (et non un [`PortError`] de transport) — la carte H04 (400 curseurs, 403
+/// chemin refusé, 404 pas de source, 409 périmé, 503 base manquante) se
+/// consomme sans re-décision dans `http-api::errors`.
+pub type SessionFuture<'a, T> =
+    Pin<Box<dyn Future<Output = Result<T, crate::errors::ErreurDomaine>> + Send + 'a>>;
+
 /// Étape concrète d'une action de transport, observée **avant** sa conclusion.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -258,11 +265,13 @@ pub trait ControlPort: Send + Sync {
 pub trait SessionPort: Send + Sync {
     /// Résout une source depuis tout ce que le résolveur sait. `None` quand
     /// **rien ne prouve** une session : c'est une valeur, pas une panne.
-    fn resolve(&self, hint: SessionHint) -> PortFuture<'_, Option<ResolvedSource>>;
-    /// Une page de session, avec ses clauses B03 toutes nommées.
-    fn page(&self, request: SessionPageRequest) -> PortFuture<'_, SessionPageOutcome>;
+    fn resolve(&self, hint: SessionHint) -> SessionFuture<'_, Option<ResolvedSource>>;
+    /// Une page de session, avec ses clauses B03 toutes nommées. Les
+    /// erreurs de demande (curseur illisible/exclusif/étranger), de lecture
+    /// ou de source manquante sont des `ErreurDomaine`.
+    fn page(&self, request: SessionPageRequest) -> SessionFuture<'_, SessionPageOutcome>;
     /// Ce que le fichier dit des réglages en vigueur — jamais un modèle supposé.
-    fn metadata(&self, source: ResolvedSource) -> PortFuture<'_, SessionMetadata>;
+    fn metadata(&self, source: ResolvedSource) -> SessionFuture<'_, SessionMetadata>;
 }
 
 /// Le port des catalogues : mesurer et valider, jamais deviner.

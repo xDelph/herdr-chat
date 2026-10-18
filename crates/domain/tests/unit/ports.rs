@@ -4,8 +4,8 @@ use domain::errors::PortError;
 use domain::ids::{DeliveryFingerprint, PaneId, SessionId};
 use domain::observation::UpstreamPing;
 use domain::ports::{
-    ControlPort, FocusEvidence, PartialStep, PortFuture, PromptEvidence, SessionPort,
-    StartEvidence, StopEvidence, TransportOutcome,
+    ControlPort, FocusEvidence, PartialStep, PortFuture, PromptEvidence, SessionFuture,
+    SessionPort, StartEvidence, StopEvidence, TransportOutcome,
 };
 use domain::session::{
     ResolvedSource, SessionHint, SessionMetadata, SessionPageOutcome, SessionPageRequest,
@@ -128,13 +128,24 @@ fn un_stop_un_focus_et_un_start_sont_unions_exhaustives() {
 struct ResolveurSimulé;
 
 impl SessionPort for ResolveurSimulé {
-    fn resolve(&self, _hint: SessionHint) -> PortFuture<'_, Option<ResolvedSource>> {
+    fn resolve(&self, _hint: SessionHint) -> SessionFuture<'_, Option<ResolvedSource>> {
         Box::pin(async { Ok(None) })
     }
-    fn page(&self, _request: SessionPageRequest) -> PortFuture<'_, SessionPageOutcome> {
-        Box::pin(async { Ok(SessionPageOutcome::Vide) })
+    fn page(&self, _request: SessionPageRequest) -> SessionFuture<'_, SessionPageOutcome> {
+        Box::pin(async {
+            Ok(SessionPageOutcome::Vide(domain::session::SessionPage {
+                session_path: "/sessions/pi/wx.jsonl".to_string(),
+                entries: Vec::new(),
+                incremental: false,
+                cursor: None,
+                previous_cursor: None,
+                has_more: false,
+                reset: false,
+                rattrape: false,
+            }))
+        })
     }
-    fn metadata(&self, _source: ResolvedSource) -> PortFuture<'_, SessionMetadata> {
+    fn metadata(&self, _source: ResolvedSource) -> SessionFuture<'_, SessionMetadata> {
         Box::pin(async { Ok(SessionMetadata::default()) })
     }
 }
@@ -259,7 +270,7 @@ fn une_page_simulee_est_lue_à_la_poll_sans_exécuteur() {
     };
     let mut fut = simulation.page(requête);
     match écoule(&mut fut) {
-        Poll::Ready(Ok(SessionPageOutcome::Vide)) => (),
+        Poll::Ready(Ok(SessionPageOutcome::Vide(_))) => (),
         Poll::Ready(Ok(autre)) => panic!("clausule tenue autre chose : {autre:?}"),
         Poll::Ready(Err(panne)) => panic!("une page simulée a échoué : {panne}"),
         Poll::Pending => panic!("un port simulé n'a rien grand-chose à attendre"),

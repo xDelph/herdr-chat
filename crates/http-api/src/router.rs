@@ -5,11 +5,12 @@
 //! pas une décision locale : lecture = GET + HEAD, mutation = POST. Axum
 //! répond 405 + `Allow` tout seul sur une méthode absente d'une route.
 //!
-//! ⚠️ Les handlers sont des `fn(Request) -> Response` pour cette tâche ; les
-//! vrais handlers (T050+) remplaceront les stubs — la politique de méthodes
-//! et le fallback ne changent pas.
+//! ⚠️ Les handlers H01–H04 sont branchés (T050) ; les routes restantes
+//! répondent **501 nommé** — jamais un faux 200 — jusqu'à T051/T052/T053.
 
+use crate::handlers;
 use crate::origin::{RaisonGarde, RefusGarde, describe_refus, verifie_garde};
+use crate::services::Services;
 use axum::Router;
 use axum::body::Body;
 use axum::extract::{Request, State};
@@ -17,141 +18,89 @@ use axum::http::StatusCode;
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
-
-/// La forme uniforme d'un handler pour cette tâche : une fonction
-/// synchrone prenant la requête entière — les vrais handlers (T050+)
-/// remplaceront les stubs, la politique ne change pas.
-pub type Traite = fn(Request) -> Response;
-
-/// Enveloppe un `fn(Request) -> Response` en handler axum (async).
-fn en_async(
-    h: Traite,
-) -> impl Fn(Request) -> std::pin::Pin<Box<dyn std::future::Future<Output = Response> + Send>> + Clone
-{
-    move |demande| {
-        let h = h;
-        Box::pin(async move { h(demande) })
-    }
-}
-
-/// Les handlers des 18 routes + le fallback — les stubs de T049, les vrais
-/// en T050+.
-#[derive(Clone, Copy)]
-pub struct Handlers {
-    pub sante: Traite,
-    pub overview: Traite,
-    pub conversations: Traite,
-    pub session_agent: Traite,
-    pub prompt: Traite,
-    pub arret: Traite,
-    pub lancement: Traite,
-    pub types_installes: Traite,
-    pub catalogue_modeles: Traite,
-    pub reponse_question: Traite,
-    pub focus: Traite,
-    pub confiance: Traite,
-    pub journal_client: Traite,
-    pub flux_sse: Traite,
-    pub cle_vapid: Traite,
-    pub abonnements: Traite,
-    pub fichier: Traite,
-    pub images: Traite,
-    /// Le repli : `/api/*` inconnu → JSON 404 (C08) ; le reste → la PWA
-    /// (T054) — ici le 503 « PWA non construite » honnête.
-    pub fallback: Traite,
-}
+use std::sync::Arc;
 
 /// Le routeur complet — lectures (GET/HEAD), mutations (POST, gardées),
 /// repli. `origines` sont les origines exactes de la config (T048).
-pub fn routeur<S>(handlers: &Handlers, origines: Vec<String>) -> Router<S>
-where
-    S: Clone + Send + Sync + 'static,
-{
+pub fn routeur(services: Arc<Services>, origines: Vec<String>) -> Router<()> {
+    let non_branche = en_async(route_non_branche);
+
     let lectures = Router::new()
         .route(
             "/api/health",
-            get(en_async(handlers.sante))
-                .head(en_async(handlers.sante))
+            get(handlers::sante::sante)
+                .head(handlers::sante::sante)
                 .fallback(en_async(methode_non_autorisee_lecture)),
         )
         .route(
             "/api/overview",
-            get(en_async(handlers.overview))
-                .head(en_async(handlers.overview))
+            get(handlers::overview::overview)
+                .head(handlers::overview::overview)
                 .fallback(en_async(methode_non_autorisee_lecture)),
         )
         .route(
             "/api/conversations",
-            get(en_async(handlers.conversations))
-                .head(en_async(handlers.conversations))
+            get(handlers::conversations::conversations)
+                .head(handlers::conversations::conversations)
                 .fallback(en_async(methode_non_autorisee_lecture)),
         )
         .route(
             "/api/agents/{paneId}/session",
-            get(en_async(handlers.session_agent))
-                .head(en_async(handlers.session_agent))
+            get(handlers::session::session)
+                .head(handlers::session::session)
                 .fallback(en_async(methode_non_autorisee_lecture)),
         )
         .route(
             "/api/agents/kinds",
-            get(en_async(handlers.types_installes))
-                .head(en_async(handlers.types_installes))
+            get(non_branche.clone())
+                .head(non_branche.clone())
                 .fallback(en_async(methode_non_autorisee_lecture)),
         )
         .route(
             "/api/agents/{kind}/models",
-            get(en_async(handlers.catalogue_modeles))
-                .head(en_async(handlers.catalogue_modeles))
+            get(non_branche.clone())
+                .head(non_branche.clone())
                 .fallback(en_async(methode_non_autorisee_lecture)),
         )
         .route(
             "/api/events",
-            get(en_async(handlers.flux_sse))
-                .head(en_async(handlers.flux_sse))
+            get(non_branche.clone())
+                .head(non_branche.clone())
                 .fallback(en_async(methode_non_autorisee_lecture)),
         )
         .route(
             "/api/notifications/vapid-key",
-            get(en_async(handlers.cle_vapid))
-                .head(en_async(handlers.cle_vapid))
+            get(non_branche.clone())
+                .head(non_branche.clone())
                 .fallback(en_async(methode_non_autorisee_lecture)),
         )
         .route(
             "/api/file",
-            get(en_async(handlers.fichier))
-                .head(en_async(handlers.fichier))
+            get(non_branche.clone())
+                .head(non_branche.clone())
                 .fallback(en_async(methode_non_autorisee_lecture)),
         )
         .route(
             "/api/images",
-            get(en_async(handlers.images))
-                .head(en_async(handlers.images))
+            get(non_branche.clone())
+                .head(non_branche.clone())
                 .fallback(en_async(methode_non_autorisee_lecture)),
         );
 
     let mutations = Router::new()
-        .route(
-            "/api/agents/{paneId}/prompt",
-            post(en_async(handlers.prompt)),
-        )
-        .route("/api/agents/{paneId}/stop", post(en_async(handlers.arret)))
+        .route("/api/agents/{paneId}/prompt", post(non_branche.clone()))
+        .route("/api/agents/{paneId}/stop", post(non_branche.clone()))
         .route(
             "/api/workspaces/{workspaceId}/agents",
-            post(en_async(handlers.lancement)),
+            post(non_branche.clone()),
         )
-        .route(
-            "/api/agents/{paneId}/answer",
-            post(en_async(handlers.reponse_question)),
-        )
-        .route("/api/agents/{paneId}/focus", post(en_async(handlers.focus)))
-        .route(
-            "/api/agents/{paneId}/trust",
-            post(en_async(handlers.confiance)),
-        )
-        .route("/api/log", post(en_async(handlers.journal_client)))
+        .route("/api/agents/{paneId}/answer", post(non_branche.clone()))
+        .route("/api/agents/{paneId}/focus", post(non_branche.clone()))
+        .route("/api/agents/{paneId}/trust", post(non_branche.clone()))
+        .route("/api/log", post(non_branche.clone()))
         .route(
             "/api/notifications/subscriptions",
-            post(en_async(handlers.abonnements)),
+            post(non_branche.clone()),
         )
         // La garde partagée de TOUTES les mutations : origine, Content-Type,
         // taille déclarée — avant toute action.
@@ -159,7 +108,30 @@ where
 
     lectures
         .merge(mutations)
-        .fallback(en_async(handlers.fallback))
+        .fallback(en_async(fallback_json_404))
+        .with_state(services)
+}
+
+/// La route **pas encore branchée** — 501 nommé, jamais un faux 200.
+fn route_non_branche(_: Request) -> Response {
+    (
+        axum::http::StatusCode::NOT_IMPLEMENTED,
+        axum::Json(serde_json::json!({
+            "error": "handler non branché — T051+ l'installe"
+        })),
+    )
+        .into_response()
+}
+
+/// Enveloppe un `fn(Request) -> Response` (405, fallback) en handler axum.
+fn en_async(
+    h: fn(Request) -> Response,
+) -> impl Fn(Request) -> std::pin::Pin<Box<dyn std::future::Future<Output = Response> + Send>> + Clone
+{
+    move |demande| {
+        let h = h;
+        Box::pin(async move { h(demande) })
+    }
 }
 
 /// La garde des mutations, appliquée en couche — l'ordre du fil (CURRENT §2) :

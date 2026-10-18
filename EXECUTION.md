@@ -1342,3 +1342,39 @@ Périmètre : `crates/http-api/src/{origin,router,corps}.rs`, `lib.rs`, tests `c
 4. **Une origine `[IP_ADDRESS]` sur un AUTRE port est loopback** (tous ports confondus, comme le fil) : mon premier test l'affirmait refusée — c'était faux, corrigé. La porte reste fermée : une page servie par la machine ne peut pas être un site tiers.
 
 Commit préfixé `T049:` contenant tout ce qui précède et cette section.
+
+## T050 — `http-api::handlers::health/overview/conversations/sessions` (H01–H04)
+
+Périmètre : `crates/http-api/src/{services,convertir}.rs`, `crates/http-api/src/handlers/{sante,overview,conversations,session,mod}.rs`, `router.rs` (les stubs T049 remplacés pour H01–H04, politique et fallback inchangés), `crates/domain/src/{session,ports}.rs` (le port de session), tests `crates/http-api/tests/unit/{sante,overview,conversations,session,support}.rs` + `router.rs` réécrit. Aucun service réel contacté, aucun agent, aucun test sous `src/`.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `domain::session` | `SessionPage.rattrape` (**C18** — vrai au seul watermark complet observé, présent sur le fil seulement quand vrai) ; `SessionPageOutcome` : `Absente(SessionPage)`/`Vide(SessionPage)` portent désormais le contexte de réponse (curseur, reset, incremental), `Invalide{detail}`/`Io{detail}` nommés. |
+| `domain::ports` | `SessionFuture` : le port de session rend désormais des **`ErreurDomaine` typées** (pas des `PortError` de transport) — la carte H04 (400 curseurs / 403 chemin / 404 source / 409 périmé / 422 illisible / 502 io / 503 base manquante) se consomme sans re-décision. |
+| `http-api::services` | `Services` : le monde du démon composé (snapshots, port de contrôle, conversations, résolution, port de session, socket, horloge injectée, uptime, journal) — l'assemblage réel arrive en T056 ; les tests composent des faux. |
+| `handlers/sante.rs` (H01) | 200 `HealthResponse` (protocol/version/socket/log/uptimeMs) ; Herdr injoignable → **503 même schéma** `ok:false, reachable:false` ; ping résolu mais illisible → 500 nommé (`Unsupported`/`PathRejected`). |
+| `handlers/overview.rs` (H02) | 200 vue composée via `ComposeurOverview` ; échec de snapshot → 500 `{error}`. |
+| `handlers/conversations.rs` (H03) | 200 une ligne par pane visible (T039) ; pas de snapshot → **503 `{conversations:[]}`** ; snapshot illisible → 502 même forme vide — jamais une liste devinée. |
+| `handlers/session.rs` (H04) | La cartographie pure : `tail` (entier positif plafonné 512 KiB, `0`/illisible → défaut, JAMAIS de `parseInt` permissif), `cursor`/`before` opaques portés tels quels, agent cherché dans le snapshot (404), `resolve` (404 `Ok(None)`), clauses → 200 (cause `vide` même non vide, vocabulaire mesuré) / 400 / 403 / 404 / 409 / 422 / 502 / 503, causes de lecture nommées (C04). |
+| `router.rs` | H01–H04 branchés (GET+HEAD) ; les routes restantes répondent **501 nommé** — jamais un faux 200 — jusqu'à T051/T052/T053. La méthode (405+`Allow`), la garde et le fallback 404 JSON ne bougent pas. |
+| Tests | **76 http-api** : 5 sante + 3 overview + 5 conversations + 16 session + 12 routeur (réécrit) ; `FauxSessionPort` scripté (résolutions/pages, dernière demande de page enregistrée), `FauxSessions` partagé, horloge injectée. |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p http-api` | PASS — **76 tests**. |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** (2 passages consécutifs). |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **`sessionPath`/`session_id` du hint construits depuis le snapshot, jamais depuis Herdr** (D008) : le handler ne lit pas le fichier — il demande une page au port, et le port est composé en T056.
+1. **L'échec « tests » d'une passe intermédiaire était un flake** — la flakiness transport `herdr-client` pré-existante (T047, prouvée indépendante) sous charge ; les deux passages suivants sont verts. Rien de nouveau introduit.
+2. **Le `caughtUp` absent (null) quand `rattrape` est faux est mesuré, pas un choix** : C18 dit « présent seulement quand vrai » ; mon premier test l'assertait `false` — corrigé (le NULL JSON est la preuve de l'omission).
+3. **`test-support` est un dev-dependency de http-api** : l'ajout dans `[dependencies]` a fait diverger le graphe (TECH §2 ne compte que les arêtes de production) — déplacé en `[dev-dependencies]`, le graphe est resté identique.
+4. **Le 404 de session sans agent et le 404 de repli partagent le statut** : le test routeur prouve la route branchée par le CORPS (message H04 documenté), pas par le statut seul — sinon un repli « route inconnue » passerait pour un handler.
+5. **Le port de session rend des `ErreurDomaine`** : `PortError` est l'erreur de TRANSPORT (Herdr) ; la lecture de session (fichier/base) a ses propres clauses — mélanger les deux aurait re-décidé la carte H04 au port.
+
+Commit préfixé `T050:` contenant tout ce qui précède et cette section.

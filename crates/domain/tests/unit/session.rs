@@ -194,10 +194,32 @@ fn une_page_de_session_ne_tient_que_cinq_conclusions() {
     // B03 : absente / vide / invalide / io / page — TOUTES nommées, pas un
     // 502 indifférencié. Match sans joker : exhaustive par compilation.
     let conclusions = vec![
-        SessionPageOutcome::Absente,
-        SessionPageOutcome::Vide,
-        SessionPageOutcome::Invalide,
-        SessionPageOutcome::Io,
+        SessionPageOutcome::Absente(domain::session::SessionPage {
+            session_path: "/sessions/pi/wx.jsonl".to_string(),
+            entries: Vec::new(),
+            incremental: false,
+            cursor: None,
+            previous_cursor: None,
+            has_more: false,
+            reset: false,
+            rattrape: false,
+        }),
+        SessionPageOutcome::Vide(domain::session::SessionPage {
+            session_path: "/sessions/pi/wx.jsonl".to_string(),
+            entries: Vec::new(),
+            incremental: false,
+            cursor: None,
+            previous_cursor: None,
+            has_more: false,
+            reset: false,
+            rattrape: false,
+        }),
+        SessionPageOutcome::Invalide {
+            detail: String::from("ligne tronquée"),
+        },
+        SessionPageOutcome::Io {
+            detail: String::from("permission refusée"),
+        },
         SessionPageOutcome::Page(domain::session::SessionPage {
             session_path: "/sessions/pi/wx.jsonl".to_string(),
             entries: Vec::new(),
@@ -206,15 +228,16 @@ fn une_page_de_session_ne_tient_que_cinq_conclusions() {
             previous_cursor: None,
             has_more: false,
             reset: false,
+            rattrape: true,
         }),
     ];
     let mut vues = 0_u32;
     for cause in conclusions {
         match cause {
-            SessionPageOutcome::Absente
-            | SessionPageOutcome::Vide
-            | SessionPageOutcome::Invalide
-            | SessionPageOutcome::Io
+            SessionPageOutcome::Absente(_)
+            | SessionPageOutcome::Vide(_)
+            | SessionPageOutcome::Invalide { .. }
+            | SessionPageOutcome::Io { .. }
             | SessionPageOutcome::Page(_) => vues += 1,
         }
     }

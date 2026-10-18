@@ -1,0 +1,394 @@
+//! L'équipement de test du crate : services composés avec des faux, aucune
+//! dépendance au réel (ni socket, ni fichiers, ni horloge système).
+
+use application::conversations::{
+    BrancheDeProjet, EntreeLu, ErreurDeLecture, LitSessions, ServiceConversations,
+};
+use application::overview::ResoutSessions;
+pub(crate) use application::overview::SourceDeSession;
+use application::refresh::{ServiceSnapshots, SourceMaintenant};
+use application::state::ObservationBorne;
+use axum::Router;
+use axum::body::Body;
+use axum::http::{Request, StatusCode};
+use domain::errors::ErreurDomaine;
+use domain::ids::{PaneId, TabId, WorkspaceId};
+use domain::observation::{
+    AgentObservation, AgentSessionRef, SessionRefKind, Snapshot, SnapshotProvenance,
+    TabObservation, WorkspaceObservation,
+};
+use domain::ports::{SessionFuture, SessionPort};
+use domain::session::{
+    ResolvedSource, SessionHint, SessionMetadata, SessionPage, SessionPageOutcome,
+    SessionPageRequest,
+};
+use domain::status::AgentStatus;
+use http_api::services::Services;
+use std::collections::{BTreeMap, VecDeque};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::{Arc, Condvar, Mutex, PoisonError};
+use std::time::Instant;
+use test_support::fake_herdr::HerdrFaux;
+use tower::ServiceExt;
+
+/// Une horloge injectable : l'instant est choisi par le test.
+#[derive(Clone)]
+pub(crate) struct MaintenantTest {
+    pub instant: Arc<Mutex<Instant>>,
+}
+
+impl MaintenantTest {
+    pub(crate) fn nouveau(instant: Instant) -> Self {
+        Self {
+            instant: Arc::new(Mutex::new(instant)),
+        }
+    }
+}
+
+impl SourceMaintenant for MaintenantTest {
+    fn maintenant(&self) -> Instant {
+        *self.instant.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+}
+
+/// Un agent minimal — les champs que les routes lisent.
+pub(crate) fn agent(
+    pane: &str,
+    kind: &str,
+    session: Option<(SessionRefKind, &str)>,
+) -> AgentObservation {
+    AgentObservation {
+        pane_id: PaneId::from(String::from(pane)),
+        tab_id: TabId::from(String::from("t1")),
+        workspace_id: WorkspaceId::from(String::from("w1")),
+        terminal_id: String::from("term"),
+        revision: 1,
+        status: AgentStatus::Blocked,
+        focused: false,
+        agent: Some(domain::ids::AgentKind::from(String::from(kind))),
+        name: Some(domain::ids::AgentName::from(String::from("nom"))),
+        terminal_title: Some(String::from("titre")),
+        cwd: Some(String::from("/projets/atelier")),
+        foreground_cwd: None,
+        completion_seq: None,
+        state_change_seq: None,
+        session: session.map(|(kind, valeur)| AgentSessionRef {
+            kind,
+            value: String::from(valeur),
+        }),
+    }
+}
+
+/// Une observation avec son snapshot minimal — le workspace et le tab
+/// suffisent au nommage.
+pub(crate) fn borne(agents: Vec<AgentObservation>) -> ObservationBorne {
+    let photo = Snapshot {
+        agents,
+        provenance: Some(SnapshotProvenance {
+            version: String::from("0.9.3"),
+            protocol: 22,
+        }),
+        workspaces: vec![WorkspaceObservation {
+            workspace_id: WorkspaceId::from(String::from("w1")),
+            label: Some(String::from("atelier")),
+            agent_status: None,
+            focused: None,
+            number: None,
+            pane_count: Some(1),
+            tab_count: Some(1),
+            active_tab_id: None,
+            worktree: None,
+        }],
+        tabs: Some(vec![TabObservation {
+            tab_id: TabId::from(String::from("t1")),
+            workspace_id: WorkspaceId::from(String::from("w1")),
+            label: Some(String::from("1")),
+            number: 1,
+            agent_status: None,
+            pane_count: Some(1),
+        }]),
+        ..Snapshot::default()
+    };
+    ObservationBorne {
+        generation: 1,
+        observe_a: Instant::now(),
+        snapshot: photo,
+    }
+}
+
+/// Le faux lecteur de fenêtre de la liste — le même que celui de T039 :
+/// sources et fenêtres par pane.
+#[derive(Debug, Clone)]
+pub(crate) struct FauxSessions {
+    pub sources: BTreeMap<PaneId, Option<SourceDeSession>>,
+    pub lectures: BTreeMap<PaneId, Result<Vec<EntreeLu>, ErreurDeLecture>>,
+    pub en_vol: Arc<AtomicU64>,
+    pub pics: Arc<AtomicU64>,
+    pub porte: Arc<(Mutex<bool>, Condvar)>,
+}
+
+/// La variante vide par défaut : sources et fenêtres vides, porte ouverte.
+impl Default for FauxSessions {
+    fn default() -> Self {
+        Self::nouveau()
+    }
+}
+
+impl FauxSessions {
+    pub(crate) fn nouveau() -> Self {
+        Self {
+            sources: BTreeMap::new(),
+            lectures: BTreeMap::new(),
+            en_vol: Arc::new(AtomicU64::new(0)),
+            pics: Arc::new(AtomicU64::new(0)),
+            porte: Arc::new((Mutex::new(true), Condvar::new())),
+        }
+    }
+
+    pub(crate) fn avec_source(mut self, pane: &str, source: Option<SourceDeSession>) -> Self {
+        self.sources
+            .insert(PaneId::from(String::from(pane)), source);
+        self
+    }
+
+    pub(crate) fn avec_lecture(
+        mut self,
+        pane: &str,
+        lu: Result<Vec<EntreeLu>, ErreurDeLecture>,
+    ) -> Self {
+        self.lectures.insert(PaneId::from(String::from(pane)), lu);
+        self
+    }
+}
+
+impl ResoutSessions for FauxSessions {
+    fn source_de(&self, agent: &AgentObservation) -> Option<SourceDeSession> {
+        self.sources.get(&agent.pane_id).cloned().flatten()
+    }
+}
+
+impl LitSessions for FauxSessions {
+    fn fenetre(
+        &self,
+        pane: &PaneId,
+        _source: &SourceDeSession,
+    ) -> Result<Vec<EntreeLu>, ErreurDeLecture> {
+        let en_vol = self.en_vol.fetch_add(1, Ordering::SeqCst) + 1;
+        self.pics.fetch_max(en_vol, Ordering::SeqCst);
+        let mut verrou = self.porte.0.lock().unwrap_or_else(PoisonError::into_inner);
+        while !*verrou {
+            verrou = self
+                .porte
+                .1
+                .wait(verrou)
+                .unwrap_or_else(PoisonError::into_inner);
+        }
+        drop(verrou);
+        self.en_vol.fetch_sub(1, Ordering::SeqCst);
+        match self.lectures.get(pane) {
+            Some(Ok(entrees)) => Ok(entrees.clone()),
+            Some(Err(panne)) => Err(panne.clone()),
+            None => Ok(Vec::new()),
+        }
+    }
+}
+
+/// La branche : une table simple par cwd.
+pub(crate) fn branche_simple(cwd: &str, branche: &str) -> Box<dyn BrancheDeProjet> {
+    #[derive(Clone)]
+    struct Simple(String, String);
+    impl BrancheDeProjet for Simple {
+        fn branche(&self, cwd: &str) -> Option<String> {
+            (cwd == self.0).then(|| self.1.clone())
+        }
+    }
+    Box::new(Simple(String::from(cwd), String::from(branche)))
+}
+
+/// Le faux port de session détaillée (H04) : résolutions scriptées + pages
+/// scriptées (le dernier élément se répète), et les demandes de page
+/// enregistrées pour prouver ce que le handler a transmis.
+#[derive(Clone, Default)]
+pub(crate) struct FauxSessionPort {
+    interieur: Arc<Mutex<FauxSessionInterieur>>,
+}
+
+#[derive(Default)]
+struct FauxSessionInterieur {
+    resolutions: VecDeque<Option<ResolvedSource>>,
+    pages: VecDeque<Result<SessionPageOutcome, ErreurDomaine>>,
+    demandes: Vec<SessionPageRequest>,
+}
+
+impl FauxSessionPort {
+    pub(crate) fn nouveau() -> Self {
+        Self::default()
+    }
+
+    pub(crate) fn avec_source(self, source: Option<ResolvedSource>) -> Self {
+        self.interieur
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .resolutions
+            .push_back(source);
+        self
+    }
+
+    pub(crate) fn avec_page(self, page: Result<SessionPageOutcome, ErreurDomaine>) -> Self {
+        self.interieur
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .pages
+            .push_back(page);
+        self
+    }
+
+    pub(crate) fn demandes(&self) -> Vec<SessionPageRequest> {
+        self.interieur
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .demandes
+            .clone()
+    }
+
+    fn resolution(&self) -> Option<Option<ResolvedSource>> {
+        let mut interieur = self
+            .interieur
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if interieur.resolutions.is_empty() {
+            return Some(None);
+        }
+        if interieur.resolutions.len() == 1 {
+            interieur.resolutions.back().cloned()
+        } else {
+            interieur.resolutions.pop_front()
+        }
+    }
+
+    fn page(&self) -> Result<SessionPageOutcome, ErreurDomaine> {
+        let mut interieur = self
+            .interieur
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if interieur.pages.is_empty() {
+            return Ok(SessionPageOutcome::Vide(page_vide()));
+        }
+        if interieur.pages.len() == 1 {
+            interieur.pages.back().cloned()
+        } else {
+            interieur.pages.pop_front()
+        }
+        .unwrap_or(Ok(SessionPageOutcome::Vide(page_vide())))
+    }
+}
+
+impl SessionPort for FauxSessionPort {
+    fn resolve(&self, _hint: SessionHint) -> SessionFuture<'_, Option<ResolvedSource>> {
+        let resolution = self.resolution();
+        Box::pin(async move { Ok(resolution.unwrap_or(None)) })
+    }
+
+    fn page(&self, demande: SessionPageRequest) -> SessionFuture<'_, SessionPageOutcome> {
+        self.interieur
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .demandes
+            .push(demande);
+        let page = self.page();
+        Box::pin(async move { page })
+    }
+
+    fn metadata(&self, _source: ResolvedSource) -> SessionFuture<'_, SessionMetadata> {
+        Box::pin(async { Ok(SessionMetadata::default()) })
+    }
+}
+
+/// Une page vide prête — le défaut du faux.
+pub(crate) fn page_vide() -> SessionPage {
+    SessionPage {
+        session_path: "/sessions/pi/wx.jsonl".to_string(),
+        entries: Vec::new(),
+        incremental: false,
+        cursor: None,
+        previous_cursor: None,
+        has_more: false,
+        reset: false,
+        rattrape: false,
+    }
+}
+
+/// Les services prêts pour une requête — le HerdrFaux est partagé entre les
+/// snapshots et les lectures d'écran (la même instance, le même monde).
+#[allow(clippy::type_complexity)]
+pub(crate) fn services(
+    herdr: HerdrFaux,
+    faux_sessions: FauxSessions,
+    session_port: Arc<FauxSessionPort>,
+) -> (Arc<Services>, HerdrFaux) {
+    let maintenant: Arc<dyn SourceMaintenant> = Arc::new(MaintenantTest::nouveau(Instant::now()));
+    let debut = Instant::now();
+    let snapshots = Arc::new(ServiceSnapshots::nouveau(
+        Box::new(herdr.clone()),
+        Arc::clone(&maintenant),
+    ));
+    let conversations = ServiceConversations::nouveau(
+        Box::new(faux_sessions.clone()),
+        branche_simple("/projets/atelier", "plan/rust-backend"),
+    );
+    let services = Arc::new(Services {
+        snapshots,
+        port: Arc::new(herdr.clone()),
+        conversations: Arc::new(conversations),
+        resout: Arc::new(faux_sessions),
+        sessions: session_port,
+        socket: "/tmp/herdr-remote/herdr.sock".to_string(),
+        maintenant,
+        debut,
+        journal_chemin: Some("/tmp/herdr-remote/herdr.log".to_string()),
+    });
+    (services, herdr)
+}
+
+/// Une requête GET complète sur le routeur — le corps est décodé en JSON.
+pub(crate) async fn requete_get(
+    routeur: Router<()>,
+    chemin: &str,
+) -> (StatusCode, serde_json::Value) {
+    let reponse = routeur
+        .oneshot(
+            Request::builder()
+                .method("GET")
+                .uri(chemin)
+                .body(Body::empty())
+                .unwrap_or_else(|cause| panic!("requête construite : {cause:?}")),
+        )
+        .await
+        .unwrap_or_else(|cause| panic!("reponse recue : {cause:?}"));
+    let statut = reponse.status();
+    let corps = axum::body::to_bytes(reponse.into_body(), 64 * 1024)
+        .await
+        .unwrap_or_else(|cause| panic!("corps lu : {cause:?}"));
+    let valeur: serde_json::Value =
+        serde_json::from_slice(&corps).unwrap_or_else(|cause| panic!("JSON illisible : {cause:?}"));
+    (statut, valeur)
+}
+
+/// Une requête complète (méthode/chemin libres) — pour la politique 405.
+#[allow(clippy::needless_pass_by_value)]
+pub(crate) async fn requete(
+    routeur: Router<()>,
+    methode: &str,
+    chemin: &str,
+) -> axum::response::Response {
+    routeur
+        .oneshot(
+            Request::builder()
+                .method(methode)
+                .uri(chemin)
+                .body(Body::empty())
+                .unwrap_or_else(|cause| panic!("requête construite : {cause:?}")),
+        )
+        .await
+        .unwrap_or_else(|cause| panic!("reponse recue : {cause:?}"))
+}

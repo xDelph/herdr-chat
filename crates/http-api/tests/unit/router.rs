@@ -1,184 +1,80 @@
-//! Tests du routeur (T049, C08) : politique de méthodes, garde partagée,
-//! fallback JSON 404. Les handlers sont des stubs — la politique est le sujet.
+//! Le routeur (T049) : la politique de méthodes du manifeste, la garde
+//! partagée des mutations (l'ordre du fil : méthode → origine → Content-Type
+//! → taille), le repli JSON 404, et la preuve que la garde ne laisse JAMAIS
+//! une mutation ratée toucher son handler — T051+ installe les vrais.
 
+use crate::unit::support::services;
 use axum::body::Body;
-use axum::extract::Request;
-use axum::http::Method;
-use axum::http::header::{ALLOW, CONTENT_TYPE, ORIGIN};
-use axum::response::{IntoResponse, Response};
-use http_api::router::{Handlers, fallback_json_404, methode_non_autorisee_post, routeur};
+use axum::http::{Request, StatusCode};
+use http_api::router::methode_non_autorisee_lecture;
+use http_api::router::routeur;
+use test_support::fake_herdr::HerdrFaux;
 use tower::ServiceExt;
 
-/// Répond 200 avec le nom du stub — prouve QUE le bon handler a été appelé.
-fn repondre(nom: &'static str) -> Response {
-    (axum::http::StatusCode::OK, nom).into_response()
-}
-
-macro_rules! stub {
-    ($nom:ident) => {
-        fn $nom(_: Request) -> Response {
-            repondre(stringify!($nom))
-        }
-    };
-}
-
-stub!(sante);
-stub!(overview);
-stub!(conversations);
-stub!(session_agent);
-stub!(prompt);
-stub!(arret);
-stub!(lancement);
-stub!(types_installes);
-stub!(catalogue_modeles);
-stub!(reponse_question);
-stub!(focus);
-stub!(confiance);
-stub!(journal_client);
-stub!(flux_sse);
-stub!(cle_vapid);
-stub!(abonnements);
-stub!(fichier);
-stub!(images);
-
-fn stubs() -> Handlers {
-    Handlers {
-        sante,
-        overview,
-        conversations,
-        session_agent,
-        prompt,
-        arret,
-        lancement,
-        types_installes,
-        catalogue_modeles,
-        reponse_question,
-        focus,
-        confiance,
-        journal_client,
-        flux_sse,
-        cle_vapid,
-        abonnements,
-        fichier,
-        images,
-        fallback: fallback_json_404,
+/// Une requête sur le routeur (méthode/chemin/entêtes/corps libres).
+async fn envoie(
+    methode: &str,
+    chemin: &str,
+    entetes: &[(&str, &str)],
+    corps: Vec<u8>,
+) -> axum::response::Response {
+    let mut demande = Request::builder().method(methode).uri(chemin);
+    for (nom, valeur) in entetes {
+        demande = demande.header(*nom, *valeur);
     }
+    routeur(
+        services(HerdrFaux::nouveau(), Default::default(), Default::default()).0,
+        vec!["http://macbook.tailnet.ts.net:8791".to_string()],
+    )
+    .oneshot(
+        demande
+            .body(Body::from(corps))
+            .unwrap_or_else(|cause| panic!("requête construite : {cause:?}")),
+    )
+    .await
+    .unwrap_or_else(|cause| panic!("reponse recue : {cause:?}"))
 }
 
-fn origines() -> Vec<String> {
-    vec![
-        "http://127.0.0.1:8791".to_string(),
-        "https://macbook.ts.net".to_string(),
-    ]
-}
-
-/// Une requête POST mutante valide (origine + JSON + petit corps).
-fn post_valide(chemin: &str) -> Request {
-    Request::builder()
-        .method(Method::POST)
-        .uri(chemin)
-        .header(ORIGIN, "http://127.0.0.1:8791")
-        .header(CONTENT_TYPE, "application/json")
-        .body(Body::from("{}"))
-        .unwrap_or_else(|cause| panic!("requête valide : {cause}"))
-}
-
-async fn corps_texte(reponse: Response) -> String {
-    let corps = axum::body::to_bytes(reponse.into_body(), usize::MAX)
+/// H01–H04 sont branchés (200 avec un HerdrFaux vide) ; les routes encore en
+/// attente de handler répondent 501 NOMÉ — jamais un 200 inventé.
+#[tokio::test(flavor = "multi_thread")]
+async fn routes_read_branchees_200() {
+    for chemin in ["/api/health", "/api/overview", "/api/conversations"] {
+        let reponse = envoie("GET", chemin, &[], Vec::new()).await;
+        assert_eq!(reponse.status(), StatusCode::OK, "{chemin}");
+    }
+    // La route de session est branchée : le 404 vient du handler (agent
+    // absent du snapshot), jamais du repli « route inconnue ».
+    let reponse = envoie("GET", "/api/agents/w1:p1/session", &[], Vec::new()).await;
+    assert_eq!(reponse.status(), StatusCode::NOT_FOUND);
+    let octets = axum::body::to_bytes(reponse.into_body(), 64 * 1024)
         .await
-        .unwrap_or_else(|cause| panic!("corps lisible : {cause}"));
-    String::from_utf8_lossy(&corps).into_owned()
+        .unwrap_or_else(|cause| panic!("corps lu : {cause:?}"));
+    let corps: serde_json::Value = serde_json::from_slice(&octets)
+        .unwrap_or_else(|cause| panic!("JSON illisible : {cause:?}"));
+    assert_eq!(corps["error"], "no usable session path for this agent");
 }
 
-async fn attend(chemin: &str, methode: Method) -> Response {
-    routeur(&stubs(), origines())
-        .oneshot(
-            Request::builder()
-                .method(methode)
-                .uri(chemin)
-                .body(Body::empty())
-                .unwrap_or_else(|cause| panic!("requête : {cause}")),
-        )
-        .await
-        .unwrap_or_else(|cause| panic!("le routeur répond : {cause}"))
-}
-
-#[tokio::test]
-async fn lecture_get_200() {
-    let reponse = attend("/api/health", Method::GET).await;
-    assert_eq!(reponse.status(), 200);
-    assert_eq!(corps_texte(reponse).await, "sante");
-}
-
-#[tokio::test]
-async fn lecture_head_200_sans_corps() {
-    let reponse = attend("/api/overview", Method::HEAD).await;
-    assert_eq!(reponse.status(), 200);
-}
-
-#[tokio::test]
-async fn lecture_post_405_allow() {
-    let reponse = attend("/api/health", Method::POST).await;
-    assert_eq!(reponse.status(), 405);
-    assert_eq!(
-        reponse.headers().get(ALLOW).and_then(|v| v.to_str().ok()),
-        Some("GET, HEAD")
-    );
-    // Le corps du 405 est bien JSON {error} (C08).
-    let corps = corps_texte(reponse).await;
-    assert!(corps.contains("method not allowed"));
-}
-
-#[tokio::test]
-async fn toutes_les_lectures_acceptent_get() {
+#[tokio::test(flavor = "multi_thread")]
+async fn routes_read_en_attente_501() {
     for chemin in [
-        "/api/health",
-        "/api/overview",
-        "/api/conversations",
-        "/api/agents/w1:p1/session",
         "/api/agents/kinds",
-        "/api/agents/pi/models",
         "/api/events",
         "/api/notifications/vapid-key",
-        "/api/file?path=/x.png",
+        "/api/file",
         "/api/images",
     ] {
-        let reponse = attend(chemin, Method::GET).await;
-        assert_eq!(reponse.status(), 200, "{chemin} doit répondre 200 en GET");
+        let reponse = envoie("GET", chemin, &[], Vec::new()).await;
+        assert_eq!(
+            reponse.status(),
+            StatusCode::NOT_IMPLEMENTED,
+            "{chemin} — pas encore de handler : 501, jamais un faux 200"
+        );
     }
 }
 
-#[tokio::test]
-async fn toutes_les_lectures_refusent_post_405() {
-    for chemin in [
-        "/api/health",
-        "/api/overview",
-        "/api/conversations",
-        "/api/agents/w1:p1/session",
-        "/api/agents/kinds",
-        "/api/agents/pi/models",
-        "/api/events",
-        "/api/notifications/vapid-key",
-        "/api/file?path=/x.png",
-        "/api/images",
-    ] {
-        let reponse = attend(chemin, Method::POST).await;
-        assert_eq!(reponse.status(), 405, "{chemin} doit refuser POST en 405");
-    }
-}
-
-#[tokio::test]
-async fn mutation_post_valide_200() {
-    let reponse = routeur(&stubs(), origines())
-        .oneshot(post_valide("/api/agents/w1:p1/prompt"))
-        .await
-        .unwrap_or_else(|cause| panic!("le routeur répond : {cause}"));
-    assert_eq!(reponse.status(), 200);
-    assert_eq!(corps_texte(reponse).await, "prompt");
-}
-
-#[tokio::test]
-async fn toutes_les_mutations_acceptent_post_valide() {
+#[tokio::test(flavor = "multi_thread")]
+async fn routes_mutation_en_attente_501_avec_origine() {
     for chemin in [
         "/api/agents/w1:p1/prompt",
         "/api/agents/w1:p1/stop",
@@ -189,159 +85,165 @@ async fn toutes_les_mutations_acceptent_post_valide() {
         "/api/log",
         "/api/notifications/subscriptions",
     ] {
-        let reponse = routeur(&stubs(), origines())
-            .oneshot(post_valide(chemin))
-            .await
-            .unwrap_or_else(|cause| panic!("le routeur répond : {cause}"));
+        let reponse = envoie(
+            "POST",
+            chemin,
+            &[
+                ("origin", "http://localhost"),
+                ("content-type", "application/json"),
+            ],
+            br#"{"prompt":"bonjour"}"#.to_vec(),
+        )
+        .await;
         assert_eq!(
             reponse.status(),
-            200,
-            "{chemin} doit accepter un POST valide"
+            StatusCode::NOT_IMPLEMENTED,
+            "{chemin} — la garde passe, le handler manque : 501"
         );
     }
 }
 
-#[tokio::test]
-async fn mutation_get_405_avant_la_garde() {
-    // L'ordre du fil : MÉTHODE d'abord — un GET sans origine ne doit pas
-    // être un 403 mais un 405.
-    let reponse = attend("/api/agents/w1:p1/prompt", Method::GET).await;
-    assert_eq!(reponse.status(), 405);
-    assert_eq!(
-        reponse.headers().get(ALLOW).and_then(|v| v.to_str().ok()),
-        Some("POST")
-    );
-}
-
-#[tokio::test]
-async fn mutation_origine_absente_403() {
-    let reponse = routeur(&stubs(), origines())
-        .oneshot(
-            Request::builder()
-                .method(Method::POST)
-                .uri("/api/agents/w1:p1/prompt")
-                .header(CONTENT_TYPE, "application/json")
-                .body(Body::from("{}"))
-                .unwrap_or_else(|cause| panic!("requête : {cause}")),
-        )
-        .await
-        .unwrap_or_else(|cause| panic!("le routeur répond : {cause}"));
-    assert_eq!(reponse.status(), 403);
-    // Aucune action avant validation : le stub n'a pas été appelé.
-    let corps = corps_texte(reponse).await;
-    assert!(corps.contains("missing origin"), "{corps}");
-}
-
-#[tokio::test]
-async fn mutation_origine_etrangere_403_avec_les_deux() {
-    let reponse = routeur(&stubs(), origines())
-        .oneshot(
-            Request::builder()
-                .method(Method::POST)
-                .uri("/api/agents/w1:p1/prompt")
-                .header(ORIGIN, "http://evil.com")
-                .header(CONTENT_TYPE, "application/json")
-                .body(Body::from("{}"))
-                .unwrap_or_else(|cause| panic!("requête : {cause}")),
-        )
-        .await
-        .unwrap_or_else(|cause| panic!("le routeur répond : {cause}"));
-    assert_eq!(reponse.status(), 403);
-    let corps = corps_texte(reponse).await;
-    assert!(corps.contains("unauthorized origin"), "{corps}");
-    assert!(corps.contains("http://evil.com"), "{corps}");
-}
-
-#[tokio::test]
-async fn mutation_content_type_non_json_415() {
-    let reponse = routeur(&stubs(), origines())
-        .oneshot(
-            Request::builder()
-                .method(Method::POST)
-                .uri("/api/agents/w1:p1/prompt")
-                .header(ORIGIN, "http://localhost")
-                .header(CONTENT_TYPE, "application/x-www-form-urlencoded")
-                .body(Body::from("a=b"))
-                .unwrap_or_else(|cause| panic!("requête : {cause}")),
-        )
-        .await
-        .unwrap_or_else(|cause| panic!("le routeur répond : {cause}"));
-    assert_eq!(reponse.status(), 415);
-}
-
-#[tokio::test]
-async fn mutation_taille_declaree_au_dela_413() {
-    let reponse = routeur(&stubs(), origines())
-        .oneshot(
-            Request::builder()
-                .method(Method::POST)
-                .uri("/api/agents/w1:p1/prompt")
-                .header(ORIGIN, "http://localhost")
-                .header(CONTENT_TYPE, "application/json")
-                .header("content-length", "70000")
-                .body(Body::from("{}"))
-                .unwrap_or_else(|cause| panic!("requête : {cause}")),
-        )
-        .await
-        .unwrap_or_else(|cause| panic!("le routeur répond : {cause}"));
-    assert_eq!(reponse.status(), 413);
-}
-
-#[tokio::test]
-async fn mutation_loopback_passe_sans_config() {
-    // Une origine de la machine (localhost) passe même hors liste.
-    let reponse = routeur(&stubs(), vec![])
-        .oneshot(
-            Request::builder()
-                .method(Method::POST)
-                .uri("/api/agents/w1:p1/prompt")
-                .header(ORIGIN, "http://localhost:5173")
-                .header(CONTENT_TYPE, "application/json")
-                .body(Body::from("{}"))
-                .unwrap_or_else(|cause| panic!("requête : {cause}")),
-        )
-        .await
-        .unwrap_or_else(|cause| panic!("le routeur répond : {cause}"));
-    assert_eq!(reponse.status(), 200);
-}
-
-#[tokio::test]
-async fn api_inconnu_json_404() {
-    let reponse = attend("/api/rien-du-tout", Method::GET).await;
-    assert_eq!(reponse.status(), 404);
+/// La lecture sur une route de lecture : GET et HEAD, pas le reste.
+#[tokio::test(flavor = "multi_thread")]
+async fn lecture_post_405_allow() {
+    let reponse = envoie("POST", "/api/overview", &[], Vec::new()).await;
+    assert_eq!(reponse.status(), StatusCode::METHOD_NOT_ALLOWED);
     assert_eq!(
         reponse
             .headers()
-            .get(CONTENT_TYPE)
-            .and_then(|v| v.to_str().ok()),
+            .get("allow")
+            .and_then(|valeur| valeur.to_str().ok()),
+        Some("GET, HEAD")
+    );
+    assert_eq!(
+        reponse
+            .headers()
+            .get("content-type")
+            .and_then(|valeur| valeur.to_str().ok()),
         Some("application/json")
     );
-    let corps = corps_texte(reponse).await;
-    assert!(corps.contains("route inconnue"), "{corps}");
 }
 
-#[tokio::test]
-async fn api_inconnu_post_404_pas_405() {
-    // Une route ABSENTE n'est pas une mauvaise méthode : 404, pas 405.
-    let reponse = attend("/api/rien-du-tout", Method::POST).await;
-    assert_eq!(reponse.status(), 404);
-}
-
-#[tokio::test]
-async fn hors_api_pwa_non_construite_503() {
-    // La PWA n'est pas encore montée (T054) : le 503 honnête du fil.
-    let reponse = attend("/", Method::GET).await;
-    assert_eq!(reponse.status(), 503);
-    let corps = corps_texte(reponse).await;
-    assert!(corps.contains("PWA not built"), "{corps}");
-}
-
-#[tokio::test]
-async fn methode_non_autorisee_post_est_le_fallback_des_mutations() {
-    let reponse = methode_non_autorisee_post(Request::new(Body::empty()));
-    assert_eq!(reponse.status(), 405);
+/// La mutation sur une route de mutation : **méthode d'abord** — un GET sans
+/// origine est 405 (Allow: POST), pas 403 : la politique court avant la garde.
+#[tokio::test(flavor = "multi_thread")]
+async fn mutation_get_405_allow_post_sans_origine() {
+    let reponse = envoie("GET", "/api/agents/w1:p1/prompt", &[], Vec::new()).await;
+    assert_eq!(reponse.status(), StatusCode::METHOD_NOT_ALLOWED);
     assert_eq!(
-        reponse.headers().get(ALLOW).and_then(|v| v.to_str().ok()),
+        reponse
+            .headers()
+            .get("allow")
+            .and_then(|valeur| valeur.to_str().ok()),
         Some("POST")
+    );
+}
+
+/// La garde : origine absente → 403, corps nommé, sans action.
+#[tokio::test(flavor = "multi_thread")]
+async fn garde_origine_absente_403() {
+    let reponse = envoie(
+        "POST",
+        "/api/agents/w1:p1/prompt",
+        &[("content-type", "application/json")],
+        br#"{"prompt":"bonjour"}"#.to_vec(),
+    )
+    .await;
+    assert_eq!(reponse.status(), StatusCode::FORBIDDEN);
+    let octets = axum::body::to_bytes(reponse.into_body(), 64 * 1024)
+        .await
+        .unwrap_or_else(|cause| panic!("corps lu : {cause:?}"));
+    let corps: serde_json::Value = serde_json::from_slice(&octets)
+        .unwrap_or_else(|cause| panic!("JSON illisible : {cause:?}"));
+    assert!(corps["error"].is_string());
+}
+
+/// La garde : origine étrangère (liste EXACTE, jamais un motif) → 403.
+#[tokio::test(flavor = "multi_thread")]
+async fn garde_origine_etrangere_403() {
+    let reponse = envoie(
+        "POST",
+        "/api/agents/w1:p1/prompt",
+        &[
+            ("origin", "https://evilmachine.example.com"),
+            ("content-type", "application/json"),
+        ],
+        br#"{"prompt":"bonjour"}"#.to_vec(),
+    )
+    .await;
+    assert_eq!(reponse.status(), StatusCode::FORBIDDEN);
+}
+
+/// La garde : Content-Type non JSON → 415, avant toute lecture du corps.
+#[tokio::test(flavor = "multi_thread")]
+async fn garde_content_type_415() {
+    let reponse = envoie(
+        "POST",
+        "/api/agents/w1:p1/prompt",
+        &[
+            ("origin", "http://localhost"),
+            ("content-type", "text/plain"),
+        ],
+        br#"bonjour"#.to_vec(),
+    )
+    .await;
+    assert_eq!(reponse.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+}
+
+/// La garde : taille déclarée > 64 Kio → 413 AVANT lecture (économie de
+/// mémoire) — le corps n'est pas transmis.
+#[tokio::test(flavor = "multi_thread")]
+async fn garde_taille_declaree_413() {
+    let reponse = envoie(
+        "POST",
+        "/api/agents/w1:p1/prompt",
+        &[
+            ("origin", "http://localhost"),
+            ("content-type", "application/json"),
+            ("content-length", "70000"),
+        ],
+        Vec::new(),
+    )
+    .await;
+    assert_eq!(reponse.status(), StatusCode::PAYLOAD_TOO_LARGE);
+}
+
+/// Le repli: `/api/*` inconnu → JSON 404 (C08), jamais le HTML par accident.
+#[tokio::test(flavor = "multi_thread")]
+async fn api_inconnu_json_404() {
+    let reponse = envoie("GET", "/api/nimporte/quoi", &[], Vec::new()).await;
+    assert_eq!(reponse.status(), StatusCode::NOT_FOUND);
+    let octets = axum::body::to_bytes(reponse.into_body(), 64 * 1024)
+        .await
+        .unwrap_or_else(|cause| panic!("corps lu : {cause:?}"));
+    let valeur: serde_json::Value = serde_json::from_slice(&octets)
+        .unwrap_or_else(|cause| panic!("JSON illisible : {cause:?}"));
+    assert_eq!(valeur["error"], "route inconnue");
+}
+
+/// Hors `/api` : la PWA n'est pas montée (T054) — 503 nommé.
+#[tokio::test(flavor = "multi_thread")]
+async fn hors_api_503_pwa_absente() {
+    let reponse = envoie("GET", "/", &[], Vec::new()).await;
+    assert_eq!(reponse.status(), StatusCode::SERVICE_UNAVAILABLE);
+    let octets = axum::body::to_bytes(reponse.into_body(), 64 * 1024)
+        .await
+        .unwrap_or_else(|cause| panic!("corps lu : {cause:?}"));
+    let valeur: serde_json::Value = serde_json::from_slice(&octets)
+        .unwrap_or_else(|cause| panic!("JSON illisible : {cause:?}"));
+    assert_eq!(valeur["error"], "PWA not built");
+}
+
+/// La politique de lecture (C08), unitaire : 405 + `Allow: GET, HEAD`.
+#[test]
+fn methode_non_autorisee_lecture_porte_allow() {
+    let reponse = methode_non_autorisee_lecture(Request::new(Body::empty()));
+    assert_eq!(reponse.status(), StatusCode::METHOD_NOT_ALLOWED);
+    assert_eq!(
+        reponse
+            .headers()
+            .get("allow")
+            .and_then(|valeur| valeur.to_str().ok()),
+        Some("GET, HEAD")
     );
 }

@@ -31,6 +31,9 @@ use domain::ports::{ControlPort, ScreenRead};
 use domain::status::{AgentStatus, SessionState};
 use interactions::confiance::est_invite_confiance;
 use interactions::ecran::question_de_l_ecran;
+/// Réexporté pour l'assembleur HTTP : `http-api` ne peut pas importer
+/// `interactions` (graphe), et la ligne transporte le type.
+pub use interactions::ecran::{Choix, Question};
 
 /// Le plafond du contrat : 4 lectures de session en même temps.
 pub const MAX_SESSION_READS: usize = 4;

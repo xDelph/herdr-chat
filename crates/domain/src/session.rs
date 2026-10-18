@@ -196,6 +196,9 @@ pub struct SessionPage {
     /// `true` quand le curseur fourni ne vaut plus (dév/ino changés) : le
     /// client **remplace** sa vue, il n'y ajoute pas.
     pub reset: bool,
+    /// **C18** : vrai au seul watermark COMPLET observé — le client sait que
+    /// rien ne reste derrière lui. Présent sur le fil seulement quand vrai.
+    pub rattrape: bool,
 }
 
 /// Le résultat d'une lecture de page : des clauses **toutes nommées**.
@@ -203,18 +206,25 @@ pub struct SessionPage {
 /// ⚠️ `absente` n'est **pas** une panne : Herdr annonce un chemin valide vers
 /// un fichier que Pi n'a pas encore créé (le JSONL naît au premier message).
 /// `vide` distingue « décidé à ouvrir, rien dedans » — B03 : quatre causes,
-/// pas trois, pas un 502 indifférencié.
+/// pas trois, pas un 502 indifférencié. L'erreur (première page, curseur
+/// périmé, base manquante…) est une `ErreurDomaine` **typée** — la
+/// cartographie HTTP de H04 est dans `http-api::errors` (400/403/404/409/
+/// 422/502/503), aucune exception n'en sort.
 #[derive(Clone, PartialEq, Debug)]
 pub enum SessionPageOutcome {
+    /// Une page lue — `cause` du fil : `vide` (mesuré : même non vide, le
+    /// fil répond `cause:"vide"`).
     Page(SessionPage),
-    /// Le fichier n'existe pas encore — bénin, ne réessaie pas en boucle.
-    Absente,
-    /// Le fichier existe, zéro entrée — bénin.
-    Vide,
+    /// Le fichier n'existe pas encore (ou la ligne de session n'existe pas
+    /// chez le magasin) — bénin, ne réessaie pas en boucle. La page porte
+    /// le contexte de réponse (curseur, reset, incremental).
+    Absente(SessionPage),
+    /// Le fichier existe, zéro entrée — bénin. La page porte le contexte.
+    Vide(SessionPage),
     /// Contenu illisible ou tronqué — distinct de `io` (panne d'accès).
-    Invalide,
+    Invalide { detail: String },
     /// Permission, disque, erreur du système.
-    Io,
+    Io { detail: String },
 }
 
 /// Ce que la lecture du **fichier** de session a pu dire des réglages.
