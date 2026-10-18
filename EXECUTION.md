@@ -828,4 +828,18 @@ Le cast `u64::MAX as i64 = -1` (la borne haute fausse) est le genre d'incident q
 | La relecture | `relit_apres_frappe` : l'agent sorti (écran vide) = la question partie (pas de changement) ; la même question restante = la frappe non prise. |
 | 4 tests (14 sur la crate) | Les cinq cas du fil — questions périmées, sélection déjà déplacée, agent sorti, nouvelle question après frappe, empreinte étrangère — **aucun faux succès**. |
 
-Commit préfixé `T033:` contenant `crates/interactions/src/engine.rs` + `lib.rs`, `tests/unit/{engine,mod}.rs` et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T034 — `application::commands` : l'admission et les files par pane (T034)
+
+| Livrable | Détail |
+|---|---|
+| `Tourniquet` | La file par pane bornée à **8** (`FILE_PANE_MAX` mesuré) : un galet d'abord (la file pleine = `Saturation` **nommé**, pas une file infinie), PUIS le tour exclusif (un seul effet à la fois par pane), PUIS l'effet ; le galet rendu après. |
+| A/B indépendants | Deux panes tournent **en parallèle** (le pic de concurrence testé = 2) ; huit effets sur le MÊME pane : le pic = 1 — **les séquences d'un même pane ne s'entrelacent jamais**. |
+| La saturation | Testée dans la vraie fenêtre : les 8 fentes tenues (effets de 250 ms), la 9e demande pendant → `ErreurAdmission::Saturation` (400 au fil, T050). |
+| L'annulation après effet | Structurel : la file n'a AUCUNE relecture — deux appels successifs = deux tours (le compteur le prouve), jamais de rejeu. |
+| 4 tests | Parallélisme inter-panes, non-entrelacement intra-pane, saturation dans la fenêtre réelle, deux tours sans rejeu. |
+
+Commit préfixé `T034:` contenant `crates/application/src/{commands.rs, lib.rs}`, `crates/application/tests/**` et cette section. Cargo.lock inchangé.
