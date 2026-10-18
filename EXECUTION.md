@@ -785,4 +785,18 @@ Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'ex
 | Le fournisseur | **Explicitement non appliqué** (`fournisseur_applique: false`, historiquement vrai) — le champ `provider` de la demande ne fuite jamais dans les args et rien ne le présente comme appliqué (testé sur les quatre kinds). |
 | `niveau_supporte` | La vérification respecte ce que l'agent DÉCLARE : niveau offert = passe ; non offert = refus **citant les disponibles** ; modèle absent du catalogue ou muet (niveaux vides) = on ne tranche pas à sa place ; kind hors table = « unverified reasoning level » ; thinking blanc = rien à vérifier. |
 
-Commit préfixé `T030:` contenant `crates/catalog/src/args.rs` + `lib.rs`, `tests/unit/{args,mod}.rs` et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T031 — `catalog::cache` : le single-flight et le TTL des catalogues (C16)
+
+| Livrable | Détail |
+|---|---|
+| **Deux requêtes concurrentes = UN processus** | Le single-flight (le gabarit T027 : `Arc<EnVol>` + Condvar) — huit requêtes concurrentes d'un kind : **le compteur d'invocations du CLI factice reste à UN** (testé). |
+| Succès 60 s, échec réessayable | Le succès entre au cache jusqu'à `VIE_SUCCES` (60 s — `MODEL_CATALOG_CACHE_MS` mesuré) ; **un échec n'entre JAMAIS** — testé : échec puis CLI sain → succès immédiat (rien de figé). |
+| La même politique pour liste et lancement | Les deux passent par la MÊME fonction `catalogue` — une exécution couvre les deux (compteur à un) ; l'absence de kind reste explicite par le même chemin. |
+| Le registre partagé | `adaptateur_de` reste LE registre des intégrations (T029) ; l'invalidation explicite force la relecture (testé : 2 invocations). |
+| 4 tests (19 sur la crate) | Concurrence exactement-un, échec réessayable, invalidation, la même politique. |
+
+Commit préfixé `T031:` contenant `crates/catalog/src/cache.rs` + `lib.rs`, `tests/unit/{cache,mod}.rs` et cette section. Cargo.lock inchangé.
