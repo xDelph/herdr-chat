@@ -23,7 +23,7 @@ use serde::{Deserialize, Serialize};
 /// vers un fichier que Pi n'a pas encore créé (le JSONL naît au premier
 /// message — mesuré sur un vrai agent devin). Les codes d'orthographe viennent
 /// du fil actuel ; ne jamais requalifier un autre code.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 pub enum ReadCause {
     /// Le fichier n'existe pas encore.
     #[serde(rename = "absente")]

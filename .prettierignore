@@ -1,0 +1,3 @@
+# Artefacts générés par `cargo xtask contracts export` (T009) — sorties de
+# build, jamais formatées à la main : l'export doit rester octet-identique.
+packages/shared/generated/

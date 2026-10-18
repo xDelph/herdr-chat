@@ -69,6 +69,7 @@
   "ignorePatterns": [
     "node_modules",
     "dist",
-    "coverage"
+    "coverage",
+    "packages/shared/generated"
   ]
 }

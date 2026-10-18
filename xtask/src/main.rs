@@ -70,6 +70,22 @@ fn main() {
             }
             Err(e) => Err(e),
         },
+        "contracts" => match positional.get(1).map(String::as_str) {
+            Some("export") => {
+                xtask::contracts::exporter(&root, &root.join("packages/shared/generated"))
+            }
+            Some("check") => xtask::contracts::verifier(&root),
+            Some(other) => {
+                eprintln!(
+                    "sous-commande contracts inconnue: {other}\nusage: cargo xtask contracts <export|check>"
+                );
+                std::process::exit(2);
+            }
+            None => {
+                eprintln!("usage: cargo xtask contracts <export|check>");
+                std::process::exit(2);
+            }
+        },
         other => {
             eprintln!("sous-commande inconnue: {other}\n{USAGE}");
             std::process::exit(2);

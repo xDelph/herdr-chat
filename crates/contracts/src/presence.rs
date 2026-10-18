@@ -8,13 +8,17 @@
 //! - `Schema.optional(Schema.NullOr(Schema.X))` — **omissible et nullable** :
 //!   absent, null, ou valeur.
 //!
-//! `Option<T>` de Rust ne porte que deux états. Ici :
+//! `Option<T>` de Rust ne porte que deux états — et son schéma JSON inclut
+//! null, ce que le schéma TS refuse pour l'omissible. D'où :
 //!
-//! - [`Nullable<T>`] porte « présent, peut être null » — un champ **obligatoire**
-//!   nullable (pas de `default` serde : un champ manquant est une erreur) ;
-//! - [`Field<T>`] (alias de `Option<T>`) porte « absent ou valeur », avec le
-//!   décodeur [`refuse_null`] qui **refuse le null explicite** ;
-//! - le quatrième cas se compose : `Option<Nullable<T>>` avec [`optionnel_nullable`].
+//! - [`Field<T>`] — le champ **omissible** : un newtype sur `Option<T>` dont
+//!   le schéma JSON est **celui de `T` sans null** (l'absence s'écrit par
+//!   clé omise, jamais par null) — décodeur et sérialiseur manuels ;
+//! - [`Nullable<T>`] — le champ **présent-nullable** : schéma
+//!   `anyOf [T, null]`, et **non listé dans `required`** seulement s'il est
+//!   composé — seul, un champ `Nullable` absent reste une erreur ;
+//! - le quatrième cas se compose : `Option<Nullable<T>>` (absent, null, ou
+//!   valeur) avec [`optionnel_nullable`].
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -24,7 +28,18 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 /// ⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en
 /// `null` (jamais en absence) et se décode depuis `null` (jamais depuis un
 /// champ manquant — sans `default` serde, un champ absent est une erreur).
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+///
+/// ⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par
+/// `deserialize_option` : le `missing_field` de serde délègue à
+/// `deserialize_option` — un champ absent deviendrait silencieusement
+/// `Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),
+/// un null explicite devient `Nulle`, une valeur délègue à `T`.
+///
+/// ⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls
+/// serde sont manuels) : le schéma exporté est `anyOf [T, null]` — la
+/// représentation réelle, pas la représentation par défaut étiquetée.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, schemars::JsonSchema)]
+#[serde(untagged)]
 pub enum Nullable<T> {
     Valeur(T),
     Nulle,
@@ -70,11 +85,6 @@ impl<T: Serialize> Serialize for Nullable<T> {
 }
 
 impl<'de, T: Deserialize<'de>> Deserialize<'de> for Nullable<T> {
-    // ⚠️ On passe par `serde_json::Value` (deserialize_any), PAS par
-    // `deserialize_option` : le `missing_field` de serde délègue à
-    // `deserialize_option` — un champ absent deviendrait silencieusement
-    // `Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),
-    // un null explicite devient `Nulle`, une valeur délègue à `T`.
     fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
         let valeur = serde_json::Value::deserialize(deserializer)?;
         match valeur {
@@ -86,51 +96,108 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for Nullable<T> {
     }
 }
 
-/// Un champ **omissible** : absent ou valeur. Alias d'`Option<T>` — le travail
-/// est dans les décodeurs : [`refuse_null`] pour l'omissible simple (le null
-/// explicite est un refus), [`optionnel_nullable`] pour l'omissible-et-nullable.
+/// Un champ **omissible** : absent ou valeur, **null refusé** — l'homologue
+/// exact de `Schema.optional(Schema.X)`.
 ///
-/// Usage attendu sur un champ omissible :
-/// `#[serde(default, deserialize_with = "presence::refuse_null", skip_serializing_if = "Option::is_none")]`
-pub type Field<T> = Option<T>;
+/// ⚠️ Newtype (pas un alias d'`Option`) précisément pour que le **schéma
+/// JSON soit celui de `T`, sans null** : sur le fil, l'absence s'écrit par
+/// clé omise ([`est_absente`] est le prédicat de `skip_serializing_if`), et
+/// un null explicite est un refus de décodage. Composez avec [`Nullable`]
+/// pour l'omissible-et-nullable.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct Field<T>(pub Option<T>);
+impl<T> Field<T> {
+    /// Absent — pour le `skip_serializing_if`.
+    pub fn est_absente(&self) -> bool {
+        self.0.is_none()
+    }
 
-/// Décodeur de champ **omissible** : absent → `None` (avec `default`), valeur →
-/// `Some`, **null explicite → erreur** — la distinction mesurée du schéma TS
-/// (`Schema.optional` refuse null).
-pub fn refuse_null<'de, T: Deserialize<'de>, D: Deserializer<'de>>(
-    deserializer: D,
-) -> Result<Option<T>, D::Error> {
-    struct Visiteur<T> {
-        fantome: std::marker::PhantomData<T>,
+    /// La valeur, s'il y en a une.
+    #[must_use]
+    pub fn as_option(&self) -> Option<&T> {
+        self.0.as_ref()
     }
-    impl<'de, T: Deserialize<'de>> serde::de::Visitor<'de> for Visiteur<T> {
-        type Value = Option<T>;
-        fn expecting(&self, formateur: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            formateur.write_str("une valeur ou une absence — null refusé pour un champ optionnel")
-        }
-        fn visit_some<D: Deserializer<'de>>(self, deserializer: D) -> Result<Option<T>, D::Error> {
-            T::deserialize(deserializer).map(Some)
-        }
-        fn visit_none<E: serde::de::Error>(self) -> Result<Option<T>, E> {
-            Err(E::custom(
-                "null explicite refusé : un champ optionnel est absent ou a une valeur",
-            ))
-        }
-        fn visit_unit<E: serde::de::Error>(self) -> Result<Option<T>, E> {
-            Err(E::custom(
-                "null explicite refusé : un champ optionnel est absent ou a une valeur",
-            ))
-        }
+
+    /// La valeur par valeur.
+    #[must_use]
+    pub fn en_option(self) -> Option<T> {
+        self.0
     }
-    deserializer.deserialize_option(Visiteur {
-        fantome: std::marker::PhantomData,
-    })
+
+    /// Depuis l'`Option` du domaine — absent reste absent.
+    #[must_use]
+    pub fn de_option(valeur: Option<T>) -> Self {
+        Self(valeur)
+    }
 }
 
-/// Décodeur de champ **omissible et nullable** : absent → `None` (avec
-/// `default`), null → `Some(Nullable::Nulle)`, valeur → `Some(Nullable::Valeur)`.
-/// ⚠️ Le `Option` de serde par défaut confond null et absence — c'est précisément
-/// ce que ce décodeur refuse de faire.
+impl<T> Default for Field<T> {
+    fn default() -> Self {
+        Self(None)
+    }
+}
+
+impl<T: Serialize> Serialize for Field<T> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match &self.0 {
+            Some(valeur) => serializer.serialize_some(valeur),
+            // Inatteignable quand la clé est sautée ; sinon : null explicite,
+            // refusé à la lecture — on ne l'écrit jamais nous-mêmes.
+            None => serializer.serialize_none(),
+        }
+    }
+}
+
+impl<'de, T: Deserialize<'de>> Deserialize<'de> for Field<T> {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        struct Visiteur<T> {
+            fantome: std::marker::PhantomData<T>,
+        }
+        impl<'de, T: Deserialize<'de>> serde::de::Visitor<'de> for Visiteur<T> {
+            type Value = Field<T>;
+            fn expecting(&self, formateur: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                formateur
+                    .write_str("une valeur ou une absence — null refusé pour un champ optionnel")
+            }
+            fn visit_some<D: Deserializer<'de>>(
+                self,
+                deserializer: D,
+            ) -> Result<Field<T>, D::Error> {
+                T::deserialize(deserializer).map(|valeur| Field(Some(valeur)))
+            }
+            fn visit_none<E: serde::de::Error>(self) -> Result<Field<T>, E> {
+                Err(E::custom(
+                    "null explicite refusé : un champ optionnel est absent ou a une valeur",
+                ))
+            }
+            fn visit_unit<E: serde::de::Error>(self) -> Result<Field<T>, E> {
+                Err(E::custom(
+                    "null explicite refusé : un champ optionnel est absent ou a une valeur",
+                ))
+            }
+        }
+        deserializer.deserialize_option(Visiteur {
+            fantome: std::marker::PhantomData,
+        })
+    }
+}
+
+impl<T: schemars::JsonSchema> schemars::JsonSchema for Field<T> {
+    fn schema_name() -> std::borrow::Cow<'static, str> {
+        T::schema_name()
+    }
+
+    fn json_schema(generateur: &mut schemars::generate::SchemaGenerator) -> schemars::Schema {
+        // L'absence s'écrit par clé omise : le schéma d'un champ omissible
+        // est **exactement** celui de sa valeur — sans null.
+        T::json_schema(generateur)
+    }
+}
+
+/// Décodeur de champ **omissible et nullable** : absent → `Field::default()`
+/// (avec `default`), null → `Some(Nullable::Nulle)`, valeur →
+/// `Some(Nullable::Valeur)`. ⚠️ Le `Option` de serde par défaut confond null
+/// et absence — c'est précisément ce que ce décodeur refuse de faire.
 pub fn optionnel_nullable<'de, T: Deserialize<'de>, D: Deserializer<'de>>(
     deserializer: D,
 ) -> Result<Option<Nullable<T>>, D::Error> {

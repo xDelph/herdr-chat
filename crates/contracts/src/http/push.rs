@@ -1,10 +1,10 @@
 //! Web Push : abonnement, désabonnement, clef VAPID en texte brut.
 
-use crate::presence::Field;
+use crate::presence::Nullable;
 use serde::{Deserialize, Serialize};
 
 /// Le corps de désabonnement (inline mesuré — `{ unsubscribe: endpoint }`).
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct UnsubscribeRequest {
     pub unsubscribe: String,
@@ -12,7 +12,7 @@ pub struct UnsubscribeRequest {
 
 /// Les deux clefs d'identité d'un abonnement (inline mesuré) — `auth` puis
 /// `p256dh`, orthographe exacte du fil.
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SubscriptionKeys {
     pub auth: String,
@@ -21,7 +21,7 @@ pub struct SubscriptionKeys {
 
 /// Le corps d'abonnement (inline mesuré) — `expirationTime` omissible ET
 /// nullable (`Schema.optional(Schema.NullOr(Schema.Number))`).
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SubscribeRequest {
     pub endpoint: String,
@@ -30,14 +30,17 @@ pub struct SubscribeRequest {
         deserialize_with = "crate::presence::optionnel_nullable",
         skip_serializing_if = "Option::is_none"
     )]
-    pub expiration_time: Field<crate::presence::Nullable<u64>>,
+    // Schéma : `anyOf [T, null]` UNE fois — l'Option de schemars aurait
+    // dupliqué le null du Nullable.
+    #[schemars(with = "crate::presence::Nullable<u64>")]
+    pub expiration_time: Option<Nullable<u64>>,
     pub keys: SubscriptionKeys,
 }
 
 /// L'union **du corps de la route push** : le désabonnement est essayé
 /// **d'abord** (précédence mesurée du fil — un corps `{unsubscribe}` n'est
 /// jamais un abonnement), sinon l'abonnement.
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(untagged)]
 pub enum PushBody {
     /// Essayé en premier : `{ "unsubscribe": "..." }`.

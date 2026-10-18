@@ -390,3 +390,47 @@ Périmètre : `crates/contracts/src/registry.rs + tests` — méthodes, gabarits
 ### Commit
 
 Commit préfixé `T008:` contenant `crates/contracts/src/registry.rs`, `crates/contracts/src/limits.rs` (deux constantes mesurées), `crates/contracts/tests/unit/registry.rs`, les mises à jour de `lib.rs`/`mod.rs` et cette section. `Cargo.lock` inchangé. Aucune autre crate touchée, aucun test sous `src/`, aucune écriture hors dépôt.
+
+---
+
+## T009 — `xtask contracts export/check` : schémas, OpenAPI 3.1, types TS, validateurs Ajv, corpus JS
+
+Périmètre : `xtask`, `contracts::schema`, `packages/shared/generated`, `scripts/` — JSON Schema 2020-12, OpenAPI 3.1, types TS et validateurs Ajv **standalone** ; deux exports identiques octet pour octet ; une modification de DTO fait échouer `check` ; le corpus est accepté/refusé **identiquement par serde et par JS** ; générateurs figés dans les lockfiles. Les imports frontend actuels ne bougent pas (jusqu'à T057).
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `contracts::schema` | `definitions()` (60 types, sous-schémas **inline** — pas de `$defs` numérotés, chaque document autonome), `bundle()` (bundle 2020-12 avec complétude assertée : toute cible et tout nom de route/route-corps doit y figurer), `cibles()` (la table corpus → définition, même découpage que le coureur T007), `openapi()` (synthèse **depuis le registre** : chemins, méthodes, paramètres, requestBody avec limites, réponses par variante avec Content-Type, `components/schemas` avec `$ref` réécrits). |
+| `Field` devient un vrai type | Newtype sur `Option<T>` : schéma JSON = **celui de `T` sans null** (l'absence s'écrit par clé omise), décodeur/sérialiseur manuels (null explicite refusé). Refactor porté par T009 parce que C01 l'exigeait : un alias d'`Option` exportait un schéma null-tolérant que serde refuse. |
+| `Nullable` exporte sa vraie forme | `#[serde(untagged)]` ajouté **pour schemars** (les impls serde sont manuels) : le schéma devient `anyOf [T, null]` au lieu de la forme étiquetée par défaut — le point qui faisait rejeter JS là où serde acceptait. |
+| `xtask contracts export` | Écrit les trois documents Rust (bundle, OpenAPI, cibles) puis lance les scripts bun : `contracts-types.ts` (json-schema-to-typescript, une interface par définition → `contracts.d.ts`) et `contracts-validators.ts` (Ajv 2020-12 **standalone**, un validateur exporté par nom → `valider.mjs`). |
+| `xtask contracts check` | **Deux** exports temporaires comparés octet par octet (déterminisme), dépôt comparé à une passe fraîche (échec nommé si périmé — prouvé en modifiant `openapi.json` : échec, puis retour vert après export), ensemble de fichiers **fermé** (5 documents exactement), puis corpus validé côté JS : **214 échantillons identiques à serde + 82 exclusions rencontrées = 296**. |
+| Générateurs figés | `ajv` 8.20.0 et `json-schema-to-typescript` 16.0.0 en devDependencies **exactes** (bun.lock figé). |
+| Exclusion des artefacts | `.oxlintrc.json` (`ignorePatterns` + `packages/shared/generated`) et `.prettierignore` créé : les fichiers **générés** ne sont ni lintés ni reformatés — l'export doit rester octet-identique, un reformatage du dépôt le casserait. |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo xtask contracts export` | 5 documents générés (60 définitions). |
+| `cargo xtask contracts check` | **exit 0** : deux passes identiques, dépôt identique, corpus JS « 214 acceptés/refusés comme serde, 82 exclusions — identique (C01) ». |
+| `cargo xtask contracts check` sur export modifié | **exit 1** : « openapi.json diffère entre export frais et dépôt » — le négatif est prouvé. |
+| `cargo test -p contracts` / `-p domain` | 17 / 64 passed — le corpus T007 reste vert après le refactor `Field`. |
+| `cargo run --locked -p xtask -- verify` | Cinq portes vertes (394 fichiers). |
+| `bun run verify` | format/lint/typecheck/test verts (153 fichiers TS, 1080 cas — inchangé). |
+
+### Décisions / honnêteté
+
+1. **C01 a forcé le refactor `Field`.** Le coureur de corpus JS a rejeté des échantillons que serde acceptait : le schéma d'un champ omissible incluait null (sématique d'`Option`) là où le décodeur Rust le refuse. La règle tenait depuis T007 — l'export l'a rendue **incontournable** : `Field` est un newtype dont le schéma est celui de `T`. Le piège serde `missing_field` est documenté dans le code (un décodage via `deserialize_option` réussit même absent).
+2. **Le schéma de `Nullable` mentait aussi** : le derive schemars suit la représentation serde **par défaut** (étiquetée), pas mes impls manuels (valeur ou null). `#[serde(untagged)]` — inerte pour les impls manuels — aligne le schéma sur le réel. Vu par la divergence serde/JS du corpus, pas par relecture.
+3. **Ajv standalone ne voit que `addSchema` + `getSchema`** : mesuré par sonde (un `compile()` direct produit un module vide). Chaque définition porte `$id` = son nom (identificateur JS valide) — le module exporte les validateurs par nom exact, consommables par `cibles.json`.
+4. **La composition `Option<Nullable<T>>` exporte `anyOf [T, null]` une seule fois** via `#[schemars(with = …)]` — l'`Option` de schemars dupliquait le null (visible en TS : `(string \| null) \| null`, attrapé par le lint TS `no-duplicate-type-constituents`).
+5. **Les avertissements `unknown format "uint64"` d'Ajv sont silenciés par `logger: false`** : l'annotation est décorative (la contrainte réelle est `type: integer`) ; la validation ne change pas.
+6. **Un dépôt périmé a été vu en vraie condition** : après le refactor, `check` a échoué sur `openapi.json` avant que j'aie pensé à re-exporter — la porte fonctionne dans le sens anti-régression voulu, et le négatif a ensuite été prouvé délibérément.
+7. **Les scripts de build (`scripts/contracts-*.ts`) ne sont ni lintés ni typecheckés** par les portes TS (champ `apps packages`) : ce sont des outils de build lancés par xtask, leur échec remonte à `contracts export/check` — consigné.
+8. **Le corpus JS ne remplace pas le coureur serde** : les deux vivent (T007 côté Rust, ce script côté JS), et `check` ne passe que si les deux disent la même chose — c'est exactement la preuve C01 demandée.
+
+### Commit
+
+Commit préfixé `T009:` contenant `crates/contracts/src/schema.rs` (+ `Field`/`Nullable` ajustés, attrs DTO), `crates/domain/src/*` (dérivations `JsonSchema`), `xtask/src/contracts.rs` + wiring, `scripts/contracts-*.ts`, `package.json`/`bun.lock` (générateurs figés), `.prettierignore`/`.oxlintrc.json`, `packages/shared/generated/` (5 documents) et cette section. Aucun test sous `src/`, aucune écriture hors dépôt.

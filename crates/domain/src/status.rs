@@ -13,7 +13,7 @@ use std::fmt;
 ///
 /// ⚠️ `unknown` est un état **réel**, vérifié dans l'énum du schéma — pas un
 /// fourre-tout local. Déclaré ici avec l'orthographe exacte du fil.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum AgentStatus {
     Idle,
@@ -25,7 +25,7 @@ pub enum AgentStatus {
 
 /// État de la conversation visible sur une ligne de conversation
 /// (`available | absent | error`, B10).
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum SessionState {
     Available,

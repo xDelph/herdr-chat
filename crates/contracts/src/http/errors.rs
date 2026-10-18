@@ -10,22 +10,14 @@ pub use domain::errors::ReadCause;
 
 /// `ApiErrorResponse` (api.ts) : le message réel, un indicateur optionnel,
 /// et la cause de lecture quand il y en a une — nommée, jamais reformée.
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ApiErrorResponse {
     /// `absente | vide | invalide | io` — la cause de lecture, présente
     /// seulement quand l'erreur en porte une.
-    #[serde(
-        default,
-        deserialize_with = "crate::presence::refuse_null",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
     pub cause: Field<ReadCause>,
     pub error: String,
-    #[serde(
-        default,
-        deserialize_with = "crate::presence::refuse_null",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
     pub hint: Field<String>,
 }

@@ -1,0 +1,4004 @@
+{
+  "components": {
+    "schemas": {
+      "AgentFocusedResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Un focus appliqué (`AgentFocusedResponse`).",
+        "properties": {
+          "focused": {
+            "type": "boolean"
+          },
+          "status": {
+            "description": "Le littéral `\"agent-focused\"`, vérifié au décodage.",
+            "enum": [
+              "agent-focused"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "focused",
+          "status"
+        ],
+        "title": "AgentFocusedResponse",
+        "type": "object"
+      },
+      "AgentLaunched": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Un agent lancé (`event: agent-launched`, mesuré —\n`{ kind, paneId, workspaceId }`).",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "paneId": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "paneId",
+          "workspaceId"
+        ],
+        "title": "AgentLaunched",
+        "type": "object"
+      },
+      "AgentModel": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Un modèle d'agent (`AgentModel`).",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "thinkingLevels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "thinkingLevels"
+        ],
+        "title": "AgentModel",
+        "type": "object"
+      },
+      "AgentStatus": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "État d'un agent : `idle | working | blocked | done | unknown`.\n\n⚠️ `unknown` est un état **réel**, vérifié dans l'énum du schéma — pas un\nfourre-tout local. Déclaré ici avec l'orthographe exacte du fil.",
+        "enum": [
+          "idle",
+          "working",
+          "blocked",
+          "done",
+          "unknown"
+        ],
+        "title": "AgentStatus",
+        "type": "string"
+      },
+      "AgentStatusChanged": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Un état d'agent a changé (`event: agent_status`, mesuré —\n`{ from, kind, paneId, to }`).\n\n⚠️ `from` est `null` quand l'agent **apparaît** (aucun état antérieur) —\nun null mesuré, jamais un absent. `to` est le fil tel quel : `\"gone\"`\n(agent disparu — **pas** un `AgentStatus`) ou un libellé d'état ; la\nchaîne passe sans réécriture, l'affichage tranche.",
+        "properties": {
+          "from": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "kind": {
+            "description": "Le genre de changement d'état, union fermée mesurée d'AgentWatcher\n(`\"status\" | \"appeared\" | \"disappeared\"`).",
+            "enum": [
+              "status",
+              "appeared",
+              "disappeared"
+            ],
+            "type": "string"
+          },
+          "paneId": {
+            "type": "string"
+          },
+          "to": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "from",
+          "kind",
+          "paneId",
+          "to"
+        ],
+        "title": "AgentStatusChanged",
+        "type": "object"
+      },
+      "AgentView": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Une ligne d'agent de l'overview (homologue exact de `AgentViewSchema`) :\n**tous les champs sont présents** — les vagues d'information passent par\n`Nullable` (null mesuré), jamais par une absence.",
+        "properties": {
+          "agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "cwd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "focused": {
+            "type": "boolean"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "paneId": {
+            "type": "string"
+          },
+          "paneRank": {
+            "anyOf": [
+              {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "parentSession": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "sessionCwd": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "sessionCwdMatches": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Trois états sur le fil : `true | false | null` — null = non\nvérifiable (D03), jamais confondu avec faux."
+          },
+          "sessionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "sessionKind": {
+            "anyOf": [
+              {
+                "description": "Genre de la référence de session publiée par Herdr pour un agent.\n\n⚠️ `path` est le seul cas observé en pratique (4 agents sur 4) ; `id`\nexiste au schéma et reste déclaré.",
+                "enum": [
+                  "id",
+                  "path"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "sessionPath": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "status": {
+            "description": "État d'un agent : `idle | working | blocked | done | unknown`.\n\n⚠️ `unknown` est un état **réel**, vérifié dans l'énum du schéma — pas un\nfourre-tout local. Déclaré ici avec l'orthographe exacte du fil.",
+            "enum": [
+              "idle",
+              "working",
+              "blocked",
+              "done",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "tabId": {
+            "type": "string"
+          },
+          "tabLabel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "tabNumber": {
+            "anyOf": [
+              {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "tabPaneCount": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "workspaceId": {
+            "type": "string"
+          },
+          "workspaceLabel": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          }
+        },
+        "required": [
+          "agent",
+          "cwd",
+          "focused",
+          "paneId",
+          "parentSession",
+          "sessionCwd",
+          "sessionCwdMatches",
+          "sessionId",
+          "sessionKind",
+          "sessionPath",
+          "status",
+          "tabLabel",
+          "tabId",
+          "tabNumber",
+          "name",
+          "paneRank",
+          "tabPaneCount",
+          "title",
+          "workspaceLabel",
+          "workspaceId"
+        ],
+        "title": "AgentView",
+        "type": "object"
+      },
+      "AnswerRequest": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Le corps de réponse à une question (`AnswerBody`, mesuré) — `texte` est\n**omissible mais décisif** : c'est lui qui répond à l'option de saisie\nlibre d'opencode.",
+        "properties": {
+          "numero": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "texte": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "numero"
+        ],
+        "title": "AnswerRequest",
+        "type": "object"
+      },
+      "AnswerState": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "L'union fermée des états d'une réponse.",
+        "enum": [
+          "appliquee",
+          "transmise",
+          "refusee"
+        ],
+        "title": "AnswerState",
+        "type": "string"
+      },
+      "ApiErrorResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "`ApiErrorResponse` (api.ts) : le message réel, un indicateur optionnel,\net la cause de lecture quand il y en a une — nommée, jamais reformée.",
+        "properties": {
+          "cause": {
+            "description": "`absente | vide | invalide | io` — la cause de lecture, présente\nseulement quand l'erreur en porte une.",
+            "oneOf": [
+              {
+                "const": "absente",
+                "description": "Le fichier n'existe pas encore.",
+                "type": "string"
+              },
+              {
+                "const": "vide",
+                "description": "Le fichier existe, zéro entrée.",
+                "type": "string"
+              },
+              {
+                "const": "invalide",
+                "description": "Contenu illisible ou ligne tronquée.",
+                "type": "string"
+              },
+              {
+                "const": "io",
+                "description": "Permission, disque, erreur du système.",
+                "type": "string"
+              }
+            ]
+          },
+          "error": {
+            "type": "string"
+          },
+          "hint": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "title": "ApiErrorResponse",
+        "type": "object"
+      },
+      "ChangeKind": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Le genre de changement d'état, union fermée mesurée d'AgentWatcher\n(`\"status\" | \"appeared\" | \"disappeared\"`).",
+        "enum": [
+          "status",
+          "appeared",
+          "disappeared"
+        ],
+        "title": "ChangeKind",
+        "type": "string"
+      },
+      "Choice": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Un choix proposé (`Choix` de api.ts/question.ts) — les noms du fil\n**restent** : `numero`, `libelle`, `selectionne`, `detail` (TECH §5 :\nrenommer les identifiants Rust ne change pas le fil).",
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "libelle": {
+            "type": "string"
+          },
+          "numero": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "selectionne": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "libelle",
+          "numero",
+          "selectionne"
+        ],
+        "title": "Choice",
+        "type": "object"
+      },
+      "ClientLogRequest": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Le corps de log client (inline mesuré Api.ts) : niveau **fermé sur\n`\"error\"`** aujourd'hui — l'union grandira avec le fil, pas avant.",
+        "properties": {
+          "detail": true,
+          "level": {
+            "description": "L'union des niveaux acceptés du fil — un seul membre mesuré (`\"error\"`).",
+            "enum": [
+              "error"
+            ],
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "level",
+          "message"
+        ],
+        "title": "ClientLogRequest",
+        "type": "object"
+      },
+      "ClientLogResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "L'acquittement du log — le `{ok}` du fil : un booléen réel, pas un\nsuccès fabriqué (400 quand le corps est refusé).",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "ClientLogResponse",
+        "type": "object"
+      },
+      "Confirmation": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "L'union fermée de confirmation du fil (`\"confirmed\" | \"unknown\"`).",
+        "enum": [
+          "confirmed",
+          "unknown"
+        ],
+        "title": "Confirmation",
+        "type": "string"
+      },
+      "ConversationSummary": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Le résumé d'une conversation (`ConversationSummary`) — tout ce que la\nliste doit afficher, rien de plus ; chaque champ omissible l'est **mesuré**\n(absent tant que la source n'en dit rien).",
+        "properties": {
+          "agent": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "branch": {
+            "type": "string"
+          },
+          "lastPrompt": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "paneId": {
+            "type": "string"
+          },
+          "paneRank": {
+            "anyOf": [
+              {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "preview": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "question": {
+            "description": "Une question posée par un agent (`Question`) — contexte en tableau\n(peut être vide : un fait, pas une absence).",
+            "properties": {
+              "choix": {
+                "items": {
+                  "description": "Un choix proposé (`Choix` de api.ts/question.ts) — les noms du fil\n**restent** : `numero`, `libelle`, `selectionne`, `detail` (TECH §5 :\nrenommer les identifiants Rust ne change pas le fil).",
+                  "properties": {
+                    "detail": {
+                      "type": "string"
+                    },
+                    "libelle": {
+                      "type": "string"
+                    },
+                    "numero": {
+                      "format": "uint64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "selectionne": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "libelle",
+                    "numero",
+                    "selectionne"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "contexte": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "invite": {
+                "type": "string"
+              },
+              "texte": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "choix",
+              "contexte",
+              "texte"
+            ],
+            "type": "object"
+          },
+          "sessionState": {
+            "description": "État de la conversation visible sur une ligne de conversation\n(`available | absent | error`, B10).",
+            "enum": [
+              "available",
+              "absent",
+              "error"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "description": "État d'un agent : `idle | working | blocked | done | unknown`.\n\n⚠️ `unknown` est un état **réel**, vérifié dans l'énum du schéma — pas un\nfourre-tout local. Déclaré ici avec l'orthographe exacte du fil.",
+            "enum": [
+              "idle",
+              "working",
+              "blocked",
+              "done",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "tabId": {
+            "type": "string"
+          },
+          "tabPaneCount": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "thinking": {
+            "type": "string"
+          },
+          "timestamp": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "title": {
+            "type": "string"
+          },
+          "trust": {
+            "description": "La confiance exigée avant d'agir (`TrustRequiredResponse`).",
+            "properties": {
+              "folder": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              },
+              "paneId": {
+                "type": "string"
+              },
+              "status": {
+                "description": "Le littéral `\"trust-required\"` — union à un membre.",
+                "enum": [
+                  "trust-required"
+                ],
+                "type": "string"
+              }
+            },
+            "required": [
+              "folder",
+              "kind",
+              "message",
+              "paneId",
+              "status"
+            ],
+            "type": "object"
+          },
+          "waiting": {
+            "type": "string"
+          },
+          "workspaceId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agent",
+          "name",
+          "paneRank",
+          "tabPaneCount",
+          "sessionState",
+          "title",
+          "status",
+          "workspaceId",
+          "tabId",
+          "paneId"
+        ],
+        "title": "ConversationSummary",
+        "type": "object"
+      },
+      "ConversationsResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "La réponse conversations (`ConversationsResponse`).",
+        "properties": {
+          "conversations": {
+            "items": {
+              "description": "Le résumé d'une conversation (`ConversationSummary`) — tout ce que la\nliste doit afficher, rien de plus ; chaque champ omissible l'est **mesuré**\n(absent tant que la source n'en dit rien).",
+              "properties": {
+                "agent": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                },
+                "branch": {
+                  "type": "string"
+                },
+                "lastPrompt": {
+                  "type": "string"
+                },
+                "model": {
+                  "type": "string"
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                },
+                "paneId": {
+                  "type": "string"
+                },
+                "paneRank": {
+                  "anyOf": [
+                    {
+                      "format": "uint64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                },
+                "preview": {
+                  "type": "string"
+                },
+                "provider": {
+                  "type": "string"
+                },
+                "question": {
+                  "description": "Une question posée par un agent (`Question`) — contexte en tableau\n(peut être vide : un fait, pas une absence).",
+                  "properties": {
+                    "choix": {
+                      "items": {
+                        "description": "Un choix proposé (`Choix` de api.ts/question.ts) — les noms du fil\n**restent** : `numero`, `libelle`, `selectionne`, `detail` (TECH §5 :\nrenommer les identifiants Rust ne change pas le fil).",
+                        "properties": {
+                          "detail": {
+                            "type": "string"
+                          },
+                          "libelle": {
+                            "type": "string"
+                          },
+                          "numero": {
+                            "format": "uint64",
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "selectionne": {
+                            "type": "boolean"
+                          }
+                        },
+                        "required": [
+                          "libelle",
+                          "numero",
+                          "selectionne"
+                        ],
+                        "type": "object"
+                      },
+                      "type": "array"
+                    },
+                    "contexte": {
+                      "items": {
+                        "type": "string"
+                      },
+                      "type": "array"
+                    },
+                    "invite": {
+                      "type": "string"
+                    },
+                    "texte": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "choix",
+                    "contexte",
+                    "texte"
+                  ],
+                  "type": "object"
+                },
+                "sessionState": {
+                  "description": "État de la conversation visible sur une ligne de conversation\n(`available | absent | error`, B10).",
+                  "enum": [
+                    "available",
+                    "absent",
+                    "error"
+                  ],
+                  "type": "string"
+                },
+                "status": {
+                  "description": "État d'un agent : `idle | working | blocked | done | unknown`.\n\n⚠️ `unknown` est un état **réel**, vérifié dans l'énum du schéma — pas un\nfourre-tout local. Déclaré ici avec l'orthographe exacte du fil.",
+                  "enum": [
+                    "idle",
+                    "working",
+                    "blocked",
+                    "done",
+                    "unknown"
+                  ],
+                  "type": "string"
+                },
+                "tabId": {
+                  "type": "string"
+                },
+                "tabPaneCount": {
+                  "format": "uint64",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "thinking": {
+                  "type": "string"
+                },
+                "timestamp": {
+                  "format": "uint64",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "trust": {
+                  "description": "La confiance exigée avant d'agir (`TrustRequiredResponse`).",
+                  "properties": {
+                    "folder": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "message": {
+                      "type": "string"
+                    },
+                    "paneId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "description": "Le littéral `\"trust-required\"` — union à un membre.",
+                      "enum": [
+                        "trust-required"
+                      ],
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "folder",
+                    "kind",
+                    "message",
+                    "paneId",
+                    "status"
+                  ],
+                  "type": "object"
+                },
+                "waiting": {
+                  "type": "string"
+                },
+                "workspaceId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "agent",
+                "name",
+                "paneRank",
+                "tabPaneCount",
+                "sessionState",
+                "title",
+                "status",
+                "workspaceId",
+                "tabId",
+                "paneId"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "conversations"
+        ],
+        "title": "ConversationsResponse",
+        "type": "object"
+      },
+      "EvenementSse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "L'enveloppe SSE entière — `{\"event\": nom, \"data\": charge}` telle que la\nboucle de flux l'écrit (mesuré sur routes-events.ts) : le nom d'événement\net sa charge sont **inséparables** au décodage. `agent_status` porte un\nsoulignement (mesuré), les autres des traits d'union.",
+        "oneOf": [
+          {
+            "properties": {
+              "data": {
+                "description": "Le signal de vie : le flux est établi, voici le curseur de départ\n(`event: ready`, mesuré — `{ cursor }`).",
+                "properties": {
+                  "cursor": {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "cursor"
+                ],
+                "type": "object"
+              },
+              "event": {
+                "const": "ready",
+                "type": "string"
+              }
+            },
+            "required": [
+              "event",
+              "data"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "data": {
+                "description": "Un état d'agent a changé (`event: agent_status`, mesuré —\n`{ from, kind, paneId, to }`).\n\n⚠️ `from` est `null` quand l'agent **apparaît** (aucun état antérieur) —\nun null mesuré, jamais un absent. `to` est le fil tel quel : `\"gone\"`\n(agent disparu — **pas** un `AgentStatus`) ou un libellé d'état ; la\nchaîne passe sans réécriture, l'affichage tranche.",
+                "properties": {
+                  "from": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                  },
+                  "kind": {
+                    "description": "Le genre de changement d'état, union fermée mesurée d'AgentWatcher\n(`\"status\" | \"appeared\" | \"disappeared\"`).",
+                    "enum": [
+                      "status",
+                      "appeared",
+                      "disappeared"
+                    ],
+                    "type": "string"
+                  },
+                  "paneId": {
+                    "type": "string"
+                  },
+                  "to": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "from",
+                  "kind",
+                  "paneId",
+                  "to"
+                ],
+                "type": "object"
+              },
+              "event": {
+                "const": "agent_status",
+                "type": "string"
+              }
+            },
+            "required": [
+              "event",
+              "data"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "data": {
+                "description": "La confirmation d'un prompt livré (`event: prompt`, mesuré —\n`{ paneId, confirmation, fingerprint, status }`, la charge étant la\nréponse `PromptSentResponse` complétée du pane).",
+                "properties": {
+                  "confirmation": {
+                    "description": "`confirmed` | `unknown` — l'union du fil : une réponse sans preuve\nd'acceptation reste inconnue (A02).",
+                    "enum": [
+                      "confirmed",
+                      "unknown"
+                    ],
+                    "type": "string"
+                  },
+                  "fingerprint": {
+                    "type": "string"
+                  },
+                  "paneId": {
+                    "type": "string"
+                  },
+                  "status": {
+                    "description": "L'état d'un prompt, tel qu'annoncé sur le flux — l'union fermée du fil\n(`\"sent\"`), jamais un état inventé.",
+                    "enum": [
+                      "sent"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "paneId",
+                  "confirmation",
+                  "fingerprint",
+                  "status"
+                ],
+                "type": "object"
+              },
+              "event": {
+                "const": "prompt",
+                "type": "string"
+              }
+            },
+            "required": [
+              "event",
+              "data"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "data": {
+                "description": "Un double envoi assumé (`event: prompt-suppressed`, mesuré —\n`{ paneId, reason }`), D007.2 : pas une erreur, un no-op nommé.",
+                "properties": {
+                  "paneId": {
+                    "type": "string"
+                  },
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "paneId",
+                  "reason"
+                ],
+                "type": "object"
+              },
+              "event": {
+                "const": "prompt-suppressed",
+                "type": "string"
+              }
+            },
+            "required": [
+              "event",
+              "data"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "data": {
+                "description": "Un agent lancé (`event: agent-launched`, mesuré —\n`{ kind, paneId, workspaceId }`).",
+                "properties": {
+                  "kind": {
+                    "type": "string"
+                  },
+                  "paneId": {
+                    "type": "string"
+                  },
+                  "workspaceId": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "kind",
+                  "paneId",
+                  "workspaceId"
+                ],
+                "type": "object"
+              },
+              "event": {
+                "const": "agent-launched",
+                "type": "string"
+              }
+            },
+            "required": [
+              "event",
+              "data"
+            ],
+            "type": "object"
+          },
+          {
+            "properties": {
+              "data": {
+                "description": "L'ordre de resynchronisation : la continuité du journal n'est plus\ngarantie — recharger l'état complet, jamais croire à un trou.\n(`event: resync`, mesuré — `{ reason: \"truncated journal\", resumeFrom }`.)",
+                "properties": {
+                  "reason": {
+                    "description": "La raison, telle qu'émise aujourd'hui : « truncated journal ». Une\nchaîne, pas une union : le producteur reste libre de nommer mieux —\net le client l'affiche, il ne la devine pas.",
+                    "type": "string"
+                  },
+                  "resumeFrom": {
+                    "description": "L'identifiant **courant** du journal (B04 : repartir de là, sinon un\nsecond resync revient à la boucle suivante).",
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  }
+                },
+                "required": [
+                  "reason",
+                  "resumeFrom"
+                ],
+                "type": "object"
+              },
+              "event": {
+                "const": "resync",
+                "type": "string"
+              }
+            },
+            "required": [
+              "event",
+              "data"
+            ],
+            "type": "object"
+          }
+        ],
+        "title": "EvenementSse"
+      },
+      "FocusStatus": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Le littéral `\"agent-focused\"` — union à un membre.",
+        "enum": [
+          "agent-focused"
+        ],
+        "title": "FocusStatus",
+        "type": "string"
+      },
+      "HealthResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "La santé du service (mesurée sur `HealthResponse` de api.ts).",
+        "properties": {
+          "herdr": {
+            "description": "La partie Herdr de la santé — protocol/version **omissibles** (mesuré :\nabsents tant qu'aucun ping n'a réussi), socket et reachable toujours là.",
+            "properties": {
+              "protocol": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "reachable": {
+                "type": "boolean"
+              },
+              "socket": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "reachable",
+              "socket"
+            ],
+            "type": "object"
+          },
+          "log": {
+            "description": "Absent ou valeur — un null explicite est un refus (`Schema.optional`).",
+            "type": "string"
+          },
+          "ok": {
+            "type": "boolean"
+          },
+          "uptimeMs": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "herdr",
+          "ok"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "HerdrHealth": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "La partie Herdr de la santé — protocol/version **omissibles** (mesuré :\nabsents tant qu'aucun ping n'a réussi), socket et reachable toujours là.",
+        "properties": {
+          "protocol": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reachable": {
+            "type": "boolean"
+          },
+          "socket": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reachable",
+          "socket"
+        ],
+        "title": "HerdrHealth",
+        "type": "object"
+      },
+      "InstalledKind": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Un type d'agent installé sur la machine (`InstalledKind`).",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "label",
+          "state"
+        ],
+        "title": "InstalledKind",
+        "type": "object"
+      },
+      "InstalledKindsResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "La liste des types installés (`InstalledKindsResponse`).",
+        "properties": {
+          "kinds": {
+            "items": {
+              "description": "Un type d'agent installé sur la machine (`InstalledKind`).",
+              "properties": {
+                "kind": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "state": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "kind",
+                "label",
+                "state"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "kinds"
+        ],
+        "title": "InstalledKindsResponse",
+        "type": "object"
+      },
+      "LaunchAgentRequest": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Le corps de lancement (`LaunchAgentRequest`) — tout est omissible sauf le\ntype : les réglages absents laissent le profil de l'agent parler.",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "thinking": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind"
+        ],
+        "title": "LaunchAgentRequest",
+        "type": "object"
+      },
+      "LaunchAgentResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Un lancement réussi (`LaunchAgentResponse`) — 201 sur le fil.",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "paneId": {
+            "type": "string"
+          },
+          "status": {
+            "description": "Le littéral `\"started\"` — union à un membre, vérifiée au décodage.",
+            "enum": [
+              "started"
+            ],
+            "type": "string"
+          },
+          "tabId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "name",
+          "paneId",
+          "status",
+          "tabId"
+        ],
+        "title": "LaunchAgentResponse",
+        "type": "object"
+      },
+      "LaunchFailed": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "L'échec typé du lancement (`LaunchFailed`) — le pane peut exister déjà :\nc'est pourquoi il est nullable et pourquoi l'onglet n'est pas refermé\ndans ce cas.",
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "paneId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "phase": {
+            "description": "L'étape d'un lancement qui a coincé, union fermée mesurée\n(`validation | onglet | agent | detection`) — l'interface dit OÙ ça a\ncoincé, l'utilisateur sait s'il faut nettoyer un onglet ou réessayer.",
+            "enum": [
+              "validation",
+              "onglet",
+              "agent",
+              "detection"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail",
+          "paneId",
+          "phase"
+        ],
+        "title": "LaunchFailed",
+        "type": "object"
+      },
+      "LaunchPhase": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "L'étape d'un lancement qui a coincé, union fermée mesurée\n(`validation | onglet | agent | detection`) — l'interface dit OÙ ça a\ncoincé, l'utilisateur sait s'il faut nettoyer un onglet ou réessayer.",
+        "enum": [
+          "validation",
+          "onglet",
+          "agent",
+          "detection"
+        ],
+        "title": "LaunchPhase",
+        "type": "string"
+      },
+      "ModelCatalogResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Le catalogue d'un type (`ModelCatalogResponse`) — `error` est **nullable\nobligatoire** : présent, souvent null ; une panne de catalogage reste\nvisible, jamais effacée.",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "kind": {
+            "type": "string"
+          },
+          "models": {
+            "items": {
+              "description": "Un modèle d'agent (`AgentModel`).",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "thinkingLevels": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "id",
+                "thinkingLevels"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "source": {
+            "type": "string"
+          },
+          "thinkingLevels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "error",
+          "kind",
+          "models",
+          "thinkingLevels",
+          "source"
+        ],
+        "title": "ModelCatalogResponse",
+        "type": "object"
+      },
+      "OverviewResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "La réponse d'overview complète.",
+        "properties": {
+          "agents": {
+            "items": {
+              "description": "Une ligne d'agent de l'overview (homologue exact de `AgentViewSchema`) :\n**tous les champs sont présents** — les vagues d'information passent par\n`Nullable` (null mesuré), jamais par une absence.",
+              "properties": {
+                "agent": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                },
+                "cwd": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                },
+                "focused": {
+                  "type": "boolean"
+                },
+                "name": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                },
+                "paneId": {
+                  "type": "string"
+                },
+                "paneRank": {
+                  "anyOf": [
+                    {
+                      "format": "uint64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                },
+                "parentSession": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                },
+                "sessionCwd": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                },
+                "sessionCwdMatches": {
+                  "anyOf": [
+                    {
+                      "type": "boolean"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Trois états sur le fil : `true | false | null` — null = non\nvérifiable (D03), jamais confondu avec faux."
+                },
+                "sessionId": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                },
+                "sessionKind": {
+                  "anyOf": [
+                    {
+                      "description": "Genre de la référence de session publiée par Herdr pour un agent.\n\n⚠️ `path` est le seul cas observé en pratique (4 agents sur 4) ; `id`\nexiste au schéma et reste déclaré.",
+                      "enum": [
+                        "id",
+                        "path"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                },
+                "sessionPath": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                },
+                "status": {
+                  "description": "État d'un agent : `idle | working | blocked | done | unknown`.\n\n⚠️ `unknown` est un état **réel**, vérifié dans l'énum du schéma — pas un\nfourre-tout local. Déclaré ici avec l'orthographe exacte du fil.",
+                  "enum": [
+                    "idle",
+                    "working",
+                    "blocked",
+                    "done",
+                    "unknown"
+                  ],
+                  "type": "string"
+                },
+                "tabId": {
+                  "type": "string"
+                },
+                "tabLabel": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                },
+                "tabNumber": {
+                  "anyOf": [
+                    {
+                      "format": "uint64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                },
+                "tabPaneCount": {
+                  "format": "uint64",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "title": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                },
+                "workspaceId": {
+                  "type": "string"
+                },
+                "workspaceLabel": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                }
+              },
+              "required": [
+                "agent",
+                "cwd",
+                "focused",
+                "paneId",
+                "parentSession",
+                "sessionCwd",
+                "sessionCwdMatches",
+                "sessionId",
+                "sessionKind",
+                "sessionPath",
+                "status",
+                "tabLabel",
+                "tabId",
+                "tabNumber",
+                "name",
+                "paneRank",
+                "tabPaneCount",
+                "title",
+                "workspaceLabel",
+                "workspaceId"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "herdrProtocol": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "herdrVersion": {
+            "type": "string"
+          },
+          "withoutSession": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "workspaces": {
+            "items": {
+              "description": "Une ligne de workspace de l'overview (homologue de `WorkspaceViewSchema`).",
+              "properties": {
+                "agentPanes": {
+                  "items": {
+                    "type": "string"
+                  },
+                  "type": "array"
+                },
+                "agentStatus": {
+                  "anyOf": [
+                    {
+                      "description": "État d'un agent : `idle | working | blocked | done | unknown`.\n\n⚠️ `unknown` est un état **réel**, vérifié dans l'énum du schéma — pas un\nfourre-tout local. Déclaré ici avec l'orthographe exacte du fil.",
+                      "enum": [
+                        "idle",
+                        "working",
+                        "blocked",
+                        "done",
+                        "unknown"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                },
+                "checkoutPath": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Le chemin réel où lancer un agent — absent plutôt qu'inventé (D02)."
+                },
+                "focused": {
+                  "type": "boolean"
+                },
+                "label": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+                },
+                "paneCount": {
+                  "format": "uint64",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "tabCount": {
+                  "format": "uint64",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "workspaceId": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "agentPanes",
+                "agentStatus",
+                "checkoutPath",
+                "focused",
+                "label",
+                "paneCount",
+                "tabCount",
+                "workspaceId"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "agents",
+          "herdrProtocol",
+          "herdrVersion",
+          "withoutSession",
+          "workspaces"
+        ],
+        "title": "OverviewResponse",
+        "type": "object"
+      },
+      "PromptDelivered": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "La confirmation d'un prompt livré (`event: prompt`, mesuré —\n`{ paneId, confirmation, fingerprint, status }`, la charge étant la\nréponse `PromptSentResponse` complétée du pane).",
+        "properties": {
+          "confirmation": {
+            "description": "`confirmed` | `unknown` — l'union du fil : une réponse sans preuve\nd'acceptation reste inconnue (A02).",
+            "enum": [
+              "confirmed",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "paneId": {
+            "type": "string"
+          },
+          "status": {
+            "description": "L'état d'un prompt, tel qu'annoncé sur le flux — l'union fermée du fil\n(`\"sent\"`), jamais un état inventé.",
+            "enum": [
+              "sent"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "paneId",
+          "confirmation",
+          "fingerprint",
+          "status"
+        ],
+        "title": "PromptDelivered",
+        "type": "object"
+      },
+      "PromptFailedResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Un prompt qui n'est pas parti — l'état réel, nommé, avec son détail.",
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "state": {
+            "description": "`attente | erreur | inconnu` — B05 : trois états, jamais « envoyé ».",
+            "enum": [
+              "attente",
+              "erreur",
+              "inconnu"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail",
+          "state"
+        ],
+        "title": "PromptFailedResponse",
+        "type": "object"
+      },
+      "PromptRequest": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Le corps d'un prompt (`PromptBody`, mesuré — `{ text }`).",
+        "properties": {
+          "text": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ],
+        "title": "PromptRequest",
+        "type": "object"
+      },
+      "PromptSentResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Un prompt parti (confirmé ou non prouvé — A02 : deux états sur le fil,\njamais « envoyé » au hasard).",
+        "properties": {
+          "confirmation": {
+            "description": "`confirmed | unknown` — la preuve du serveur, ou son absence assumée.",
+            "enum": [
+              "confirmed",
+              "unknown"
+            ],
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "status": {
+            "description": "Le littéral `\"sent\"`, union à un membre : sa présence est vérifiée.",
+            "enum": [
+              "sent"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirmation",
+          "fingerprint",
+          "status"
+        ],
+        "title": "PromptSentResponse",
+        "type": "object"
+      },
+      "PromptStatus": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "L'état d'un prompt, tel qu'annoncé sur le flux — l'union fermée du fil\n(`\"sent\"`), jamais un état inventé.",
+        "enum": [
+          "sent"
+        ],
+        "title": "PromptStatus",
+        "type": "string"
+      },
+      "PromptSuppressed": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Un double envoi assumé (`event: prompt-suppressed`, mesuré —\n`{ paneId, reason }`), D007.2 : pas une erreur, un no-op nommé.",
+        "properties": {
+          "paneId": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "paneId",
+          "reason"
+        ],
+        "title": "PromptSuppressed",
+        "type": "object"
+      },
+      "PromptSuppressedResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Un prompt supprimé — double envoi assumé, pas une erreur (D007.2).",
+        "properties": {
+          "reason": {
+            "type": "string"
+          },
+          "status": {
+            "description": "Le littéral `\"suppressed\"` — union à un membre, vérifiée au décodage.",
+            "enum": [
+              "suppressed"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "status"
+        ],
+        "title": "PromptSuppressedResponse",
+        "type": "object"
+      },
+      "PushBody": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "anyOf": [
+          {
+            "description": "Essayé en premier : `{ \"unsubscribe\": \"...\" }`.",
+            "properties": {
+              "unsubscribe": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "unsubscribe"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Sinon : un abonnement complet.",
+            "properties": {
+              "endpoint": {
+                "type": "string"
+              },
+              "expirationTime": {
+                "anyOf": [
+                  {
+                    "format": "uint64",
+                    "minimum": 0,
+                    "type": "integer"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+              },
+              "keys": {
+                "description": "Les deux clefs d'identité d'un abonnement (inline mesuré) — `auth` puis\n`p256dh`, orthographe exacte du fil.",
+                "properties": {
+                  "auth": {
+                    "type": "string"
+                  },
+                  "p256dh": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "auth",
+                  "p256dh"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "endpoint",
+              "keys"
+            ],
+            "type": "object"
+          }
+        ],
+        "description": "L'union **du corps de la route push** : le désabonnement est essayé\n**d'abord** (précédence mesurée du fil — un corps `{unsubscribe}` n'est\njamais un abonnement), sinon l'abonnement.",
+        "title": "PushBody"
+      },
+      "PushPayload": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Le contenu d'une notification, tel que le navigateur le reçoit.\n\n⚠️ `tag` est la clef de groupage du pane : deux notifications du même\npane se remplacent au lieu de s'empiler. La composition du texte —\nétiquettes D04, jamais « a terminé son travail » pour un agent disparu —\nest l'affaire du service (T030) ; ici, la valeur va telle quelle.",
+        "properties": {
+          "body": {
+            "type": "string"
+          },
+          "tag": {
+            "description": "Clef de groupage (le pane) — Herdr ne la fournit pas, elle se déduit\nde ce qu'on a.",
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "url": {
+            "description": "La cible ouverte par un clic sur la notification.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "body",
+          "tag",
+          "url"
+        ],
+        "title": "PushPayload",
+        "type": "object"
+      },
+      "Question": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Une question posée par un agent (`Question`) — contexte en tableau\n(peut être vide : un fait, pas une absence).",
+        "properties": {
+          "choix": {
+            "items": {
+              "description": "Un choix proposé (`Choix` de api.ts/question.ts) — les noms du fil\n**restent** : `numero`, `libelle`, `selectionne`, `detail` (TECH §5 :\nrenommer les identifiants Rust ne change pas le fil).",
+              "properties": {
+                "detail": {
+                  "type": "string"
+                },
+                "libelle": {
+                  "type": "string"
+                },
+                "numero": {
+                  "format": "uint64",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "selectionne": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "libelle",
+                "numero",
+                "selectionne"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "contexte": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "invite": {
+            "type": "string"
+          },
+          "texte": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "choix",
+          "contexte",
+          "texte"
+        ],
+        "title": "Question",
+        "type": "object"
+      },
+      "QuestionAnsweredResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Une question tranchée (`QuestionAnsweredResponse`) — libellés du fil\nexacts (`appliquee | transmise | refusee`).",
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "state": {
+            "description": "L'union fermée des états d'une réponse.",
+            "enum": [
+              "appliquee",
+              "transmise",
+              "refusee"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "description": "Le littéral `\"question-answered\"` — union à un membre.",
+            "enum": [
+              "question-answered"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "detail",
+          "state",
+          "status"
+        ],
+        "title": "QuestionAnsweredResponse",
+        "type": "object"
+      },
+      "ReadCause": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Cause d'une réponse de session : `absente | vide | invalide | io`.\n\n⚠️ Ces quatre cas se confondent de loin, et les confondre produit soit une\nerreur rouge en boucle, soit — pire — une vue qui ment :\n\n| Cause       | Sens                                     | Réponse          |\n|-------------|------------------------------------------|------------------|\n| [`Absente`] | le fichier n'existe pas encore            | 200, vide        |\n| [`Vide`]    | le fichier existe, zéro entrée            | 200, vide        |\n| [`Invalide`]| contenu illisible ou ligne tronquée       | 422              |\n| [`Io`]      | permission, disque, erreur du système     | 502              |\n\n`absente` n'est **pas** une panne : Herdr annonce un `agent_session` valide\nvers un fichier que Pi n'a pas encore créé (le JSONL naît au premier\nmessage — mesuré sur un vrai agent devin). Les codes d'orthographe viennent\ndu fil actuel ; ne jamais requalifier un autre code.",
+        "oneOf": [
+          {
+            "const": "absente",
+            "description": "Le fichier n'existe pas encore.",
+            "type": "string"
+          },
+          {
+            "const": "vide",
+            "description": "Le fichier existe, zéro entrée.",
+            "type": "string"
+          },
+          {
+            "const": "invalide",
+            "description": "Contenu illisible ou ligne tronquée.",
+            "type": "string"
+          },
+          {
+            "const": "io",
+            "description": "Permission, disque, erreur du système.",
+            "type": "string"
+          }
+        ],
+        "title": "ReadCause"
+      },
+      "ReadSource": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Source d'une lecture de terminal — libellés exacts du fil.",
+        "enum": [
+          "visible",
+          "recent",
+          "recent_unwrapped",
+          "detection"
+        ],
+        "title": "ReadSource",
+        "type": "string"
+      },
+      "Ready": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Le signal de vie : le flux est établi, voici le curseur de départ\n(`event: ready`, mesuré — `{ cursor }`).",
+        "properties": {
+          "cursor": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cursor"
+        ],
+        "title": "Ready",
+        "type": "object"
+      },
+      "RecentImage": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Une image récente (`RecentImageSchema`) — millisecondes mesurées, jamais\nrecalées.",
+        "properties": {
+          "modifiedAt": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "path": {
+            "type": "string"
+          },
+          "size": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "modifiedAt",
+          "path",
+          "size"
+        ],
+        "title": "RecentImage",
+        "type": "object"
+      },
+      "RecentImagesResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "La réponse d'images récentes (`RecentImagesResponse`).",
+        "properties": {
+          "images": {
+            "items": {
+              "description": "Une image récente (`RecentImageSchema`) — millisecondes mesurées, jamais\nrecalées.",
+              "properties": {
+                "modifiedAt": {
+                  "format": "uint64",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "size": {
+                  "format": "uint64",
+                  "minimum": 0,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "modifiedAt",
+                "path",
+                "size"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "images"
+        ],
+        "title": "RecentImagesResponse",
+        "type": "object"
+      },
+      "Resync": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "L'ordre de resynchronisation : la continuité du journal n'est plus\ngarantie — recharger l'état complet, jamais croire à un trou.\n(`event: resync`, mesuré — `{ reason: \"truncated journal\", resumeFrom }`.)",
+        "properties": {
+          "reason": {
+            "description": "La raison, telle qu'émise aujourd'hui : « truncated journal ». Une\nchaîne, pas une union : le producteur reste libre de nommer mieux —\net le client l'affiche, il ne la devine pas.",
+            "type": "string"
+          },
+          "resumeFrom": {
+            "description": "L'identifiant **courant** du journal (B04 : repartir de là, sinon un\nsecond resync revient à la boucle suivante).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason",
+          "resumeFrom"
+        ],
+        "title": "Resync",
+        "type": "object"
+      },
+      "SendState": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "L'union fermée des états d'un envoi non parti (libellés du fil exacts).",
+        "enum": [
+          "attente",
+          "erreur",
+          "inconnu"
+        ],
+        "title": "SendState",
+        "type": "string"
+      },
+      "SessionEntry": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Une entrée de session **rendue au client** : la ligne brute entière, plus\nles trois champs de position (mesuré sur `SessionEntrySchema`).",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "parentId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Le parent, omissible ET nullable (`Schema.optional(Schema.NullOr)`) :\nabsent ≠ null — deux faits distincts."
+          },
+          "raw": {
+            "description": "La ligne JSONL **entière**, telle qu'écrite — aucun raw perdu.",
+            "type": "string"
+          },
+          "timestamp": {
+            "type": "string"
+          },
+          "type": {
+            "description": "Le type de la ligne, tel que la source l'a écrit — chaîne libre du\nfil : les lecteurs tranchent, le contrat transporte.",
+            "type": "string"
+          }
+        },
+        "required": [
+          "type",
+          "raw"
+        ],
+        "title": "SessionEntry",
+        "type": "object"
+      },
+      "SessionRefKind": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Genre de la référence de session publiée par Herdr pour un agent.\n\n⚠️ `path` est le seul cas observé en pratique (4 agents sur 4) ; `id`\nexiste au schéma et reste déclaré.",
+        "enum": [
+          "id",
+          "path"
+        ],
+        "title": "SessionRefKind",
+        "type": "string"
+      },
+      "SessionResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "La réponse de session : quatre clauses nommées du fil (l'union\n[`ReadCause`]), la page, et les curseurs **opaques** (le codec interne\nappartient à `sessions`, TECH §5).",
+        "properties": {
+          "cause": {
+            "description": "Cause d'une réponse de session : `absente | vide | invalide | io`.\n\n⚠️ Ces quatre cas se confondent de loin, et les confondre produit soit une\nerreur rouge en boucle, soit — pire — une vue qui ment :\n\n| Cause       | Sens                                     | Réponse          |\n|-------------|------------------------------------------|------------------|\n| [`Absente`] | le fichier n'existe pas encore            | 200, vide        |\n| [`Vide`]    | le fichier existe, zéro entrée            | 200, vide        |\n| [`Invalide`]| contenu illisible ou ligne tronquée       | 422              |\n| [`Io`]      | permission, disque, erreur du système     | 502              |\n\n`absente` n'est **pas** une panne : Herdr annonce un `agent_session` valide\nvers un fichier que Pi n'a pas encore créé (le JSONL naît au premier\nmessage — mesuré sur un vrai agent devin). Les codes d'orthographe viennent\ndu fil actuel ; ne jamais requalifier un autre code.",
+            "oneOf": [
+              {
+                "const": "absente",
+                "description": "Le fichier n'existe pas encore.",
+                "type": "string"
+              },
+              {
+                "const": "vide",
+                "description": "Le fichier existe, zéro entrée.",
+                "type": "string"
+              },
+              {
+                "const": "invalide",
+                "description": "Contenu illisible ou ligne tronquée.",
+                "type": "string"
+              },
+              {
+                "const": "io",
+                "description": "Permission, disque, erreur du système.",
+                "type": "string"
+              }
+            ]
+          },
+          "cursor": {
+            "type": "string"
+          },
+          "entries": {
+            "items": {
+              "description": "Une entrée de session **rendue au client** : la ligne brute entière, plus\nles trois champs de position (mesuré sur `SessionEntrySchema`).",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "parentId": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Le parent, omissible ET nullable (`Schema.optional(Schema.NullOr)`) :\nabsent ≠ null — deux faits distincts."
+                },
+                "raw": {
+                  "description": "La ligne JSONL **entière**, telle qu'écrite — aucun raw perdu.",
+                  "type": "string"
+                },
+                "timestamp": {
+                  "type": "string"
+                },
+                "type": {
+                  "description": "Le type de la ligne, tel que la source l'a écrit — chaîne libre du\nfil : les lecteurs tranchent, le contrat transporte.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "raw"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "incremental": {
+            "type": "boolean"
+          },
+          "previousCursor": {
+            "type": "string"
+          },
+          "reset": {
+            "type": "boolean"
+          },
+          "sessionPath": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "cause",
+          "entries",
+          "incremental",
+          "hasMore",
+          "reset",
+          "sessionPath"
+        ],
+        "title": "SessionResponse",
+        "type": "object"
+      },
+      "SessionState": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "État de la conversation visible sur une ligne de conversation\n(`available | absent | error`, B10).",
+        "enum": [
+          "available",
+          "absent",
+          "error"
+        ],
+        "title": "SessionState",
+        "type": "string"
+      },
+      "StopAgentResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Une interruption demandée (`StopAgentResponse`).",
+        "properties": {
+          "status": {
+            "description": "`interrupt-sent | not-running` — reçu, pas prouvé exécuté.",
+            "enum": [
+              "interrupt-sent",
+              "not-running"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "StopAgentResponse",
+        "type": "object"
+      },
+      "StopStatus": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "L'union fermée des résultats d'arrêt.",
+        "enum": [
+          "interrupt-sent",
+          "not-running"
+        ],
+        "title": "StopStatus",
+        "type": "string"
+      },
+      "SubscribeRequest": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Le corps d'abonnement (inline mesuré) — `expirationTime` omissible ET\nnullable (`Schema.optional(Schema.NullOr(Schema.Number))`).",
+        "properties": {
+          "endpoint": {
+            "type": "string"
+          },
+          "expirationTime": {
+            "anyOf": [
+              {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "keys": {
+            "description": "Les deux clefs d'identité d'un abonnement (inline mesuré) — `auth` puis\n`p256dh`, orthographe exacte du fil.",
+            "properties": {
+              "auth": {
+                "type": "string"
+              },
+              "p256dh": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "auth",
+              "p256dh"
+            ],
+            "type": "object"
+          }
+        },
+        "required": [
+          "endpoint",
+          "keys"
+        ],
+        "title": "SubscribeRequest",
+        "type": "object"
+      },
+      "SubscriptionKeys": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Les deux clefs d'identité d'un abonnement (inline mesuré) — `auth` puis\n`p256dh`, orthographe exacte du fil.",
+        "properties": {
+          "auth": {
+            "type": "string"
+          },
+          "p256dh": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "auth",
+          "p256dh"
+        ],
+        "title": "SubscriptionKeys",
+        "type": "object"
+      },
+      "TrustRequest": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Le corps d'acceptation de confiance (`TrustBody`, mesuré — `{ accept }`).",
+        "properties": {
+          "accept": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "accept"
+        ],
+        "title": "TrustRequest",
+        "type": "object"
+      },
+      "TrustRequiredResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "La confiance exigée avant d'agir (`TrustRequiredResponse`).",
+        "properties": {
+          "folder": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "paneId": {
+            "type": "string"
+          },
+          "status": {
+            "description": "Le littéral `\"trust-required\"` — union à un membre.",
+            "enum": [
+              "trust-required"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "folder",
+          "kind",
+          "message",
+          "paneId",
+          "status"
+        ],
+        "title": "TrustRequiredResponse",
+        "type": "object"
+      },
+      "TrustResolvedResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "La confiance tranchée (`TrustResolvedResponse`) — les libellés français\ndu fil exacts, aucune traduction.",
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "state": {
+            "description": "L'union fermée des états de confiance (`transmise | acceptee | refusee |\nnon-applicable`).",
+            "enum": [
+              "transmise",
+              "acceptee",
+              "refusee",
+              "non-applicable"
+            ],
+            "type": "string"
+          },
+          "status": {
+            "description": "Le littéral `\"trust-resolved\"` — union à un membre.",
+            "enum": [
+              "trust-resolved"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "accepted",
+          "state",
+          "status"
+        ],
+        "title": "TrustResolvedResponse",
+        "type": "object"
+      },
+      "TrustState": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "L'union fermée des états de confiance (`transmise | acceptee | refusee |\nnon-applicable`).",
+        "enum": [
+          "transmise",
+          "acceptee",
+          "refusee",
+          "non-applicable"
+        ],
+        "title": "TrustState",
+        "type": "string"
+      },
+      "UnsubscribeRequest": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Le corps de désabonnement (inline mesuré — `{ unsubscribe: endpoint }`).",
+        "properties": {
+          "unsubscribe": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "unsubscribe"
+        ],
+        "title": "UnsubscribeRequest",
+        "type": "object"
+      },
+      "WorkspaceView": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Une ligne de workspace de l'overview (homologue de `WorkspaceViewSchema`).",
+        "properties": {
+          "agentPanes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "agentStatus": {
+            "anyOf": [
+              {
+                "description": "État d'un agent : `idle | working | blocked | done | unknown`.\n\n⚠️ `unknown` est un état **réel**, vérifié dans l'énum du schéma — pas un\nfourre-tout local. Déclaré ici avec l'orthographe exacte du fil.",
+                "enum": [
+                  "idle",
+                  "working",
+                  "blocked",
+                  "done",
+                  "unknown"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "checkoutPath": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Le chemin réel où lancer un agent — absent plutôt qu'inventé (D02)."
+          },
+          "focused": {
+            "type": "boolean"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Une valeur **présente** qui peut valoir null — l'homologue exact de\n`Schema.NullOr(Schema.X)`.\n\n⚠️ Distinction portée jusqu'au fil : [`Nullable::Nulle`] se sérialise en\n`null` (jamais en absence) et se décode depuis `null` (jamais depuis un\nchamp manquant — sans `default` serde, un champ absent est une erreur).\n\n⚠️ Le décodage passe par `serde_json::Value` (deserialize_any), PAS par\n`deserialize_option` : le `missing_field` de serde délègue à\n`deserialize_option` — un champ absent deviendrait silencieusement\n`Nulle`. Via `Value`, un champ absent reste une erreur (obligatoire),\nun null explicite devient `Nulle`, une valeur délègue à `T`.\n\n⚠️ `#[serde(untagged)]` est là pour **schemars** uniquement (les impls\nserde sont manuels) : le schéma exporté est `anyOf [T, null]` — la\nreprésentation réelle, pas la représentation par défaut étiquetée."
+          },
+          "paneCount": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "tabCount": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "workspaceId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "agentPanes",
+          "agentStatus",
+          "checkoutPath",
+          "focused",
+          "label",
+          "paneCount",
+          "tabCount",
+          "workspaceId"
+        ],
+        "title": "WorkspaceView",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "herdr-remote API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/agents/kinds": {
+      "get": {
+        "operationId": "h08-types-installes",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "corps ignoré après garde",
+              "schema": {}
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InstalledKindsResponse"
+                }
+              }
+            },
+            "description": "Réponse 200 — InstalledKindsResponse"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 502 — ApiErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/agents/{kind}/models": {
+      "get": {
+        "operationId": "h09-catalogue-modeles",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "corps ignoré après garde",
+              "schema": {}
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelCatalogResponse"
+                }
+              }
+            },
+            "description": "Réponse 200 — ModelCatalogResponse"
+          }
+        }
+      }
+    },
+    "/api/agents/{paneId}/answer": {
+      "post": {
+        "operationId": "h10-reponse-question",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "paneId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "Corps JSON — AnswerRequest",
+              "schema": {
+                "$ref": "#/components/schemas/AnswerRequest"
+              },
+              "x-octets-max": null
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionAnsweredResponse"
+                }
+              }
+            },
+            "description": "Réponse 200 — QuestionAnsweredResponse"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 400 — ApiErrorResponse"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 403 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 405 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 413 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 415 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 500 — ApiErrorResponse"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 502 — ApiErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/agents/{paneId}/focus": {
+      "post": {
+        "operationId": "h11-focus",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "paneId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "corps ignoré après garde",
+              "schema": {}
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AgentFocusedResponse"
+                }
+              }
+            },
+            "description": "Réponse 200 — AgentFocusedResponse"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 403 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 405 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 413 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 415 — garde partagée des POST (CURRENT.md §2)"
+          }
+        }
+      }
+    },
+    "/api/agents/{paneId}/prompt": {
+      "post": {
+        "operationId": "h05-prompt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "paneId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "Corps JSON — PromptRequest (limite 32768 octets)",
+              "schema": {
+                "$ref": "#/components/schemas/PromptRequest"
+              },
+              "x-octets-max": 32768
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptSuppressedResponse"
+                }
+              }
+            },
+            "description": "Réponse 200 — PromptSentResponse"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 400 — ApiErrorResponse"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 403 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 405 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 413 — ApiErrorResponse"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 415 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 500 — ApiErrorResponse"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PromptFailedResponse"
+                }
+              }
+            },
+            "description": "Réponse 502 — PromptFailedResponse"
+          }
+        }
+      }
+    },
+    "/api/agents/{paneId}/session": {
+      "get": {
+        "operationId": "h04-session-agent",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "paneId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tail",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "corps ignoré après garde",
+              "schema": {}
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "Réponse 200 — SessionResponse"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 400 — ApiErrorResponse"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 403 — ApiErrorResponse"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 404 — ApiErrorResponse"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 409 — ApiErrorResponse"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 422 — ApiErrorResponse"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 502 — ApiErrorResponse"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 503 — ApiErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/agents/{paneId}/stop": {
+      "post": {
+        "operationId": "h06-arret",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "paneId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "corps ignoré après garde",
+              "schema": {}
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StopAgentResponse"
+                }
+              }
+            },
+            "description": "Réponse 200 — StopAgentResponse"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 403 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 404 — ApiErrorResponse"
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 405 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 413 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 415 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 502 — ApiErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/agents/{paneId}/trust": {
+      "post": {
+        "operationId": "h12-confiance",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "paneId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "Corps JSON — TrustRequest",
+              "schema": {
+                "$ref": "#/components/schemas/TrustRequest"
+              },
+              "x-octets-max": null
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrustResolvedResponse"
+                }
+              }
+            },
+            "description": "Réponse 200 — TrustResolvedResponse"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 400 — ApiErrorResponse"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 403 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 405 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 413 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 415 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 502 — ApiErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/conversations": {
+      "get": {
+        "operationId": "h03-conversations",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "corps ignoré après garde",
+              "schema": {}
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationsResponse"
+                }
+              }
+            },
+            "description": "Réponse 200 — ConversationsResponse"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationsResponse"
+                }
+              }
+            },
+            "description": "Réponse 502 — ConversationsResponse"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationsResponse"
+                }
+              }
+            },
+            "description": "Réponse 503 — ConversationsResponse"
+          }
+        }
+      }
+    },
+    "/api/events": {
+      "get": {
+        "operationId": "h14-flux-sse",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Last-Event-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "corps ignoré après garde",
+              "schema": {}
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Réponse 200 — flux text/event-stream"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 503 — ApiErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/file": {
+      "get": {
+        "operationId": "h17-fichier",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "corps ignoré après garde",
+              "schema": {}
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "description": "Réponse 200 — corps de fichier typé"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 403 — ApiErrorResponse"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 500 — ApiErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/health": {
+      "get": {
+        "operationId": "h01-sante",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "corps ignoré après garde",
+              "schema": {}
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Réponse 200 — HealthResponse"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 500 — ApiErrorResponse"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Réponse 503 — HealthResponse"
+          }
+        }
+      }
+    },
+    "/api/images": {
+      "get": {
+        "operationId": "h18-images",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "corps ignoré après garde",
+              "schema": {}
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecentImagesResponse"
+                }
+              }
+            },
+            "description": "Réponse 200 — RecentImagesResponse"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 502 — ApiErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/log": {
+      "post": {
+        "operationId": "h13-journal-client",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "Corps JSON — ClientLogRequest",
+              "schema": {
+                "$ref": "#/components/schemas/ClientLogRequest"
+              },
+              "x-octets-max": null
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientLogResponse"
+                }
+              }
+            },
+            "description": "Réponse 200 — ClientLogResponse"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ClientLogResponse"
+                }
+              }
+            },
+            "description": "Réponse 400 — ClientLogResponse"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 403 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 405 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 413 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 415 — garde partagée des POST (CURRENT.md §2)"
+          }
+        }
+      }
+    },
+    "/api/notifications/subscriptions": {
+      "post": {
+        "operationId": "h16-abonnements",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "Corps JSON — PushBody",
+              "schema": {
+                "$ref": "#/components/schemas/PushBody"
+              },
+              "x-octets-max": null
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Réponse 204 — sans corps"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 400 — ApiErrorResponse"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 403 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 405 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 413 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 415 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 500 — ApiErrorResponse"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 503 — ApiErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/notifications/vapid-key": {
+      "get": {
+        "operationId": "h15-cle-vapid",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "corps ignoré après garde",
+              "schema": {}
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/plain; charset=utf-8": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Réponse 200 — texte brut"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 500 — ApiErrorResponse"
+          },
+          "503": {
+            "content": {
+              "text/plain; charset=utf-8": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Réponse 503 — texte brut"
+          }
+        }
+      }
+    },
+    "/api/overview": {
+      "get": {
+        "operationId": "h02-overview",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "corps ignoré après garde",
+              "schema": {}
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OverviewResponse"
+                }
+              }
+            },
+            "description": "Réponse 200 — OverviewResponse"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 500 — ApiErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspaceId}/agents": {
+      "post": {
+        "operationId": "h07-lancement",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workspaceId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "Corps JSON — LaunchAgentRequest",
+              "schema": {
+                "$ref": "#/components/schemas/LaunchAgentRequest"
+              },
+              "x-octets-max": null
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LaunchAgentResponse"
+                }
+              }
+            },
+            "description": "Réponse 201 — LaunchAgentResponse"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 400 — ApiErrorResponse"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 403 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 405 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TrustRequiredResponse"
+                }
+              }
+            },
+            "description": "Réponse 409 — TrustRequiredResponse"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 413 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 415 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 500 — ApiErrorResponse"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 502 — ApiErrorResponse"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 503 — ApiErrorResponse"
+          }
+        }
+      }
+    }
+  }
+}

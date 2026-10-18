@@ -4,7 +4,7 @@ use crate::presence::Field;
 use serde::{Deserialize, Serialize};
 
 /// Le corps d'acceptation de confiance (`TrustBody`, mesuré — `{ accept }`).
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TrustRequest {
     pub accept: bool,
@@ -13,20 +13,16 @@ pub struct TrustRequest {
 /// Le corps de réponse à une question (`AnswerBody`, mesuré) — `texte` est
 /// **omissible mais décisif** : c'est lui qui répond à l'option de saisie
 /// libre d'opencode.
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AnswerRequest {
     pub numero: u64,
-    #[serde(
-        default,
-        deserialize_with = "crate::presence::refuse_null",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
     pub texte: Field<String>,
 }
 
 /// La confiance exigée avant d'agir (`TrustRequiredResponse`).
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TrustRequiredResponse {
     pub folder: String,
@@ -37,7 +33,7 @@ pub struct TrustRequiredResponse {
 }
 
 /// Le littéral `"trust-required"` — union à un membre.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum TrustRequiredStatus {
     TrustRequired,
@@ -45,7 +41,7 @@ pub enum TrustRequiredStatus {
 
 /// La confiance tranchée (`TrustResolvedResponse`) — les libellés français
 /// du fil exacts, aucune traduction.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct TrustResolvedResponse {
     pub accepted: bool,
@@ -55,7 +51,7 @@ pub struct TrustResolvedResponse {
 
 /// L'union fermée des états de confiance (`transmise | acceptee | refusee |
 /// non-applicable`).
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum TrustState {
     Transmise,
@@ -65,7 +61,7 @@ pub enum TrustState {
 }
 
 /// Le littéral `"trust-resolved"` — union à un membre.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum TrustResolvedStatus {
     TrustResolved,
@@ -73,7 +69,7 @@ pub enum TrustResolvedStatus {
 
 /// Une question tranchée (`QuestionAnsweredResponse`) — libellés du fil
 /// exacts (`appliquee | transmise | refusee`).
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct QuestionAnsweredResponse {
     pub detail: String,
@@ -82,7 +78,7 @@ pub struct QuestionAnsweredResponse {
 }
 
 /// L'union fermée des états d'une réponse.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum AnswerState {
     Appliquee,
@@ -91,7 +87,7 @@ pub enum AnswerState {
 }
 
 /// Le littéral `"question-answered"` — union à un membre.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum AnsweredStatus {
     QuestionAnswered,
@@ -100,13 +96,9 @@ pub enum AnsweredStatus {
 /// Un choix proposé (`Choix` de api.ts/question.ts) — les noms du fil
 /// **restent** : `numero`, `libelle`, `selectionne`, `detail` (TECH §5 :
 /// renommer les identifiants Rust ne change pas le fil).
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Choice {
-    #[serde(
-        default,
-        deserialize_with = "crate::presence::refuse_null",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
     pub detail: Field<String>,
     pub libelle: String,
     pub numero: u64,
@@ -115,16 +107,12 @@ pub struct Choice {
 
 /// Une question posée par un agent (`Question`) — contexte en tableau
 /// (peut être vide : un fait, pas une absence).
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Question {
     pub choix: Vec<Choice>,
     pub contexte: Vec<String>,
-    #[serde(
-        default,
-        deserialize_with = "crate::presence::refuse_null",
-        skip_serializing_if = "Option::is_none"
-    )]
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
     pub invite: Field<String>,
     pub texte: String,
 }

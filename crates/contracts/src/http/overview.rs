@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 /// Une ligne d'agent de l'overview (homologue exact de `AgentViewSchema`) :
 /// **tous les champs sont présents** — les vagues d'information passent par
 /// `Nullable` (null mesuré), jamais par une absence.
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentView {
     pub agent: Nullable<String>,
@@ -35,7 +35,7 @@ pub struct AgentView {
 }
 
 /// Une ligne de workspace de l'overview (homologue de `WorkspaceViewSchema`).
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct WorkspaceView {
     pub agent_panes: Vec<String>,
@@ -50,7 +50,7 @@ pub struct WorkspaceView {
 }
 
 /// La réponse d'overview complète.
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct OverviewResponse {
     pub agents: Vec<AgentView>,

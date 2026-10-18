@@ -14,7 +14,7 @@ use serde::{Deserialize, Serialize};
 /// boucle de flux l'écrit (mesuré sur routes-events.ts) : le nom d'événement
 /// et sa charge sont **inséparables** au décodage. `agent_status` porte un
 /// soulignement (mesuré), les autres des traits d'union.
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(tag = "event", content = "data", rename_all = "kebab-case")]
 pub enum EvenementSse {
     Ready(Ready),
@@ -28,7 +28,7 @@ pub enum EvenementSse {
 
 /// Le signal de vie : le flux est établi, voici le curseur de départ
 /// (`event: ready`, mesuré — `{ cursor }`).
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 pub struct Ready {
     pub cursor: u64,
 }
@@ -36,7 +36,7 @@ pub struct Ready {
 /// L'ordre de resynchronisation : la continuité du journal n'est plus
 /// garantie — recharger l'état complet, jamais croire à un trou.
 /// (`event: resync`, mesuré — `{ reason: "truncated journal", resumeFrom }`.)
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct Resync {
     /// La raison, telle qu'émise aujourd'hui : « truncated journal ». Une
@@ -50,7 +50,7 @@ pub struct Resync {
 
 /// L'état d'un prompt, tel qu'annoncé sur le flux — l'union fermée du fil
 /// (`"sent"`), jamais un état inventé.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum PromptStatus {
     Sent,
@@ -59,7 +59,7 @@ pub enum PromptStatus {
 /// La confirmation d'un prompt livré (`event: prompt`, mesuré —
 /// `{ paneId, confirmation, fingerprint, status }`, la charge étant la
 /// réponse `PromptSentResponse` complétée du pane).
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PromptDelivered {
     pub pane_id: String,
@@ -71,7 +71,7 @@ pub struct PromptDelivered {
 }
 
 /// L'union fermée de confirmation du fil (`"confirmed" | "unknown"`).
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum Confirmation {
     Confirmed,
@@ -80,7 +80,7 @@ pub enum Confirmation {
 
 /// Un double envoi assumé (`event: prompt-suppressed`, mesuré —
 /// `{ paneId, reason }`), D007.2 : pas une erreur, un no-op nommé.
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PromptSuppressed {
     pub pane_id: String,
@@ -89,7 +89,7 @@ pub struct PromptSuppressed {
 
 /// Un agent lancé (`event: agent-launched`, mesuré —
 /// `{ kind, paneId, workspaceId }`).
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentLaunched {
     pub kind: String,
@@ -99,7 +99,7 @@ pub struct AgentLaunched {
 
 /// Le genre de changement d'état, union fermée mesurée d'AgentWatcher
 /// (`"status" | "appeared" | "disappeared"`).
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum ChangeKind {
     Status,
@@ -114,7 +114,7 @@ pub enum ChangeKind {
 /// un null mesuré, jamais un absent. `to` est le fil tel quel : `"gone"`
 /// (agent disparu — **pas** un `AgentStatus`) ou un libellé d'état ; la
 /// chaîne passe sans réécriture, l'affichage tranche.
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentStatusChanged {
     pub from: Nullable<String>,

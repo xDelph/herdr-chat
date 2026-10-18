@@ -72,7 +72,17 @@ pub struct UpstreamPing {
 ///
 /// ⚠️ `path` est le seul cas observé en pratique (4 agents sur 4) ; `id`
 /// existe au schéma et reste déclaré.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Debug,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum SessionRefKind {
     Id,
@@ -243,7 +253,17 @@ pub struct AgentListObservation {
 }
 
 /// Source d'une lecture de terminal — libellés exacts du fil.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Debug,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+)]
 #[serde(rename_all = "snake_case")]
 pub enum ReadSource {
     Visible,
@@ -269,7 +289,17 @@ pub struct ScreenObservation {
 /// ⚠️ `Unverifiable` n'est **pas** `Mismatched` : l'un dit « les deux
 /// existent et diffèrent », l'autre « je ne peux pas vérifier ». Les
 /// confondre a fait disparaître des agents bien portants de la liste.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Debug,
+    serde::Serialize,
+    serde::Deserialize,
+    schemars::JsonSchema,
+)]
 #[serde(rename_all = "lowercase")]
 pub enum CwdMatch {
     Matched,

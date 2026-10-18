@@ -71,7 +71,7 @@ impl From<String> for PushEndpoint {
 /// pane se remplacent au lieu de s'empiler. La composition du texte —
 /// étiquettes D04, jamais « a terminé son travail » pour un agent disparu —
 /// est l'affaire du service (T030) ; ici, la valeur va telle quelle.
-#[derive(Clone, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PushPayload {
     pub title: String,

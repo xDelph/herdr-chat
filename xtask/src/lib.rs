@@ -3,6 +3,7 @@
 //! testable from `tests/unit_tests.rs` without re-including any `src/`.
 
 pub mod allowlist;
+pub mod contracts;
 pub mod graph;
 pub mod layout;
 pub mod run;

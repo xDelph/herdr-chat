@@ -3,7 +3,7 @@
 use serde::{Deserialize, Serialize};
 
 /// Le corps d'un prompt (`PromptBody`, mesuré — `{ text }`).
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PromptRequest {
     pub text: String,
@@ -11,7 +11,7 @@ pub struct PromptRequest {
 
 /// Un prompt parti (confirmé ou non prouvé — A02 : deux états sur le fil,
 /// jamais « envoyé » au hasard).
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PromptSentResponse {
     /// `confirmed | unknown` — la preuve du serveur, ou son absence assumée.
@@ -22,7 +22,7 @@ pub struct PromptSentResponse {
 }
 
 /// Un prompt supprimé — double envoi assumé, pas une erreur (D007.2).
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PromptSuppressedResponse {
     pub reason: String,
@@ -30,14 +30,14 @@ pub struct PromptSuppressedResponse {
 }
 
 /// Le littéral `"suppressed"` — union à un membre, vérifiée au décodage.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum SuppressedStatus {
     Suppressed,
 }
 
 /// Un prompt qui n'est pas parti — l'état réel, nommé, avec son détail.
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PromptFailedResponse {
     pub detail: String,
@@ -46,7 +46,7 @@ pub struct PromptFailedResponse {
 }
 
 /// L'union fermée des états d'un envoi non parti (libellés du fil exacts).
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum SendState {
     Attente,
@@ -55,7 +55,7 @@ pub enum SendState {
 }
 
 /// Une interruption demandée (`StopAgentResponse`).
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct StopAgentResponse {
     /// `interrupt-sent | not-running` — reçu, pas prouvé exécuté.
@@ -63,7 +63,7 @@ pub struct StopAgentResponse {
 }
 
 /// L'union fermée des résultats d'arrêt.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum StopStatus {
     InterruptSent,
@@ -71,7 +71,7 @@ pub enum StopStatus {
 }
 
 /// Un focus appliqué (`AgentFocusedResponse`).
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct AgentFocusedResponse {
     pub focused: bool,
@@ -80,7 +80,7 @@ pub struct AgentFocusedResponse {
 }
 
 /// Le littéral `"agent-focused"` — union à un membre.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum FocusStatus {
     AgentFocused,

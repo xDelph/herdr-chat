@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 
 /// Une image récente (`RecentImageSchema`) — millisecondes mesurées, jamais
 /// recalées.
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RecentImage {
     pub modified_at: u64,
@@ -13,7 +13,7 @@ pub struct RecentImage {
 }
 
 /// La réponse d'images récentes (`RecentImagesResponse`).
-#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct RecentImagesResponse {
     pub images: Vec<RecentImage>,
