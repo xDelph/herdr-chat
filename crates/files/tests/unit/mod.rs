@@ -4,3 +4,4 @@ pub(crate) mod atomic;
 pub(crate) mod authorized_file;
 pub(crate) mod confined;
 pub(crate) mod mime;
+pub(crate) mod scan;

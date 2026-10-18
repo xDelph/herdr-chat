@@ -1243,3 +1243,37 @@ Périmètre : `crates/files/src/{authorized_file,mime}.rs`, `confined.rs` (+`Rac
 3. **`MAX_FILE_BYTES` en double** (contrats + files) : le graphe l'impose ; la valeur canonique vit dans `contracts` (la source de vérité pour http-api en T052), le local de `files` est documenté comme miroir.
 
 Commit préfixé `T046:` contenant tout ce qui précède et cette section.
+
+---
+
+## T047 — `files::scan` (S08, S09)
+
+Périmètre : `crates/files/src/scan.rs` (+`lib.rs`), tests `crates/files/tests/unit/scan.rs` (+`mod.rs`). Aucun service réel, aucun agent, aucun test sous `src/` — balayage contre de vrais fichiers temporaires.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `liste_images_recentes` | S08 : png/jpg/jpeg/gif/webp/avif (SVG jamais — script possible), profondeur ≤ 3, plafond **global** 400 (C13 : le budget est partagé entre les racines, même concurrentes), 120 par dossier, **4 racines concurrentes**, tri par récence décroissant (stable — à modification égale, l'ordre du disque reste), limite de réponse (60 par défaut). |
+| `CompteurDeBalayage` | Le **pic mesuré**, pas une opinion : `promene` compte les parcours en vol ; le test observe pic ∈ [2, 4] sur 4 racines × 120 fichiers — la concurrence est réelle ET bornée. |
+| Exclusions (S09) | Entrées pointées (`.`) et dossiers de dépendances/build (`node_modules`, `dist`, `build`, `target`, `vendor`, `coverage`, `.next`, `.nuxt`, `.turbo`, `Pods`, `__pycache__`, `.venv`, `venv`) jamais parcourus — la liste exacte du fil. |
+| Dégradation (S09) | Dossier illisible ou disparu : ignoré, le reste est servi ; AUCUNE notion de complétude n'apparaît — le type de retour est la liste, rien d'autre. |
+| Liens suivis (S09) | `metadata` suit les liens : un lien vers un dossier est descendu, un lien vers une image est collecté. |
+| Suffixe exact | `est_image` insensible à la casse, suffixe exact — `image.png.txt` n'est pas une image (le fil fait `endsWith`). |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p files` | PASS — **46 tests** (35 + 11 scan). |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** (graphe inchangé). |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **Le parcours est séquentiel, assumé, pas un oubli** : chaque `stat` conditionne la descente et l'ordre du disque remplit la collecte (le fil le commente mot pour mot) ; un `Promise.all`/spawn par fichier renommerait l'ordre et dépasserait les plafonds avant le court-circuit.
+1. **Le plafond global est re-vérifié SOUS le verrou** au moment du dépôt : la course entre le contrôle « ai-je encore droit à un fichier » et le push reste fermée — c'est ce qui rend le comptage déterministe (3×120 + 40 = 400 exactement).
+2. **Le pic mesuré atteint bien la borne** (3–4 avec 4 racines × 120 fichiers, sondé 5 fois) — le test exige pic ≥ 2 : la concurrence est prouvée réelle, pas seulement bornée par construction.
+3. **Flakiness PRÉEXISTANTE de `herdr-client` sous charge parallèle** (découverte pendant cette tâche, pas causée par elle) : les tests de délai/EOF du transport échouent parfois en run workspace complet — prouvé en l'absence de mes changements (`git stash` : run 1 OK, run 2 échec sur un AUTRE test du même crate). Mécanisme identifié : le test de délai attend `DelaiDepasse` (serveur dort 300 ms, deadline 50 ms) mais un fil déschedulé > 300 ms sous charge trouve la réponse déjà en attente. Réduction du volume de mes propres tests scan (~2800 → ~1400 fichiers) pour ne pas amplifier la charge ; le correctif du test herdr-client est un chantier hors périmètre T047 (le journal ne la cache pas).
+4. **`LIMITE_DEFAUT` = 60** exportée avec la signature `limite` explicite — le fil a `limit = 60` en défaut ; la route (T052) décidera.
+
+Commit préfixé `T047:` contenant tout ce qui précède et cette section.

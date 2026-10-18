@@ -5,3 +5,4 @@ pub mod atomic;
 pub mod authorized_file;
 pub mod confined;
 pub mod mime;
+pub mod scan;
