@@ -1176,3 +1176,38 @@ Périmètre : `crates/files/src/atomic.rs` (+`lib.rs`), `crates/files/tests/unit
 4. **La validation d'équivalence s'applique aux paires importées** (env ET store) : une paire du store mélangée est une erreur visible, jamais une régénération silencieuse qui invaliderait les abonnements.
 
 Commit préfixé `T044:` contenant tout ce qui précède et cette section.
+
+---
+
+## T045 — `notifications::payload/delivery` (E07, E09, C14)
+
+Périmètre : `crates/notifications/src/{payload,delivery,webpush}.rs` (+`lib.rs`), `crates/notifications/tests/unit/{payload,delivery}.rs` (+`mod.rs`). Aucun service réel contacté, aucun agent de l'utilisateur, aucun test sous `src/` — la livraison est testée contre un FAUX service.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `payload_de_notification` | E07 : trois profils distincts — `waiting`/`done`/`gone` (titres, corps, étiquettes) ; une question en attente n'est jamais remplacée par un « finished » ; un agent disparu n'a pas « fini » (cause jamais inventée) ; lien profond `/#/agent/<paneId encodé>` (`:` → `%3A`), accueil sans pane. |
+| `nom_de_notification` | Qui, hors de l'écran : projet · onglet · pane · type — la place du pane vient de la MÊME fonction que l'écran (`domain::naming::pane_label`), libellé numérique → numéro d'onglet, libellé répétant le projet écarté, rien d'inventé. |
+| `Livreur` | Le worker borné : **file 64** (refus compté, les chemins du veilleur continuent), **concurrence 4** (sémaphore, pic prouvé derrière une porte), **délai 15 s** par envoi (injectable pour les tests — un service muet est un échec compté, jamais une expiration), **TTL 60 s** posé sur chaque message. |
+| `elague_versionne` | C14 : un endpoint expiré (404/410) n'est retiré que si l'abonnement COURANT est exactement celui qui a expiré (mêmes clés) — un **réabonnement pendant l'envoi** a une nouvelle version, il survit (prouvé : envoi retenu par une porte, réabonnement pendant, l'élagage retire 0). |
+| **Aucune livraison sous lock du store** | Le worker livre sur une PHOTO (la porte du store n'est tenue que le temps d'une lecture), l'élagage ré-ouvre la porte APRÈS — un abonnement pendant un envoi passe sans attendre (prouvé). |
+| `LivraisonWebPush` | L'implémentation réelle : `web-push` (feature `hyper-client`), clé privée brute base64url (les clés Node), 404/410 → `Expire`, tout le reste → `Autre` compté. Le futur est boxé pour rester dyn-compatible (pas de `async fn` dans le trait). |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p notifications` | PASS — **35 tests** (18 + 9 delivery + 8 payload). |
+| `cargo clippy -p notifications --all-targets` | zéro avertissement. |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** (graphe inchangé). |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **`async fn` natif n'est pas dyn-compatible** : le trait `LivraisonPush` renvoie un futur boxé (`Pin<Box<dyn Future + Send>>`) — pas de dépendance `async-trait`.
+1. **Les tests du worker exigent un runtime multi-thread** : `std::thread::sleep` dans `attend_envois` bloquait le runtime current-thread — le worker ne tournait jamais (« 0 vus »). Corrigé par `#[tokio::test(flavor = "multi_thread")]`.
+2. **La file tient 64 EN ATTENTE** : le job en cours de traitement est hors file — 69 jobs = 1 en vol + 64 en file + 4 refus (mon premier test comptait 5). Et le démarrage du worker est une course : le test attend que le premier job soit EN VOL avant d'enfiler le reste.
+3. **L'élagage versionné retire 0 quand la version a changé** : l'upsert du réabonnement a REMPLACÉ l'ancienne version — il n'y a rien à retirer, et c'est exactement la preuve demandée (« suppression ne retire pas un nouvel abonnement »).
+4. **Le délai est un échec compté, pas une expiration** : un service muet ne fait pas retirer l'abonnement — la cause est réelle, jamais inventée.
+
+Commit préfixé `T045:` contenant tout ce qui précède et cette section.

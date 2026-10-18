@@ -187,6 +187,26 @@ impl GardienDeStore {
         })
     }
 
+    /// L'élagage VERSIONNÉ (C14) : ne retire un endpoint que si l'abonnement
+    /// COURANT est exactement celui qui a expiré (mêmes clés) — un
+    /// réabonnement pendant l'envoi a une nouvelle version, il survit.
+    /// Rend le nombre d'abonnements retirés.
+    pub fn elague_versionne(&self, expires: &[AbonnementPush]) -> Result<usize, ErreurStore> {
+        let _garde = self.ecrivain.lock().unwrap_or_else(PoisonError::into_inner);
+        let mut store = lit_store(&self.chemin)?;
+        let avant = store.subscriptions.len();
+        store.subscriptions.retain(|courant| {
+            !expires
+                .iter()
+                .any(|expire| expire.endpoint == courant.endpoint && expire.keys == courant.keys)
+        });
+        let apres = store.subscriptions.len();
+        if avant != apres {
+            ecrit_store(&self.chemin, &store)?;
+        }
+        Ok(avant - apres)
+    }
+
     /// Une lecture-modification-écriture sous la porte de l'écrivain.
     fn modifie(&self, operation: impl FnOnce(&mut StorePush)) -> Result<(), ErreurStore> {
         let _garde = self.ecrivain.lock().unwrap_or_else(PoisonError::into_inner);
