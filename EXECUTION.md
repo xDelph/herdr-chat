@@ -799,4 +799,19 @@ Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'ex
 | Le registre partagé | `adaptateur_de` reste LE registre des intégrations (T029) ; l'invalidation explicite force la relecture (testé : 2 invocations). |
 | 4 tests (19 sur la crate) | Concurrence exactement-un, échec réessayable, invalidation, la même politique. |
 
-Commit préfixé `T031:` contenant `crates/catalog/src/cache.rs` + `lib.rs`, `tests/unit/{cache,mod}.rs` et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T032 — la crate `interactions` : les questions à l'écran, le répondant (T032)
+
+| Livrable | Détail |
+|---|---|
+| `ecran.rs` — le parseur | Le port fidèle de `question.ts` **sans regex** : le filet `┃` retiré (l'écran opencode mesuré, agent bloqué — sinon AUCUN choix reconnu), les choix `›? numéro. corps`, le détail au **dernier** trou de 2+ espaces des deux côtés ou sur la ligne suivante **plus indentée** (pas une ligne de choix ni d'invite — sinon `enter to submit` devenait un détail), la remontée **contiguë** (1..n exigé — une sortie d'outil numérotée n'est pas une invite), `App: Zen`/`Field 1/1` classés en contexte, l'invite `enter…`/`↑↓` (les deux formes mesurées), `OPTION_SAISIE_LIBRE` reconnue — et un écran **non reconnu n'émet aucune action**. |
+| `repondre.rs` — le répondant | Le port étroit = `ControlPort` du domaine (le Pick du fil) ; **rien n'est envoyé hors des choix offerts** (la garde teste le numéro — avec le cast d'u64::MAX en i64 = -1 attrapé par le test : toute offre rendait fausse) ; la séquence saisie libre (numéro, enter, **texte, enter**) ; un texte d'espaces n'écrit rien ; **la RELECTURE après la frappe** : appliquee/transmise/refusee — jamais « envoyé » sans preuve. |
+| Les profils (famille gabarit) | Le gabarit est le SOCLE : les écrans pi/codex (détail de même ligne), opencode (détail suivant + filet), la saisie libre d'opencode — aucun profil mesuré manquant remplacé par Codex (le parseur ne suppose AUCUN écran). |
+| 10 tests (la crate neuve) | L'écran opencode du corpus + les garde-fous du détail, la numérotation incohérente refusée, le classement contexte/champ, la garde du numéro, les trois états du répondant (refus = valeur), la séquence libre. |
+
+Le cast `u64::MAX as i64 = -1` (la borne haute fausse) est le genre d'incident que la preuve par test attrape : aucune relecture ne l'aurait vu.
+
+Commit préfixé `T032:` contenant `crates/interactions/**`, `Cargo.toml` (membre workspace existant) et cette section. Cargo.lock inchangé.

@@ -1,1 +1,5 @@
-//! interactions — module layout and API surface are delivered by their owning tasks (TECH §2).
+//! interactions — la lecture des questions à l'écran, la réponse, les
+//! familles de profils (TECH §2).
+
+pub mod ecran;
+pub mod repondre;

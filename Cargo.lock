@@ -1305,8 +1305,7 @@ name = "interactions"
 version = "0.0.0"
 dependencies = [
  "domain",
- "tokio",
- "tracing",
+ "serde_json",
 ]
 
 [[package]]
