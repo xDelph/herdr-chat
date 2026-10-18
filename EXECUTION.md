@@ -930,3 +930,41 @@ Périmètre : `crates/application/src/commands/launch.rs` (+`mod.rs`), `crates/a
 4. **La lecture d'écran bornée** (256 lignes) pour la détection de confiance : une invite de fraîche démarre est en tête de log ; une lecture sans texte = pas d'invite (le fil fait de même).
 
 Commit préfixé `T037:` contenant tout ce qui précède et cette section.
+
+---
+
+## T038 — `application::state/refresh` : l'observation partagée (C23, D01)
+
+Périmètre : `crates/application/src/{state,refresh}.rs` (+`lib.rs`), `crates/application/tests/unit/refresh.rs` (+`mod.rs`), `crates/test-support` (`sans_panne`). Aucun service réel contacté, aucun agent de l'utilisateur, aucun test sous `src/`.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `ObservationBorne` | La photo complète **immuable**, horodatée par l'horloge INJECTÉE et numérotée par **génération** (le nombre de vols réussis) ; version/protocole amont portés par la provenance de la photo (TECH §4 : « complete immutable snapshot plus observation time/generation and upstream version/protocol »). |
+| `ServiceSnapshots` | Possède le port, distille une seule vue partagée. `lecture()` (fenêtre 2 s) · `lecture_forcee()` (admission/racines de fichiers) · `sante()` (ping coalescé, TTL 1 s, SÉPARÉ du snapshot) · `pulse()` (battement du poller). |
+| **Coalescence (C23)** | UN vol à la fois ; les signaux simultanés s'y JOIGNENT par condvar — tests : 8 lecteurs périmés = 1 appel amont, même génération pour tous ; 8 forces pendant un amont RETENU (port à sas) = 1 appel. |
+| **Cache vide valide** | Un snapshot vide (zéro agent, zéro workspace) est une OBSERVATION, servie 2 s sans rappel (`un_snapshot_vide_est_une_observation_valide`). |
+| **Jamais du périmé servi** | La panne du rafraîchissement est remontée telle quelle (502 au fil) — l'ancienne observation est CONSERVÉE mais refusée ; la reprise après panne envoie un nouveau vol (testée avec `sans_panne`). |
+| **Force** | Quitte la fenêtre de cache en partageant seulement un vol déjà en cours ; une force qui rejoint un vol RÉUSSI sert la génération commitée (corrigé en test : 8 générations relancées à tort → 1). |
+| **Horloge injectée** | `SourceMaintenant` — TOUTES les fenêtres (2 s, 1 s) se testent sans dormir (le faux avance à la main), TTL mesurés en constantes exposées. |
+| **Verrous courts** | Aucun verrou tenu pendant l'appel amont (le vol est un drapeau + condvar, TECH §4) ; garde double : le porteur ne commit que sous le verrou, après libération de l'E/S. |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p test-support -p application` | PASS — application 47 (35 + 12 refresh), test-support 26. |
+| `cargo clippy … --all-targets` | zéro avertissement (`if let` chaînés refondus, helpers de test sans `expect`). |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** (graphe inchangé — aucun membre touché). |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **Le seul bug de comportement trouvé par les tests** : ma première horloge de test reculait dans le passé (`now − offset`) — les fenêtres ne vieillissaient jamais et le test « panne non masquée » servait du frais à tort. Le faux `base + déplacement` a rendu les fenêtres réelles ; l'incident est la preuve que l'horloge injectée fonctionne.
+1. **Le mode forcé a d'abord relancé 8 vols** pour 8 forces (chaque joineur recommençait après le succès du vol joint). Corrigé : un joineur d'un vol RÉUSSI sert la génération commitée ; seul un forcer qui rejoint une PANNE relance (son autorisation dépend de la fraîcheur réelle).
+2. **Le « sleep de 150 ms » du test de force partagée** est délibéré : la fenêtre d'envolement ne peut pas exister avec un faux qui résout au premier poll — le port à sas retient la photo amont jusqu'au signal. Un joineur simulé en retard briserait l'assertion, ce qui est exactement la propriété voulue (commentaire posé dans le test).
+3. **Le forcer qui rejoint un vol échoué relance** — c'est le contrat « force » (elle exige une fraîcheur réelle) ; le lecteur ordinaire joint reçoit la panne partagée et ne relance pas (une seule requête par génération de demande).
+4. **`pulse()` rend l'échec** pour le journal du poller (la composition T056 décide de le logguer) — il n'est pas un point de décision.
+5. **Le câblage réel** (admission → `lecture_forcee`, santé → `sante`, poller → `pulse`) arrive avec les endpoints (T050/T051+), comme T034–T037 avant lui : le service est livré, prouvé, prêt à être fils au moment venu.
+
+Commit préfixé `T038:` contenant `crates/application/src/{state,refresh}.rs` + `lib.rs`, `crates/application/tests/unit/refresh.rs` + `mod.rs`, `crates/test-support/src/fake_herdr.rs` (`sans_panne`) et cette section.

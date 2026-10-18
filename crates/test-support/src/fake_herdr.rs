@@ -153,6 +153,14 @@ impl HerdrFaux {
         self.verrou().panne = Some(panne);
     }
 
+    /// Rend l'appareil sain à nouveau (panne globale ET pans par opération)
+    /// — la preuve de reprise après panne d'un service.
+    pub fn sans_panne(&self) {
+        let mut reglages = self.verrou();
+        reglages.panne = None;
+        reglages.pannes_par_operation.clear();
+    }
+
     /// Retire la panne globale.
     pub fn sans_panne_globale(&self) {
         self.verrou().panne = None;
