@@ -5,6 +5,10 @@
 //! the plan forbids both silent new edges and silent removals. The table
 //! mirrors `specs/rust-backend/TECH.md` §2; that document remains the
 //! reference, this function is only its executable restatement.
+//!
+//! ⚠️ The collected graph counts **production** edges only: `run.rs` skips
+//! `kind=dev` dependencies because TECH §2 explicitly allows `test-support`
+//! as a dev-dependency without inducing production dependency cycles.
 
 /// The expected internal dependency set per member name, sorted.
 pub fn expected_internal_edges() -> Vec<(&'static str, Vec<&'static str>)> {

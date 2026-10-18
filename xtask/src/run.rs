@@ -101,6 +101,17 @@ pub fn collect_internal_graph(root: &Path) -> Result<Vec<(String, Vec<String>)>,
         let mut member_deps: Vec<String> = Vec::new();
         if let Some(deps) = pkg.get("dependencies").and_then(Value::as_array) {
             for dep in deps {
+                // Seules les arêtes de **production** comptent : le graphe
+                // gelé (TECH §2, mermaid) décrit la direction des
+                // dépendances publiées — une dev-dependency sur
+                // `test-support` est explicitement autorisée par TECH §2
+                // (« Test-support can be a dev-dependency »), elle
+                // n'ajoute aucune arête à ce graphe. `kind: null` (absent
+                // effectivement) est une arête de production ; `dev`/`build`
+                // est écartée.
+                if dep.get("kind").and_then(Value::as_str).is_some() {
+                    continue;
+                }
                 let dep_name = match dep.get("name").and_then(Value::as_str) {
                     Some(d) => d,
                     None => continue,

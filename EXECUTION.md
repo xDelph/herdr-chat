@@ -859,3 +859,35 @@ Le cast `u64::MAX as i64 = -1` (la borne haute fausse) est le genre d'incident q
 | 7 tests (11 sur la crate) | SHA-256, doublon, A→B→A, échec/inconnu/frappe partielle, discriminateur, repli, fenêtre. |
 
 Commit préfixé `T035:` contenant `crates/application/src/commands/**` (admission + prompt), `tests/unit/**` et cette section. Cargo.lock inchangé (sha2 déjà au workspace).
+---
+
+## T036 — `application::commands::stop/focus` : l'arrêt et le focus (A04–A05)
+
+Périmètre : `crates/application/src/commands/{stop,focus}.rs`, `crates/application/tests/unit/{stop,focus}.rs`, `crates/test-support` (panne par opération), `xtask` (collecteur de graphe). Premier consommateur du faux `HerdrFaux` par une autre crate (T006).
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `ArreteurAgent::arrete` | **Observation fraîche à chaque appel** (aucun cache — testé par relecture d'un état changé) ; agent absent → `AgentAbsent` (404 au fil) ; non-`working` → **no-op** `NonEnCours` (valeur `not-running`, jamais une panne, testé Idle/Blocked/Done/Unknown, zéro envoi) ; `working` → Ctrl+C **via le port** ; `InterruptSent` = transmission, jamais arrêt prouvé (A04). |
+| La course photo→envoi | L'agent a fini entre la photo (`working`) et l'envoi : le port répond `NotRunning` → no-op honnête, pas un faux `interrupt-sent`. |
+| Les causes distinctes | `SnapshotIndisponible` (amont, délai) ≠ `SnapshotIllisible` (enveloppe) ≠ `Transmission` (envoi) — chacune nommée avec sa cause réelle (502 au fil), rien n'est masqué. |
+| `FocaliseurAgent::focalise` | **L'échec reste une valeur** : refus OU panne de transport → `focalise: false` (jamais une erreur — « focus échoué n'empêche pas lecture », A05) ; la cause exacte est portée. |
+| La ligne de journal | `IssueFocus::ligne_journal` produit `focus <pane> (ok\|échec)` — le format exact du fil, la seule trace observable d'un POST focus (A05) ; écriture par le sink T055 côté endpoint (T051). |
+| La cible | Toujours celle de l'appel, jamais la conversation affichée (capturée à l'admission T034) — l'action capture du faux prouve la cible. |
+| C24 | L'**endpoint** est conservé (effet réel, `focused` porté) ; la décision d'appeler ou non focus à la lecture reste frontend (T062). |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p test-support -p application` | PASS — 23 tests `application` (11 T034–T035 + 8 arrêt + 4 focus), 25 tests `test-support` (+1 panne par opération). |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** : verify-layout (495 fichiers), graphe (ordre topologique conforme), format, clippy, tests. |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **Le gate de graphe lisait les dev-dependencies comme des arêtes** — l'ajout de `test-support` en dev-dependency de `application` faisait échouer `xtask verify` (« arêtes internes de «application» divergent »). TECH §2 dit explicitement : « Test-support can be a dev-dependency without inducing production dependency cycles » — le mermaid gelé décrit le graphe de **production**. Le collecteur (`xtask/src/run.rs`) ignore désormais les arêtes `kind=dev/build` (le check le plus délicat : `cargo metadata` émet `"kind": null` explicite pour les arêtes de production, et `"dev"` pour les dev-dependencies) ; commentaire synchronisé dans `xtask/src/graph.rs`. Aucun membre du graphe n'a changé, aucune `src` de production n'est concernée.
+1. **Premier consommateur de `HerdrFaux`** : la capture ordonnée des actions (l'objet de T006) sert enfin la preuve « cible et ordre » — collage impossible avec les faux inline. Ajout de `panne_sur(op, panne)` : la panne d'UNE opération (le snapshot réussit, la transmission échoue) — nécessaire pour T036, réutilisable pour T051 (502 par branche). Une panne par opération et une globale restent cumulables localement, la capture note toujours l'action tentée.
+2. **`pousse` partagé dans `commands/mod.rs`** : les services pollent leurs `PortFuture` au premier poll (contrat du transport T012 et de tout faux) — `Pending` est un branchement cassé signalé comme tel, jamais une attente silencieuse.
+
+Commit préfixé `T036:` contenant `crates/application/src/commands/{stop,focus}.rs` + `mod.rs`, `crates/application/tests/unit/{stop,focus}.rs` + `mod.rs`, `crates/application/Cargo.toml` (dev-dep `test-support`), `crates/test-support/src/fake_herdr.rs` (panne par opération) + son test, `xtask/src/{graph,run}.rs` (graphe de production), `Cargo.lock` (arête workspace, aucun paquet externe) et cette section. Aucun service réel contacté, aucun agent de l'utilisateur, aucun test sous `src/`.

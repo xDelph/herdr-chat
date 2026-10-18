@@ -246,6 +246,33 @@ fn les_reglages_changent_entre_deux_appels() {
 }
 
 #[test]
+fn la_panne_par_operation_ne_change_que_cette_operation() {
+    // Panne réglée sur l'arrêt SEULEMENT : le snapshot reste servi, et les
+    // autres opérations restent disponibles — la capture note les deux.
+    let faux = HerdrFaux::nouveau();
+    faux.panne_sur(Op::Arret, PortError::Timeout);
+    let mut arret = faux.stop(pane("p-1"));
+    match pousse(&mut arret) {
+        Err(PortError::Timeout) => (),
+        Ok(_) => panic!("l'arrêt doit échouer avec la panne réglée"),
+        Err(autre) => panic!("la panne réglée passe telle quelle : {autre:?}"),
+    }
+    let mut photo = faux.snapshot();
+    match pousse(&mut photo) {
+        Ok(photo) => assert!(
+            photo.agents.is_empty(),
+            "sans règle, le snapshot reste vide"
+        ),
+        Err(cause) => panic!("une autre opération ne subit pas la panne : {cause}"),
+    }
+    assert!(
+        faux.actions().len() == 2,
+        "chaque action tentée est notée, même en panne : {}",
+        faux.actions().len()
+    );
+}
+
+#[test]
 fn les_identites_simulees_portent_le_suffixe_sim() {
     let faux = HerdrFaux::nouveau();
     let mut creation = faux.create_tab(CreateTab {

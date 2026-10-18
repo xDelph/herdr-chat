@@ -14,5 +14,8 @@ tracing = { workspace = true }
 domain = { path = "../domain" }
 interactions = { path = "../interactions" }
 
+[dev-dependencies]
+test-support = { path = "../test-support" }
+
 [lints]
 workspace = true

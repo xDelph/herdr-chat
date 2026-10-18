@@ -23,7 +23,7 @@ use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 
 /// Les opérations capturées, dans l'ordre du fil d'exécution.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, PartialOrd, Ord)]
 pub enum Op {
     Ping,
     Snapshot,
@@ -53,6 +53,10 @@ pub struct ActionCapturee {
 #[derive(Debug, Default)]
 struct Reglages {
     panne: Option<PortError>,
+    /// Les pannes réglées **par opération** : seule l'opération nommée
+    /// échoue, exactement avec cette panne — la capture note quand même
+    /// l'action tentée.
+    pannes_par_operation: BTreeMap<Op, PortError>,
     ping: Option<UpstreamPing>,
     snapshot: Option<Snapshot>,
     ecrans: BTreeMap<PaneId, ScreenObservation>,
@@ -138,6 +142,13 @@ impl HerdrFaux {
         self.verrou().panne = None;
     }
 
+    /// Panne d'UNE opération : seule cette opération échoue, exactement
+    /// avec cette panne — les autres répondent normalement. La capture
+    /// note quand même l'action tentée.
+    pub fn panne_sur(&self, op: Op, panne: PortError) {
+        self.verrou().pannes_par_operation.insert(op, panne);
+    }
+
     /// Les actions capturées, dans l'ordre d'appel.
     #[must_use]
     pub fn actions(&self) -> Vec<ActionCapturee> {
@@ -149,7 +160,11 @@ impl HerdrFaux {
         self.verrou().actions.clear();
     }
 
-    fn note_panne(interieur: &Reglages) -> Result<(), PortError> {
+    fn note_panne(interieur: &Reglages, op: Op) -> Result<(), PortError> {
+        // La panne réglée **pour cette opération** prime sur la panne globale.
+        if let Some(panne) = interieur.pannes_par_operation.get(&op) {
+            return Err(panne.clone());
+        }
         match &interieur.panne {
             Some(panne) => Err(panne.clone()),
             None => Ok(()),
@@ -166,7 +181,7 @@ impl ControlPort for HerdrFaux {
                 cible: String::from("—"),
                 detail: String::from("santé demandée"),
             });
-            Self::note_panne(&interieur)?;
+            Self::note_panne(&interieur, Op::Ping)?;
             match &interieur.ping {
                 Some(reponse) => Ok(reponse.clone()),
                 // Provenance simulée par défaut : protocole et version du
@@ -187,7 +202,7 @@ impl ControlPort for HerdrFaux {
                 cible: String::from("—"),
                 detail: String::from("photo complète"),
             });
-            Self::note_panne(&interieur)?;
+            Self::note_panne(&interieur, Op::Snapshot)?;
             match &interieur.snapshot {
                 Some(reponse) => Ok(reponse.clone()),
                 // Un snapshot simulé sans réglage est **vide** : observation
@@ -205,7 +220,7 @@ impl ControlPort for HerdrFaux {
                 cible: String::from("—"),
                 detail: String::from("liste des agents"),
             });
-            Self::note_panne(&interieur)?;
+            Self::note_panne(&interieur, Op::ListeAgents)?;
             match &interieur.snapshot {
                 Some(reponse) => Ok(AgentListObservation {
                     agents: reponse.agents.clone(),
@@ -225,7 +240,7 @@ impl ControlPort for HerdrFaux {
                 cible,
                 detail,
             });
-            Self::note_panne(&interieur)?;
+            Self::note_panne(&interieur, Op::LectureEcran)?;
             match interieur.ecrans.get(&request.pane) {
                 Some(ecran) => Ok(ecran.clone()),
                 // Pas de règle = pas d'écran : absence constatée, aucun
@@ -250,7 +265,7 @@ impl ControlPort for HerdrFaux {
                 cible,
                 detail,
             });
-            Self::note_panne(&interieur)?;
+            Self::note_panne(&interieur, Op::Prompt)?;
             match &interieur.prompt {
                 Some(preuve) => Ok(preuve.clone()),
                 // Défaut documenté du faux : l'amont simulé confirme avec
@@ -273,7 +288,7 @@ impl ControlPort for HerdrFaux {
                 cible,
                 detail,
             });
-            Self::note_panne(&interieur)?;
+            Self::note_panne(&interieur, Op::EnvoiTexte)?;
             match &interieur.texte {
                 Some(preuve) => Ok(preuve.clone()),
                 None => Ok(TransportEvidence {
@@ -295,7 +310,7 @@ impl ControlPort for HerdrFaux {
                 cible,
                 detail,
             });
-            Self::note_panne(&interieur)?;
+            Self::note_panne(&interieur, Op::EnvoiTouches)?;
             match &interieur.touches {
                 Some(preuve) => Ok(preuve.clone()),
                 None => Ok(TransportEvidence {
@@ -316,7 +331,7 @@ impl ControlPort for HerdrFaux {
                 cible,
                 detail: String::from("focus demandé"),
             });
-            Self::note_panne(&interieur)?;
+            Self::note_panne(&interieur, Op::Focus)?;
             match &interieur.focus {
                 Some(preuve) => Ok(preuve.clone()),
                 None => Ok(FocusEvidence::Focused),
@@ -334,7 +349,7 @@ impl ControlPort for HerdrFaux {
                 cible,
                 detail,
             });
-            Self::note_panne(&interieur)?;
+            Self::note_panne(&interieur, Op::CreationTab)?;
             match &interieur.creation {
                 Some(tab) => Ok(tab.clone()),
                 // Identités simulées reconnaissables au suffixe `-sim` dans
@@ -361,7 +376,7 @@ impl ControlPort for HerdrFaux {
                 cible,
                 detail,
             });
-            Self::note_panne(&interieur)?;
+            Self::note_panne(&interieur, Op::LancementAgent)?;
             match &interieur.lancement {
                 Some(preuve) => Ok(preuve.clone()),
                 None => Ok(StartEvidence::Started { pane: request.pane }),
@@ -378,7 +393,7 @@ impl ControlPort for HerdrFaux {
                 cible,
                 detail: String::from("interruption demandée"),
             });
-            Self::note_panne(&interieur)?;
+            Self::note_panne(&interieur, Op::Arret)?;
             match &interieur.arret {
                 Some(preuve) => Ok(preuve.clone()),
                 // Défaut du faux : l'interruption est annoncée envoyée ; un
