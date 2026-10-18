@@ -4,6 +4,7 @@
 pub mod agents;
 pub mod cursor;
 pub mod families;
+pub mod metadata;
 pub mod path_policy;
 pub mod pipeline;
 pub mod resolver;

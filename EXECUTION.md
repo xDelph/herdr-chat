@@ -712,4 +712,19 @@ Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'ex
 | `hasMore` | **Reste historique** — l'indicateur du backward, porté par la route comme le fil l'a toujours fait ; la page bornée ne l'invente pas. |
 | 4 tests (73 sur la crate) | **Le Delta 32 MiB sans perte ni duplication** (2 001 lignes paginées, chaque n vu UNE fois, ordre exact) ; `caughtUp` faux à la queue pendante puis vrai au complet (+ l'aller-retour du curseur opaque) ; le 17 MiB → 422 sans avancer vs le 3 MiB rendu seul et avançant ; `observe` aux bornes. |
 
-Commit préfixé `T025:` contenant `crates/sessions/src/storage/jsonl/reader.rs` (bornes + page + observe), `crates/contracts/src/http/sessions.rs` (`caught_up`) + `registry.rs` (`observe`), `tests/unit/{borne,mod}.rs` et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T026 — `sessions::metadata` : le réducteur commun (D18–D22)
+
+| Livrable | Détail |
+|---|---|
+| `reduis` | Le `ResumeSource` : dernier_prompt (la DEMANDE de l'utilisateur, pas la réponse), aperçu (dernier texte assistant **ou dernier outil + indice** — l'agent bloqué montre sur quoi il attend, mesuré), horodatage (le dernier CONNU, jamais la date du jour), paire modèle/fournisseur, niveau de raisonnement. |
+| `reglages_de` | Deux endroits, le plus récent gagne : les changements (`model_change`/`thinking_level_change`) OU le message lui-même — ⚠️ la **paire est une paire** : le fournisseur d'un changement plus ancien ne se colle pas au modèle d'un message récent (D22) ; les substituts entre chevrons exclus (`<synthetic>`). |
+| `horodatage_de` + `iso_vers_ms` | Les horodatages pi sont des CHAÎNES ISO — le défaut mesuré (`Number(ISO)` = NaN silencieux) se corrige par un parseur propre (Hinnant inverse, aller-retour testé avec `horodatage_iso`). |
+| `indice_d_arguments` | 80 caractères, la première ligne ; `title/cmd/command/path/code` — jamais de JSON déversé dans l'aperçu. |
+| `CacheResumes` | **256 sources**, la plus ancienne évincée ; la **fusion incrémentale préserve** les déclarations précédentes (D19 — une fenêtre muette n'efface pas le modèle d'une vieille) ; **une source invalide n'efface pas les autres** (D20 — testé) ; invalidation explicite. |
+| 8 tests (82 sur la crate) | Les cinq profils réduits **cohéremment** (la forme pi commune), le repli outil (nom seul / première ligne 80), la paire (3 cas), les placeholders, la fusion, l'éviction, l'isolement, l'ISO aller-retour. |
+
+Commit préfixé `T026:` contenant `crates/sessions/src/metadata.rs`, `lib.rs`, `tests/unit/{metadata,mod}.rs` et cette section. Cargo.lock inchangé.
