@@ -756,4 +756,20 @@ Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'ex
 | `Annulation` | Un drapeau coopératif partagé — posé par le détenteur d'un clone ; l'enfant en cours est tué, `Annule` rendu, et un exécutable **sain** marche ensuite (rien n'est « sali »). |
 | 6 tests | Sortie/erreur/code non-nul portés, délai tué+ramassé (200 kills consécutifs sans épuisement), surtaille refusée, annulation + sain après, lancement impossible nommé. |
 
-Commit préfixé `T028:` contenant `crates/catalog/src/{process.rs, lib.rs}`, `crates/catalog/tests/**` et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T029 — `catalog::adapters` : les cinq catalogues, parseurs purs (T029)
+
+| Livrable | Détail |
+|---|---|
+| `parse_pi` | La sortie tabulaire mesurée : l'en-tête écartée, le découpage sur **2+ espaces** (l'espace interne `Anthropic: Claude Opus 5` survit), l'id = `provider/model` (le `~/` des latest tombe), la colonne `thinking` = la **capacité** (oui → les 7 niveaux mesurés), **aucun libellé inventé**. |
+| `parse_claude` | La **limitation dite** : « claude does not list its models outside an authenticated session » — les quatre alias du CLI + les efforts mesurés (`low..max`) ; l'alias et la limitation **visibles**. |
+| `parse_codex` | Le JSON avec `supported_reasoning_levels` **par modèle** (la source la plus fidèle) ; niveaux dédupliqués dans l'ordre ; l'union pour le catalogue ; le JSON illisible/la forme inattendue/le catalogue vide = erreurs **nommées**. |
+| `parse_cursor` / `parse_devin` | **Aucun niveau séparé déduit** (le niveau est DANS le nom — le choisir, c'est choisir un autre modèle) ; devin : le modèle = le **VARIANT**, jamais le slug de famille (`swe-1-6-slow` et pas `swe-2`) ; `--format json` et pas la sortie texte ; le JSON illisible se refuse. |
+| L'absence explicite | `adaptateur_de(kind hors table)` = `None` → `models: []` **avec la raison** — l'interface affiche l'absence au lieu d'inventer. |
+| Le chemin d'exécution | `catalogue_d_adaptateur(adaptateur, commande_injectée)` — via l'exécuteur borné T028 (les tests passent par des CLIs factices ; **aucun CLI d'agent réel jamais lancé**) ; le code non-nul + le stderr = l'échec **déclaré** (jamais stderr comme sortie). |
+| 6 tests (12 sur la crate) | Les cinq formes du tableau CURRENT + l'absence + le chemin d'exécution factice. |
+
+Commit préfixé `T029:` contenant `crates/catalog/src/adapters.rs` + `lib.rs`, `tests/unit/{adapters,mod}.rs` et cette section. Cargo.lock inchangé (serde_json déjà au workspace).

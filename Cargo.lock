@@ -313,6 +313,7 @@ version = "0.0.0"
 dependencies = [
  "domain",
  "serde",
+ "serde_json",
  "tokio",
  "tracing",
 ]
