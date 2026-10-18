@@ -1,0 +1,28 @@
+[package]
+name = "herdrchat"
+description = "Daemon: config/env wiring, runtime and task lifecycle, logging, embedded assets, signal handling"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+application = { path = "../application" }
+catalog = { path = "../catalog" }
+files = { path = "../files" }
+herdr-client = { path = "../herdr-client" }
+http-api = { path = "../http-api" }
+interactions = { path = "../interactions" }
+notifications = { path = "../notifications" }
+sessions = { path = "../sessions" }
+
+[lints]
+workspace = true
+
+[[bin]]
+name = "herdrchat"
+path = "src/main.rs"

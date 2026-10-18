@@ -1,0 +1,15 @@
+[package]
+name = "domain"
+description = "Pure domain: IDs, statuses, observations, session/catalog models, error taxonomy, narrow ports"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { workspace = true }
+schemars = { workspace = true }
+
+[lints]
+workspace = true

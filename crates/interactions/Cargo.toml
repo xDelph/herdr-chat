@@ -1,0 +1,16 @@
+[package]
+name = "interactions"
+description = "Shared recognize/plan/execute/verify engine, interaction families and explicit agent profiles"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio = { workspace = true }
+tracing = { workspace = true }
+domain = { path = "../domain" }
+
+[lints]
+workspace = true

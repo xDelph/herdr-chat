@@ -1,0 +1,17 @@
+[package]
+name = "application"
+description = "Shared state, refresh ownership, use cases, summaries, watcher, event journal, serialization"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio = { workspace = true }
+tracing = { workspace = true }
+domain = { path = "../domain" }
+interactions = { path = "../interactions" }
+
+[lints]
+workspace = true

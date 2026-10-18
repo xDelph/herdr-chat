@@ -1,0 +1,61 @@
+[workspace]
+resolver = "3"
+members = [
+  "crates/domain",
+  "crates/contracts",
+  "crates/herdr-client",
+  "crates/sessions",
+  "crates/catalog",
+  "crates/interactions",
+  "crates/files",
+  "crates/notifications",
+  "crates/application",
+  "crates/http-api",
+  "crates/herdrchat",
+  "crates/test-support",
+  "xtask",
+]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2024"
+rust-version = "1.94.1"
+publish = false
+license = "UNLICENSED"
+
+# Centralized dependency versions and features. Members never declare a version;
+# they inherit from this table (task T002). Exact builds are pinned by the
+# tracked Cargo.lock; caret ranges only describe compatible update ranges.
+[workspace.dependencies]
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = { version = "1.0.145" }
+schemars = { version = "1.2.3", features = ["derive"] }
+tokio = { version = "1.53.3", features = [
+  "rt-multi-thread",
+  "macros",
+  "sync",
+  "time",
+  "net",
+  "io-util",
+  "fs",
+  "signal",
+  "process",
+] }
+axum = { version = "0.8.9" }
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+tracing = { version = "0.1.44" }
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
+base64 = { version = "0.23.1" }
+sha2 = { version = "0.11.1" }
+web-push = { version = "0.11.0" }
+
+# Shared lint policy (TECH §2): one place, inherited by every member.
+# CI tightening lives in xtask (T003); this table states the workspace norm.
+[workspace.lints.rust]
+unsafe_code = "deny"
+unreachable_pub = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"

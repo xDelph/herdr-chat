@@ -1,0 +1,17 @@
+[package]
+name = "catalog"
+description = "Fixed catalog commands, parser adapters, single-flight/TTL cache, launch args validation"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio = { workspace = true }
+serde = { workspace = true }
+tracing = { workspace = true }
+domain = { path = "../domain" }
+
+[lints]
+workspace = true

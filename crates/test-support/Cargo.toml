@@ -1,0 +1,17 @@
+[package]
+name = "test-support"
+description = "Dev-only: fake ports, controlled clock and processes, temp JSONL/SQLite stores, synthetic payloads"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+tokio = { workspace = true }
+rusqlite = { workspace = true }
+serde_json = { workspace = true }
+domain = { path = "../domain" }
+
+[lints]
+workspace = true

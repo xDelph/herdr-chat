@@ -1,0 +1,19 @@
+[package]
+name = "http-api"
+description = "Routes, extractors, origin/body policy, status mapping, SSE serialization, static responses"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+axum = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+application = { path = "../application" }
+contracts = { path = "../contracts" }
+domain = { path = "../domain" }
+
+[lints]
+workspace = true

@@ -35,3 +35,7 @@ bun-debug.log*
 # Dossier de captures local. Ce sont des images de travail, pas du produit :
 # elles n'ont rien a faire dans une archive d'installation.
 /apps/web/public/screenshots/
+
+# Rust (T002) — Cargo.lock suivi à la racine ; les artifacts de build ne le sont pas
+target/
+**/*.rs.bk

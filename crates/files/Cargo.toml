@@ -1,0 +1,15 @@
+[package]
+name = "files"
+description = "Confinement primitives, authorized handles, atomic writes, MIME policy, bounded recent-image scan"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+tracing = { workspace = true }
+domain = { path = "../domain" }
+
+[lints]
+workspace = true

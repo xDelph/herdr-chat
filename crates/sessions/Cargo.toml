@@ -1,0 +1,21 @@
+[package]
+name = "sessions"
+description = "Source resolution, JSONL/SQLite readers, family codecs, cursor and metadata cache (read-only policy)"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+publish.workspace = true
+license.workspace = true
+
+[dependencies]
+rusqlite = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+base64 = { workspace = true }
+sha2 = { workspace = true }
+domain = { path = "../domain" }
+files = { path = "../files" }
+
+[lints]
+workspace = true
