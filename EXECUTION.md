@@ -218,3 +218,49 @@ Périmètre : `apps/*/tests, packages/shared/tests` — déplacer les 59 tests T
 ### Commit
 
 Commit préfixé `T004:` contenant les renames `apps/*/tests/**`, `packages/*/tests/**`, la suppression des fichiers sous `src/`, l'allowlist vidée, la section du journal. Aucune modification des sources TS non-test, aucune modification Rust, aucun test sous `src/`.
+
+---
+
+## T005 — Crate `domain` : valeurs, causes, preuves partielles, ports étroits
+
+Périmètre : `crates/domain/src + crates/domain/tests` — IDs distincts, observations/générations, statuts fermés, causes nommées, preuve partielle, messages/réglages/raw, noms/rangs (D04, owner primaire) et les cinq ports étroits. Aucune E/S, aucun runtime, zéro comportement applicatif (l'enrichissement reste T039, les lecteurs T023).
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| 9 modules, exactement la liste TECH §2 | `ids, status, observation, session, catalog, errors, ports, naming, notifications` + `lib.rs`. Aucun module en plus, aucun en moins. |
+| `ids` — 9 newtypes distincts | `PaneId, TabId, WorkspaceId, SessionId, AgentName, AgentKind, RequestId, DeliveryFingerprint, SourceKey`. Aucune conversion **de famille à famille** n'existe dans l'API : la confusion est refusée à la compilation. Tous dérivent `Ord` (ordre d'octets — nécessaire au `NamingContext`, décision consignée). |
+| `status` — unions fermées | `AgentStatus` (`idle|working|blocked|done|unknown`, libellés fil exacts) + `SessionState` (`available|absent|error`) ; serde verrouillé et l'inconnu **rejeté** (testé) ; fonctions totales `statut_d_agent`/`etat_de_session`. |
+| `observation` — monde Herdr normalisé | `Generation, Millis, Observation<T>, Snapshot (+ SnapshotProvenance), AgentObservation, WorkspaceObservation, TabObservation, PaneLayoutObservation, ScreenObservation, UpstreamPing` ; vues `AgentView`/`WorkspaceView`, homologues des schémas `AgentViewSchema`/`WorkspaceViewSchema` de `api.ts` ; **tri-état `CwdMatch`** (Matched/Mismatched/Unverifiable — `null` ≠ `false`, D03) ; `tabs`/`layouts` en `Option<Vec<_>>` : absent ≠ vide (mesuré). |
+| `session` — messages/réglages/raw | `LignePi`/`PiMessage` (+ alias `NormalizedMessage`), `ChangePi`/`ReglageKind` (+ alias `NormalizedSettings`), `RetainedUnknown`, `FilteredContext`, `NormalizedEntry` (quatre conséquences), `SessionEntry` (raw public, clefs du fil `type`/`parentId` verrouillées), `SessionPageOutcome` (cinq conclusions nommées : Absente/Vide/Invalide/Io/Page), `ResolvedSource`/`SessionHint`/`SessionPageRequest`/`SessionPage` (curseurs opaques), `SessionMetadata` (absent = absent, D18), `SourceBinding` (pane ⇄ source, les deux clefs — classe C12/C20). |
+| `errors` — causes et taxonomie de port | `ReadCause` (`absente|vide|invalide|io`, verbatims FR du fil actuel, B03) + `ReadVerdict` (bénin seulement pour `absente`/`vide`), `verdict_of_io` (décision sur la nature d'erreur, jamais sur le texte), `invalid_session` (détail dans le message), `PortError` — cinq natures où la cause amont est préservée et une décision de politique n'est pas une panne. |
+| `ports` — cinq traits dyn-compatibles | `ControlPort, SessionPort, CatalogPort, ArtifactPort, NotificationPort` ; `PortFuture<'a, T> = Pin<Box<dyn Future<Output = Result<T, PortError>> + Send + 'a>>` — uniquement du `std`. Preuves : `PromptEvidence` (Confirmed / Unknown + étapes partielles / Suppressed / Failed), `TransportEvidence`, `PartialStep`, `FocusEvidence`, `StopEvidence`, `StartEvidence` (`ShellNotReady` rejouable, C07), `DeliveryOutcome` (jamais « envoyé » sans preuve, A02). |
+| `naming` — D04, owner primaire | `ranks_of_panes` (ordre mesuré y→x→id sur la disposition à cinq panes ; sans rectangle, pas de rang), `pane_label` (nom choisi > nom qui répète écarté > « pane N » > rien), `launch_name` (suffixes 1..=99 ; **épuisement → `None`** — correction C07/A07 : le fil actuel rendait un nom potentiellement pris), `useful_label`/`est_numerique` (une règle pour tout le dépôt), `checkout_path_of` (worktree lié gagne, sinon premier `cwd` du projet — D02), `NamingContext::from_pieces`/`from_snapshot` (sans layouts, pas de rang ; le nom choisi continue de parler). |
+| `notifications` | `VapidPublicKey`, `BrowserSubscription`/`PushSubscriptionKeys` (`p256dh`/`auth`), `PushEndpoint`, `PushPayload` (`{title, body, tag, url}` — formes exactes du push actuel) + `AgentAttentionEvent` : les faits, pas des mots — `gone` n'est pas un `AgentStatus`, aucune raison inventée. |
+| 64 tests verts | `tests/unit_tests.rs` + `tests/unit/` (9 sous-modules). Les énums d'état sont prouvées par aller-retour serde sur tous leurs libellés + rejet de l'inconnu (`AgentStatus`, `SessionState`, `ReadCause`, `ReglageKind`) ; l'exhaustivité variantielle est prouvée par **match sans joker** (`NormalizedEntry`, `SessionPageOutcome`, `PromptEvidence`, `StartEvidence`, `TransportOutcome`, `FocusEvidence`) ; les futures de ports sont lues via `std::task::Waker::noop()` — aucun exécuteur, aucune dépendance de plus. |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p domain --all-targets --locked` | **64 passed / 0 failed / 0 ignored.** |
+| `cargo clippy -p domain --all-targets -- -D warnings` | OK, après corrections de lints : `map_or(false, …)` → `is_some_and` (×2), `large_enum_variant` → `Message(Box<LignePi>)`, et cinq `match` à bras unique resserrés en `if let` (détail en décision 6 et 7). |
+| `bun run format:check` puis `lint` puis `typecheck` | Tous verts (153 fichiers — TypeScript inchangé). |
+| `cargo run --locked -p xtask -- verify` | **Cinq portes vertes** : layout (349 fichiers analysés, 0 autorisés, 0 ouverts), graph (ordre topologique conforme), format, clippy, tests. |
+| `Cargo.lock` | Régénéré après ajout de `serde_json` aux dépendances de `domain` (version verrouillée du workspace) ; `schemars` reste déclaré, consommé à partir de T010/T057. |
+
+### Décisions / honnêteté
+
+1. **Le domaine ne décode pas le fil.** Les orthographes serde exactes sont dans le domaine pour être **testables** ; le décodage amont reste `herdr-client` (T021) et la présence sur le fil (`Field<T>` etc.) reste `contracts` (T010). Modèles internes : `Option` là où la distinction « absent / nul / tableau vide » compte encore (TECH §3), vecteur vide là où elle a cessé de compter.
+2. **`CwdMatch` à trois états — le troisième porte la vérité du fil.** D03 : `sessionCwdMatches: boolean|null`. `null` = « non vérifiable », volontairement distinct de `false` — les confondre faisait disparaître des agents de la liste. La comparaison est `===` exacte : **les barres finales ne sont pas normalisées** (testé : `/work/x/` vs `/work/x` = Mismatched). Reproduit tel quel, pas adouci.
+3. **Départage des rangs en ordre d'octets.** Le fil actuel départage à `localeCompare` (sensible aux préférences de la machine) ; Rust rend l'ordre déterministe. Sur des identifiants Herdr de forme `wA:pN`, les deux ordres coïncident ; la divergence théorique est consignée dans la doc de `ranks_of_panes`.
+4. **`launch_name` corrige A07 (C07) dès cette tâche.** Épuisement des 99 suffixes → `None`, jamais un nom potentiellement pris. La réservation et le repli restent l'affaire de la machine de lancement (T030/T037) ; le nommage, lui, ne rend pas un nom supprimé.
+5. **`NormalizedEntry::Message(Box<LignePi>)`.** Clippy a signalé la variante la plus lourde (le `serde_json::Value` du contenu, ~320 octets) ; le message vit en boîte pour que l'énum reste raisonnable à porter en masse. Les tests suivent.
+6. **Erreurs de rédaction, vues par la compilation — jamais par confiance.** Trois ont atteint le compilateur : une macro à argument optionnel (`$(avec_ordre)?`) en récursion infinie, remplacée par deux macros simples ; un `/*` transformé en `//*` qui a injecté de la prose française dans `ports.rs` (`prefix 'd' is unknown` — le lexer l'a vue) ; quatre `Copy` impossibles sur des champs non-`Copy` (String, newtypes). Chacune corrigée, chacune recompilée.
+7. **Le compilateur a aussi arbitré la forme des tests.** Clippy refuse les `match` à bras unique et les expressions `()` inutiles : cinq tests resserrés en `if let`, et le match d'exhaustivité de `TransportOutcome` séparé en trois bras nommés — l'exhaustivité reste prouvée, sans joker. Le journal lui-même (section T005) a été repris une fois intégralement : la première version, écrite d'un trait, contenait plusieurs phrases corrompues détectées à la relecture. Un livrable ne se commit pas mal aligné.
+8. **Aucune E/S dans le domaine, aucun runtime.** Pas de tokio, pas de HTTP, pas de filesystem : `PortFuture` est construite sur `std` seul, et le test de port lit immédiatement via `Waker::noop()`. Les bornes `Send + 'a` de futures dyn-boxées et la compat `dyn` des cinq traits sont vérifiées à la compilation et au premier `poll`.
+
+### Commit
+
+Commit préfixé `T005:` contenant `crates/domain/src/**` (9 modules), `crates/domain/tests/**` (unit_tests + 9 sous-modules), `crates/domain/Cargo.toml`, `Cargo.lock` et cette section. Aucune autre crate modifiée, aucun test sous `src/`, aucune écriture hors dépôt.
