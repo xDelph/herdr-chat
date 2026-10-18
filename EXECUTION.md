@@ -434,3 +434,44 @@ Périmètre : `xtask`, `contracts::schema`, `packages/shared/generated`, `script
 ### Commit
 
 Commit préfixé `T009:` contenant `crates/contracts/src/schema.rs` (+ `Field`/`Nullable` ajustés, attrs DTO), `crates/domain/src/*` (dérivations `JsonSchema`), `xtask/src/contracts.rs` + wiring, `scripts/contracts-*.ts`, `package.json`/`bun.lock` (générateurs figés), `.prettierignore`/`.oxlintrc.json`, `packages/shared/generated/` (5 documents) et cette section. Aucun test sous `src/`, aucune écriture hors dépôt.
+
+---
+
+## T010 — `domain::errors` + `http-api::errors` : treize natures, diagnostic structuré, cartographie par route
+
+Périmètre : `crates/domain/src/errors.rs (+tests)`, `crates/http-api/src/errors.rs (+tests)` — les treize natures de TECH §5, détail sûr + contexte diagnostic, aucun statut HTTP dans le domaine ; la cartographie par endpoint depuis le registre ; les formes atypiques documentées conservées ; les messages sûrs mesurés de Reply.ts.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `Nature` (13 variants) + `code()` | `InvalidInput, NoSource, SourceAbsent, SourceInvalid, SourceIo, PathDenied, UpstreamUnavailable, UpstreamRejected, UpstreamMalformed, Deadline, PartialAction, Overloaded, InternalInvariant` — codes stables (`invalid_input`…) pour le journal plat. |
+| `ErreurDomaine` + `Diagnostic` | Nature fermée + détail (nettoyé **à l'affichage**, comme le fil) + diagnostic structuré (code, cause réelle, entrées clé/valeur). `Diagnostic::insere` **refuse** toute clé de matériel privé (`prive/privee/private/secret/token/password/passe`) — refus nommé, jamais une réécriture silencieuse ; le refus se propage via `avec_entree`. |
+| Messages sûrs (Reply.ts, mesurés) | `supprime_identifiants` : `wX:pY` → « le nouvel onglet », `wX:tY` → « son onglet », `pane_id=…`/`tab_id=…`/`workspace_id=…` retirés — sans dépendance regex (jetons aux frontières de mots, UTF-8 sûr, plafond 300 reculant à la frontière de caractère) ; vide → « erreur sans message ». |
+| `cause_de_lecture` | `Invalide → SourceInvalid`, `Io → SourceIo` ; **absente/vide restent des valeurs** (ReadVerdict bénin) — la conversion en erreur masquerait un état normal (C04). |
+| `http-api::errors` — la table par route | `statut(route, erreur)` : H04 distingue TOUTES les natures (400/403/404/409/422/502/503/500) ; H02 = 500 (run générique) ; H03 503/502 ; H05 400/502/500 ; H06 404/502 ; H07 400/503/502 ; H08 502 ; H10/H12 400/502 ; H14 503 ; H15 503 texte/500 JSON ; H16 400/503/500 ; H17 403/500 ; H18 502. `corps`/`corps_de_lecture` : `ApiErrorResponse` avec cause **nommée** (invalide≠vide≠absent≠IO) et hint = code diagnostic. |
+| Formes atypiques conservées | `reponse_erreur` : H05 502 → `PromptFailedResponse` à trois états (`attente` = Herdr n'a pas tranché, `erreur` = refusé, `inconnu` = malformé/partiel — B05) ; H15 503 → texte brut. `catalogue_en_valeur` (H09 : erreur = valeur du 200, listes vides mesurées), `focus_sans_effet` (H11 : `focused:false`), `journal_sans_effet` (H13 : `{ok:false}`). |
+| 7 tests domaine (71 au total) + 7 tests http-api | Codes des 13 natures, refus des clés privées (4 clés + une saine), remplacements mesurés (y compris `http://wA:p7x/fin` — les `/` sont des frontières), plafond 300 + accents, cause bénigne ≠ erreur, matrice **complète** 13 natures × 18 routes (tout statut est documenté ou le repli 500), états B05, formes atypiques. |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p domain --all-targets --locked` | **71 passed / 0 failed** (+7 diagnostics). |
+| `cargo test -p http-api --all-targets --locked` | **7 passed / 0 failed** (nouveau cahier). |
+| `cargo clippy -p domain -p http-api --all-targets -- -D warnings` | OK après corrections : `is_empty` au lieu de comparaison à vide, bloc de test inachevé retiré avant commit (jamais committé). |
+| `cargo run --locked -p xtask -- verify` | Cinq portes vertes (399 fichiers). |
+| `bun run verify` | Vert (1080 cas TS, inchangé). |
+
+### Décisions / honnêteté
+
+1. **Le nettoyage se fait à l'affichage, pas à la construction** — fidèle au fil (Reply.ts `describe`) : le détail reste brut dans la structure, `message_sur` applique les règles ; les constructeurs ne transforment pas (deux passages seraient indiscernables d'un seul de toute façon — testé par idempotence de fait).
+2. **La liste des fragments de secrets est fermée et honnête** : les clés françaises comptent (`mot_de_passe` a été attrapé **par le test**, le fragment `passe` ajouté ensuite) — un faux refus est une erreur visible (acceptable), un secret passé serait une fuite (inacceptable).
+3. **Le 409 de H04 = `SourceInvalid`** (curseur d'historique périmé) et le **503 = `SourceAbsent`** (base SQLite manquante) : la répartition vient de la ligne H04 de CURRENT.md ; chaque nature de H04 a son statut testé une à une.
+4. **H07 : `NoSource` → 400** (type non installé — « rien ne prouve ce type ») et découverte échouée (`UpstreamUnavailable`/`Deadline`) → 503 : deux échecs voisins, documents distincts. Le 409 `TrustRequired` est une variante de **succès-refusé** portée par le handler (T053), pas par la table d'erreurs.
+5. **Le repli 500 est nommé, jamais un succès.** La matrice complète (13×18) est testée : tout statut rendu est dans le manifeste de la route ou vaut 500 — le seul statut que CURRENT.md §2 autorise hors variantes (« uncaught defects »).
+6. **Les enums de réponse complètes par route (TECH §5) restent à leur tâche** : `ReponseErreur` couvre les trois formes d'erreur nommées (Api/PromptRate/TexteBrut) ; les enums de succès (200 typés) arrivent avec les handlers qui les construisent (T050–T053) — poser des enums sans consommateur serait du code mort documenté.
+
+### Commit
+
+Commit préfixé `T010:` contenant `crates/domain/src/errors.rs` (natures + diagnostic + messages sûrs), `crates/domain/tests/unit/diagnostics.rs`, `crates/http-api/src/errors.rs` + `lib.rs`, `crates/http-api/tests/**` et cette section. `Cargo.lock` inchangé. Aucun test sous `src/`, aucune écriture hors dépôt.

@@ -1,5 +1,6 @@
 // Tests unitaires du domaine, module par module (TECH §2).
 pub(crate) mod catalog;
+pub(crate) mod diagnostics;
 pub(crate) mod errors;
 pub(crate) mod ids;
 pub(crate) mod naming;
