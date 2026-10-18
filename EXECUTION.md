@@ -571,4 +571,20 @@ Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'ex
 | `paging.rs` | Les formes communes : avant `ASC LIMIT ?`, avant-après `> ?1 ASC`, arrière **`< ?1` DESC** (mesuré) + `borne_de` (la valeur d'ordre du dernier — le curseur de la page suivante). |
 | 5 tests (18 sur la crate) | **Deux schémas factices différents** (row_id/chat_message vs seq/texte) par le MÊME moteur ; pages avant par bornes (2+2, bornes 2 puis 4) ; **mutation de borne relue** (UPDATE par connexion séparée, la relecture voit `deux-muté`) ; file bornée (33 dépôts acceptés = 1 en cours + 32 en file, le refus nommé, l'ouvrier survit à l'interruption puis au drain) ; paramètres liés (apostrophe/valeur exacte). |
 
-Commit préfixé `T015:` contenant `crates/sessions/src/storage/sqlite/**`, `storage/mod.rs`, `tests/unit/sqlite.rs` et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T016 — `sessions::families` : primitives openai, codecs Chat/Responses/Anthropic/Pi (T016)
+
+| Livrable | Détail |
+|---|---|
+| `openai/arguments.rs` | `Arguments` à trois états : `Objet` (JSON décodé), `Brut` (**un JSON d'arguments invalide est conservé brut** — preuve demandée, portée), `Absents` ; `function_call` = JSON dans une chaîne, `custom_tool_call` = script dans `input`. |
+| `openai/text.rs` | `texte_de_sortie` (une LISTE de blocs pour function_call_output, une chaîne ailleurs — les deux dans le même fichier, mesuré), `texte_de` (non-vide ou rien), `modele_utilisable` (**entre chevrons = substitut** — `<synthetic>` n'annonce jamais un modèle), `bloc_texte`. |
+| `openai/responses.rs` | Le port fidèle de `codex.ts` : `event_msg.item_completed` (UserMessage/AgentMessage+phase/CommandExecution dernière commande+exit_code+cancelled/FileChange → edits de diff unifié), `response_item` (function_call/custom_tool_call → toolCall, *_output → toolResult, reasoning → **masquée, jamais inventée**, message → rôles user/assistant seulement — `developer` écarté), le contexte injecté (**les DEUX marques AGENTS.md ensemble** : un utilisateur qui en parle survit), réglages `turn_context`/`thread_settings_applied` → `ChangePi` (pas de fournisseur deviné). |
+| `openai/chat.rs` | Le codec Chat **séparé** : une enveloppe response_item/event_msg/turn_context ne se décode PAS ici — jamais (preuve demandée, portée). |
+| `anthropic/messages.rs` | Le port de `claude.ts` : **tri sur le TYPE, jamais sur le rôle** (le piège `api-request-blob`) ; les 6 marques sans demande (15 % des lignes user mesurées) ; tool_result → toolResult **à part** (+isError) ; tool_use → toolCall (input déjà objet) ; modèle sur message ; commande slash XML rendue utile (nom + arguments) ; `est_ligne_de_conversation` + `sans_message` (une ligne refusée ne se relit plus comme un message). |
+| `codecs/pi.rs` | L'identité vérifiée : `type` + `message` objet requis — la forme cible se lit par validation, pas par traduction (le format PLAT du corpus se décode au profil T018). |
+| 8 tests codecs (26 sur la crate) | Fixtures positives/négatives **indépendantes des agents** : chaque piège mesuré a son cas (developer, AGENTS.md parlé vs injecté, reasoning chiffrée, commande dernière, diff → edits, modèle substitut, chat/Responses séparés, api-request-blob, slash command, sans_message). |
+
+Commit préfixé `T016:` contenant `crates/sessions/src/families/**`, `crates/sessions/src/lib.rs`, `tests/unit/{codecs,mod}.rs` et cette section. Cargo.lock inchangé.
