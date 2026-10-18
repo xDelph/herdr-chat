@@ -95,7 +95,7 @@ impl LitSessions for FauxSessions {
 }
 
 /// La branche : une table simple par cwd.
-fn branche_simple(cwd: &str, branche: &str) -> Box<dyn BrancheDeProjet> {
+fn branche_simple(cwd: &str, branche: &str) -> std::sync::Arc<dyn BrancheDeProjet> {
     #[derive(Clone)]
     struct Simple(String, String);
     impl BrancheDeProjet for Simple {
@@ -103,7 +103,7 @@ fn branche_simple(cwd: &str, branche: &str) -> Box<dyn BrancheDeProjet> {
             (cwd == self.0).then(|| self.1.clone())
         }
     }
-    Box::new(Simple(String::from(cwd), String::from(branche)))
+    std::sync::Arc::new(Simple(String::from(cwd), String::from(branche)))
 }
 
 fn agent(
@@ -174,7 +174,7 @@ fn borne(agents: Vec<AgentObservation>) -> ObservationBorne {
 
 fn service(faux: FauxSessions) -> ServiceConversations {
     ServiceConversations::nouveau(
-        Box::new(faux),
+        Arc::new(faux),
         branche_simple("/projets/atelier", "plan/rust-backend"),
     )
 }

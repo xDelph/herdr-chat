@@ -8,6 +8,7 @@ publish.workspace = true
 license.workspace = true
 
 [dependencies]
+axum = { workspace = true }
 serde_json = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
@@ -20,6 +21,15 @@ http-api = { path = "../http-api" }
 interactions = { path = "../interactions" }
 notifications = { path = "../notifications" }
 sessions = { path = "../sessions" }
+
+[dev-dependencies]
+# Le graphe (TECH §2) ne donne pas `domain` au démon : la composition nomme
+# les ports par `application::ports`. Les TESTS, eux, ont besoin des types du
+# domaine pour écrire des faux — une dépendance de test ne crée pas d'arête de
+# production (la porte de graphe ignore les dépendances de dev).
+domain = { path = "../domain" }
+tower = { version = "0.5.2", features = ["util"] }
+test-support = { path = "../test-support" }
 
 [lints]
 workspace = true

@@ -209,7 +209,7 @@ impl LitSessions for FauxSessions {
 }
 
 /// La branche : une table simple par cwd.
-pub(crate) fn branche_simple(cwd: &str, branche: &str) -> Box<dyn BrancheDeProjet> {
+pub(crate) fn branche_simple(cwd: &str, branche: &str) -> Arc<dyn BrancheDeProjet> {
     #[derive(Clone)]
     struct Simple(String, String);
     impl BrancheDeProjet for Simple {
@@ -217,7 +217,7 @@ pub(crate) fn branche_simple(cwd: &str, branche: &str) -> Box<dyn BrancheDeProje
             (cwd == self.0).then(|| self.1.clone())
         }
     }
-    Box::new(Simple(String::from(cwd), String::from(branche)))
+    Arc::new(Simple(String::from(cwd), String::from(branche)))
 }
 
 /// Le faux port de session détaillée (H04) : résolutions scriptées + pages
@@ -344,11 +344,11 @@ pub(crate) fn services(
     let maintenant: Arc<dyn SourceMaintenant> = Arc::new(MaintenantTest::nouveau(Instant::now()));
     let debut = Instant::now();
     let snapshots = Arc::new(ServiceSnapshots::nouveau(
-        Box::new(herdr.clone()),
+        Arc::new(herdr.clone()),
         Arc::clone(&maintenant),
     ));
     let conversations = ServiceConversations::nouveau(
-        Box::new(faux_sessions.clone()),
+        Arc::new(faux_sessions.clone()),
         branche_simple("/projets/atelier", "plan/rust-backend"),
     );
     let services = Arc::new(Services {

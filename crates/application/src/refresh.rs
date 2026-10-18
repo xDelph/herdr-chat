@@ -98,7 +98,7 @@ struct DepotSante {
 /// Le service qui possède le port et distille une vue partagée de l'état
 /// amont — partageable par `Arc` entre les routes (T056).
 pub struct ServiceSnapshots {
-    port: Box<dyn ControlPort>,
+    port: Arc<dyn ControlPort>,
     depot: Mutex<Depot>,
     vol: Condvar,
     sante: Mutex<DepotSante>,
@@ -111,7 +111,7 @@ impl ServiceSnapshots {
     /// de dépendance cachée au temps réel (les fenêtres se testent sans
     /// dormir).
     #[must_use]
-    pub fn nouveau(port: Box<dyn ControlPort>, maintenant: Arc<dyn SourceMaintenant>) -> Self {
+    pub fn nouveau(port: Arc<dyn ControlPort>, maintenant: Arc<dyn SourceMaintenant>) -> Self {
         Self {
             port,
             depot: Mutex::new(Depot::default()),

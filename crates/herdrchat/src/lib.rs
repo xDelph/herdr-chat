@@ -8,5 +8,7 @@ pub mod assets;
 mod assets_pwa {
     include!(concat!(env!("OUT_DIR"), "/assets_pwa.rs"));
 }
+pub mod composition;
 pub mod config;
+pub mod cycle;
 pub mod logging;

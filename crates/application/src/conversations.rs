@@ -34,6 +34,7 @@ use interactions::ecran::question_de_l_ecran;
 /// Réexporté pour l'assembleur HTTP : `http-api` ne peut pas importer
 /// `interactions` (graphe), et la ligne transporte le type.
 pub use interactions::ecran::{Choix, Question};
+use std::sync::Arc;
 
 /// Le plafond du contrat : 4 lectures de session en même temps.
 pub const MAX_SESSION_READS: usize = 4;
@@ -165,13 +166,13 @@ pub trait LitSessions: ResoutSessions {
 
 /// Le service de liste — sans état propre : assemble lignes par génération.
 pub struct ServiceConversations {
-    lit: Box<dyn LitSessions>,
-    branche: Box<dyn BrancheDeProjet>,
+    lit: Arc<dyn LitSessions>,
+    branche: Arc<dyn BrancheDeProjet>,
 }
 
 impl ServiceConversations {
     #[must_use]
-    pub fn nouveau(lit: Box<dyn LitSessions>, branche: Box<dyn BrancheDeProjet>) -> Self {
+    pub fn nouveau(lit: Arc<dyn LitSessions>, branche: Arc<dyn BrancheDeProjet>) -> Self {
         Self { lit, branche }
     }
 

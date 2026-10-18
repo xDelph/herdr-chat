@@ -64,7 +64,7 @@ fn photo_non_vide() -> Snapshot {
 }
 
 fn service(port: HerdrFaux, horloge: &MaintenantTest) -> ServiceSnapshots {
-    ServiceSnapshots::nouveau(Box::new(port), Arc::new(horloge.clone()))
+    ServiceSnapshots::nouveau(Arc::new(port), Arc::new(horloge.clone()))
 }
 
 fn appels_snapshot(faux: &HerdrFaux) -> usize {
@@ -316,7 +316,7 @@ fn les_signaux_simultanes_partagent_aussi_la_lecture_forcee() {
     };
     let horloge = MaintenantTest::nouvelle();
     let service = Arc::new(ServiceSnapshots::nouveau(
-        Box::new(port),
+        Arc::new(port),
         Arc::new(horloge.clone()),
     ));
 

@@ -1015,7 +1015,9 @@ name = "herdrchat"
 version = "0.0.0"
 dependencies = [
  "application",
+ "axum",
  "catalog",
+ "domain",
  "files",
  "herdr-client",
  "http-api",
@@ -1023,7 +1025,9 @@ dependencies = [
  "notifications",
  "serde_json",
  "sessions",
+ "test-support",
  "tokio",
+ "tower",
  "tracing",
  "tracing-subscriber",
 ]

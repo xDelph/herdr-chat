@@ -7,6 +7,11 @@ pub mod diagnostics;
 pub mod events;
 pub mod git;
 pub mod overview;
+/// Les ports du domaine, réexportés pour l'assembleur : `herdrchat` compose
+/// les adaptateurs mais le graphe (TECH §2) ne lui donne pas `domain`.
+pub mod ports {
+    pub use domain::ports::*;
+}
 pub mod permis;
 pub mod refresh;
 pub mod state;

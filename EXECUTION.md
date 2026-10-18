@@ -1562,3 +1562,39 @@ Périmètre : `crates/application/src/diagnostics.rs`, `crates/herdrchat/src/log
 6. **Le chemin impraticable est testé** (parent = fichier) : le journal ne lève pas, n'écrit rien, et le compte `ecrites()` reste à zéro — la preuve que l'échec est avalé sans devenir un succès trompeur.
 
 Commit préfixé `T055:` contenant tout ce qui précède et cette section.
+
+## T056 — `herdrchat::main/composition/cycle` (O01–O04)
+
+Périmètre : `crates/herdrchat/src/{cycle.rs, composition.rs, main.rs}`, `crates/application/src/{refresh,conversations}.rs` (les services prennent des `Arc` — une seule instance partagée), `crates/application/src/lib.rs` (`ports` réexportés pour l'assembleur), tests `crates/herdrchat/tests/unit/{cycle,composition,mod}.rs`. Aucun agent lancé, aucun service réel : sockets loopback et faux ports.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `cycle::Arret` / `Declencheur` | Un `watch` partagé : tous les composants voient le MÊME signal, un second signal ne casse rien, un arrêt déjà demandé ne bloque pas. |
+| `cycle::sert` | Sert le routeur ; à l'arrêt : **admission fermée** (graceful shutdown), **drain borné** (10 s, injectable), puis **flush** (une ligne de diagnostic) et fermeture. Rend un `RapportArret { drain_interrompu, requetes_coupees, taches_vivantes }` — l'**issue partielle est tracée** (Warn nommé avec le compte), jamais un silence. |
+| `cycle::ecoute` | Le bind est fait AVANT d'annoncer le démarrage : port occupé ⇒ `ErreurDemarrage::Bind { adresse, detail }` (adresse et cause système conservées). |
+| `cycle::{EnCours, Taches}` | Compteur de requêtes en vol (l'issue partielle) et compteur de tâches de fond avec garde RAII — `vivantes()` à zéro est la preuve qu'aucun worker ne survit. |
+| `cycle::signaux` | `SIGINT` **et** `SIGTERM` (systemd/launchd) ; si `SIGTERM` est indisponible, on le dit et Ctrl+C reste actif (aucun `unwrap`). |
+| `composition::Ports` + `services` | Les cinq ports (contrôle, sessions, catalogue, artefacts, notifications) + résolution/lecture des conversations + types lançables + branche git + validation d'args entrent ; les `Services` du routeur sortent, avec le socket et les chemins **de la configuration**. Aucun substitut fabriqué : `notifications: None` reste une capacité absente. |
+| `main.rs` | Compose config → cycle ; **refuse de démarrer** tant que les adaptateurs ne sont pas composés : `ports non composés : control (herdr-client), sessions (sessions), catalog (catalog), artifacts (files), notifications (notifications) — le démon refuse de démarrer à moitié` (exit 1). Un `main` qui « marcherait » sans adaptateur serait le mensonge le plus coûteux de la migration. |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p herdrchat` | PASS — **37 tests** (8 cycle + 2 composition + 7 journal + 5 assets + 15 config). |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** (2 passages). |
+| `./target/debug/herdrchat` (HOME vide) | **exit 1** avec la liste exacte des ports manquants — vérifié à la main, sans socket ni journal créés. |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **Le démon ne démarre pas à moitié, et le dit.** Les adaptateurs des ports (T028–T033) sont encore ouverts : `main` s'arrête avec la liste exacte de ce qui manque. Le cycle et la composition sont, eux, complets et testés — dès que les adaptateurs existent, `main` les branche sans réécriture.
+1. **`ServiceSnapshots`/`ServiceConversations` prennent des `Arc`, pas des `Box`** : une seule instance de port partagée entre le routeur et les services (TECH §4). Deux boîtes auraient interdit l'assemblage — c'est le changement minimal qui rend la composition possible.
+2. **`herdrchat` ne dépend PAS de `domain` en production** (graphe TECH §2) : les types de port sont nommés via `application::ports` (réexport documenté). Les tests, eux, déclarent `domain` en **dev-dependency** — une arête de dev ne crée pas de dépendance de production (la porte de graphe l'ignore, comme pour `test-support`).
+3. **Le drain est borné et l'issue est un COMPTE** : un flux SSE ouvert ne doit pas empêcher l'arrêt, et une commande coupée doit être dite. Le test le prouve (drain 150 ms, requête de 1 s ⇒ `drain_interrompu: true`, `requetes_coupees: 1`, ligne Warn).
+4. **Trouvaille mesurée** : après le délai, larguer le futur d'`axum::serve` ferme l'écoute mais **ne tue pas** les tâches de connexion déjà lancées — elles finissent leur propre délai. C'est acceptable ici (le processus sort ensuite, l'OS ferme les sockets), et c'est écrit au journal plutôt que masqué par un test complaisant.
+5. **Aucun agent n'est tué ni fermé** (O04) : le test de cycle utilise un `HerdrFaux` dont le journal d'actions reste **vide** après l'arrêt.
+6. **Le test de déconnexion** se connecte puis part sans requête complète : le serveur répond encore, l'arrêt reste propre — le cas « request disconnect » du fil.
+
+Commit préfixé `T056:` contenant tout ce qui précède et cette section.
