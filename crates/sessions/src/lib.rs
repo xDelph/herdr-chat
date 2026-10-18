@@ -2,6 +2,7 @@
 //! métadonnées (TECH §2) ; les modules arrivent avec leurs tâches.
 
 pub mod agents;
+pub mod cursor;
 pub mod families;
 pub mod path_policy;
 pub mod pipeline;

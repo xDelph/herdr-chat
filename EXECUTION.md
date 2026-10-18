@@ -684,4 +684,18 @@ Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'ex
 | Racines injectées | Aucune lecture d'environnement (TECH §6) : les cinq racines viennent de la config — les tests n'écrivent jamais dans les vrais dossiers. |
 | 7 tests (63 sur la crate) | Tri numérique, deux lectures du titre (mesuré « Audit PWA and webapp \| herdr-pwa », glyphe ⠼), index + les trois garde-fous, cache négatif invalidable, source unique (base ≠ chemin, identifiant vide refusé, repli codex-seul), identifiants ancrés, racines injectées. |
 
-Commit préfixé `T023:` contenant `crates/sessions/src/resolver.rs`, `lib.rs`, `tests/unit/{resolver,mod}.rs` et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T024 — `sessions::cursor` : les curseurs opaques versionnés (C12)
+
+| Livrable | Détail |
+|---|---|
+| La forme **v2** (`hc2:…`) | Base64 du payload JSON versionné : empreinte de source + session + génération + position — liée, opaque, le seul encodage ÉMIS. |
+| Le legacy fichier (compatibilité) | Le base64 de `{dev, ino, offset}` du fil se DÉCODE (l'ordre des champs n'importe pas) — jamais ré-émis ; le **reset legacy SQLite** (`{dev:0,ino:0,offset:seq}`, mesuré `curseurSqlite`) se recolle à la source de la requête qui le porte (le legacy n'a pas d'identité propre). |
+| C12 — le curseur d'A ne lit jamais B | `lie_a(empreinte, session)` : le v2 VALIDE l'appariement — une source ou une session étrangère = `SessionEtrangere` (400) ; le legacy se recolle (reset). La génération est une opinion de fraîcheur, la position passe telle quelle. |
+| Les erreurs 400/409 | `Illisible` (base64/JSON cassé, **version inconnue** `hc3:` refusée — jamais devinée, offset négatif, non-entier), `Exclusifs` (cursor+before ensemble), `SessionEtrangere` → **400** ; `Perime` → **409** — la cartographie vit AVEC le type (`statut()`), http-api n'en refait pas une couche (le graphe l'interdit et la règle n'a pas à être réécrite). |
+| 6 tests (69 sur la crate) | Aller-retour fidèle, legacy fichier + SQLite (byte-exact du fil), A ≠ B (les deux sens + le bon appariement), les illisibilités nommées (×5), l'exclusivité, la cartographie 400/409. |
+
+Commit préfixé `T024:` contenant `crates/sessions/src/cursor.rs`, `lib.rs`, `tests/unit/{cursor,mod}.rs` et cette section. Cargo.lock inchangé.

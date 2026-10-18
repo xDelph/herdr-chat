@@ -6,6 +6,7 @@ pub(crate) mod agents_devin;
 pub(crate) mod agents_opencode;
 pub(crate) mod agents_pi;
 pub(crate) mod codecs;
+pub(crate) mod cursor;
 pub(crate) mod jsonl;
 pub(crate) mod path_policy;
 pub(crate) mod pipeline;
