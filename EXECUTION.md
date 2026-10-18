@@ -475,3 +475,42 @@ Périmètre : `crates/domain/src/errors.rs (+tests)`, `crates/http-api/src/error
 ### Commit
 
 Commit préfixé `T010:` contenant `crates/domain/src/errors.rs` (natures + diagnostic + messages sûrs), `crates/domain/tests/unit/diagnostics.rs`, `crates/http-api/src/errors.rs` + `lib.rs`, `crates/http-api/tests/**` et cette section. `Cargo.lock` inchangé. Aucun test sous `src/`, aucune écriture hors dépôt.
+
+---
+
+## T011 — `files::confined` + `sessions::path_policy` : l'ouverture confinée (C13)
+
+Périmètre : `crates/files/src/confined.rs (+tests)`, `crates/sessions/src/path_policy.rs (+tests)` — racines canoniques, descripteurs possédés, régularité, liens internes sûrs, RAII ; `sessions` réutilise le moteur de `files`, sans dupliquer de résolution.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `RacineAutorisee` | Résolue (realpath) à la construction ; porte **les deux formes** (brute + canonique) — la pré-vérification lexicale compare à l'une ou l'autre : sur macOS `/var` est un lien vers `/private/var`, comparer le chemin brut d'une demande à une racine canonique seule refusait tout légitime (défaut du fil documenté, réintroduit puis attrapé **par le test**). |
+| `FichierAutorise` | Le descripteur **possédé** + la taille prise **sur le descripteur** (S04 : les contrôles portent sur l'objet qui sera lu, pas sur un chemin revu depuis) ; RAII ferme sur tous les chemins ; `lis()` borne à la taille mesurée et rend les octets **réellement lus** (troncature concurrente explicite). |
+| `ouvre_confine` | Quatre défenses dans l'ordre : lexical (composants, `..`/frère refusés) → résolution réelle + re-contrôle (lien sortant vs hors racine, tranché par le parent résolu) → ouverture **relative** cap-std avec `O_NONBLOCK` (jamais bloqué par un FIFO) → `fstat` sur descripteur (régularité + taille). `est_sous` compare par **composants** (`Path::strip_prefix`) — `/a/b` ne couvre jamais `/a/bc`. |
+| `sessions::path_policy` | `resolu_sous(racines, candidat)` → `VerdictChemin::Autorise{resolu}` ou `Refuse{raison}` — quatre refus distincts avec leurs libellés du fil (`sessions root not found`, `missing session`, `session path outside the allowed root`, `symlink escaping the allowed root`) ; plusieurs racines (pi/codex passent ensemble) ; **le refus précis l'emporte sur « racine-absente »** ; fichier pas encore créé = le parent résolu décide (`CheminAbsent` dedans, `HorsRacine` dehors) ; lien sortant vs sortie déclarée distingués. |
+| Dépendances | `cap-std` 3.4.6 + `libc` 0.2 ajoutés au workspace (TECH §6 mandate cap-std) ; arêtes graphe conformes (`sessions → files` était déjà attendue). |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p files --all-targets --locked` | **12 passed / 0 failed** : légitime, sortie/`..`/frère/absolu, lien interne accepté, lien sortant refusé, **swap de lien** (réouverture après ré-étiquetage → refus), **FIFO sans blocage**, répertoire, périphérique, trop-gros (tailles au message), **5 000 échecs sans fuite de descripteur** (la 5 001re ouverture marche), troncature concurrente explicite, normalisation lexicale, comparaison par composants. |
+| `cargo test -p sessions --all-targets --locked` | **7 passed / 0 failed** : légitime résolu, refus distincts, racine absente propre, sortie/frère hors racine, lien sortant vs sortie déclarée, chemin pas-encore-créé (parent décide), plusieurs racines + priorité du refus précis. |
+| `cargo run --locked -p xtask -- verify` | Cinq portes vertes (407 fichiers). |
+| Portes TS | Vertes (inchangées — hook de commit). |
+
+### Décisions / honnêteté
+
+1. **Le piège macOS a été réintroduit puis attrapé par les tests.** La pré-vérification lexicale comparait le chemin brut à la racine canonique : neuf tests rouges d'un coup (`HorsRacine` sur tout légitime). Corrigé en portant les deux formes de racine — le défaut documenté dans le fil (`/var` → `/private/var`) est maintenant une **règle testée**, pas une anecdote.
+2. **La pré-vérification lexicale de `path_policy` a été retirée** : elle recréait le même piège et n'apportait rien que `realpath` ne fasse — le fil actuel résout d'abord, vérifie ensuite ; reproduit tel quel.
+3. **Un frère inexistant se manifeste d'abord comme « missing session »** — le premier fait constaté (mesuré : le fil fait pareil) ; pour avoir `HorsRacine`, le frère doit exister. Les tests créent donc ce qu'ils prétendent voir.
+4. **Les descripteurs et la course** : l'ouverture relative cap-std + `fstat` sur descripteur ferment la fenêtre mesurée (stat décrivait l'ancien, lecture livrait le nouveau) ; la canonisation seule n'est pas une défense complète — le swap de lien est testé à la réouverture.
+5. **Pas de `unsafe`** : le FIFO est créé via le binaire `mkfifo` (l'appel libc direct est `unsafe`, interdit au workspace) ; `O_NONBLOCK` passe par `custom_flags` du trait `cap_std::fs::OpenOptionsExt` (import nécessaire — mesuré à la compilation).
+6. **Les dev-dependencies sur `test-support` sont refusées par la porte graphe** (le collecteur compte les dev-deps) : les tests de `files`/`sessions` construisent leurs racines temporaires en `std` direct — quinze lignes, zéro arête nouvelle.
+7. **La politique MIME reste à T052** (handlers) : T011 porte le confinement, pas le rendu navigateur.
+
+### Commit
+
+Commit préfixé `T011:` contenant `crates/files/src/confined.rs` + `lib.rs` + `tests/**`, `crates/sessions/src/path_policy.rs` + `lib.rs` + `tests/**`, `Cargo.toml` (workspace deps) + `Cargo.lock` et cette section. Aucun test sous `src/`, aucune écriture hors dépôt.

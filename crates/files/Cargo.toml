@@ -9,6 +9,8 @@ license.workspace = true
 
 [dependencies]
 tracing = { workspace = true }
+cap-std = { workspace = true }
+libc = { workspace = true }
 domain = { path = "../domain" }
 
 [lints]

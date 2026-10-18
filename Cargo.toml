@@ -48,6 +48,8 @@ tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 base64 = { version = "0.23.1" }
 sha2 = { version = "0.11.1" }
 web-push = { version = "0.11.0" }
+cap-std = { version = "3.4.4" }
+libc = { version = "0.2.178" }
 
 # Shared lint policy (TECH §2): one place, inherited by every member.
 # CI tightening lives in xtask (T003); this table states the workspace norm.
