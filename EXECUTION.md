@@ -1107,3 +1107,37 @@ Périmètre : `crates/application/src/events/journal.rs` (+`mod.rs`), `crates/ap
 3. **`depuis("")` ne rejoue rien** : C11 corrige le fil (qui rejouait tout l'historique sur un Last-Event-ID absent) — un nouveau client part de la frontière courante après `ready`, il ne reçoit pas l'historique entier dans une nouvelle fenêtre.
 
 Commit préfixé `T042:` contenant tout ce qui précède et cette section.
+
+---
+
+## T043 — `application::events::subscription` : les flux du direct (E05, C11)
+
+Périmètre : `crates/application/src/events/subscription.rs` (+`mod.rs`), `crates/application/src/permis.rs` (`tente_acquiere` + `GardeDePermis` RAII), `crates/application/tests/unit/events/subscription.rs` (+`mod.rs`). Aucun service réel contacté, aucun agent de l'utilisateur, aucun test sous `src/`.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `ServiceAbonnements` | La publication passe PAR LE SERVICE (jamais par le journal directement) : le journal d'abord, puis la sonnette des abonnés — sous la MÊME possession que la création d'abonnement, pour que rien ne tombe entre rattrapage et live. |
+| `abonne(curseur)` | Le rattrapage ET le récepteur live sous UNE possession (TECH §7) — un événement publié pendant la création est soit dans le rattrapage, soit dans la sonnette, jamais perdu, jamais doublé (prouvé des deux côtés). |
+| **8 permis RAII** | `GardeDePermis` (chute = rend la place EXACTEMENT une fois) ; le 9e flux est REFUSÉ (503), jamais mis en attente ; 100 cycles connect/disconnect → les 8 places toujours disponibles, aucun émetteur orphelin. |
+| **Sonnette bornée** | `sync_channel(CANAL_LIVE = 16)` + `try_send` : un consommateur lent ne bloque JAMAIS la publication et ne grossit pas la mémoire — un événement tombé reste dans le journal (l'autorité de relecture), retrouvé au prochain heartbeat. |
+| **Heartbeat 15 s** | `attend(délai)` rend `None` après le délai — la cadence du flux ; la relecture depuis le curseur retrouve ce que la sonnette a laissé tomber. |
+| **Nettoyage honnête** | Le Drop de l'abonnement pose un drapeau `ferme` (jamais de faux événement pour tester la connexion) ; les morts partent à la prochaine opération — le compte reflète les vivants. |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p application --test unit_tests` | PASS — **126 tests** (117 + 9 abonnements). |
+| `cargo clippy -p application --all-targets` | zéro avertissement. |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** (graphe inchangé). |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **`let _ = abonne()` droppe immédiatement** : mon premier test « 9e refusé » ne tenait jamais les 8 abonnements — la 9e place semblait libre. Le test a été corrigé pour RETENIR les abonnements (Vec), et l'assertion est devenue exacte.
+1. **Le canal plein ne désabonne pas** : `try_send` sur un canal plein renvoie `Full` — l'abonné est vivant mais lent, il RESTE ; seul `Disconnected` ou le drapeau de fermeture le retire. Sans cette distinction, un consommateur lent aurait été déconnecté par sa propre lenteur.
+2. **Le drapeau `ferme` plutôt qu'un faux événement** : ma première version testait la connexion en envoyant un événement factice — un abonné vivant aurait reçu du bruit. Le Drop pose un drapeau `AtomicBool`, le service le lit sans envoyer.
+3. **Le journal reste l'autorité** : la sonnette est une sonnette — le heartbeat vide déclenche la relecture depuis le curseur, qui retrouve tout. C'est le modèle TECH §7 (« broadcast receiver is a wakeup hint; replay authority is the journal »).
+
+Commit préfixé `T043:` contenant tout ce qui précède et cette section.

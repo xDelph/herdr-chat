@@ -2,7 +2,7 @@
 //! utilisé par les lectures de session (T039, 4) et l'exécuteur git
 //! (T040, 2). Un plafond, jamais une approximation par nombre de lignes.
 
-use std::sync::{Condvar, Mutex, PoisonError};
+use std::sync::{Arc, Condvar, Mutex, PoisonError};
 
 /// Un sas borné : `acquiere` attend qu'une place se libère, `relache` rend
 /// la sienne. Les verrous ne sont tenus que le temps du comptage.
@@ -40,5 +40,43 @@ impl SasDeLecture {
         let mut en_vol = self.en_vol.lock().unwrap_or_else(PoisonError::into_inner);
         *en_vol = en_vol.saturating_sub(1);
         self.disponible.notify_one();
+    }
+
+    /// Prend une place si le plafond le permet, sans attendre — `false` quand
+    /// le plafond est atteint (le 9e flux est REFUSÉ, jamais mis en attente).
+    #[must_use]
+    pub fn tente_acquiere(&self) -> bool {
+        let mut en_vol = self.en_vol.lock().unwrap_or_else(PoisonError::into_inner);
+        if *en_vol >= self.max {
+            return false;
+        }
+        *en_vol += 1;
+        true
+    }
+}
+
+/// Un permis RAII : sa chute rend la place EXACTEMENT une fois — la fermeture
+/// d'un abonnement ne peut ni fuir ni libérer deux fois.
+pub struct GardeDePermis {
+    sas: Arc<SasDeLecture>,
+}
+
+impl GardeDePermis {
+    /// Prend un permis si le plafond le permet.
+    #[must_use]
+    pub fn tente(sas: &Arc<SasDeLecture>) -> Option<Self> {
+        if sas.tente_acquiere() {
+            Some(Self {
+                sas: Arc::clone(sas),
+            })
+        } else {
+            None
+        }
+    }
+}
+
+impl Drop for GardeDePermis {
+    fn drop(&mut self) {
+        self.sas.relache();
     }
 }

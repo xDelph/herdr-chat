@@ -2,4 +2,5 @@
 //! et les abonnements (T043) — TECH §4.
 
 pub mod journal;
+pub mod subscription;
 pub mod watcher;
