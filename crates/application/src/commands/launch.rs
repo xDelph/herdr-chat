@@ -36,7 +36,7 @@ use crate::commands::pousse;
 use domain::errors::PortError;
 use domain::ids::{AgentKind, AgentName, PaneId, TabId, WorkspaceId};
 use domain::naming::{checkout_path_of, launch_name, useful_label};
-use domain::observation::{ScreenObservation, SituatedPane, Snapshot, WorkspaceObservation};
+use domain::observation::{ScreenObservation, Snapshot, WorkspaceObservation};
 use domain::ports::{ControlPort, CreateTab, ScreenRead, StartAgent, StartEvidence};
 use interactions::confiance::est_invite_confiance;
 use std::collections::{BTreeSet, HashMap};
@@ -261,11 +261,10 @@ impl LanceurAgent {
         // Le dossier : une seule source (worktree lié gagne, sinon le
         // premier pane du projet qui porte un cwd — jamais deviné, C07).
         let labels = workspace.label.clone();
-        let dossier = checkout_path_of(workspace, &panes_situes(&photo)).ok_or_else(|| {
-            ErreurLancement::DossierInconnu {
+        let dossier = checkout_path_of(workspace, &domain::naming::panes_situes(&photo))
+            .ok_or_else(|| ErreurLancement::DossierInconnu {
                 label: label_du_workspace(workspace),
-            }
-        })?;
+            })?;
 
         // 3) Le nom — demandé tel quel, ou généré avec numérotation dès le
         // premier, réservé contre les concurrents du même libellé.
@@ -401,20 +400,6 @@ fn noms_pris(photo: &Snapshot) -> BTreeSet<String> {
         .collect()
 }
 
-/// Les panes situés de la photo : les cwd portés par les agents, dans
-/// l'ordre du snapshot — la matière du dossier de travail d'un projet.
-fn panes_situes(photo: &Snapshot) -> Vec<SituatedPane> {
-    photo
-        .agents
-        .iter()
-        .map(|agent| SituatedPane {
-            pane_id: agent.pane_id.clone(),
-            workspace_id: Some(agent.workspace_id.clone()),
-            cwd: agent.cwd.clone(),
-        })
-        .collect()
-}
-
 /// La lecture d'écran du démarrage bloqué — bornée, jamais une lecture sans
 /// fin ; un échec de lecture rend un écran vide (le fil fait de même avant
 /// de vérifier l'invite : sans texte, pas d'invite).
@@ -438,7 +423,6 @@ fn ferme_le_possede(port: &dyn ControlPort, tab: &TabId) {
     let mut fermeture = port.fermer_onglet(tab.clone());
     let _ = pousse(&mut fermeture);
 }
-
 /// Le libellé humain d'un workspace — la valeur exposée à l'écran de
 /// confiance quand aucun sens utile n'émerge (« this project » au fil).
 fn label_du_workspace(workspace: &WorkspaceObservation) -> String {

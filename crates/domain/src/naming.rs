@@ -265,6 +265,25 @@ impl NamingContext {
     }
 }
 
+/// Les panes situés d'un snapshot : les `cwd` portés par les agents, dans
+/// l'ordre du snapshot — la matière du dossier de travail d'un projet
+/// (T037 au lancement, T039 à l'accueil : UNE seule construction).
+///
+/// ⚠️ `SituatedPane.cwd` est la source du dossier quand le worktree n'est
+/// pas lié ; le premier pane du projet qui en porte un fait foi.
+#[must_use]
+pub fn panes_situes(snapshot: &Snapshot) -> Vec<SituatedPane> {
+    snapshot
+        .agents
+        .iter()
+        .map(|agent| SituatedPane {
+            pane_id: agent.pane_id.clone(),
+            workspace_id: Some(agent.workspace_id.clone()),
+            cwd: agent.cwd.clone(),
+        })
+        .collect()
+}
+
 /// Un pane placé pour le classement, avec ou sans rectangle.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct PaneInLayout {

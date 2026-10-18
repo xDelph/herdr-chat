@@ -968,3 +968,41 @@ Périmètre : `crates/application/src/{state,refresh}.rs` (+`lib.rs`), `crates/a
 5. **Le câblage réel** (admission → `lecture_forcee`, santé → `sante`, poller → `pulse`) arrive avec les endpoints (T050/T051+), comme T034–T037 avant lui : le service est livré, prouvé, prêt à être fils au moment venu.
 
 Commit préfixé `T038:` contenant `crates/application/src/{state,refresh}.rs` + `lib.rs`, `crates/application/tests/unit/refresh.rs` + `mod.rs`, `crates/test-support/src/fake_herdr.rs` (`sans_panne`) et cette section.
+
+---
+
+## T039 — `application::overview/conversations` : l'accueil et la liste (D01–D05, D18–D20)
+
+Périmètre : `crates/application/src/{overview,conversations,visibilite}.rs` (+`lib.rs`), `crates/application/tests/unit/{overview,conversations,visibilite}.rs` (+`mod.rs`), `crates/domain/src/naming.rs` (`panes_situes` partagé). Aucun service réel contacté, aucun agent de l'utilisateur, aucun test sous `src/`.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `ComposeurOverview` | La vue d'accueil sur **UNE génération** d'observation (T038) : vues agent/workspace homologues `domain::observation::{AgentView, WorkspaceView}` — worktree lié gagne sur cwd de pane (D02), compteurs du SNAPSHOT (jamais reconstruits), workspace vide gardé, tri-état du cwd (`CwdMatch::Unverifiable` ≠ faux, D03), libellé numérique supprimé + rang depuis la disposition (D04), version/protocole portés par l'observation. |
+| `visibilite.rs` | La règle D05 en **un seul corps** (accueil ET liste) : source lisible, état `blocked/working`, tab multi-panes, type à lecture vérifiée ; `repartir_agents` = le `withoutSession` (le COMPTE des masqués). |
+| `ServiceConversations` | Une ligne par pane **visible** même sans session (`absent` distinct de `error`) ; titre Herdr → onglet utile → projet → pane_id ; aperçu = dernier texte d'assistant sinon dernier outil (`nom · indice`) ; dernière DEMANDE utilisateur ; modèle/fournisseur **en paire** (D22) + pensée en vigueur ; horodatage jamais fabriqué. |
+| **Isolation par ligne (D20/C23)** | Une session illisible → SA ligne `error` + SA cause (jamais générique) ; les voisines restent riches ; panne bénigne = `available` et vide. |
+| **Permis à 4 lectures** | `SasDeLecture` + `std::thread::scope` (workers bornés, index atomique) — le plafond du contrat, prouvé par le PIC derrière une porte (8 panes, pic ≤ 4). |
+| **Invitation mesurée à l'écran** | Question (interactions::ecran), confiance (interactions::confiance, EXPOSÉE jamais répondue, dossier = cwd du pane), attente brute (bloqué sans question) ; on lit un agent qui n'a RIEN à montrer ou `blocked`, jamais `working` ; zéro frappe envoyée (testé). |
+| **Branche injectée** | `BrancheDeProjet` (le vrai cache 30 s arrive au T040) ; la branche vient du **cwd du pane**, pas du projet. |
+| **Frontière sessions** | Le graphe interdit `application → sessions` : `LitSessions`/`ResoutSessions` (résolution + fenêtre normalisée `EntreeLu`) sont INJECTÉS — herdrchat les compose au T056 ; `application` assemble les résumés, `sessions` lit et normalise. |
+| `domain::naming::panes_situes` | Le mapper agents→panes situés déplacé du moteur de lancement vers le domaine : T037 et T039 partagent la MÊME construction du dossier de travail. |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p application --test unit_tests` | PASS — **78 tests** (47 + 7 visibilité + 8 overview + 16 conversations). |
+| `cargo clippy … --all-targets` | zéro avertissement. |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** (graphe inchangé : aucun membre ajouté). |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **Le fil n'a pas de `name` dans le titre** : `titleOf` = titre Herdr → onglet → projet → pane_id ; le NOM étiquette l'agent (carte), il n'entre pas dans la ligne — deux tests écrits sur une hypothèse contraire ont été corrigés par la référence.
+1. **Le permis est réel** : en monde synchrone, `std::thread::scope` avec des workers bornés est le véhicule du plafond « 4 sessions en lecture » — la preuve par le pic derrière une porte (le seul sleep de test, délibéré, commenté). L'enrichissement d'écran reste séquentiel (le `Promise.all` sans plafond du fil n'est pas reproduit : chaque lecture cible déjà exactement les lignes qui n'ont rien à montrer).
+2. **La résolution est la même pour l'accueil, la liste ET la lecture** (U14) : `ResoutSessions` est la porte unique — le fil l'avait dédoublée, et les deux chemins ont divergé sur les agents muets ; ici une seule décision, une seule implémentation à venir (T056).
+3. **Le 80 caractères de l'indice d'outil** (règle mesurée du fil) vit dans l'assemblage applicatif ; le plafond d'octets de l'aperçu (`PREVIEW_BYTES`) reste au fil (contracts/http-api, T050) — les limites de taille du fil ne sont pas dupliquées.
+4. **`application` ne produit pas les DTO filaires** : les homologues `domain::observation::{AgentView, WorkspaceView}` existaient (T005) ; la traduction vers `contracts::http::overview` appartient à http-api (T050), les règles de remplissage sont ici (T039) — exactement la répartition que la doc de `domain` annonçait.
+
+Commit préfixé `T039:` contenant tout ce qui précède et cette section.
