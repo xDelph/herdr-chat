@@ -1,0 +1,4550 @@
+{
+  "schemaVersion": 1,
+  "generatedAtUtc": "2026-10-18T00:37:18.928Z",
+  "authority": {
+    "note": "Verdicts were proven against the current TS contract authority at build time; the corpus itself is data-only and survives the T057 authority switch.",
+    "publicSchemas": "packages/shared/src/api.ts",
+    "upstreamWireSchemas": "packages/shared/src/protocol.ts",
+    "inlineRouteSchemas": "apps/server/src/http/Api.ts (PromptBody, TrustBody, AnswerBody, ClientLogBody, SubscribeBody, UnsubscribeBody)",
+    "cursorCodec": "packages/shared/src/api.ts decodeCursor/encodeCursor"
+  },
+  "counts": {
+    "total": 296,
+    "positive": 155,
+    "negative": 141,
+    "schemaVerified": 269,
+    "routeGuard": 0,
+    "cursor": 11,
+    "constructed": 16
+  },
+  "samples": [
+    {
+      "id": "AgentView-p001",
+      "target": "AgentView",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agent": "codex",
+        "cwd": "/Users/x/proj",
+        "focused": true,
+        "paneId": "p1",
+        "parentSession": null,
+        "sessionCwd": "/Users/x/proj",
+        "sessionCwdMatches": null,
+        "sessionId": "abc123",
+        "sessionKind": "id",
+        "sessionPath": "/Users/x/.codex/sessions/abc123.jsonl",
+        "status": "working",
+        "tabLabel": null,
+        "tabId": "t1",
+        "tabNumber": 3,
+        "name": null,
+        "paneRank": 1,
+        "tabPaneCount": 1,
+        "title": "Terminal",
+        "workspaceLabel": null,
+        "workspaceId": "w1"
+      }
+    },
+    {
+      "id": "AgentView-p002",
+      "target": "AgentView",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agent": null,
+        "cwd": "/Users/x/proj",
+        "focused": true,
+        "paneId": "p1",
+        "parentSession": null,
+        "sessionCwd": "/Users/x/proj",
+        "sessionCwdMatches": true,
+        "sessionId": "abc123",
+        "sessionKind": "id",
+        "sessionPath": "/Users/x/.codex/sessions/abc123.jsonl",
+        "status": "blocked",
+        "tabLabel": null,
+        "tabId": "t1",
+        "tabNumber": 3,
+        "name": null,
+        "paneRank": 1,
+        "tabPaneCount": 1,
+        "title": "Terminal",
+        "workspaceLabel": null,
+        "workspaceId": "w1"
+      }
+    },
+    {
+      "id": "AgentView-p003",
+      "target": "AgentView",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agent": "codex",
+        "cwd": null,
+        "focused": true,
+        "paneId": "p1",
+        "parentSession": null,
+        "sessionCwd": "/Users/x/proj",
+        "sessionCwdMatches": false,
+        "sessionId": "abc123",
+        "sessionKind": "id",
+        "sessionPath": "/Users/x/.codex/sessions/abc123.jsonl",
+        "status": "idle",
+        "tabLabel": null,
+        "tabId": "t1",
+        "tabNumber": 3,
+        "name": null,
+        "paneRank": 1,
+        "tabPaneCount": 1,
+        "title": "Terminal",
+        "workspaceLabel": null,
+        "workspaceId": "w1"
+      }
+    },
+    {
+      "id": "AgentView-p004",
+      "target": "AgentView",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agent": "codex",
+        "cwd": "/Users/x/proj",
+        "focused": true,
+        "paneId": "p1",
+        "parentSession": null,
+        "sessionCwd": "/Users/x/proj",
+        "sessionCwdMatches": null,
+        "sessionId": null,
+        "sessionKind": "path",
+        "sessionPath": "/x/y.jsonl",
+        "status": "done",
+        "tabLabel": null,
+        "tabId": "t1",
+        "tabNumber": 3,
+        "name": null,
+        "paneRank": 1,
+        "tabPaneCount": 1,
+        "title": "Terminal",
+        "workspaceLabel": null,
+        "workspaceId": "w1"
+      }
+    },
+    {
+      "id": "AgentView-p005",
+      "target": "AgentView",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agent": "codex",
+        "cwd": "/Users/x/proj",
+        "focused": true,
+        "paneId": "p1",
+        "parentSession": null,
+        "sessionCwd": null,
+        "sessionCwdMatches": null,
+        "sessionId": "abc123",
+        "sessionKind": "id",
+        "sessionPath": "/Users/x/.codex/sessions/abc123.jsonl",
+        "status": "unknown",
+        "tabLabel": null,
+        "tabId": "t1",
+        "tabNumber": 3,
+        "name": null,
+        "paneRank": 1,
+        "tabPaneCount": 1,
+        "title": null,
+        "workspaceLabel": null,
+        "workspaceId": "w1"
+      }
+    },
+    {
+      "id": "AgentView-p006",
+      "target": "AgentView",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agent": "codex",
+        "cwd": "/Users/x/proj",
+        "focused": true,
+        "paneId": "p1",
+        "parentSession": null,
+        "sessionCwd": "/Users/x/proj",
+        "sessionCwdMatches": null,
+        "sessionId": "abc123",
+        "sessionKind": "id",
+        "sessionPath": "/Users/x/.codex/sessions/abc123.jsonl",
+        "status": "working",
+        "tabLabel": null,
+        "tabId": "t1",
+        "tabNumber": 3,
+        "name": null,
+        "paneRank": 1,
+        "tabPaneCount": 1,
+        "title": "Terminal",
+        "workspaceLabel": null,
+        "workspaceId": "w1",
+        "notDeclared": "stripped on decode"
+      }
+    },
+    {
+      "id": "AgentView-n007",
+      "target": "AgentView",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agent": "codex",
+        "cwd": "/Users/x/proj",
+        "focused": true,
+        "parentSession": null,
+        "sessionCwd": "/Users/x/proj",
+        "sessionCwdMatches": null,
+        "sessionId": "abc123",
+        "sessionKind": "id",
+        "sessionPath": "/Users/x/.codex/sessions/abc123.jsonl",
+        "status": "working",
+        "tabLabel": null,
+        "tabId": "t1",
+        "tabNumber": 3,
+        "name": null,
+        "paneRank": 1,
+        "tabPaneCount": 1,
+        "title": "Terminal",
+        "workspaceLabel": null,
+        "workspaceId": "w1"
+      }
+    },
+    {
+      "id": "AgentView-n008",
+      "target": "AgentView",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agent": "codex",
+        "cwd": "/Users/x/proj",
+        "focused": true,
+        "paneId": "p1",
+        "parentSession": null,
+        "sessionCwd": "/Users/x/proj",
+        "sessionCwdMatches": null,
+        "sessionId": "abc123",
+        "sessionKind": "id",
+        "sessionPath": "/Users/x/.codex/sessions/abc123.jsonl",
+        "status": "ready",
+        "tabLabel": null,
+        "tabId": "t1",
+        "tabNumber": 3,
+        "name": null,
+        "paneRank": 1,
+        "tabPaneCount": 1,
+        "title": "Terminal",
+        "workspaceLabel": null,
+        "workspaceId": "w1"
+      }
+    },
+    {
+      "id": "AgentView-n009",
+      "target": "AgentView",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agent": "codex",
+        "cwd": "/Users/x/proj",
+        "focused": null,
+        "paneId": "p1",
+        "parentSession": null,
+        "sessionCwd": "/Users/x/proj",
+        "sessionCwdMatches": null,
+        "sessionId": "abc123",
+        "sessionKind": "id",
+        "sessionPath": "/Users/x/.codex/sessions/abc123.jsonl",
+        "status": "working",
+        "tabLabel": null,
+        "tabId": "t1",
+        "tabNumber": 3,
+        "name": null,
+        "paneRank": 1,
+        "tabPaneCount": 1,
+        "title": "Terminal",
+        "workspaceLabel": null,
+        "workspaceId": "w1"
+      }
+    },
+    {
+      "id": "AgentView-n010",
+      "target": "AgentView",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agent": "codex",
+        "cwd": "/Users/x/proj",
+        "focused": true,
+        "paneId": "p1",
+        "parentSession": null,
+        "sessionCwd": "/Users/x/proj",
+        "sessionCwdMatches": null,
+        "sessionId": "abc123",
+        "sessionKind": "id",
+        "sessionPath": "/Users/x/.codex/sessions/abc123.jsonl",
+        "status": "working",
+        "tabLabel": null,
+        "tabId": "t1",
+        "tabNumber": 3,
+        "name": null,
+        "paneRank": "1",
+        "tabPaneCount": 1,
+        "title": "Terminal",
+        "workspaceLabel": null,
+        "workspaceId": "w1"
+      }
+    },
+    {
+      "id": "AgentView-n011",
+      "target": "AgentView",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agent": "codex",
+        "cwd": "/Users/x/proj",
+        "focused": true,
+        "paneId": "p1",
+        "parentSession": null,
+        "sessionCwd": "/Users/x/proj",
+        "sessionCwdMatches": null,
+        "sessionId": "abc123",
+        "sessionKind": "reference",
+        "sessionPath": "/Users/x/.codex/sessions/abc123.jsonl",
+        "status": "working",
+        "tabLabel": null,
+        "tabId": "t1",
+        "tabNumber": 3,
+        "name": null,
+        "paneRank": 1,
+        "tabPaneCount": 1,
+        "title": "Terminal",
+        "workspaceLabel": null,
+        "workspaceId": "w1"
+      }
+    },
+    {
+      "id": "AgentView-n012",
+      "target": "AgentView",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agent": "codex",
+        "cwd": "/Users/x/proj",
+        "focused": true,
+        "paneId": "p1",
+        "parentSession": null,
+        "sessionCwd": "/Users/x/proj",
+        "sessionCwdMatches": 3,
+        "sessionId": null,
+        "sessionKind": "id",
+        "status": "working",
+        "tabLabel": null,
+        "tabId": "t1",
+        "tabNumber": 3,
+        "name": null,
+        "paneRank": 1,
+        "tabPaneCount": 1,
+        "title": "Terminal",
+        "workspaceLabel": null,
+        "workspaceId": "w1"
+      }
+    },
+    {
+      "id": "WorkspaceView-p013",
+      "target": "WorkspaceView",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agentPanes": [
+          "p1"
+        ],
+        "agentStatus": "working",
+        "checkoutPath": "/Users/x/proj",
+        "focused": true,
+        "label": "proj",
+        "paneCount": 2,
+        "tabCount": 1,
+        "workspaceId": "w1"
+      }
+    },
+    {
+      "id": "WorkspaceView-p014",
+      "target": "WorkspaceView",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agentPanes": [],
+        "agentStatus": null,
+        "checkoutPath": null,
+        "focused": false,
+        "label": null,
+        "paneCount": 1,
+        "tabCount": 1,
+        "workspaceId": "w2"
+      }
+    },
+    {
+      "id": "WorkspaceView-n015",
+      "target": "WorkspaceView",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agentPanes": [
+          "p1"
+        ],
+        "agentStatus": "working",
+        "checkoutPath": "/Users/x/proj",
+        "focused": true,
+        "label": "proj",
+        "paneCount": "2",
+        "tabCount": 1,
+        "workspaceId": "w1"
+      }
+    },
+    {
+      "id": "WorkspaceView-n016",
+      "target": "WorkspaceView",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agentPanes": [
+          "p1"
+        ],
+        "agentStatus": "finished",
+        "checkoutPath": "/Users/x/proj",
+        "focused": true,
+        "label": "proj",
+        "paneCount": 2,
+        "tabCount": 1,
+        "workspaceId": "w1"
+      }
+    },
+    {
+      "id": "WorkspaceView-n017",
+      "target": "WorkspaceView",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agentPanes": [
+          "p1"
+        ],
+        "agentStatus": "working",
+        "checkoutPath": "/Users/x/proj",
+        "focused": true,
+        "label": "proj",
+        "paneCount": 2,
+        "tabCount": 1,
+        "workspaceId": null
+      }
+    },
+    {
+      "id": "Overview-p018",
+      "target": "Overview",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agents": [
+          {
+            "agent": "codex",
+            "cwd": "/Users/x/proj",
+            "focused": true,
+            "paneId": "p1",
+            "parentSession": null,
+            "sessionCwd": "/Users/x/proj",
+            "sessionCwdMatches": null,
+            "sessionId": "abc123",
+            "sessionKind": "id",
+            "sessionPath": "/Users/x/.codex/sessions/abc123.jsonl",
+            "status": "working",
+            "tabLabel": null,
+            "tabId": "t1",
+            "tabNumber": 3,
+            "name": null,
+            "paneRank": 1,
+            "tabPaneCount": 1,
+            "title": "Terminal",
+            "workspaceLabel": null,
+            "workspaceId": "w1"
+          }
+        ],
+        "herdrProtocol": 1,
+        "herdrVersion": "0.9.3",
+        "withoutSession": 0,
+        "workspaces": [
+          {
+            "agentPanes": [
+              "p1"
+            ],
+            "agentStatus": "working",
+            "checkoutPath": "/Users/x/proj",
+            "focused": true,
+            "label": "proj",
+            "paneCount": 2,
+            "tabCount": 1,
+            "workspaceId": "w1"
+          }
+        ]
+      }
+    },
+    {
+      "id": "Overview-p019",
+      "target": "Overview",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agents": [],
+        "herdrProtocol": 2,
+        "herdrVersion": "1.0.0",
+        "withoutSession": 3,
+        "workspaces": []
+      }
+    },
+    {
+      "id": "Overview-n020",
+      "target": "Overview",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agents": [],
+        "herdrProtocol": 1,
+        "herdrVersion": "0.9.3",
+        "withoutSession": 0
+      }
+    },
+    {
+      "id": "Overview-n021",
+      "target": "Overview",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agents": [],
+        "herdrProtocol": "1",
+        "herdrVersion": "0.9.3",
+        "withoutSession": 0,
+        "workspaces": []
+      }
+    },
+    {
+      "id": "SessionEntry-p022",
+      "target": "SessionEntry",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "id": "m1",
+        "parentId": null,
+        "raw": "{\"kind\":\"user\",\"text\":\"x\"}",
+        "timestamp": "2026-10-18T00:00:00.000Z",
+        "type": "message"
+      }
+    },
+    {
+      "id": "SessionEntry-p023",
+      "target": "SessionEntry",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "raw": "raw-kept-as-is",
+        "type": "custom-entry"
+      }
+    },
+    {
+      "id": "SessionEntry-p024",
+      "target": "SessionEntry",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "parentId": "m0",
+        "raw": "x",
+        "type": "message"
+      }
+    },
+    {
+      "id": "SessionEntry-p025",
+      "target": "SessionEntry",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "parentId": null,
+        "raw": "x",
+        "type": "message"
+      }
+    },
+    {
+      "id": "SessionEntry-n026",
+      "target": "SessionEntry",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "parentId": null,
+        "type": "message"
+      }
+    },
+    {
+      "id": "SessionEntry-n027",
+      "target": "SessionEntry",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "raw": "x",
+        "type": 42
+      }
+    },
+    {
+      "id": "SessionEntry-n028",
+      "target": "SessionEntry",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "id": "m1",
+        "parentId": null,
+        "raw": 42,
+        "type": "message"
+      }
+    },
+    {
+      "id": "SessionEntry-n029",
+      "target": "SessionEntry",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "id": null,
+        "parentId": "m0",
+        "raw": "x",
+        "type": "message"
+      }
+    },
+    {
+      "id": "SessionResponse-p030",
+      "target": "SessionResponse",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "cause": "absente",
+        "entries": [],
+        "incremental": false,
+        "hasMore": false,
+        "reset": false,
+        "sessionPath": "/Users/x/.pi/agent/sessions/2026-10-18.jsonl"
+      }
+    },
+    {
+      "id": "SessionResponse-p031",
+      "target": "SessionResponse",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "cause": "vide",
+        "entries": [],
+        "incremental": false,
+        "hasMore": false,
+        "reset": false,
+        "sessionPath": "/Users/x/.pi/agent/sessions/2026-10-18.jsonl"
+      }
+    },
+    {
+      "id": "SessionResponse-p032",
+      "target": "SessionResponse",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "cause": "invalide",
+        "entries": [],
+        "incremental": false,
+        "hasMore": false,
+        "reset": false,
+        "sessionPath": "/Users/x/.pi/agent/sessions/2026-10-18.jsonl"
+      }
+    },
+    {
+      "id": "SessionResponse-p033",
+      "target": "SessionResponse",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "cause": "io",
+        "entries": [],
+        "incremental": false,
+        "hasMore": false,
+        "reset": false,
+        "sessionPath": "/Users/x/.pi/agent/sessions/2026-10-18.jsonl"
+      }
+    },
+    {
+      "id": "SessionResponse-p034",
+      "target": "SessionResponse",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "cause": "vide",
+        "entries": [
+          {
+            "raw": "x",
+            "type": "message"
+          }
+        ],
+        "incremental": true,
+        "hasMore": true,
+        "reset": false,
+        "sessionPath": "/Users/x/.pi/agent/sessions/2026-10-18.jsonl",
+        "cursor": "eyJkZXYiOjAsImlubyI6MCwib2Zmc2V0Ijo4MzA3fQ==",
+        "previousCursor": "eyJkZXYiOjAsImlubyI6MCwib2Zmc2V0Ijo4MTAwfQ=="
+      }
+    },
+    {
+      "id": "SessionResponse-n035",
+      "target": "SessionResponse",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "cause": "missing",
+        "entries": [],
+        "incremental": false,
+        "hasMore": false,
+        "reset": false,
+        "sessionPath": "/Users/x/.pi/agent/sessions/2026-10-18.jsonl"
+      }
+    },
+    {
+      "id": "SessionResponse-n036",
+      "target": "SessionResponse",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "entries": [],
+        "hasMore": false,
+        "incremental": false,
+        "reset": false,
+        "sessionPath": "/x"
+      }
+    },
+    {
+      "id": "SessionResponse-n037",
+      "target": "SessionResponse",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "cause": "vide",
+        "entries": [],
+        "incremental": false,
+        "hasMore": false,
+        "reset": false,
+        "sessionPath": "/Users/x/.pi/agent/sessions/2026-10-18.jsonl",
+        "cursor": 42
+      }
+    },
+    {
+      "id": "SessionCursor-c038",
+      "target": "SessionCursor",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "cursor",
+      "provenance": "api.ts:decodeCursor — opaque base64; reject unreadable/negative/non-integer offset",
+      "value": {
+        "label": "file cursor",
+        "encoded": "eyJkZXYiOjQ4MDA1MTkzLCJpbm8iOjUxMzk3NjExLCJvZmZzZXQiOjgzMDd9"
+      }
+    },
+    {
+      "id": "SessionCursor-c039",
+      "target": "SessionCursor",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "cursor",
+      "provenance": "api.ts:decodeCursor — opaque base64; reject unreadable/negative/non-integer offset",
+      "value": {
+        "label": "legacy sqlite cursor dev/ino 0",
+        "encoded": "eyJkZXYiOjAsImlubyI6MCwib2Zmc2V0Ijo0Mn0="
+      }
+    },
+    {
+      "id": "SessionCursor-c040",
+      "target": "SessionCursor",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "cursor",
+      "provenance": "api.ts:decodeCursor — opaque base64; reject unreadable/negative/non-integer offset",
+      "value": {
+        "label": "extra fields tolerated",
+        "encoded": "eyJkZXYiOjEsImlubyI6Miwib2Zmc2V0IjozLCJub2lzZSI6OX0="
+      }
+    },
+    {
+      "id": "SessionCursor-c041",
+      "target": "SessionCursor",
+      "kind": "positive",
+      "expect": "reject",
+      "verify": "cursor",
+      "provenance": "api.ts:decodeCursor — opaque base64; reject unreadable/negative/non-integer offset",
+      "value": {
+        "label": "negative offset",
+        "encoded": "eyJkZXYiOjEsImlubyI6Miwib2Zmc2V0IjotMX0="
+      }
+    },
+    {
+      "id": "SessionCursor-c042",
+      "target": "SessionCursor",
+      "kind": "positive",
+      "expect": "reject",
+      "verify": "cursor",
+      "provenance": "api.ts:decodeCursor — opaque base64; reject unreadable/negative/non-integer offset",
+      "value": {
+        "label": "non-integer offset",
+        "encoded": "eyJkZXYiOjEsImlubyI6Miwib2Zmc2V0IjoxLjV9"
+      }
+    },
+    {
+      "id": "SessionCursor-c043",
+      "target": "SessionCursor",
+      "kind": "positive",
+      "expect": "reject",
+      "verify": "cursor",
+      "provenance": "api.ts:decodeCursor — opaque base64; reject unreadable/negative/non-integer offset",
+      "value": {
+        "label": "not an object",
+        "encoded": "WzEsMl0="
+      }
+    },
+    {
+      "id": "SessionCursor-c044",
+      "target": "SessionCursor",
+      "kind": "positive",
+      "expect": "reject",
+      "verify": "cursor",
+      "provenance": "api.ts:decodeCursor — opaque base64; reject unreadable/negative/non-integer offset",
+      "value": {
+        "label": "wrong dev type",
+        "encoded": "eyJkZXYiOiIwIiwiaW5vIjowLCJvZmZzZXQiOjN9"
+      }
+    },
+    {
+      "id": "SessionCursor-c045",
+      "target": "SessionCursor",
+      "kind": "positive",
+      "expect": "reject",
+      "verify": "cursor",
+      "provenance": "api.ts:decodeCursor — opaque base64; reject unreadable/negative/non-integer offset",
+      "value": {
+        "label": "offset as string",
+        "encoded": "eyJkZXYiOjAsImlubyI6MCwib2Zmc2V0IjoiMyJ9"
+      }
+    },
+    {
+      "id": "SessionCursor-c046",
+      "target": "SessionCursor",
+      "kind": "positive",
+      "expect": "reject",
+      "verify": "cursor",
+      "provenance": "api.ts:decodeCursor — opaque base64; reject unreadable/negative/non-integer offset",
+      "value": {
+        "label": "garbage base64",
+        "encoded": "%%%not-base64%%%"
+      }
+    },
+    {
+      "id": "SessionCursor-c047",
+      "target": "SessionCursor",
+      "kind": "positive",
+      "expect": "reject",
+      "verify": "cursor",
+      "provenance": "api.ts:decodeCursor — opaque base64; reject unreadable/negative/non-integer offset",
+      "value": {
+        "label": "empty string",
+        "encoded": ""
+      }
+    },
+    {
+      "id": "SessionCursor-c048",
+      "target": "SessionCursor",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "cursor",
+      "provenance": "api.ts:decodeCursor — opaque base64; reject unreadable/negative/non-integer offset",
+      "value": {
+        "label": "offset zero",
+        "encoded": "eyJkZXYiOjAsImlubyI6MCwib2Zmc2V0IjowfQ=="
+      }
+    },
+    {
+      "id": "PromptSent-p049",
+      "target": "PromptSent",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "confirmation": "confirmed",
+        "fingerprint": "9f2c8a31b4d5e6f7091a2b3c4d5e6f70",
+        "status": "sent"
+      }
+    },
+    {
+      "id": "PromptSent-p050",
+      "target": "PromptSent",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "confirmation": "unknown",
+        "fingerprint": "9f2c8a31b4d5e6f7091a2b3c4d5e6f70",
+        "status": "sent"
+      }
+    },
+    {
+      "id": "PromptSent-n051",
+      "target": "PromptSent",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "confirmation": "applied",
+        "fingerprint": "x",
+        "status": "sent"
+      }
+    },
+    {
+      "id": "PromptSent-n052",
+      "target": "PromptSent",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "confirmation": "confirmed",
+        "fingerprint": "x",
+        "status": "suppressed"
+      }
+    },
+    {
+      "id": "PromptSent-n053",
+      "target": "PromptSent",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "confirmation": null,
+        "fingerprint": "x",
+        "status": "sent"
+      }
+    },
+    {
+      "id": "PromptSent-n054",
+      "target": "PromptSent",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "confirmation": "confirmed",
+        "status": "sent"
+      }
+    },
+    {
+      "id": "PromptFailed-p055",
+      "target": "PromptFailed",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "detail": "Herdr n'a pas tranché dans le délai",
+        "state": "attente"
+      }
+    },
+    {
+      "id": "PromptFailed-p056",
+      "target": "PromptFailed",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "detail": "Herdr a refusé l'envoi",
+        "state": "erreur"
+      }
+    },
+    {
+      "id": "PromptFailed-p057",
+      "target": "PromptFailed",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "detail": "seul le transport a répondu",
+        "state": "inconnu"
+      }
+    },
+    {
+      "id": "PromptFailed-n058",
+      "target": "PromptFailed",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "detail": "x",
+        "state": "timeout"
+      }
+    },
+    {
+      "id": "PromptFailed-n059",
+      "target": "PromptFailed",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "state": "attente"
+      }
+    },
+    {
+      "id": "PromptFailed-n060",
+      "target": "PromptFailed",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "detail": "x",
+        "state": null
+      }
+    },
+    {
+      "id": "PromptFailed-n061",
+      "target": "PromptFailed",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "detail": 42,
+        "state": "attente"
+      }
+    },
+    {
+      "id": "PromptSuppressed-p062",
+      "target": "PromptSuppressed",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "reason": "consecutive identical send",
+        "status": "suppressed"
+      }
+    },
+    {
+      "id": "PromptSuppressed-n063",
+      "target": "PromptSuppressed",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "reason": "x",
+        "status": "failed"
+      }
+    },
+    {
+      "id": "PromptSuppressed-n064",
+      "target": "PromptSuppressed",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {}
+    },
+    {
+      "id": "PromptSuppressed-n065",
+      "target": "PromptSuppressed",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "reason": "x",
+        "status": null
+      }
+    },
+    {
+      "id": "StopAgent-p066",
+      "target": "StopAgent",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "status": "interrupt-sent"
+      }
+    },
+    {
+      "id": "StopAgent-p067",
+      "target": "StopAgent",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "status": "not-running"
+      }
+    },
+    {
+      "id": "StopAgent-n068",
+      "target": "StopAgent",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "status": "stopped"
+      }
+    },
+    {
+      "id": "StopAgent-n069",
+      "target": "StopAgent",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {}
+    },
+    {
+      "id": "AgentFocused-p070",
+      "target": "AgentFocused",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "focused": true,
+        "status": "agent-focused"
+      }
+    },
+    {
+      "id": "AgentFocused-p071",
+      "target": "AgentFocused",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "focused": false,
+        "status": "agent-focused"
+      }
+    },
+    {
+      "id": "AgentFocused-n072",
+      "target": "AgentFocused",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "focused": false,
+        "status": "focused"
+      }
+    },
+    {
+      "id": "AgentFocused-n073",
+      "target": "AgentFocused",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "focused": null,
+        "status": "agent-focused"
+      }
+    },
+    {
+      "id": "AgentFocused-n074",
+      "target": "AgentFocused",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "status": "agent-focused"
+      }
+    },
+    {
+      "id": "LaunchAgentRequest-p075",
+      "target": "LaunchAgentRequest",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "kind": "pi"
+      }
+    },
+    {
+      "id": "LaunchAgentRequest-p076",
+      "target": "LaunchAgentRequest",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "kind": "claude",
+        "model": "sonnet",
+        "thinking": "high"
+      }
+    },
+    {
+      "id": "LaunchAgentRequest-p077",
+      "target": "LaunchAgentRequest",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "kind": "codex",
+        "model": "o3",
+        "name": "revue-1",
+        "provider": "openai",
+        "thinking": "medium"
+      }
+    },
+    {
+      "id": "LaunchAgentRequest-n078",
+      "target": "LaunchAgentRequest",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "model": "o3"
+      }
+    },
+    {
+      "id": "LaunchAgentRequest-n079",
+      "target": "LaunchAgentRequest",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "kind": 42
+      }
+    },
+    {
+      "id": "LaunchAgentRequest-n080",
+      "target": "LaunchAgentRequest",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "kind": "pi",
+        "thinking": 3
+      }
+    },
+    {
+      "id": "LaunchAgentRequest-n081",
+      "target": "LaunchAgentRequest",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "kind": null,
+        "provider": "openai"
+      }
+    },
+    {
+      "id": "LaunchAgent-p082",
+      "target": "LaunchAgent",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "kind": "codex",
+        "name": "revue-1",
+        "paneId": "p9",
+        "status": "started",
+        "tabId": "t4"
+      }
+    },
+    {
+      "id": "LaunchAgent-n083",
+      "target": "LaunchAgent",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "kind": "codex",
+        "name": "revue-1",
+        "paneId": "p9",
+        "status": "running",
+        "tabId": "t4"
+      }
+    },
+    {
+      "id": "LaunchAgent-n084",
+      "target": "LaunchAgent",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "kind": "codex",
+        "name": "revue-1",
+        "paneId": "p9",
+        "status": "started"
+      }
+    },
+    {
+      "id": "InstalledKind-p085",
+      "target": "InstalledKind",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "kind": "pi",
+        "label": "Pi",
+        "state": "current"
+      }
+    },
+    {
+      "id": "InstalledKind-p086",
+      "target": "InstalledKind",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "kind": "claude",
+        "label": "Claude Code",
+        "state": "outdated"
+      }
+    },
+    {
+      "id": "InstalledKind-p087",
+      "target": "InstalledKind",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "kind": "pi",
+        "label": "Pi",
+        "state": "not_installed"
+      }
+    },
+    {
+      "id": "InstalledKind-n088",
+      "target": "InstalledKind",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "kind": "pi",
+        "state": "current"
+      }
+    },
+    {
+      "id": "InstalledKind-n089",
+      "target": "InstalledKind",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "kind": "pi",
+        "label": "Pi"
+      }
+    },
+    {
+      "id": "InstalledKind-n090",
+      "target": "InstalledKind",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "kind": 7,
+        "label": "Pi",
+        "state": "current"
+      }
+    },
+    {
+      "id": "InstalledKinds-p091",
+      "target": "InstalledKinds",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "kinds": [
+          {
+            "kind": "pi",
+            "label": "Pi",
+            "state": "current"
+          }
+        ]
+      }
+    },
+    {
+      "id": "InstalledKinds-p092",
+      "target": "InstalledKinds",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "kinds": []
+      }
+    },
+    {
+      "id": "InstalledKinds-n093",
+      "target": "InstalledKinds",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "kinds": [
+          "pi"
+        ]
+      }
+    },
+    {
+      "id": "InstalledKinds-n094",
+      "target": "InstalledKinds",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {}
+    },
+    {
+      "id": "AgentModel-p095",
+      "target": "AgentModel",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "id": "gpt-5",
+        "label": "GPT-5",
+        "thinkingLevels": [
+          "low",
+          "medium",
+          "high"
+        ]
+      }
+    },
+    {
+      "id": "AgentModel-p096",
+      "target": "AgentModel",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "id": "haiku",
+        "thinkingLevels": []
+      }
+    },
+    {
+      "id": "AgentModel-n097",
+      "target": "AgentModel",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "label": "no id",
+        "thinkingLevels": []
+      }
+    },
+    {
+      "id": "AgentModel-n098",
+      "target": "AgentModel",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "id": "x",
+        "thinkingLevels": [
+          "high"
+        ],
+        "label": 42
+      }
+    },
+    {
+      "id": "AgentModel-n099",
+      "target": "AgentModel",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "id": "x",
+        "thinkingLevels": null
+      }
+    },
+    {
+      "id": "AgentModel-n100",
+      "target": "AgentModel",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "id": "x",
+        "thinkingLevels": [],
+        "label": null
+      }
+    },
+    {
+      "id": "ModelCatalog-p101",
+      "target": "ModelCatalog",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "error": null,
+        "kind": "cursor",
+        "models": [],
+        "source": "aucune",
+        "thinkingLevels": []
+      }
+    },
+    {
+      "id": "ModelCatalog-p102",
+      "target": "ModelCatalog",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "error": null,
+        "kind": "pi",
+        "models": [
+          {
+            "id": "gpt-5",
+            "label": "GPT-5",
+            "thinkingLevels": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        ],
+        "source": "pi --list-models",
+        "thinkingLevels": [
+          "high",
+          "low",
+          "medium"
+        ]
+      }
+    },
+    {
+      "id": "ModelCatalog-p103",
+      "target": "ModelCatalog",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "error": "listing unavailable (documented aliases only)",
+        "kind": "claude",
+        "models": [],
+        "source": "claude --help (documented aliases)",
+        "thinkingLevels": [
+          "high",
+          "low",
+          "medium",
+          "max"
+        ]
+      }
+    },
+    {
+      "id": "ModelCatalog-n104",
+      "target": "ModelCatalog",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "kind": "pi",
+        "models": [],
+        "source": "x",
+        "thinkingLevels": []
+      }
+    },
+    {
+      "id": "ModelCatalog-n105",
+      "target": "ModelCatalog",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "error": "x",
+        "kind": "pi",
+        "models": [],
+        "source": 42,
+        "thinkingLevels": []
+      }
+    },
+    {
+      "id": "ModelCatalog-n106",
+      "target": "ModelCatalog",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "error": null,
+        "kind": "pi",
+        "models": [],
+        "source": "x"
+      }
+    },
+    {
+      "id": "RecentImage-p107",
+      "target": "RecentImage",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "modifiedAt": 1760000000000,
+        "path": "/Users/x/proj/a.png",
+        "size": 4096
+      }
+    },
+    {
+      "id": "RecentImage-p108",
+      "target": "RecentImage",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "modifiedAt": 1760000000000,
+        "path": "/x/b.webp",
+        "size": 0
+      }
+    },
+    {
+      "id": "RecentImage-n109",
+      "target": "RecentImage",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "modifiedAt": "2026-10-18",
+        "path": "/x/a.png",
+        "size": 4096
+      }
+    },
+    {
+      "id": "RecentImage-n110",
+      "target": "RecentImage",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "modifiedAt": 1760000000000,
+        "path": "/x/a.png"
+      }
+    },
+    {
+      "id": "RecentImages-p111",
+      "target": "RecentImages",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "images": []
+      }
+    },
+    {
+      "id": "RecentImages-p112",
+      "target": "RecentImages",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "images": [
+          {
+            "modifiedAt": 1760000000000,
+            "path": "/Users/x/proj/a.png",
+            "size": 4096
+          }
+        ]
+      }
+    },
+    {
+      "id": "RecentImages-n113",
+      "target": "RecentImages",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {}
+    },
+    {
+      "id": "RecentImages-n114",
+      "target": "RecentImages",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "images": null
+      }
+    },
+    {
+      "id": "TrustRequired-p115",
+      "target": "TrustRequired",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "folder": "proj",
+        "kind": "codex",
+        "message": "Cet agent attend la confiance sur ce dossier",
+        "paneId": "p9",
+        "status": "trust-required"
+      }
+    },
+    {
+      "id": "TrustRequired-n116",
+      "target": "TrustRequired",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "folder": "proj",
+        "kind": "codex",
+        "message": "Cet agent attend la confiance sur ce dossier",
+        "paneId": "p9",
+        "status": "trust-granted"
+      }
+    },
+    {
+      "id": "TrustRequired-n117",
+      "target": "TrustRequired",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "folder": "proj",
+        "kind": "codex",
+        "paneId": "p9",
+        "status": "trust-required"
+      }
+    },
+    {
+      "id": "TrustRequired-n118",
+      "target": "TrustRequired",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "folder": null,
+        "kind": "codex",
+        "message": "Cet agent attend la confiance sur ce dossier",
+        "paneId": "p9",
+        "status": "trust-required"
+      }
+    },
+    {
+      "id": "TrustResolved-p119",
+      "target": "TrustResolved",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "accepted": true,
+        "state": "acceptee",
+        "status": "trust-resolved"
+      }
+    },
+    {
+      "id": "TrustResolved-p120",
+      "target": "TrustResolved",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "accepted": false,
+        "state": "refusee",
+        "status": "trust-resolved"
+      }
+    },
+    {
+      "id": "TrustResolved-p121",
+      "target": "TrustResolved",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "accepted": false,
+        "state": "transmise",
+        "status": "trust-resolved"
+      }
+    },
+    {
+      "id": "TrustResolved-p122",
+      "target": "TrustResolved",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "accepted": false,
+        "state": "non-applicable",
+        "status": "trust-resolved"
+      }
+    },
+    {
+      "id": "TrustResolved-n123",
+      "target": "TrustResolved",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "accepted": true,
+        "status": "trust-resolved"
+      }
+    },
+    {
+      "id": "TrustResolved-n124",
+      "target": "TrustResolved",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "accepted": true,
+        "state": "ok",
+        "status": "trust-resolved"
+      }
+    },
+    {
+      "id": "TrustResolved-n125",
+      "target": "TrustResolved",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "state": "transmise",
+        "status": "trust-resolved"
+      }
+    },
+    {
+      "id": "QuestionAnswered-p126",
+      "target": "QuestionAnswered",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "detail": "1 — oui, valider l'étape",
+        "state": "appliquee",
+        "status": "question-answered"
+      }
+    },
+    {
+      "id": "QuestionAnswered-p127",
+      "target": "QuestionAnswered",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "detail": "frappe envoyée, reprise de preuve nécessaire",
+        "state": "transmise",
+        "status": "question-answered"
+      }
+    },
+    {
+      "id": "QuestionAnswered-p128",
+      "target": "QuestionAnswered",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "detail": "aucune question lisible à l'écran",
+        "state": "refusee",
+        "status": "question-answered"
+      }
+    },
+    {
+      "id": "QuestionAnswered-n129",
+      "target": "QuestionAnswered",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "detail": "x",
+        "state": "acceptee",
+        "status": "question-answered"
+      }
+    },
+    {
+      "id": "QuestionAnswered-n130",
+      "target": "QuestionAnswered",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "state": "appliquee",
+        "status": "question-answered"
+      }
+    },
+    {
+      "id": "QuestionAnswered-n131",
+      "target": "QuestionAnswered",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "detail": "",
+        "state": "appliquee",
+        "status": "answered"
+      }
+    },
+    {
+      "id": "Choix-p132",
+      "target": "Choix",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "libelle": "Oui",
+        "numero": 1,
+        "selectionne": false
+      }
+    },
+    {
+      "id": "Choix-p133",
+      "target": "Choix",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "detail": "envoie les modifications",
+        "libelle": "Valider",
+        "numero": 2,
+        "selectionne": true
+      }
+    },
+    {
+      "id": "Choix-n134",
+      "target": "Choix",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "libelle": "Oui",
+        "numero": "1",
+        "selectionne": false
+      }
+    },
+    {
+      "id": "Choix-n135",
+      "target": "Choix",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "libelle": "Oui",
+        "numero": 1
+      }
+    },
+    {
+      "id": "Choix-n136",
+      "target": "Choix",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "numero": 1,
+        "selectionne": false
+      }
+    },
+    {
+      "id": "Choix-n137",
+      "target": "Choix",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "libelle": "Oui",
+        "numero": 1,
+        "selectionne": "true"
+      }
+    },
+    {
+      "id": "Question-p138",
+      "target": "Question",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "choix": [
+          {
+            "libelle": "Oui",
+            "numero": 1,
+            "selectionne": false
+          },
+          {
+            "detail": "d",
+            "libelle": "Non",
+            "numero": 2,
+            "selectionne": true
+          }
+        ],
+        "contexte": [
+          "L'agent a modifié trois fichiers."
+        ],
+        "invite": "Entrée pour valider, ↑/↓ pour choisir",
+        "texte": "Valider la mise à jour ?"
+      }
+    },
+    {
+      "id": "Question-p139",
+      "target": "Question",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "choix": [],
+        "contexte": [],
+        "texte": "Choisir un dossier"
+      }
+    },
+    {
+      "id": "Question-n140",
+      "target": "Question",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "choix": [],
+        "contexte": []
+      }
+    },
+    {
+      "id": "Question-n141",
+      "target": "Question",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "choix": {},
+        "contexte": [],
+        "texte": "x"
+      }
+    },
+    {
+      "id": "Question-n142",
+      "target": "Question",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "choix": [
+          {
+            "libelle": "Oui",
+            "numero": 1,
+            "selectionne": false
+          },
+          {
+            "detail": "d",
+            "libelle": "Non",
+            "numero": 2,
+            "selectionne": true
+          }
+        ],
+        "contexte": [
+          "L'agent a modifié trois fichiers."
+        ],
+        "invite": 42,
+        "texte": "Valider la mise à jour ?"
+      }
+    },
+    {
+      "id": "ConversationSummary-p143",
+      "target": "ConversationSummary",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agent": null,
+        "name": null,
+        "paneId": "p1",
+        "paneRank": null,
+        "status": "idle",
+        "sessionState": "absent",
+        "tabId": "t1",
+        "tabPaneCount": 1,
+        "title": "p1",
+        "workspaceId": "w1"
+      }
+    },
+    {
+      "id": "ConversationSummary-p144",
+      "target": "ConversationSummary",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agent": "codex",
+        "name": "revue-1",
+        "paneId": "p1",
+        "paneRank": 1,
+        "status": "working",
+        "sessionState": "available",
+        "tabId": "t1",
+        "tabPaneCount": 2,
+        "title": "revue-1",
+        "workspaceId": "w1",
+        "branch": "main",
+        "lastPrompt": "liste les images récentes",
+        "model": "gpt-5",
+        "preview": "Je vais lister les images.",
+        "provider": "openai",
+        "thinking": "medium",
+        "timestamp": 1760000000000
+      }
+    },
+    {
+      "id": "ConversationSummary-p145",
+      "target": "ConversationSummary",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agent": null,
+        "name": null,
+        "paneId": "p1",
+        "paneRank": null,
+        "status": "blocked",
+        "sessionState": "absent",
+        "tabId": "t1",
+        "tabPaneCount": 1,
+        "title": "p1",
+        "workspaceId": "w1",
+        "waiting": "  continuation? (y/n) "
+      }
+    },
+    {
+      "id": "ConversationSummary-p146",
+      "target": "ConversationSummary",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agent": null,
+        "name": null,
+        "paneId": "p1",
+        "paneRank": null,
+        "status": "blocked",
+        "sessionState": "absent",
+        "tabId": "t1",
+        "tabPaneCount": 1,
+        "title": "p1",
+        "workspaceId": "w1",
+        "question": {
+          "choix": [
+            {
+              "libelle": "Oui",
+              "numero": 1,
+              "selectionne": true
+            }
+          ],
+          "contexte": [],
+          "texte": "Continuer ?"
+        }
+      }
+    },
+    {
+      "id": "ConversationSummary-p147",
+      "target": "ConversationSummary",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agent": null,
+        "name": null,
+        "paneId": "p1",
+        "paneRank": null,
+        "status": "blocked",
+        "sessionState": "absent",
+        "tabId": "t1",
+        "tabPaneCount": 1,
+        "title": "p1",
+        "workspaceId": "w1",
+        "trust": {
+          "folder": "proj",
+          "kind": "codex",
+          "message": "Cet agent attend la confiance sur ce dossier",
+          "paneId": "p9",
+          "status": "trust-required"
+        }
+      }
+    },
+    {
+      "id": "ConversationSummary-p148",
+      "target": "ConversationSummary",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agent": null,
+        "name": null,
+        "paneId": "p1",
+        "paneRank": null,
+        "status": "done",
+        "sessionState": "available",
+        "tabId": "t1",
+        "tabPaneCount": 1,
+        "title": "p1",
+        "workspaceId": "w1",
+        "timestamp": 1760000000000
+      }
+    },
+    {
+      "id": "ConversationSummary-p149",
+      "target": "ConversationSummary",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agent": null,
+        "name": null,
+        "paneId": "p1",
+        "paneRank": null,
+        "status": "unknown",
+        "sessionState": "error",
+        "tabId": "t1",
+        "tabPaneCount": 1,
+        "title": "p1",
+        "workspaceId": "w1"
+      }
+    },
+    {
+      "id": "ConversationSummary-p150",
+      "target": "ConversationSummary",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agent": null,
+        "name": null,
+        "paneId": "p1",
+        "paneRank": null,
+        "status": "blocked",
+        "sessionState": "absent",
+        "tabId": "t1",
+        "tabPaneCount": 1,
+        "title": "p1",
+        "workspaceId": "w1"
+      }
+    },
+    {
+      "id": "ConversationSummary-n151",
+      "target": "ConversationSummary",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agent": null,
+        "name": null,
+        "paneId": "p1",
+        "paneRank": null,
+        "status": "idle",
+        "sessionState": "absent",
+        "tabId": "t1",
+        "tabPaneCount": 1,
+        "title": null,
+        "workspaceId": "w1"
+      }
+    },
+    {
+      "id": "ConversationSummary-n152",
+      "target": "ConversationSummary",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agent": null,
+        "name": null,
+        "paneId": "p1",
+        "paneRank": null,
+        "status": "done",
+        "sessionState": "missing",
+        "tabId": "t1",
+        "tabPaneCount": 1,
+        "title": "p1",
+        "workspaceId": "w1"
+      }
+    },
+    {
+      "id": "ConversationSummary-n153",
+      "target": "ConversationSummary",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agent": null,
+        "name": null,
+        "paneId": "p1",
+        "paneRank": null,
+        "status": "idle",
+        "sessionState": "absent",
+        "tabId": "t1",
+        "tabPaneCount": 1,
+        "title": "p1",
+        "workspaceId": "w1",
+        "preview": 42
+      }
+    },
+    {
+      "id": "ConversationSummary-n154",
+      "target": "ConversationSummary",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agent": null,
+        "name": null,
+        "paneId": "p1",
+        "paneRank": null,
+        "status": "idle",
+        "sessionState": "absent",
+        "tabId": "t1",
+        "tabPaneCount": 1,
+        "title": "p1",
+        "workspaceId": "w1",
+        "question": {
+          "texte": "x"
+        }
+      }
+    },
+    {
+      "id": "ConversationSummary-n155",
+      "target": "ConversationSummary",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agent": null,
+        "name": null,
+        "paneId": "p1",
+        "paneRank": null,
+        "status": "idle",
+        "sessionState": "absent",
+        "tabId": "t1",
+        "tabPaneCount": 1,
+        "title": "p1",
+        "workspaceId": "w1",
+        "timestamp": "2026-10-18"
+      }
+    },
+    {
+      "id": "Conversations-p156",
+      "target": "Conversations",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "conversations": []
+      }
+    },
+    {
+      "id": "Conversations-p157",
+      "target": "Conversations",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "conversations": [
+          {
+            "agent": "codex",
+            "name": "revue-1",
+            "paneId": "p1",
+            "paneRank": 1,
+            "status": "working",
+            "sessionState": "available",
+            "tabId": "t1",
+            "tabPaneCount": 2,
+            "title": "revue-1",
+            "workspaceId": "w1",
+            "branch": "main",
+            "lastPrompt": "liste les images récentes",
+            "model": "gpt-5",
+            "preview": "Je vais lister les images.",
+            "provider": "openai",
+            "thinking": "medium",
+            "timestamp": 1760000000000
+          }
+        ]
+      }
+    },
+    {
+      "id": "Conversations-n158",
+      "target": "Conversations",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {}
+    },
+    {
+      "id": "Conversations-n159",
+      "target": "Conversations",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "conversations": [
+          {}
+        ]
+      }
+    },
+    {
+      "id": "ApiError-p160",
+      "target": "ApiError",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "error": "invalid cursor"
+      }
+    },
+    {
+      "id": "ApiError-p161",
+      "target": "ApiError",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "error": "session absent",
+        "cause": "absente"
+      }
+    },
+    {
+      "id": "ApiError-p162",
+      "target": "ApiError",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "error": "lecture impossible",
+        "cause": "io",
+        "hint": "permission denied"
+      }
+    },
+    {
+      "id": "ApiError-p163",
+      "target": "ApiError",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "error": "lecture impossible",
+        "cause": "vide"
+      }
+    },
+    {
+      "id": "ApiError-p164",
+      "target": "ApiError",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "error": "curseur illisible",
+        "cause": "invalide"
+      }
+    },
+    {
+      "id": "ApiError-n165",
+      "target": "ApiError",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "error": "x",
+        "cause": "missing-file"
+      }
+    },
+    {
+      "id": "ApiError-n166",
+      "target": "ApiError",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "error": "x",
+        "cause": null
+      }
+    },
+    {
+      "id": "ApiError-n167",
+      "target": "ApiError",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "cause": "io"
+      }
+    },
+    {
+      "id": "SessionState-p168",
+      "target": "SessionState",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": "available"
+    },
+    {
+      "id": "SessionState-p169",
+      "target": "SessionState",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": "absent"
+    },
+    {
+      "id": "SessionState-p170",
+      "target": "SessionState",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": "error"
+    },
+    {
+      "id": "SessionState-n171",
+      "target": "SessionState",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": "unknown"
+    },
+    {
+      "id": "SessionState-n172",
+      "target": "SessionState",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": null
+    },
+    {
+      "id": "SessionState-n173",
+      "target": "SessionState",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": "absente"
+    },
+    {
+      "id": "SessionState-n174",
+      "target": "SessionState",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": ""
+    },
+    {
+      "id": "ReadSource-p175",
+      "target": "ReadSource",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": "visible"
+    },
+    {
+      "id": "ReadSource-p176",
+      "target": "ReadSource",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": "recent"
+    },
+    {
+      "id": "ReadSource-p177",
+      "target": "ReadSource",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": "recent_unwrapped"
+    },
+    {
+      "id": "ReadSource-p178",
+      "target": "ReadSource",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": "detection"
+    },
+    {
+      "id": "ReadSource-n179",
+      "target": "ReadSource",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": "visible_today"
+    },
+    {
+      "id": "ReadSource-n180",
+      "target": "ReadSource",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": null
+    },
+    {
+      "id": "ReadSource-n181",
+      "target": "ReadSource",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": "RECENT"
+    },
+    {
+      "id": "AgentSessionInfo-p182",
+      "target": "AgentSessionInfo",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agent": "codex",
+        "kind": "path",
+        "source": "value",
+        "value": "/x/sess.jsonl"
+      }
+    },
+    {
+      "id": "AgentSessionInfo-p183",
+      "target": "AgentSessionInfo",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agent": "pi",
+        "kind": "id",
+        "source": "value",
+        "value": "/x/sess.jsonl"
+      }
+    },
+    {
+      "id": "AgentSessionInfo-n184",
+      "target": "AgentSessionInfo",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "kind": "path",
+        "source": "value",
+        "value": "/x"
+      }
+    },
+    {
+      "id": "AgentSessionInfo-n185",
+      "target": "AgentSessionInfo",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agent": "codex",
+        "kind": "path2",
+        "source": "value",
+        "value": "/x/sess.jsonl"
+      }
+    },
+    {
+      "id": "AgentInfo-p186",
+      "target": "AgentInfo",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agent": "codex",
+        "agent_session": {
+          "agent": "codex",
+          "kind": "path",
+          "source": "value",
+          "value": "/x/sess.jsonl"
+        },
+        "agent_status": "working",
+        "completion_seq": 12,
+        "cwd": "/Users/x/proj",
+        "focused": true,
+        "foreground_cwd": "/Users/x/proj",
+        "name": "revue-1",
+        "pane_id": "p1",
+        "revision": 0,
+        "state_change_seq": 3,
+        "tab_id": "t1",
+        "terminal_id": "tm1",
+        "terminal_title": null,
+        "workspace_id": "w1"
+      }
+    },
+    {
+      "id": "AgentInfo-p187",
+      "target": "AgentInfo",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agent_status": "idle",
+        "focused": false,
+        "pane_id": "p2",
+        "revision": 0,
+        "tab_id": "t1",
+        "terminal_id": "tm2",
+        "workspace_id": "w1",
+        "agent": null,
+        "name": null,
+        "cwd": null
+      }
+    },
+    {
+      "id": "AgentInfo-n188",
+      "target": "AgentInfo",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agent_status": "idle",
+        "focused": false,
+        "revision": 0,
+        "tab_id": "t1",
+        "terminal_id": "tm2",
+        "workspace_id": "w1"
+      }
+    },
+    {
+      "id": "AgentInfo-n189",
+      "target": "AgentInfo",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agent_status": "paused",
+        "focused": false,
+        "pane_id": "p2",
+        "revision": 0,
+        "tab_id": "t1",
+        "terminal_id": "tm2",
+        "workspace_id": "w1"
+      }
+    },
+    {
+      "id": "AgentInfo-n190",
+      "target": "AgentInfo",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agent_status": "idle",
+        "focused": false,
+        "pane_id": "p2",
+        "revision": "0",
+        "tab_id": "t1",
+        "terminal_id": "tm2",
+        "workspace_id": "w1"
+      }
+    },
+    {
+      "id": "AgentInfo-n191",
+      "target": "AgentInfo",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agent_status": "idle",
+        "focused": false,
+        "pane_id": "p2",
+        "revision": 0,
+        "tab_id": "t1",
+        "terminal_id": "tm2",
+        "workspace_id": "w1",
+        "agent_session": {
+          "agent": "pi",
+          "kind": "id"
+        }
+      }
+    },
+    {
+      "id": "WorkspaceInfo-p192",
+      "target": "WorkspaceInfo",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "active_tab_id": "t1",
+        "agent_status": "working",
+        "focused": true,
+        "label": "proj",
+        "number": 1,
+        "pane_count": 2,
+        "tab_count": 1,
+        "worktree": {
+          "checkout_path": "/Users/x/proj",
+          "is_linked_worktree": true,
+          "repo_key": "k",
+          "repo_name": "proj",
+          "repo_root": "/Users/x/proj"
+        },
+        "workspace_id": "w1"
+      }
+    },
+    {
+      "id": "WorkspaceInfo-p193",
+      "target": "WorkspaceInfo",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "active_tab_id": "t1",
+        "agent_status": "working",
+        "focused": true,
+        "label": null,
+        "number": null,
+        "pane_count": 2,
+        "tab_count": 1,
+        "worktree": null,
+        "workspace_id": "w1"
+      }
+    },
+    {
+      "id": "WorkspaceInfo-n194",
+      "target": "WorkspaceInfo",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "active_tab_id": "t1",
+        "agent_status": "working",
+        "focused": true,
+        "label": "proj",
+        "number": 1,
+        "pane_count": 2,
+        "tab_count": 1,
+        "worktree": {
+          "checkout_path": "/Users/x/proj",
+          "is_linked_worktree": true,
+          "repo_key": "k",
+          "repo_name": "proj",
+          "repo_root": "/Users/x/proj"
+        }
+      }
+    },
+    {
+      "id": "WorkspaceInfo-n195",
+      "target": "WorkspaceInfo",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "active_tab_id": "t1",
+        "agent_status": "working",
+        "focused": null,
+        "label": "proj",
+        "number": 1,
+        "pane_count": 2,
+        "tab_count": 1,
+        "worktree": {
+          "checkout_path": "/Users/x/proj",
+          "is_linked_worktree": true,
+          "repo_key": "k",
+          "repo_name": "proj",
+          "repo_root": "/Users/x/proj"
+        },
+        "workspace_id": "w1"
+      }
+    },
+    {
+      "id": "WorkspaceWorktreeInfo-p196",
+      "target": "WorkspaceWorktreeInfo",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "checkout_path": "/Users/x/proj",
+        "is_linked_worktree": false,
+        "repo_key": "k",
+        "repo_name": "proj",
+        "repo_root": "/Users/x/proj"
+      }
+    },
+    {
+      "id": "WorkspaceWorktreeInfo-n197",
+      "target": "WorkspaceWorktreeInfo",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "checkout_path": "/Users/x/proj",
+        "is_linked_worktree": "no",
+        "repo_key": "k",
+        "repo_name": "proj",
+        "repo_root": "/Users/x/proj"
+      }
+    },
+    {
+      "id": "PaneInfo-p198",
+      "target": "PaneInfo",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "pane_id": "p5"
+      }
+    },
+    {
+      "id": "PaneInfo-p199",
+      "target": "PaneInfo",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "pane_id": "p5",
+        "tab_id": "t1",
+        "workspace_id": "w1"
+      }
+    },
+    {
+      "id": "PaneInfo-n200",
+      "target": "PaneInfo",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "tab_id": "t1"
+      }
+    },
+    {
+      "id": "PaneInfo-n201",
+      "target": "PaneInfo",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "pane_id": 5
+      }
+    },
+    {
+      "id": "HerdrReply-p202",
+      "target": "HerdrReply",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "id": "hr-1"
+      }
+    },
+    {
+      "id": "HerdrReply-p203",
+      "target": "HerdrReply",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "id": "hr-2",
+        "error": {
+          "code": "invalid_params",
+          "message": "mort"
+        }
+      }
+    },
+    {
+      "id": "HerdrReply-p204",
+      "target": "HerdrReply",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "id": "hr-3",
+        "result": {}
+      }
+    },
+    {
+      "id": "HerdrReply-p205",
+      "target": "HerdrReply",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "id": "hr-4",
+        "result": {
+          "agent": {
+            "pane_id": "p1"
+          },
+          "type": "agent_prompted"
+        }
+      }
+    },
+    {
+      "id": "HerdrReply-n206",
+      "target": "HerdrReply",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "error": {
+          "code": "x",
+          "message": "y"
+        }
+      }
+    },
+    {
+      "id": "HerdrReply-n207",
+      "target": "HerdrReply",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "id": 7
+      }
+    },
+    {
+      "id": "HerdrReply-n208",
+      "target": "HerdrReply",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "id": "hr-6",
+        "error": {
+          "code": "x"
+        }
+      }
+    },
+    {
+      "id": "AgentListPayload-p209",
+      "target": "AgentListPayload",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agents": [
+          {
+            "agent_status": "idle",
+            "focused": false,
+            "pane_id": "p2",
+            "revision": 0,
+            "tab_id": "t1",
+            "terminal_id": "tm2",
+            "workspace_id": "w1"
+          }
+        ]
+      }
+    },
+    {
+      "id": "AgentListPayload-p210",
+      "target": "AgentListPayload",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agents": []
+      }
+    },
+    {
+      "id": "AgentListPayload-n211",
+      "target": "AgentListPayload",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agents": {}
+      }
+    },
+    {
+      "id": "AgentListPayload-n212",
+      "target": "AgentListPayload",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {}
+    },
+    {
+      "id": "PaneReadPayload-p213",
+      "target": "PaneReadPayload",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {}
+    },
+    {
+      "id": "PaneReadPayload-p214",
+      "target": "PaneReadPayload",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "read": {}
+      }
+    },
+    {
+      "id": "PaneReadPayload-p215",
+      "target": "PaneReadPayload",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "read": {
+          "text": "1. oui…",
+          "truncated": true
+        }
+      }
+    },
+    {
+      "id": "PaneReadPayload-p216",
+      "target": "PaneReadPayload",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "read": {
+          "truncated": false
+        }
+      }
+    },
+    {
+      "id": "PaneReadPayload-n217",
+      "target": "PaneReadPayload",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "read": null
+      }
+    },
+    {
+      "id": "PaneReadPayload-n218",
+      "target": "PaneReadPayload",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "read": {
+          "text": 42
+        }
+      }
+    },
+    {
+      "id": "PaneReadPayload-n219",
+      "target": "PaneReadPayload",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "read": {
+          "truncated": "true"
+        }
+      }
+    },
+    {
+      "id": "PongPayload-p220",
+      "target": "PongPayload",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "protocol": 1,
+        "version": "0.9.3"
+      }
+    },
+    {
+      "id": "PongPayload-n221",
+      "target": "PongPayload",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "protocol": "1",
+        "version": "0.9.3"
+      }
+    },
+    {
+      "id": "PongPayload-n222",
+      "target": "PongPayload",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "version": "0.9.3"
+      }
+    },
+    {
+      "id": "TabInfo-p223",
+      "target": "TabInfo",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "label": null,
+        "number": 1,
+        "tab_id": "t1",
+        "workspace_id": "w1"
+      }
+    },
+    {
+      "id": "TabInfo-p224",
+      "target": "TabInfo",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agent_status": "working",
+        "label": "Terminal",
+        "number": 2,
+        "pane_count": 3,
+        "tab_id": "t1",
+        "workspace_id": "w1"
+      }
+    },
+    {
+      "id": "TabInfo-p225",
+      "target": "TabInfo",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agent_status": null,
+        "label": "Terminal",
+        "number": 3,
+        "pane_count": 1,
+        "tab_id": "t2",
+        "workspace_id": "w1"
+      }
+    },
+    {
+      "id": "TabInfo-n226",
+      "target": "TabInfo",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "label": "x",
+        "number": 0,
+        "tab_id": "t1"
+      }
+    },
+    {
+      "id": "TabInfo-n227",
+      "target": "TabInfo",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "label": "x",
+        "number": "0",
+        "tab_id": "t1",
+        "workspace_id": "w1"
+      }
+    },
+    {
+      "id": "SnapshotPane-p228",
+      "target": "SnapshotPane",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "cwd": "/Users/x/proj",
+        "pane_id": "p1",
+        "workspace_id": "w1"
+      }
+    },
+    {
+      "id": "SnapshotPane-p229",
+      "target": "SnapshotPane",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "cwd": null,
+        "pane_id": "p1",
+        "workspace_id": "w1"
+      }
+    },
+    {
+      "id": "SnapshotPane-p230",
+      "target": "SnapshotPane",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "pane_id": "p9"
+      }
+    },
+    {
+      "id": "SnapshotPane-n231",
+      "target": "SnapshotPane",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "cwd": "/Users/x/proj",
+        "pane_id": null,
+        "workspace_id": "w1"
+      }
+    },
+    {
+      "id": "SnapshotPane-n232",
+      "target": "SnapshotPane",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "cwd": "/x"
+      }
+    },
+    {
+      "id": "PaneLayoutRect-p233",
+      "target": "PaneLayoutRect",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "height": 82,
+        "width": 190,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "PaneLayoutRect-n234",
+      "target": "PaneLayoutRect",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "height": 82,
+        "width": "190",
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": "PaneLayoutPane-p235",
+      "target": "PaneLayoutPane",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "focused": true,
+        "pane_id": "p1",
+        "rect": {
+          "height": 82,
+          "width": 190,
+          "x": 0,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": "PaneLayoutPane-n236",
+      "target": "PaneLayoutPane",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "pane_id": "p1",
+        "rect": {
+          "height": 82,
+          "width": 190,
+          "x": 0,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": "PaneLayoutPane-n237",
+      "target": "PaneLayoutPane",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "focused": null,
+        "pane_id": "p1",
+        "rect": {
+          "height": 82,
+          "width": 190,
+          "x": 0,
+          "y": 0
+        }
+      }
+    },
+    {
+      "id": "PaneLayout-p238",
+      "target": "PaneLayout",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "focused_pane_id": "p1",
+        "panes": [
+          {
+            "focused": true,
+            "pane_id": "p1",
+            "rect": {
+              "height": 82,
+              "width": 190,
+              "x": 0,
+              "y": 0
+            }
+          }
+        ],
+        "tab_id": "t1",
+        "workspace_id": "w1",
+        "zoomed": false
+      }
+    },
+    {
+      "id": "PaneLayout-p239",
+      "target": "PaneLayout",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "focused_pane_id": "p1",
+        "panes": [],
+        "tab_id": "t1",
+        "workspace_id": "w1",
+        "zoomed": false
+      }
+    },
+    {
+      "id": "PaneLayout-n240",
+      "target": "PaneLayout",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "focused_pane_id": "p1",
+        "panes": [
+          {
+            "focused": true,
+            "pane_id": "p1",
+            "rect": {
+              "height": 82,
+              "width": 190,
+              "x": 0,
+              "y": 0
+            }
+          }
+        ],
+        "tab_id": "t1",
+        "workspace_id": "w1",
+        "zoomed": "false"
+      }
+    },
+    {
+      "id": "PaneLayout-n241",
+      "target": "PaneLayout",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "focused_pane_id": "p1",
+        "panes": [
+          {
+            "focused": true,
+            "pane_id": "p1",
+            "rect": {
+              "height": 82,
+              "width": 190,
+              "x": 0,
+              "y": 0
+            }
+          }
+        ],
+        "tab_id": null,
+        "workspace_id": "w1",
+        "zoomed": false
+      }
+    },
+    {
+      "id": "SnapshotPayload-p242",
+      "target": "SnapshotPayload",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agents": [],
+        "protocol": 1,
+        "version": "0.9.3",
+        "workspaces": []
+      }
+    },
+    {
+      "id": "SnapshotPayload-p243",
+      "target": "SnapshotPayload",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agents": [
+          {
+            "agent": "codex",
+            "agent_session": {
+              "agent": "codex",
+              "kind": "path",
+              "source": "value",
+              "value": "/x/sess.jsonl"
+            },
+            "agent_status": "working",
+            "completion_seq": 12,
+            "cwd": "/Users/x/proj",
+            "focused": true,
+            "foreground_cwd": "/Users/x/proj",
+            "name": "revue-1",
+            "pane_id": "p1",
+            "revision": 0,
+            "state_change_seq": 3,
+            "tab_id": "t1",
+            "terminal_id": "tm1",
+            "terminal_title": null,
+            "workspace_id": "w1"
+          }
+        ],
+        "focused_pane_id": "p1",
+        "focused_tab_id": "t1",
+        "focused_workspace_id": "w1",
+        "layouts": [
+          {
+            "focused_pane_id": "p1",
+            "panes": [
+              {
+                "focused": true,
+                "pane_id": "p1",
+                "rect": {
+                  "height": 82,
+                  "width": 190,
+                  "x": 0,
+                  "y": 0
+                }
+              }
+            ],
+            "tab_id": "t1",
+            "workspace_id": "w1",
+            "zoomed": false
+          }
+        ],
+        "panes": [
+          {
+            "cwd": "/Users/x/proj",
+            "pane_id": "p1",
+            "workspace_id": "w1"
+          }
+        ],
+        "protocol": 1,
+        "tabs": [
+          {
+            "label": "Terminal",
+            "number": 1,
+            "tab_id": "t1",
+            "workspace_id": "w1"
+          }
+        ],
+        "version": "0.9.3",
+        "workspaces": [
+          {
+            "active_tab_id": "t1",
+            "agent_status": "working",
+            "focused": true,
+            "label": "proj",
+            "number": 1,
+            "pane_count": 2,
+            "tab_count": 1,
+            "worktree": {
+              "checkout_path": "/Users/x/proj",
+              "is_linked_worktree": true,
+              "repo_key": "k",
+              "repo_name": "proj",
+              "repo_root": "/Users/x/proj"
+            },
+            "workspace_id": "w1"
+          }
+        ]
+      }
+    },
+    {
+      "id": "SnapshotPayload-p244",
+      "target": "SnapshotPayload",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "agents": [
+          {
+            "agent": "codex",
+            "agent_session": {
+              "agent": "codex",
+              "kind": "path",
+              "source": "value",
+              "value": "/x/sess.jsonl"
+            },
+            "agent_status": "working",
+            "completion_seq": 12,
+            "cwd": "/Users/x/proj",
+            "focused": true,
+            "foreground_cwd": "/Users/x/proj",
+            "name": "revue-1",
+            "pane_id": "p1",
+            "revision": 0,
+            "state_change_seq": 3,
+            "tab_id": "t1",
+            "terminal_id": "tm1",
+            "terminal_title": null,
+            "workspace_id": "w1"
+          }
+        ],
+        "focused_pane_id": null,
+        "focused_tab_id": null,
+        "focused_workspace_id": null,
+        "protocol": 1,
+        "version": "0.9.3",
+        "workspaces": [
+          {
+            "active_tab_id": "t1",
+            "agent_status": "working",
+            "focused": true,
+            "label": "proj",
+            "number": 1,
+            "pane_count": 2,
+            "tab_count": 1,
+            "worktree": {
+              "checkout_path": "/Users/x/proj",
+              "is_linked_worktree": true,
+              "repo_key": "k",
+              "repo_name": "proj",
+              "repo_root": "/Users/x/proj"
+            },
+            "workspace_id": "w1"
+          }
+        ]
+      }
+    },
+    {
+      "id": "SnapshotPayload-n245",
+      "target": "SnapshotPayload",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agents": [],
+        "protocol": 1,
+        "workspaces": []
+      }
+    },
+    {
+      "id": "SnapshotPayload-n246",
+      "target": "SnapshotPayload",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "agents": "none",
+        "protocol": 1,
+        "version": "x",
+        "workspaces": []
+      }
+    },
+    {
+      "id": "PromptBody-p247",
+      "target": "PromptBody",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "text": ""
+      }
+    },
+    {
+      "id": "PromptBody-p248",
+      "target": "PromptBody",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "text": "liste les images récentes"
+      }
+    },
+    {
+      "id": "PromptBody-p249",
+      "target": "PromptBody",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "text": "multi\nline",
+        "extra": "stripped"
+      }
+    },
+    {
+      "id": "PromptBody-n250",
+      "target": "PromptBody",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {}
+    },
+    {
+      "id": "PromptBody-n251",
+      "target": "PromptBody",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "text": 42
+      }
+    },
+    {
+      "id": "PromptBody-n252",
+      "target": "PromptBody",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "text": null
+      }
+    },
+    {
+      "id": "TrustBody-p253",
+      "target": "TrustBody",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "accept": true
+      }
+    },
+    {
+      "id": "TrustBody-p254",
+      "target": "TrustBody",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "accept": false
+      }
+    },
+    {
+      "id": "TrustBody-n255",
+      "target": "TrustBody",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {}
+    },
+    {
+      "id": "TrustBody-n256",
+      "target": "TrustBody",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "accept": "yes"
+      }
+    },
+    {
+      "id": "TrustBody-n257",
+      "target": "TrustBody",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "accept": null
+      }
+    },
+    {
+      "id": "AnswerBody-p258",
+      "target": "AnswerBody",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "numero": 1
+      }
+    },
+    {
+      "id": "AnswerBody-p259",
+      "target": "AnswerBody",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "numero": 42,
+        "texte": "préciser le chemin"
+      }
+    },
+    {
+      "id": "AnswerBody-n260",
+      "target": "AnswerBody",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {}
+    },
+    {
+      "id": "AnswerBody-n261",
+      "target": "AnswerBody",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "numero": "1"
+      }
+    },
+    {
+      "id": "AnswerBody-n262",
+      "target": "AnswerBody",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "texte": "x"
+      }
+    },
+    {
+      "id": "AnswerBody-n263",
+      "target": "AnswerBody",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "numero": 1,
+        "texte": null
+      }
+    },
+    {
+      "id": "ClientLogBody-p264",
+      "target": "ClientLogBody",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "level": "error",
+        "message": "décode impossible"
+      }
+    },
+    {
+      "id": "ClientLogBody-p265",
+      "target": "ClientLogBody",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "detail": {
+          "status": 400
+        },
+        "level": "error",
+        "message": "décode impossible"
+      }
+    },
+    {
+      "id": "ClientLogBody-p266",
+      "target": "ClientLogBody",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "detail": [
+          1,
+          2
+        ],
+        "level": "error",
+        "message": "x"
+      }
+    },
+    {
+      "id": "ClientLogBody-n267",
+      "target": "ClientLogBody",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "level": "info",
+        "message": "x"
+      }
+    },
+    {
+      "id": "ClientLogBody-n268",
+      "target": "ClientLogBody",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "message": "x"
+      }
+    },
+    {
+      "id": "ClientLogBody-n269",
+      "target": "ClientLogBody",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "level": "error"
+      }
+    },
+    {
+      "id": "ClientLogBody-n270",
+      "target": "ClientLogBody",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "level": "error",
+        "message": 42
+      }
+    },
+    {
+      "id": "SubscribeBody-p271",
+      "target": "SubscribeBody",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "endpoint": "https://push.example.com/xyz",
+        "keys": {
+          "auth": "auth-material",
+          "p256dh": "p256dh-material"
+        }
+      }
+    },
+    {
+      "id": "SubscribeBody-p272",
+      "target": "SubscribeBody",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "endpoint": "https://push.example.com/xyz",
+        "keys": {
+          "auth": "auth-material",
+          "p256dh": "p256dh-material"
+        },
+        "expirationTime": 1760000000000
+      }
+    },
+    {
+      "id": "SubscribeBody-p273",
+      "target": "SubscribeBody",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "endpoint": "https://push.example.com/xyz",
+        "keys": {
+          "auth": "auth-material",
+          "p256dh": "p256dh-material"
+        },
+        "expirationTime": null
+      }
+    },
+    {
+      "id": "SubscribeBody-n274",
+      "target": "SubscribeBody",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "endpoint": "https://push.example.com/xyz",
+        "keys": {
+          "auth": "a"
+        }
+      }
+    },
+    {
+      "id": "SubscribeBody-n275",
+      "target": "SubscribeBody",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "keys": {
+          "auth": "a",
+          "p256dh": "b"
+        }
+      }
+    },
+    {
+      "id": "SubscribeBody-n276",
+      "target": "SubscribeBody",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "keys": {
+          "auth": "auth-material",
+          "p256dh": "p256dh-material"
+        }
+      }
+    },
+    {
+      "id": "SubscribeHttpPrefixRule-r277",
+      "target": "SubscribeHttpPrefixRule",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "constructed",
+      "provenance": "Api.ts route rule: endpoint.startsWith('https://') else 400",
+      "value": {
+        "endpoint": "http://push.example.com/xyz",
+        "keys": {
+          "auth": "a",
+          "p256dh": "b"
+        }
+      }
+    },
+    {
+      "id": "UnsubscribeBody-p278",
+      "target": "UnsubscribeBody",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "schema",
+      "provenance": "packages/shared schema (verified at build time)",
+      "value": {
+        "unsubscribe": "https://push.example.com/xyz"
+      }
+    },
+    {
+      "id": "UnsubscribeBody-n279",
+      "target": "UnsubscribeBody",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {}
+    },
+    {
+      "id": "UnsubscribeBody-n280",
+      "target": "UnsubscribeBody",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "unsubscribe": 42
+      }
+    },
+    {
+      "id": "UnsubscribeBody-n281",
+      "target": "UnsubscribeBody",
+      "kind": "negative",
+      "expect": "reject",
+      "verify": "schema",
+      "provenance": "distinction corpus (presence/null/literal/type) checked at build time",
+      "value": {
+        "endpoint": "https://push.example.com/xyz"
+      }
+    },
+    {
+      "id": "SSE.ready-r282",
+      "target": "SSE.ready",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "constructed",
+      "provenance": "routes-events.ts construction (event name → data JSON)",
+      "value": {
+        "event": "ready",
+        "data": {
+          "cursor": 42
+        }
+      }
+    },
+    {
+      "id": "SSE.agent_status-r283",
+      "target": "SSE.agent_status",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "constructed",
+      "provenance": "routes-events.ts construction (event name → data JSON)",
+      "value": {
+        "event": "agent_status",
+        "data": {
+          "from": "idle",
+          "kind": "status",
+          "paneId": "p1",
+          "to": "working"
+        }
+      }
+    },
+    {
+      "id": "SSE.agent_status-r284",
+      "target": "SSE.agent_status",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "constructed",
+      "provenance": "routes-events.ts construction (event name → data JSON)",
+      "value": {
+        "event": "agent_status",
+        "data": {
+          "from": null,
+          "kind": "appeared",
+          "paneId": "p1",
+          "to": "working"
+        }
+      }
+    },
+    {
+      "id": "SSE.agent_status-r285",
+      "target": "SSE.agent_status",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "constructed",
+      "provenance": "routes-events.ts construction (event name → data JSON)",
+      "value": {
+        "event": "agent_status",
+        "data": {
+          "from": "working",
+          "kind": "disappeared",
+          "paneId": "p1",
+          "to": "gone"
+        }
+      }
+    },
+    {
+      "id": "SSE.prompt-r286",
+      "target": "SSE.prompt",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "constructed",
+      "provenance": "routes-events.ts construction (event name → data JSON)",
+      "value": {
+        "event": "prompt",
+        "data": {
+          "paneId": "p1",
+          "status": "sent",
+          "fingerprint": "9f2c",
+          "confirmation": "confirmed"
+        }
+      }
+    },
+    {
+      "id": "SSE.prompt-r287",
+      "target": "SSE.prompt",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "constructed",
+      "provenance": "routes-events.ts construction (event name → data JSON)",
+      "value": {
+        "event": "prompt",
+        "data": {
+          "paneId": "p1",
+          "status": "sent",
+          "fingerprint": "9f2c",
+          "confirmation": "unknown"
+        }
+      }
+    },
+    {
+      "id": "SSE.prompt-suppressed-r288",
+      "target": "SSE.prompt-suppressed",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "constructed",
+      "provenance": "routes-events.ts construction (event name → data JSON)",
+      "value": {
+        "event": "prompt-suppressed",
+        "data": {
+          "paneId": "p1",
+          "reason": "consecutive identical send"
+        }
+      }
+    },
+    {
+      "id": "SSE.agent-launched-r289",
+      "target": "SSE.agent-launched",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "constructed",
+      "provenance": "routes-events.ts construction (event name → data JSON)",
+      "value": {
+        "event": "agent-launched",
+        "data": {
+          "kind": "pi",
+          "paneId": "p9",
+          "workspaceId": "w1"
+        }
+      }
+    },
+    {
+      "id": "SSE.resync-r290",
+      "target": "SSE.resync",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "constructed",
+      "provenance": "routes-events.ts construction (event name → data JSON)",
+      "value": {
+        "event": "resync",
+        "data": {
+          "reason": "truncated journal",
+          "resumeFrom": 7
+        }
+      }
+    },
+    {
+      "id": "PushStore.legacy-r291",
+      "target": "PushStore.legacy",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "constructed",
+      "provenance": "PushNotifications.ts persisted JSON shape (atomic rewrite planned at C14)",
+      "value": {
+        "subscriptions": [
+          {
+            "endpoint": "https://push.example.com/xyz",
+            "expirationTime": null,
+            "keys": {
+              "auth": "auth-material",
+              "p256dh": "p256dh-material"
+            }
+          }
+        ],
+        "vapidKeys": {
+          "privateKey": "synthetic-private-key-material",
+          "publicKey": "synthetic-public-key-material"
+        }
+      }
+    },
+    {
+      "id": "PushStore.legacy-r292",
+      "target": "PushStore.legacy",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "constructed",
+      "provenance": "PushNotifications.ts persisted JSON shape (atomic rewrite planned at C14)",
+      "value": {
+        "subscriptions": []
+      }
+    },
+    {
+      "id": "PushStore.legacy.null-expiration-r293",
+      "target": "PushStore.legacy.null-expiration",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "constructed",
+      "provenance": "PushNotifications.ts persistence: omitted expirationTime normalizes to null",
+      "value": {
+        "subscriptions": [
+          {
+            "endpoint": "https://push.example.com/xyz",
+            "keys": {
+              "auth": "a",
+              "p256dh": "b"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "PushPayload-r294",
+      "target": "PushPayload",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "constructed",
+      "provenance": "PushNotifications.ts payloadDeNotification + deep link",
+      "value": {
+        "body": "Agent finished",
+        "tag": "done",
+        "title": "revue-1",
+        "url": "/#/agent/p9"
+      }
+    },
+    {
+      "id": "Method.vocabulary-r295",
+      "target": "Method.vocabulary",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "constructed",
+      "provenance": "protocol.ts:Method (declared) — runtime uses 13 listed; events.* declared but unused",
+      "value": {
+        "declared": [
+          "agent.get",
+          "agent.list",
+          "agent.prompt",
+          "agent.read",
+          "agent.send_keys",
+          "pane.send_text",
+          "agent.focus",
+          "agent.start",
+          "events.subscribe",
+          "events.wait",
+          "ping",
+          "session.snapshot",
+          "tab.close",
+          "tab.create"
+        ],
+        "declaredNotUsed": [
+          "events.subscribe",
+          "events.wait"
+        ]
+      }
+    },
+    {
+      "id": "EventWait.supported-r296",
+      "target": "EventWait.supported",
+      "kind": "positive",
+      "expect": "accept",
+      "verify": "constructed",
+      "provenance": "protocol.ts:SUPPORTED_EVENT_WAIT_MATCHES (measured)",
+      "value": [
+        "pane_agent_status_changed"
+      ]
+    }
+  ]
+}

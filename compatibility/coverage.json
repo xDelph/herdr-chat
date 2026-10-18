@@ -1,0 +1,1075 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-18T00:10:29Z",
+  "capabilities": [
+    {
+      "id": "O01",
+      "deliverTasks": [
+        "T056"
+      ],
+      "proofTask": "T064",
+      "target": "crates/herdrchat/tests",
+      "status": "pending"
+    },
+    {
+      "id": "O02",
+      "deliverTasks": [
+        "T048"
+      ],
+      "proofTask": "T064",
+      "target": "crates/herdrchat/tests (config matrix)",
+      "status": "pending"
+    },
+    {
+      "id": "O03",
+      "deliverTasks": [
+        "T056"
+      ],
+      "proofTask": "T064",
+      "target": "crates/herdrchat/tests (composition)",
+      "status": "pending"
+    },
+    {
+      "id": "O04",
+      "deliverTasks": [
+        "T056"
+      ],
+      "proofTask": "T064",
+      "target": "crates/herdrchat/tests (shutdown) + crates/application/tests",
+      "status": "pending"
+    },
+    {
+      "id": "O05",
+      "deliverTasks": [
+        "T054"
+      ],
+      "proofTask": "T064",
+      "target": "crates/herdrchat/tests + crates/http-api/tests",
+      "status": "pending"
+    },
+    {
+      "id": "O06",
+      "deliverTasks": [
+        "T054"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests + crates/herdrchat/tests",
+      "status": "pending"
+    },
+    {
+      "id": "O07",
+      "deliverTasks": [
+        "T054",
+        "T049"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests",
+      "status": "pending"
+    },
+    {
+      "id": "O08",
+      "deliverTasks": [
+        "T066",
+        "T068"
+      ],
+      "proofTask": "T064",
+      "target": "crates/xtask/tests + release workflow (CI)",
+      "status": "pending"
+    },
+    {
+      "id": "O09",
+      "deliverTasks": [
+        "T066",
+        "T070"
+      ],
+      "proofTask": "T064",
+      "target": "review docs only",
+      "status": "pending"
+    },
+    {
+      "id": "O10",
+      "deliverTasks": [
+        "T003",
+        "T069"
+      ],
+      "proofTask": "T064",
+      "target": "crates/xtask/tests + workspace gates",
+      "status": "pending"
+    },
+    {
+      "id": "H01",
+      "deliverTasks": [
+        "T050",
+        "T010"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H02",
+      "deliverTasks": [
+        "T050",
+        "T010"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H03",
+      "deliverTasks": [
+        "T050",
+        "T010"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H04",
+      "deliverTasks": [
+        "T050",
+        "T010"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs (session matrix)",
+      "status": "pending"
+    },
+    {
+      "id": "H05",
+      "deliverTasks": [
+        "T051"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs (commands)",
+      "status": "pending"
+    },
+    {
+      "id": "H06",
+      "deliverTasks": [
+        "T051"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs (commands)",
+      "status": "pending"
+    },
+    {
+      "id": "H07",
+      "deliverTasks": [
+        "T051"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs (launch)",
+      "status": "pending"
+    },
+    {
+      "id": "H08",
+      "deliverTasks": [
+        "T052"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H09",
+      "deliverTasks": [
+        "T052"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H10",
+      "deliverTasks": [
+        "T051"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs (interactive)",
+      "status": "pending"
+    },
+    {
+      "id": "H11",
+      "deliverTasks": [
+        "T051"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs (commands)",
+      "status": "pending"
+    },
+    {
+      "id": "H12",
+      "deliverTasks": [
+        "T051"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs (interactive)",
+      "status": "pending"
+    },
+    {
+      "id": "H13",
+      "deliverTasks": [
+        "T052"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H14",
+      "deliverTasks": [
+        "T053"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs (SSE)",
+      "status": "pending"
+    },
+    {
+      "id": "H15",
+      "deliverTasks": [
+        "T052"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H16",
+      "deliverTasks": [
+        "T052"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H17",
+      "deliverTasks": [
+        "T052"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs (files)",
+      "status": "pending"
+    },
+    {
+      "id": "H18",
+      "deliverTasks": [
+        "T052"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "D01",
+      "deliverTasks": [
+        "T005",
+        "T023",
+        "T038",
+        "T039"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests + crates/domene→domain/tests",
+      "status": "pending"
+    },
+    {
+      "id": "D02",
+      "deliverTasks": [
+        "T005",
+        "T023",
+        "T039"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (overview)",
+      "status": "pending"
+    },
+    {
+      "id": "D03",
+      "deliverTasks": [
+        "T005",
+        "T039"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (overview)",
+      "status": "pending"
+    },
+    {
+      "id": "D04",
+      "deliverTasks": [
+        "T005"
+      ],
+      "proofTask": "T064",
+      "target": "crates/domain/tests (naming) + application tests",
+      "status": "pending"
+    },
+    {
+      "id": "D05",
+      "deliverTasks": [
+        "T039"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (conversations/overview)",
+      "status": "pending"
+    },
+    {
+      "id": "D06",
+      "deliverTasks": [
+        "T011",
+        "T014",
+        "T015",
+        "T017",
+        "T023",
+        "T024"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests (registry)",
+      "status": "pending"
+    },
+    {
+      "id": "D07",
+      "deliverTasks": [
+        "T023"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/integration (discovery)",
+      "status": "pending"
+    },
+    {
+      "id": "D08",
+      "deliverTasks": [
+        "T023"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/integration (discovery)",
+      "status": "pending"
+    },
+    {
+      "id": "D09",
+      "deliverTasks": [
+        "T014",
+        "T026"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/unit (jsonl) + metadata",
+      "status": "pending"
+    },
+    {
+      "id": "D10",
+      "deliverTasks": [
+        "T014"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/unit (jsonl) + property_tests",
+      "status": "pending"
+    },
+    {
+      "id": "D11",
+      "deliverTasks": [
+        "T018"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/contracts (agent_matrix: pi)",
+      "status": "pending"
+    },
+    {
+      "id": "D12",
+      "deliverTasks": [
+        "T019"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/contracts (agent_matrix: codex)",
+      "status": "pending"
+    },
+    {
+      "id": "D13",
+      "deliverTasks": [
+        "T019"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/contracts (agent_matrix: codex)",
+      "status": "pending"
+    },
+    {
+      "id": "D14",
+      "deliverTasks": [
+        "T020"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/contracts (agent_matrix: claude)",
+      "status": "pending"
+    },
+    {
+      "id": "D15",
+      "deliverTasks": [
+        "T021"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/contracts (agent_matrix: opencode)",
+      "status": "pending"
+    },
+    {
+      "id": "D16",
+      "deliverTasks": [
+        "T022"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/contracts (agent_matrix: devin)",
+      "status": "pending"
+    },
+    {
+      "id": "D17",
+      "deliverTasks": [
+        "T015",
+        "T021",
+        "T022"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/unit (sqlite)",
+      "status": "pending"
+    },
+    {
+      "id": "D18",
+      "deliverTasks": [
+        "T026",
+        "T027",
+        "T039"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests + sessions metadata",
+      "status": "pending"
+    },
+    {
+      "id": "D19",
+      "deliverTasks": [
+        "T026"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests (metadata reducer)",
+      "status": "pending"
+    },
+    {
+      "id": "D20",
+      "deliverTasks": [
+        "T027",
+        "T039"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests",
+      "status": "pending"
+    },
+    {
+      "id": "D21",
+      "deliverTasks": [
+        "T040"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (git)",
+      "status": "pending"
+    },
+    {
+      "id": "D22",
+      "deliverTasks": [
+        "T026"
+      ],
+      "proofTask": "T064",
+      "target": "crates/sessions/tests/contracts (normalization) ",
+      "status": "pending"
+    },
+    {
+      "id": "A01",
+      "deliverTasks": [
+        "T035"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (prompt)",
+      "status": "pending"
+    },
+    {
+      "id": "A02",
+      "deliverTasks": [
+        "T035"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (prompt dedup)",
+      "status": "pending"
+    },
+    {
+      "id": "A03",
+      "deliverTasks": [
+        "T035",
+        "T013"
+      ],
+      "proofTask": "T064",
+      "target": "crates/herdr-client/tests + application tests",
+      "status": "pending"
+    },
+    {
+      "id": "A04",
+      "deliverTasks": [
+        "T036"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (stop)",
+      "status": "pending"
+    },
+    {
+      "id": "A05",
+      "deliverTasks": [
+        "T036"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (focus)",
+      "status": "pending"
+    },
+    {
+      "id": "A06",
+      "deliverTasks": [
+        "T013",
+        "T031"
+      ],
+      "proofTask": "T064",
+      "target": "crates/herdr-client/tests + application",
+      "status": "pending"
+    },
+    {
+      "id": "A07",
+      "deliverTasks": [
+        "T037"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (launch)",
+      "status": "pending"
+    },
+    {
+      "id": "A08",
+      "deliverTasks": [
+        "T037"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (launch)",
+      "status": "pending"
+    },
+    {
+      "id": "A09",
+      "deliverTasks": [
+        "T032",
+        "T033"
+      ],
+      "proofTask": "T064",
+      "target": "crates/interactions/tests",
+      "status": "pending"
+    },
+    {
+      "id": "A10",
+      "deliverTasks": [
+        "T033"
+      ],
+      "proofTask": "T064",
+      "target": "crates/interactions/tests",
+      "status": "pending"
+    },
+    {
+      "id": "A11",
+      "deliverTasks": [
+        "T032"
+      ],
+      "proofTask": "T064",
+      "target": "crates/interactions/tests (recognition)",
+      "status": "pending"
+    },
+    {
+      "id": "A12",
+      "deliverTasks": [
+        "T033"
+      ],
+      "proofTask": "T064",
+      "target": "crates/interactions/tests (planning/verification)",
+      "status": "pending"
+    },
+    {
+      "id": "A13",
+      "deliverTasks": [
+        "T028",
+        "T029",
+        "T031"
+      ],
+      "proofTask": "T064",
+      "target": "crates/catalog/tests",
+      "status": "pending"
+    },
+    {
+      "id": "A14",
+      "deliverTasks": [
+        "T029",
+        "T030"
+      ],
+      "proofTask": "T064",
+      "target": "crates/catalog/tests (args)",
+      "status": "pending"
+    },
+    {
+      "id": "A15",
+      "deliverTasks": [
+        "T030"
+      ],
+      "proofTask": "T064",
+      "target": "crates/catalog/tests (args)",
+      "status": "pending"
+    },
+    {
+      "id": "E01",
+      "deliverTasks": [
+        "T041"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (watcher, fake clock)",
+      "status": "pending"
+    },
+    {
+      "id": "E02",
+      "deliverTasks": [
+        "T041"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (watcher)",
+      "status": "pending"
+    },
+    {
+      "id": "E03",
+      "deliverTasks": [
+        "T041"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (watcher)",
+      "status": "pending"
+    },
+    {
+      "id": "E04",
+      "deliverTasks": [
+        "T042"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (journal)",
+      "status": "pending"
+    },
+    {
+      "id": "E05",
+      "deliverTasks": [
+        "T043",
+        "T053"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests + http-api SSE tests",
+      "status": "pending"
+    },
+    {
+      "id": "E06",
+      "deliverTasks": [
+        "T041"
+      ],
+      "proofTask": "T064",
+      "target": "crates/application/tests (watcher)",
+      "status": "pending"
+    },
+    {
+      "id": "E07",
+      "deliverTasks": [
+        "T045"
+      ],
+      "proofTask": "T064",
+      "target": "crates/notifications/tests (payload)",
+      "status": "pending"
+    },
+    {
+      "id": "E08",
+      "deliverTasks": [
+        "T044"
+      ],
+      "proofTask": "T064",
+      "target": "crates/notifications/tests (store/vapid)",
+      "status": "pending"
+    },
+    {
+      "id": "E09",
+      "deliverTasks": [
+        "T045"
+      ],
+      "proofTask": "T064",
+      "target": "crates/notifications/tests (delivery)",
+      "status": "pending"
+    },
+    {
+      "id": "E10",
+      "deliverTasks": [
+        "T044"
+      ],
+      "proofTask": "T064",
+      "target": "crates/notifications/tests (store)",
+      "status": "pending"
+    },
+    {
+      "id": "S01",
+      "deliverTasks": [
+        "T048",
+        "T049"
+      ],
+      "proofTask": "T064",
+      "target": "crates/herdrchat/tests + http-api origin tests",
+      "status": "pending"
+    },
+    {
+      "id": "S02",
+      "deliverTasks": [
+        "T049"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests (origin matrix)",
+      "status": "pending"
+    },
+    {
+      "id": "S03",
+      "deliverTasks": [
+        "T049"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests (body limits)",
+      "status": "pending"
+    },
+    {
+      "id": "S04",
+      "deliverTasks": [
+        "T011",
+        "T014",
+        "T015"
+      ],
+      "proofTask": "T064",
+      "target": "crates/files/tests (confined) + sessions path_policy",
+      "status": "pending"
+    },
+    {
+      "id": "S05",
+      "deliverTasks": [
+        "T046"
+      ],
+      "proofTask": "T064",
+      "target": "crates/files/tests + application authorization",
+      "status": "pending"
+    },
+    {
+      "id": "S06",
+      "deliverTasks": [
+        "T046"
+      ],
+      "proofTask": "T064",
+      "target": "crates/files/tests (authorized_file)",
+      "status": "pending"
+    },
+    {
+      "id": "S07",
+      "deliverTasks": [
+        "T046"
+      ],
+      "proofTask": "T064",
+      "target": "crates/files/tests (mime)",
+      "status": "pending"
+    },
+    {
+      "id": "S08",
+      "deliverTasks": [
+        "T047"
+      ],
+      "proofTask": "T064",
+      "target": "crates/files/tests (scan)",
+      "status": "pending"
+    },
+    {
+      "id": "S09",
+      "deliverTasks": [
+        "T047"
+      ],
+      "proofTask": "T064",
+      "target": "crates/files/tests (scan)",
+      "status": "pending"
+    },
+    {
+      "id": "S10",
+      "deliverTasks": [
+        "T010",
+        "T055"
+      ],
+      "proofTask": "T064",
+      "target": "crates/domain/tests + http-api error tests",
+      "status": "pending"
+    },
+    {
+      "id": "S11",
+      "deliverTasks": [
+        "T055"
+      ],
+      "proofTask": "T064",
+      "target": "crates/herdrchat/tests (logging)",
+      "status": "pending"
+    },
+    {
+      "id": "S12",
+      "deliverTasks": [
+        "T055"
+      ],
+      "proofTask": "T064",
+      "target": "crates/herdrchat/tests (logging)",
+      "status": "pending"
+    },
+    {
+      "id": "S13",
+      "deliverTasks": [
+        "T010"
+      ],
+      "proofTask": "T064",
+      "target": "crates/domain/tests (errors) + http-api",
+      "status": "pending"
+    },
+    {
+      "id": "S14",
+      "deliverTasks": [
+        "T003",
+        "T004",
+        "T006",
+        "T064"
+      ],
+      "proofTask": "T064",
+      "target": "crates/test-support/tests + xtask layout gate",
+      "status": "pending"
+    }
+  ],
+  "corrections": [
+    {
+      "id": "C01",
+      "tasks": [
+        "T007",
+        "T008",
+        "T009",
+        "T057",
+        "T068"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C02",
+      "tasks": [
+        "T014",
+        "T025",
+        "T026",
+        "T027"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C03",
+      "tasks": [
+        "T033",
+        "T051"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C04",
+      "tasks": [
+        "T010",
+        "T050"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C05",
+      "tasks": [
+        "T013",
+        "T035",
+        "T051"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C06",
+      "tasks": [
+        "T034",
+        "T035"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C07",
+      "tasks": [
+        "T030",
+        "T037",
+        "T051"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C08",
+      "tasks": [
+        "T049",
+        "T054"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C09",
+      "tasks": [
+        "T049"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C10",
+      "tasks": [
+        "T048"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C11",
+      "tasks": [
+        "T042",
+        "T043",
+        "T053"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C12",
+      "tasks": [
+        "T024",
+        "T025",
+        "T050"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C13",
+      "tasks": [
+        "T011",
+        "T046",
+        "T047"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C14",
+      "tasks": [
+        "T044",
+        "T045"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C15",
+      "tasks": [
+        "T023"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C16",
+      "tasks": [
+        "T031",
+        "T037"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C17",
+      "tasks": [
+        "T032",
+        "T033",
+        "T034"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C18",
+      "tasks": [
+        "T025",
+        "T050",
+        "T057",
+        "T059"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C19",
+      "tasks": [
+        "T058"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C20",
+      "tasks": [
+        "T058",
+        "T059"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C21",
+      "tasks": [
+        "T060"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C22",
+      "tasks": [
+        "T061"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C23",
+      "tasks": [
+        "T038",
+        "T039",
+        "T059"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C24",
+      "tasks": [
+        "T036",
+        "T062"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C25",
+      "tasks": [
+        "T062",
+        "T067"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C26",
+      "tasks": [
+        "T027",
+        "T053",
+        "T057",
+        "T059"
+      ],
+      "proofTask": "T064"
+    },
+    {
+      "id": "C27",
+      "tasks": [
+        "T063",
+        "T065"
+      ],
+      "proofTask": "T064"
+    }
+  ],
+  "historicalBaselineRef": "576bbf4902a00d3ef9702b4df315c943c7ac5680"
+}

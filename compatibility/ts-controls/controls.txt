@@ -1,0 +1,38 @@
+# TS verification controls captured at T001 (execution base d19f98d)
+
+Date (UTC start): 2026-10-18 00:04:29Z
+Worktree: .worktrees/rust-backend — branch plan/rust-backend
+git rev-parse HEAD at capture: d19f98d23b02cacf7d6d9d97facf8d6360b0546b
+
+## Tool versions
+- bun 1.4.2 (npm packageManager bun@1.4.2)
+- node v24.21.0 (engines)
+- oxfmt 0.72.0 / oxlint 1.87.0 / typescript 7.0.2 (bun install in worktree)
+- effect 4.0.2 (workspace dependency of @herdr-remote/shared and server)
+
+## Commands and results (baseline state, before any migration change)
+
+1) bun run format:check
+   => PASS — "All matched files use the correct format." (152 files, 208 ms)
+
+2) bun run lint
+   => PASS (exit 0) after worktree `bun install`. Initial failure was only
+   the missing local node_modules in the worktree (effect unresolved); no
+   source problem.
+
+3) bun run typecheck (tsc --noEmit -p tsconfig.json)
+   => PASS (exit 0)
+
+4) bun test
+   => PASS: 1080 pass, 0 fail, 0 skip, 2109 expect() calls, 59 files.
+   JUnit evidence: junit-baseline.xml; per-file counts (59 files = 1080
+   cases): test-case-manifest.txt. Sum of first-level <testsuite tests>
+   attributes = 1080 exactly (describe blocks nest deeper and are not
+   double-counted).
+
+## Purpose for later tasks
+- T004 moves every `*.test.ts` out of src/ and must reproduce exactly this
+  case manifest (zéro cas perdu/ignoré) from the new tests/ locations.
+- Historical tests under src/ executed with the transport simulé
+  (TransportTag.layerTest) heredity: no Herdr socket, no agent CLI, no user
+  session was contacted for this run.

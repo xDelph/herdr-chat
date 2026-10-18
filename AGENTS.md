@@ -68,3 +68,14 @@ Un envoi non confirmé n'est **jamais** affiché comme « envoyé ». Une capaci
 ## Ne jamais masquer une erreur
 
 Une cause réelle est affichée, pas un message générique. Une porte de vérification doit être **prouvée capable d'échouer**.
+
+## Migration Rust — règles de conception et de livraison
+
+- Plan de référence : `specs/rust-backend/TASKS.md`, architecture `TECH.md`, composition `ADAPTERS.md`. Exécuter seulement les tâches confiées par l'utilisateur ; la préparation du plan n'autorise pas son implémentation.
+- Crates sans préfixe `hc-`. Un seul daemon ; bibliothèques séparées selon les responsabilités documentées.
+- Composer un socle commun testé et des adaptations par agent. Séparer stockage, enveloppe, codec de famille, politique d'agent et interaction. Une modification spécifique à un agent ne modifie pas le socle commun sans preuve et tests de tous ses consommateurs. Aucun fallback implicite d'un agent vers le profil d'un autre.
+- **Aucun test sous un répertoire `src/`**, Rust comme TypeScript : ni fichier `*.test.*`/`*.spec.*`, ni `#[test]`, `#[tokio::test]`, `#[cfg(test)] mod tests`, ni inclusion de tests externes depuis `src`. Les tests sont dans les dossiers `tests/` dédiés décrits par `TASKS.md`. Les tests historiques seront déplacés par T004 avant toute nouvelle implémentation.
+- Les tests unitaires Rust utilisent les cibles Cargo externes `tests/unit_tests.rs` et leurs sous-modules `tests/unit/`. Tester les contrats publics sans rendre des détails privés publics uniquement pour les tests ; ne pas réinclure les sources dans une cible de test.
+- Les tests de contrat et scénarios utilisent uniquement des ports simulés, exécutables factices et magasins temporaires. Aucun input aux agents de l'utilisateur, aucun vrai CLI d'agent, aucune clé VAPID/abonnement réel, aucun store utilisateur.
+- Chaque tâche fournit les fichiers livrés, les preuves indiquées et la couverture des identifiants H/D/A/E/S/O/C. Une tâche reste non faite si son test est ignoré, si une capacité est supposée ou si une erreur est masquée.
+- Pas de changement de service, Homebrew/Tailscale, lancement du daemon de production ou bascule avant une instruction explicite distincte de l'utilisateur.

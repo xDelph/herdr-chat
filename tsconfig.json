@@ -26,6 +26,6 @@
     "skipLibCheck": true,
     "types": ["bun"]
   },
-  "include": ["apps/*/src/**/*", "packages/*/src/**/*"],
+  "include": ["apps/*/src/**/*", "apps/*/scripts/**/*", "packages/*/src/**/*", "packages/*/scripts/**/*"],
   "exclude": ["node_modules", "dist"]
 }

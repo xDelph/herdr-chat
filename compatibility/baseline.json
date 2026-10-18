@@ -1,0 +1,3192 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-18T00:10:29Z",
+  "historicalBaseline": {
+    "commit": "576bbf4902a00d3ef9702b4df315c943c7ac5680",
+    "note": "CURRENT.md/CONTRACTS.md/SOURCE-MAP.md remain frozen photographs of this commit."
+  },
+  "executionBase": {
+    "commit": "d19f98d23b02cacf7d6d9d97facf8d6360b0546b",
+    "extra": "BASELINE-DELTA.md: Codex title discovery (nomsDeSessionCodex) delivered at T023."
+  },
+  "capabilities": [
+    {
+      "id": "O01",
+      "title": "Runtime: single Bun HTTP process, Effect services, scoped watcher",
+      "expectation": "Execution test target maps service ownership; parity claims come from behavior tests, not this documentation.",
+      "tasks": [
+        "T056"
+      ],
+      "futureTestTarget": "crates/herdrchat/tests",
+      "status": "pending"
+    },
+    {
+      "id": "O02",
+      "title": "Bind 127.0.0.1:8791 default; tailnet bind; reject public/wildcard",
+      "expectation": "Default bind 127.0.0.1; strict IpAddr parse; correction C10 narrows tailnet to 100.64.0.0/10 + fd7a:115c:a1e0::/48 and forbids wildcard/public; port strict 1..65535.",
+      "tasks": [
+        "T048"
+      ],
+      "futureTestTarget": "crates/herdrchat/tests (config matrix)",
+      "status": "pending"
+    },
+    {
+      "id": "O03",
+      "title": "Herdr startup ping; Herdr unavailable = warning, HTTP stays up",
+      "expectation": "Ping result drives health warning only; backend must serve even when Herdr is unreachable.",
+      "tasks": [
+        "T056"
+      ],
+      "futureTestTarget": "crates/herdrchat/tests (composition)",
+      "status": "pending"
+    },
+    {
+      "id": "O04",
+      "title": "Polling watcher starts with service; SIGINT/SIGTERM shutdown",
+      "expectation": "Watcher lifecycle owns no process outside its own; shutdown stops watcher, poller, subscriptions; no user agent touched.",
+      "tasks": [
+        "T056"
+      ],
+      "futureTestTarget": "crates/herdrchat/tests (shutdown) + crates/application/tests",
+      "status": "pending"
+    },
+    {
+      "id": "O05",
+      "title": "Compiled PWA served relative to server source location",
+      "expectation": "Assets embedded at build time; binary serves from any cwd; no arbitrary disk path exposure.",
+      "tasks": [
+        "T054"
+      ],
+      "futureTestTarget": "crates/herdrchat/tests + crates/http-api/tests",
+      "status": "pending"
+    },
+    {
+      "id": "O06",
+      "title": "Static traversal/symlink confinement; SPA fallback; JSON 503 if build absent",
+      "expectation": "Bad encoding/escapes/missing assets fall back to index; missing build yields JSON 503 {error,hint}; unknown /api stays JSON 404 (C08).",
+      "tasks": [
+        "T054"
+      ],
+      "futureTestTarget": "crates/http-api/tests + crates/herdrchat/tests",
+      "status": "pending"
+    },
+    {
+      "id": "O07",
+      "title": "no-cache/no-store for index, worker, manifest; API JSON no-store",
+      "expectation": "Headers retained: index/sw.js/push-sw.js/manifest + fallback HTML no-cache,no-store,must-revalidate; API JSON no-store.",
+      "tasks": [
+        "T054",
+        "T049"
+      ],
+      "futureTestTarget": "crates/http-api/tests",
+      "status": "pending"
+    },
+    {
+      "id": "O08",
+      "title": "herdrchat launcher + release tarball with built PWA and sources",
+      "expectation": "Native release path: herdrchat binary with embedded PWA; no Bun/Node requirement; archives/checksums prepared at T066.",
+      "tasks": [
+        "T066",
+        "T068"
+      ],
+      "futureTestTarget": "crates/xtask/tests + release workflow (CI)",
+      "status": "pending"
+    },
+    {
+      "id": "O09",
+      "title": "Homebrew service + Tailscale Serve documented deployment",
+      "expectation": "Service integration retained conceptually; tap/service changes remain separate deployment work requiring explicit user instruction.",
+      "tasks": [
+        "T066",
+        "T070"
+      ],
+      "futureTestTarget": "review docs only",
+      "status": "pending"
+    },
+    {
+      "id": "O10",
+      "title": "verify = format, lint, typecheck, tests; pre-commit + tag release",
+      "expectation": "Rust gates (fmt/clippy/test/layout/coverage) compose with TS gates during transition; xtask verify enforces them.",
+      "tasks": [
+        "T003",
+        "T069"
+      ],
+      "futureTestTarget": "crates/xtask/tests + workspace gates",
+      "status": "pending"
+    },
+    {
+      "id": "H01",
+      "title": "GET /api/health",
+      "expectation": "200 HealthResponse; 503 same schema ok:false herdr.reachable:false; 500 unreadable result.",
+      "tasks": [
+        "T050",
+        "T010"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H02",
+      "title": "GET /api/overview",
+      "expectation": "200 OverviewResponse; failures map to explicit endpoint errors, never stale-as-fresh (C23).",
+      "tasks": [
+        "T050",
+        "T010"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H03",
+      "title": "GET /api/conversations",
+      "expectation": "200 ConversationsResponse; 503 {conversations:[]} snapshot failure; 502 same empty shape unreadable snapshot.",
+      "tasks": [
+        "T050",
+        "T010"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H04",
+      "title": "GET /api/agents/:paneId/session",
+      "expectation": "Query tail,cursor,before; 200 SessionResponse; 400 bad/exclusive cursors; 403 rejected path; 404 no usable source; 409 stale history; 422 oversized record (C18); 502 read/control failure; 503 missing SQLite DB; caughtUp added (C18).",
+      "tasks": [
+        "T050",
+        "T010"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs (session matrix)",
+      "status": "pending"
+    },
+    {
+      "id": "H05",
+      "title": "POST /api/agents/:paneId/prompt",
+      "expectation": "200 PromptSentResponse | PromptSuppressedResponse; 400 malformed body; 413 text>32KiB UTF-8; 502 PromptFailedResponse; 500 unreadable result; success requires discriminator proof (C05).",
+      "tasks": [
+        "T051"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs (commands)",
+      "status": "pending"
+    },
+    {
+      "id": "H06",
+      "title": "POST /api/agents/:paneId/stop",
+      "expectation": "200 StopAgentResponse (sent|not-running); 404 no agent; 502 snapshot/decode/key-send failure.",
+      "tasks": [
+        "T051"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs (commands)",
+      "status": "pending"
+    },
+    {
+      "id": "H07",
+      "title": "POST /api/workspaces/:workspaceId/agents",
+      "expectation": "201 LaunchAgentResponse; 409 TrustRequiredResponse; 400 invalid body/unavailable kind; 503 installed-kind discovery failed; 502 validation/tab/launch; 500 unreadable; C07 validate-before-tab, deadline, owned cleanup.",
+      "tasks": [
+        "T051"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs (launch)",
+      "status": "pending"
+    },
+    {
+      "id": "H08",
+      "title": "GET /api/agents/kinds",
+      "expectation": "200 InstalledKindsResponse; 502 integration lookup/decode failure; C16 one measured launchable/readable policy.",
+      "tasks": [
+        "T052"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H09",
+      "title": "GET /api/agents/:kind/models",
+      "expectation": "200 ModelCatalogResponse incl. unsupported kind + unavailable catalog as values; no separate non-200 catalog branch.",
+      "tasks": [
+        "T052"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H10",
+      "title": "POST /api/agents/:paneId/answer",
+      "expectation": "200 QuestionAnsweredResponse incl. refusee value; 400 body shape; 502 Herdr failure; 500 unreadable result; C03/C17 no invented acceptance proof.",
+      "tasks": [
+        "T051"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs (interactive)",
+      "status": "pending"
+    },
+    {
+      "id": "H11",
+      "title": "POST /api/agents/:paneId/focus",
+      "expectation": "200 AgentFocusedResponse with focused:false on Herdr failure; body ignored after guard.",
+      "tasks": [
+        "T051"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs (commands)",
+      "status": "pending"
+    },
+    {
+      "id": "H12",
+      "title": "POST /api/agents/:paneId/trust",
+      "expectation": "200 TrustResolvedResponse with complete state field (C03 fixes current 500-on-service-outcome); 400 invalid body; 502 Herdr failure.",
+      "tasks": [
+        "T051"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs (interactive)",
+      "status": "pending"
+    },
+    {
+      "id": "H13",
+      "title": "POST /api/log",
+      "expectation": "200 {ok:true}; 400 {ok:false} malformed log body; diagnostic sink wired (T055).",
+      "tasks": [
+        "T052"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H14",
+      "title": "GET /api/events",
+      "expectation": "200 text/event-stream; Last-Event-ID; 503 {error} when 8 streams open; ready/resync + 5 journal kinds + session_changed (T053/C11/C26).",
+      "tasks": [
+        "T053"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs (SSE)",
+      "status": "pending"
+    },
+    {
+      "id": "H15",
+      "title": "GET /api/notifications/vapid-key",
+      "expectation": "200 plain-text base64url key no-store; 503 plain text service absent; 500 JSON {error} setup failure.",
+      "tasks": [
+        "T052"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H16",
+      "title": "POST /api/notifications/subscriptions",
+      "expectation": "204 empty no-store; 400 invalid subscription; 503 JSON {error} service absent; 500 JSON {error} read/write/key failure; unsubscribe takes precedence.",
+      "tasks": [
+        "T052"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H17",
+      "title": "GET /api/file",
+      "expectation": "200 binary/text with type,length,disposition,no-store; 403 {error} missing param/rejected file/failed lookup; 500 unreadable internal result; 12 MiB cap.",
+      "tasks": [
+        "T052"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs (files)",
+      "status": "pending"
+    },
+    {
+      "id": "H18",
+      "title": "GET /api/images",
+      "expectation": "200 RecentImagesResponse; 502 {error} snapshot/scan failure.",
+      "tasks": [
+        "T052"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "D01",
+      "title": "Read Herdr snapshot",
+      "expectation": "Snapshot nested under result.snapshot; agents, workspace metadata, optional panes/tabs/layouts.",
+      "tasks": [
+        "T005",
+        "T023",
+        "T038",
+        "T039"
+      ],
+      "futureTestTarget": "crates/application/tests + crates/domene→domain/tests",
+      "status": "pending"
+    },
+    {
+      "id": "D02",
+      "title": "Compose workspace view",
+      "expectation": "Worktree checkout wins over pane cwd match; project counts/focus/status preserved, even without agents.",
+      "tasks": [
+        "T005",
+        "T023",
+        "T039"
+      ],
+      "futureTestTarget": "crates/application/tests (overview)",
+      "status": "pending"
+    },
+    {
+      "id": "D03",
+      "title": "Compose agent view",
+      "expectation": "Agent type/title/status/cwd/focus; session kind/ID/header cwd/parent session; tri-state cwd match (null distinct from false).",
+      "tasks": [
+        "T005",
+        "T039"
+      ],
+      "futureTestTarget": "crates/application/tests (overview)",
+      "status": "pending"
+    },
+    {
+      "id": "D04",
+      "title": "Human naming and pane ranks",
+      "expectation": "Numeric default labels suppressed; rank rect y,x,paneId; missing rect unranked; multi-pane label name+rank non-repeating; single pane omits rank; same policy for notifications.",
+      "tasks": [
+        "T005"
+      ],
+      "futureTestTarget": "crates/domain/tests (naming) + application tests",
+      "status": "pending"
+    },
+    {
+      "id": "D05",
+      "title": "Visibility rule",
+      "expectation": "Show if source path exists, working/blocked, multiple panes in tab, or readable family; withoutSession counts filtered agents, not every missing file.",
+      "tasks": [
+        "T039"
+      ],
+      "futureTestTarget": "crates/application/tests (conversations/overview)",
+      "status": "pending"
+    },
+    {
+      "id": "D06",
+      "title": "Supported session families",
+      "expectation": "Pi, Codex, Claude Code, opencode, Devin readable; installed ≠ readable; Cursor catalog support ≠ Cursor session reader.",
+      "tasks": [
+        "T011",
+        "T014",
+        "T015",
+        "T017",
+        "T023",
+        "T024"
+      ],
+      "futureTestTarget": "crates/sessions/tests (registry)",
+      "status": "pending"
+    },
+    {
+      "id": "D07",
+      "title": "Source reference resolution",
+      "expectation": "path uses advertised file; Codex/Claude IDs search JSONL filenames; opencode/Devin IDs select read-only SQLite stores; empty IDs refused.",
+      "tasks": [
+        "T023"
+      ],
+      "futureTestTarget": "crates/sessions/tests/integration (discovery)",
+      "status": "pending"
+    },
+    {
+      "id": "D08",
+      "title": "Codex missing-reference fallback",
+      "expectation": "Title 'name | cwd-basename'; versioned state_*.sqlite threads by exact name+cwd, unarchived, latest update; rollout file must exist; C15 numeric version order.",
+      "tasks": [
+        "T023"
+      ],
+      "futureTestTarget": "crates/sessions/tests/integration (discovery)",
+      "status": "pending"
+    },
+    {
+      "id": "D09",
+      "title": "Header reads",
+      "expectation": "Bounded 64 KiB first line; cwd/id/parentSession/version; version fallback 1; header failure currently ignored by enrichment (documented).",
+      "tasks": [
+        "T014",
+        "T026"
+      ],
+      "futureTestTarget": "crates/sessions/tests/unit (jsonl) + metadata",
+      "status": "pending"
+    },
+    {
+      "id": "D10",
+      "title": "JSONL reading",
+      "expectation": "Header, full/forward/tail/backward, file-size identity, partial trailing records, unknown entries preserved; never write source files; C02 offset convention.",
+      "tasks": [
+        "T014"
+      ],
+      "futureTestTarget": "crates/sessions/tests/unit (jsonl) + property_tests",
+      "status": "pending"
+    },
+    {
+      "id": "D11",
+      "title": "Pi compatibility",
+      "expectation": "Original JSONL retained; 8 message roles; settings/usage/context/compaction/custom entries; parentId = conversation ancestry, parentSession = session lineage.",
+      "tasks": [
+        "T018"
+      ],
+      "futureTestTarget": "crates/sessions/tests/contracts (agent_matrix: pi)",
+      "status": "pending"
+    },
+    {
+      "id": "D12",
+      "title": "Codex normalization",
+      "expectation": "response_item messages/function/custom tools/results/redacted reasoning; event_msg.item_completed kinds; command outcome/diff; settings turn_context/thread_settings_applied; long prompts preserved; encrypted reasoning never invented.",
+      "tasks": [
+        "T019"
+      ],
+      "futureTestTarget": "crates/sessions/tests/contracts (agent_matrix: codex)",
+      "status": "pending"
+    },
+    {
+      "id": "D13",
+      "title": "Codex context filtering",
+      "expectation": "Exclude developer/system prose and user content entirely made of injected AGENTS.md/INSTRUCTIONS/environment context; no size heuristic.",
+      "tasks": [
+        "T019"
+      ],
+      "futureTestTarget": "crates/sessions/tests/contracts (agent_matrix: codex)",
+      "status": "pending"
+    },
+    {
+      "id": "D14",
+      "title": "Claude normalization",
+      "expectation": "user/assistant lines; text and tool_use/tool_result incl. error; model from message; slash-command XML decoded; app notices/interrupt/compaction/system wrappers excluded; refused lines stripped before raw fallback.",
+      "tasks": [
+        "T020"
+      ],
+      "futureTestTarget": "crates/sessions/tests/contracts (agent_matrix: claude)",
+      "status": "pending"
+    },
+    {
+      "id": "D15",
+      "title": "opencode normalization",
+      "expectation": "user text; assistant text, clear reasoning, tool calls/results/error/images, data-URI images; model.id/providerID/variant; default variant omitted; unsupported row types remain raw.",
+      "tasks": [
+        "T021"
+      ],
+      "futureTestTarget": "crates/sessions/tests/contracts (agent_matrix: opencode)",
+      "status": "pending"
+    },
+    {
+      "id": "D16",
+      "title": "Devin normalization",
+      "expectation": "user/assistant text and clear thinking; metadata.created_at/generation_model; system excluded; OpenAI-like tool conversion guarded — real tool-call shape unmeasured and stays marked unverified.",
+      "tasks": [
+        "T022"
+      ],
+      "futureTestTarget": "crates/sessions/tests/contracts (agent_matrix: devin)",
+      "status": "pending"
+    },
+    {
+      "id": "D17",
+      "title": "SQLite paging",
+      "expectation": "opencode session_v2/session_message by seq; Devin sessions/message_nodes by row_id; latest ascending after reverse; inclusive boundary replay; backward cursor; read-only queries; 3 s busy timeout.",
+      "tasks": [
+        "T015",
+        "T021",
+        "T022"
+      ],
+      "futureTestTarget": "crates/sessions/tests/unit (sqlite)",
+      "status": "pending"
+    },
+    {
+      "id": "D18",
+      "title": "Conversation summary",
+      "expectation": "One row per visible agent pane; last user text, assistant text or last tool+argument preview; known timestamp; model/provider/thinking; branch; source availability/cause; optional question/trust/waiting.",
+      "tasks": [
+        "T026",
+        "T027",
+        "T039"
+      ],
+      "futureTestTarget": "crates/application/tests + sessions metadata",
+      "status": "pending"
+    },
+    {
+      "id": "D19",
+      "title": "Summary cache",
+      "expectation": "File identity+size/offset+pending; 256 entries oldest eviction; 64 KiB tail; up to 32 older windows (~2 MiB); incremental update preserves prior metadata unless replaced.",
+      "tasks": [
+        "T026"
+      ],
+      "futureTestTarget": "crates/sessions/tests (metadata reducer)",
+      "status": "pending"
+    },
+    {
+      "id": "D20",
+      "title": "Summary isolation",
+      "expectation": "Four concurrent session reads; one bad session keeps other lines; snapshot failure = aggregate failure; question-screen enrichment measured per line.",
+      "tasks": [
+        "T027",
+        "T039"
+      ],
+      "futureTestTarget": "crates/application/tests",
+      "status": "pending"
+    },
+    {
+      "id": "D21",
+      "title": "Git branch metadata",
+      "expectation": "git -C <cwd> rev-parse --abbrev-ref HEAD; 3 s timeout; 30 s cache; detached/empty/missing git/error = absent branch; one job per cwd.",
+      "tasks": [
+        "T040"
+      ],
+      "futureTestTarget": "crates/application/tests (git)",
+      "status": "pending"
+    },
+    {
+      "id": "D22",
+      "title": "Conservative metadata",
+      "expectation": "Placeholder models in angle brackets excluded; model/provider selected as pair; timestamps never fabricated; summaries are extracted data, no LLM generation.",
+      "tasks": [
+        "T026"
+      ],
+      "futureTestTarget": "crates/sessions/tests/contracts (normalization) ",
+      "status": "pending"
+    },
+    {
+      "id": "A01",
+      "title": "Submit prompt",
+      "expectation": "Read current status; ordinary path agent.prompt; blocked path literal text then Enter; specific interactive-input refusal triggers same fallback; never on timeout/unknown state.",
+      "tasks": [
+        "T035"
+      ],
+      "futureTestTarget": "crates/application/tests (prompt)",
+      "status": "pending"
+    },
+    {
+      "id": "A02",
+      "title": "Local duplicate suppression",
+      "expectation": "SHA256(target + NUL + text)[:32hex]; 60 s window; correction C06: last-confirmed per-pane semantics, concurrency serialized; A→B→A allowed; unknown/unconfirmed never suppresses.",
+      "tasks": [
+        "T035"
+      ],
+      "futureTestTarget": "crates/application/tests (prompt dedup)",
+      "status": "pending"
+    },
+    {
+      "id": "A03",
+      "title": "Action uncertainty treatment",
+      "expectation": "Ordinary protocol success confirmed only when discriminator matches (C05); literal-input path unknown; transport failures classified timeout/refusal/unknown.",
+      "tasks": [
+        "T035",
+        "T013"
+      ],
+      "futureTestTarget": "crates/herdr-client/tests + application tests",
+      "status": "pending"
+    },
+    {
+      "id": "A04",
+      "title": "Stop working agent",
+      "expectation": "Fresh snapshot; absent → 404; nonworking no-op; working sends Ctrl+C via Herdr; interrupt-sent is not termination proof.",
+      "tasks": [
+        "T036"
+      ],
+      "futureTestTarget": "crates/application/tests (stop)",
+      "status": "pending"
+    },
+    {
+      "id": "A05",
+      "title": "Focus/acknowledgement",
+      "expectation": "agent.focus real desktop effect; focused boolean, failure as 200 value; logged explicitly.",
+      "tasks": [
+        "T036"
+      ],
+      "futureTestTarget": "crates/application/tests (focus)",
+      "status": "pending"
+    },
+    {
+      "id": "A06",
+      "title": "Installed integrations",
+      "expectation": "integration.list; mapping command vs target; readable-family filter; launch excludes state not_installed.",
+      "tasks": [
+        "T013",
+        "T031"
+      ],
+      "futureTestTarget": "crates/herdr-client/tests + application",
+      "status": "pending"
+    },
+    {
+      "id": "A07",
+      "title": "Explicit agent launch",
+      "expectation": "Workspace validation/cwd; unique generated <label>-1..99 name or provided; new unfocused tab; root pane; start agent with model args; no automatic second agent.",
+      "tasks": [
+        "T037"
+      ],
+      "futureTestTarget": "crates/application/tests (launch)",
+      "status": "pending"
+    },
+    {
+      "id": "A08",
+      "title": "Shell readiness and launch failure",
+      "expectation": "Retry only explicit 'not an available shell' refusal; 3 s spacing ×10; 120 s upstream detection; start deadline 125 s; overall 160 s; close only owned tab on validation failure; blocked pane retained for trust; C07.",
+      "tasks": [
+        "T037"
+      ],
+      "futureTestTarget": "crates/application/tests (launch)",
+      "status": "pending"
+    },
+    {
+      "id": "A09",
+      "title": "Trust detection / response",
+      "expectation": "Actual screen marker required; kind-specific keys (Codex accept [1,enter]/deny [2]; Claude accept [down,enter]/deny [enter]); no fallback for unknown kind.",
+      "tasks": [
+        "T032",
+        "T033"
+      ],
+      "futureTestTarget": "crates/interactions/tests",
+      "status": "pending"
+    },
+    {
+      "id": "A10",
+      "title": "Trust verification",
+      "expectation": "Read before; send keys; verify agent existence; reread; disappeared/persistent prompt ⇒ transmise; refusal may quit agent; no config editing.",
+      "tasks": [
+        "T033"
+      ],
+      "futureTestTarget": "crates/interactions/tests",
+      "status": "pending"
+    },
+    {
+      "id": "A11",
+      "title": "Question parser",
+      "expectation": "Last coherent numbered list from 1, ≥2 choices; selected › marker; same-line/two-space/indented detail; gutters stripped; context + Enter/arrow help parsed.",
+      "tasks": [
+        "T032"
+      ],
+      "futureTestTarget": "crates/interactions/tests (recognition)",
+      "status": "pending"
+    },
+    {
+      "id": "A12",
+      "title": "Answer question",
+      "expectation": "Fresh visible screen; offered integer choice only; number+Enter; optional trimmed free text+Enter; reread distinguishes remaining/disappearing; unreadable question → refusee value.",
+      "tasks": [
+        "T033"
+      ],
+      "futureTestTarget": "crates/interactions/tests (planning/verification)",
+      "status": "pending"
+    },
+    {
+      "id": "A13",
+      "title": "Model catalog lookup",
+      "expectation": "Five adapters; successful-result 60 s cache + in-flight reuse; provenance + explicit unavailable reason; no catalog from installed family.",
+      "tasks": [
+        "T028",
+        "T029",
+        "T031"
+      ],
+      "futureTestTarget": "crates/catalog/tests",
+      "status": "pending"
+    },
+    {
+      "id": "A14",
+      "title": "Launch model/level args",
+      "expectation": "Pi --model/--thinking; Claude --model/--effort (effort-only allowed); Codex -m/--config model_reasoning_effort; Cursor --model (thinking rejected); others reject overrides.",
+      "tasks": [
+        "T029",
+        "T030"
+      ],
+      "futureTestTarget": "crates/catalog/tests (args)",
+      "status": "pending"
+    },
+    {
+      "id": "A15",
+      "title": "Model-level validation",
+      "expectation": "Validate declared levels only when model+thinking supplied; absent model/catalog levels do not establish unsupported; absent requested model = no invented default.",
+      "tasks": [
+        "T030"
+      ],
+      "futureTestTarget": "crates/catalog/tests (args)",
+      "status": "pending"
+    },
+    {
+      "id": "E01",
+      "title": "Polling state watcher",
+      "expectation": "2 s after completed iteration; cached agents/last-success/error count; failures keep loop running.",
+      "tasks": [
+        "T041"
+      ],
+      "futureTestTarget": "crates/application/tests (watcher, fake clock)",
+      "status": "pending"
+    },
+    {
+      "id": "E02",
+      "title": "State diff",
+      "expectation": "Signature status/title/cwd/type/sessionPath; appeared/status/disappeared; metadata changes may emit status same from/to.",
+      "tasks": [
+        "T041"
+      ],
+      "futureTestTarget": "crates/application/tests (watcher)",
+      "status": "pending"
+    },
+    {
+      "id": "E03",
+      "title": "Initial observation",
+      "expectation": "Suppress appeared while previous map empty; disappearance retains last identity for notification.",
+      "tasks": [
+        "T041"
+      ],
+      "futureTestTarget": "crates/application/tests (watcher)",
+      "status": "pending"
+    },
+    {
+      "id": "E04",
+      "title": "Event journal",
+      "expectation": "Memory only; monotonic IDs from 1; capacity 500; oldest evicted; restart loses journal; C11 adds byte cap + heartbeat.",
+      "tasks": [
+        "T042"
+      ],
+      "futureTestTarget": "crates/application/tests (journal)",
+      "status": "pending"
+    },
+    {
+      "id": "E05",
+      "title": "SSE catch-up",
+      "expectation": "Last-Event-ID replay; unknown/future/legacy → resync at current boundary; max 8 streams; C11 epoch IDs.",
+      "tasks": [
+        "T043",
+        "T053"
+      ],
+      "futureTestTarget": "crates/application/tests + http-api SSE tests",
+      "status": "pending"
+    },
+    {
+      "id": "E06",
+      "title": "Push trigger",
+      "expectation": "working→any other status; working/blocked→gone; idle/done disappearance ignored; watcher failure ≠ mass disappearance.",
+      "tasks": [
+        "T041"
+      ],
+      "futureTestTarget": "crates/application/tests (watcher)",
+      "status": "pending"
+    },
+    {
+      "id": "E07",
+      "title": "Push wording and deep links",
+      "expectation": "'Agent needs you' / 'Agent finished' / 'Agent stopped'; grounded identity; waiting/done/gone tags; /#/agent/<encoded paneId>.",
+      "tasks": [
+        "T045"
+      ],
+      "futureTestTarget": "crates/notifications/tests (payload)",
+      "status": "pending"
+    },
+    {
+      "id": "E08",
+      "title": "Subscription lifecycle",
+      "expectation": "Endpoint-keyed upsert; remove endpoint; persistent VAPID key generation or env override; serialized store ops; C14 atomic store.",
+      "tasks": [
+        "T044"
+      ],
+      "futureTestTarget": "crates/notifications/tests (store/vapid)",
+      "status": "pending"
+    },
+    {
+      "id": "E09",
+      "title": "Delivery",
+      "expectation": "Encrypted Web Push; TTL 60 s; 404/410 prune expired; other failures logged; push failure never fails watcher.",
+      "tasks": [
+        "T045"
+      ],
+      "futureTestTarget": "crates/notifications/tests (delivery)",
+      "status": "pending"
+    },
+    {
+      "id": "E10",
+      "title": "Legacy-store migration",
+      "expectation": "On startup copy old cwd .herdr-remote/push.json incl. keys when old has subscriptions and destination absent/empty; never overwrite populated destination.",
+      "tasks": [
+        "T044"
+      ],
+      "futureTestTarget": "crates/notifications/tests (store)",
+      "status": "pending"
+    },
+    {
+      "id": "S01",
+      "title": "Personal tailnet trust boundary",
+      "expectation": "No app auth/cookies/per-device permissions; network ACLs/Serve remain the access boundary.",
+      "tasks": [
+        "T048",
+        "T049"
+      ],
+      "futureTestTarget": "crates/herdrchat/tests + http-api origin tests",
+      "status": "pending"
+    },
+    {
+      "id": "S02",
+      "title": "Mutation origin policy",
+      "expectation": "Exact configured origins + loopback localhost/127.0.0.1/::1 any port; missing Origin rejected; no general CORS middleware.",
+      "tasks": [
+        "T049"
+      ],
+      "futureTestTarget": "crates/http-api/tests (origin matrix)",
+      "status": "pending"
+    },
+    {
+      "id": "S03",
+      "title": "Body guards",
+      "expectation": "JSON Content-Type; declared Content-Length >64 KiB rejected pre-parse (kept) AND streamed byte limit enforced (C09); prompt ≤32 KiB UTF-8.",
+      "tasks": [
+        "T049"
+      ],
+      "futureTestTarget": "crates/http-api/tests (body limits)",
+      "status": "pending"
+    },
+    {
+      "id": "S04",
+      "title": "Session confinement",
+      "expectation": "Canonical configured roots; path segment checks; symlink escape rejection; missing root/file vs outside-root/link distinguished; C13 descriptor-based confinement.",
+      "tasks": [
+        "T011",
+        "T014",
+        "T015"
+      ],
+      "futureTestTarget": "crates/files/tests (confined) + sessions path_policy",
+      "status": "pending"
+    },
+    {
+      "id": "S05",
+      "title": "File roots",
+      "expectation": "Project roots from fresh Herdr snapshot + configured extra roots per request; no implicit Desktop/Downloads/Pictures.",
+      "tasks": [
+        "T046"
+      ],
+      "futureTestTarget": "crates/files/tests + application authorization",
+      "status": "pending"
+    },
+    {
+      "id": "S06",
+      "title": "File descriptor checks",
+      "expectation": "Canonicalize roots/target; open resolved; fstat regular+size; read same descriptor; close; 12 MiB max; C13 revalidation.",
+      "tasks": [
+        "T046"
+      ],
+      "futureTestTarget": "crates/files/tests (authorized_file)",
+      "status": "pending"
+    },
+    {
+      "id": "S07",
+      "title": "Inline/download policy",
+      "expectation": "Inline .avif .gif .jpeg .jpg .png .webp .pdf; text/plain for .txt .log .json .jsonl .md .diff .patch; others octet-stream attachment; SVG never inline.",
+      "tasks": [
+        "T046"
+      ],
+      "futureTestTarget": "crates/files/tests (mime)",
+      "status": "pending"
+    },
+    {
+      "id": "S08",
+      "title": "Recent-image discovery",
+      "expectation": "png/jpg/jpeg/gif/webp/avif; recursive depth 3; cap 400 collected; 120 per directory; 4 roots concurrently; most-recent first; return 60; C13 global budget ownership.",
+      "tasks": [
+        "T047"
+      ],
+      "futureTestTarget": "crates/files/tests (scan)",
+      "status": "pending"
+    },
+    {
+      "id": "S09",
+      "title": "Scan exclusions/degradation",
+      "expectation": "Dot entries and dependency/build dirs skipped; unreadable/disappeared ignored; stat follows links; partial scan normal without completeness field.",
+      "tasks": [
+        "T047"
+      ],
+      "futureTestTarget": "crates/files/tests (scan)",
+      "status": "pending"
+    },
+    {
+      "id": "S10",
+      "title": "Error response contract",
+      "expectation": "Named cause/hint; structured response validation before emission; outgoing ≥400 logged; C04 removes error swallows.",
+      "tasks": [
+        "T010",
+        "T055"
+      ],
+      "futureTestTarget": "crates/domain/tests + http-api error tests",
+      "status": "pending"
+    },
+    {
+      "id": "S11",
+      "title": "Log format",
+      "expectation": "ISO time [LEVEL] [source] message + optional JSON detail truncated 2000 chars; server/client origins; file path injectable.",
+      "tasks": [
+        "T055"
+      ],
+      "futureTestTarget": "crates/herdrchat/tests (logging)",
+      "status": "pending"
+    },
+    {
+      "id": "S12",
+      "title": "Log bounds",
+      "expectation": "Rotate >4 MiB current to .1; suppress repeats key path/source/level/message in rolling 60 s; repeat counter made truthful (was promised, not emitted); sink failure surfaces to stderr.",
+      "tasks": [
+        "T055"
+      ],
+      "futureTestTarget": "crates/herdrchat/tests (logging)",
+      "status": "pending"
+    },
+    {
+      "id": "S13",
+      "title": "Display error sanitization",
+      "expectation": "Human detail preferred; replace pane/tab IDs in suitable strings; fallback serialization ≤300 chars.",
+      "tasks": [
+        "T010"
+      ],
+      "futureTestTarget": "crates/domain/tests (errors) + http-api",
+      "status": "pending"
+    },
+    {
+      "id": "S14",
+      "title": "Read-only upstream data",
+      "expectation": "No prompt experiments on user agents; fake socket transport/temp stores only; service mutations only from explicit product actions.",
+      "tasks": [
+        "T003",
+        "T004",
+        "T006",
+        "T064"
+      ],
+      "futureTestTarget": "crates/test-support/tests + xtask layout gate",
+      "status": "pending"
+    }
+  ],
+  "routes": [
+    {
+      "id": "H01",
+      "title": "GET /api/health",
+      "expectation": "200 HealthResponse; 503 same schema ok:false herdr.reachable:false; 500 unreadable result.",
+      "tasks": [
+        "T050",
+        "T010"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H02",
+      "title": "GET /api/overview",
+      "expectation": "200 OverviewResponse; failures map to explicit endpoint errors, never stale-as-fresh (C23).",
+      "tasks": [
+        "T050",
+        "T010"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H03",
+      "title": "GET /api/conversations",
+      "expectation": "200 ConversationsResponse; 503 {conversations:[]} snapshot failure; 502 same empty shape unreadable snapshot.",
+      "tasks": [
+        "T050",
+        "T010"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H04",
+      "title": "GET /api/agents/:paneId/session",
+      "expectation": "Query tail,cursor,before; 200 SessionResponse; 400 bad/exclusive cursors; 403 rejected path; 404 no usable source; 409 stale history; 422 oversized record (C18); 502 read/control failure; 503 missing SQLite DB; caughtUp added (C18).",
+      "tasks": [
+        "T050",
+        "T010"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs (session matrix)",
+      "status": "pending"
+    },
+    {
+      "id": "H05",
+      "title": "POST /api/agents/:paneId/prompt",
+      "expectation": "200 PromptSentResponse | PromptSuppressedResponse; 400 malformed body; 413 text>32KiB UTF-8; 502 PromptFailedResponse; 500 unreadable result; success requires discriminator proof (C05).",
+      "tasks": [
+        "T051"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs (commands)",
+      "status": "pending"
+    },
+    {
+      "id": "H06",
+      "title": "POST /api/agents/:paneId/stop",
+      "expectation": "200 StopAgentResponse (sent|not-running); 404 no agent; 502 snapshot/decode/key-send failure.",
+      "tasks": [
+        "T051"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs (commands)",
+      "status": "pending"
+    },
+    {
+      "id": "H07",
+      "title": "POST /api/workspaces/:workspaceId/agents",
+      "expectation": "201 LaunchAgentResponse; 409 TrustRequiredResponse; 400 invalid body/unavailable kind; 503 installed-kind discovery failed; 502 validation/tab/launch; 500 unreadable; C07 validate-before-tab, deadline, owned cleanup.",
+      "tasks": [
+        "T051"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs (launch)",
+      "status": "pending"
+    },
+    {
+      "id": "H08",
+      "title": "GET /api/agents/kinds",
+      "expectation": "200 InstalledKindsResponse; 502 integration lookup/decode failure; C16 one measured launchable/readable policy.",
+      "tasks": [
+        "T052"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H09",
+      "title": "GET /api/agents/:kind/models",
+      "expectation": "200 ModelCatalogResponse incl. unsupported kind + unavailable catalog as values; no separate non-200 catalog branch.",
+      "tasks": [
+        "T052"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H10",
+      "title": "POST /api/agents/:paneId/answer",
+      "expectation": "200 QuestionAnsweredResponse incl. refusee value; 400 body shape; 502 Herdr failure; 500 unreadable result; C03/C17 no invented acceptance proof.",
+      "tasks": [
+        "T051"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs (interactive)",
+      "status": "pending"
+    },
+    {
+      "id": "H11",
+      "title": "POST /api/agents/:paneId/focus",
+      "expectation": "200 AgentFocusedResponse with focused:false on Herdr failure; body ignored after guard.",
+      "tasks": [
+        "T051"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs (commands)",
+      "status": "pending"
+    },
+    {
+      "id": "H12",
+      "title": "POST /api/agents/:paneId/trust",
+      "expectation": "200 TrustResolvedResponse with complete state field (C03 fixes current 500-on-service-outcome); 400 invalid body; 502 Herdr failure.",
+      "tasks": [
+        "T051"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs (interactive)",
+      "status": "pending"
+    },
+    {
+      "id": "H13",
+      "title": "POST /api/log",
+      "expectation": "200 {ok:true}; 400 {ok:false} malformed log body; diagnostic sink wired (T055).",
+      "tasks": [
+        "T052"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H14",
+      "title": "GET /api/events",
+      "expectation": "200 text/event-stream; Last-Event-ID; 503 {error} when 8 streams open; ready/resync + 5 journal kinds + session_changed (T053/C11/C26).",
+      "tasks": [
+        "T053"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs (SSE)",
+      "status": "pending"
+    },
+    {
+      "id": "H15",
+      "title": "GET /api/notifications/vapid-key",
+      "expectation": "200 plain-text base64url key no-store; 503 plain text service absent; 500 JSON {error} setup failure.",
+      "tasks": [
+        "T052"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H16",
+      "title": "POST /api/notifications/subscriptions",
+      "expectation": "204 empty no-store; 400 invalid subscription; 503 JSON {error} service absent; 500 JSON {error} read/write/key failure; unsubscribe takes precedence.",
+      "tasks": [
+        "T052"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    },
+    {
+      "id": "H17",
+      "title": "GET /api/file",
+      "expectation": "200 binary/text with type,length,disposition,no-store; 403 {error} missing param/rejected file/failed lookup; 500 unreadable internal result; 12 MiB cap.",
+      "tasks": [
+        "T052"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs (files)",
+      "status": "pending"
+    },
+    {
+      "id": "H18",
+      "title": "GET /api/images",
+      "expectation": "200 RecentImagesResponse; 502 {error} snapshot/scan failure.",
+      "tasks": [
+        "T052"
+      ],
+      "futureTestTarget": "crates/http-api/tests/contract_tests.rs",
+      "status": "pending"
+    }
+  ],
+  "envKeys": [
+    {
+      "key": "HERDR_SOCKET_PATH",
+      "default": "~/.config/herdr/herdr.sock",
+      "consumer": "Control socket; HERDR_SOCKET deliberately unused"
+    },
+    {
+      "key": "HERDR_REMOTE_BIND",
+      "default": "127.0.0.1",
+      "consumer": "Backend bind; legacy prefix check replaced by parsed ranges (C10)"
+    },
+    {
+      "key": "HERDR_REMOTE_PORT",
+      "default": "8791",
+      "consumer": "Backend port; strict parse replaced parseInt (C10)"
+    },
+    {
+      "key": "HERDR_REMOTE_PUBLIC_ORIGINS",
+      "default": "comma-separated, preferred over singular",
+      "consumer": "Mutation origins / VAPID subject fallback"
+    },
+    {
+      "key": "HERDR_REMOTE_PUBLIC_ORIGIN",
+      "default": "legacy fallback if plural unset",
+      "consumer": "Explicit origins only"
+    },
+    {
+      "key": "HERDR_REMOTE_FILES_ROOTS",
+      "default": "empty",
+      "consumer": "Colon-separated existing paths; extra file/image roots"
+    },
+    {
+      "key": "PI_SESSIONS_ROOT",
+      "default": "~/.pi/agent/sessions",
+      "consumer": "Pi JSONL root"
+    },
+    {
+      "key": "CODEX_SESSION_ROOT",
+      "default": "~/.codex/sessions",
+      "consumer": "Codex JSONL root/search"
+    },
+    {
+      "key": "CLAUDE_PROJECTS_ROOT",
+      "default": "~/.claude/projects",
+      "consumer": "Claude JSONL root/search"
+    },
+    {
+      "key": "CODEX_HOME",
+      "default": "~/.codex",
+      "consumer": "Codex state DB fallback; independent of CODEX_SESSION_ROOT"
+    },
+    {
+      "key": "OPENCODE_DB",
+      "default": "~/.local/share/opencode/opencode.db",
+      "consumer": "opencode source DB"
+    },
+    {
+      "key": "DEVIN_DB",
+      "default": "~/.local/share/devin/cli/sessions.db",
+      "consumer": "Devin source DB"
+    },
+    {
+      "key": "HERDR_REMOTE_LOG_PATH",
+      "default": "~/.herdr-remote/herdr-remote.log",
+      "consumer": "Application journal"
+    },
+    {
+      "key": "HERDR_REMOTE_PUSH_STORE",
+      "default": "~/.herdr-remote/push.json",
+      "consumer": "Keys/subscriptions; independent of log path"
+    },
+    {
+      "key": "HERDR_REMOTE_VAPID_SUBJECT",
+      "default": "HTTPS origin, then mailto fallback",
+      "consumer": "Push claims"
+    },
+    {
+      "key": "HERDR_REMOTE_VAPID_PUBLIC_KEY",
+      "default": "persisted/generated when pair absent",
+      "consumer": "Public half; both overrides required together"
+    },
+    {
+      "key": "HERDR_REMOTE_VAPID_PRIVATE_KEY",
+      "default": "persisted/generated when pair absent",
+      "consumer": "Private half; partial override is an error"
+    }
+  ],
+  "declarations": [
+    {
+      "module": "apps/server/src/agents/AgentRegistry.ts",
+      "name": "AgentView"
+    },
+    {
+      "module": "apps/server/src/agents/AgentRegistry.ts",
+      "name": "WorkspaceView"
+    },
+    {
+      "module": "apps/server/src/agents/AgentRegistry.ts",
+      "name": "OverviewView"
+    },
+    {
+      "module": "apps/server/src/agents/AgentRegistry.ts",
+      "name": "SnapshotError"
+    },
+    {
+      "module": "apps/server/src/agents/AgentRegistry.ts",
+      "name": "NamingContext"
+    },
+    {
+      "module": "apps/server/src/agents/AgentRegistry.ts",
+      "name": "emptyNaming"
+    },
+    {
+      "module": "apps/server/src/agents/AnswerQuestion.ts",
+      "name": "HerdrPourQuestion"
+    },
+    {
+      "module": "apps/server/src/agents/AnswerQuestion.ts",
+      "name": "ReponseQuestion"
+    },
+    {
+      "module": "apps/server/src/agents/Lisibilite.ts",
+      "name": "MESURE_SUR"
+    },
+    {
+      "module": "apps/server/src/agents/ModelArgs.ts",
+      "name": "ArgsOutcome"
+    },
+    {
+      "module": "apps/server/src/agents/ModelCatalog.ts",
+      "name": "CatalogModel"
+    },
+    {
+      "module": "apps/server/src/agents/ModelCatalog.ts",
+      "name": "CatalogResult"
+    },
+    {
+      "module": "apps/server/src/agents/ModelCatalog.ts",
+      "name": "Adapter"
+    },
+    {
+      "module": "apps/server/src/agents/ModelCatalog.ts",
+      "name": "CommandOutcome"
+    },
+    {
+      "module": "apps/server/src/agents/ModelCatalog.ts",
+      "name": "CodexCatalogPayload"
+    },
+    {
+      "module": "apps/server/src/agents/ModelCatalog.ts",
+      "name": "CacheEntry"
+    },
+    {
+      "module": "apps/server/src/agents/SessionLocator.ts",
+      "name": "LigneIndex"
+    },
+    {
+      "module": "apps/server/src/agents/SessionLocator.ts",
+      "name": "SessionSlot"
+    },
+    {
+      "module": "apps/server/src/agents/SessionLocator.ts",
+      "name": "SourceSession"
+    },
+    {
+      "module": "apps/server/src/config.ts",
+      "name": "ConfigError"
+    },
+    {
+      "module": "apps/server/src/config.ts",
+      "name": "ServerConfig"
+    },
+    {
+      "module": "apps/server/src/conversations/Summary.ts",
+      "name": "RawPane"
+    },
+    {
+      "module": "apps/server/src/conversations/Summary.ts",
+      "name": "SummaryMetadata"
+    },
+    {
+      "module": "apps/server/src/conversations/Summary.ts",
+      "name": "SummaryRead"
+    },
+    {
+      "module": "apps/server/src/conversations/Summary.ts",
+      "name": "SummaryCacheEntry"
+    },
+    {
+      "module": "apps/server/src/events/AgentWatcher.ts",
+      "name": "WatchTick"
+    },
+    {
+      "module": "apps/server/src/events/AgentWatcher.ts",
+      "name": "AgentWatcherApi"
+    },
+    {
+      "module": "apps/server/src/events/AgentWatcher.ts",
+      "name": "WatchLoop"
+    },
+    {
+      "module": "apps/server/src/events/AgentWatcher.ts",
+      "name": "WatchSnapshot"
+    },
+    {
+      "module": "apps/server/src/events/EventHub.ts",
+      "name": "BusEvent"
+    },
+    {
+      "module": "apps/server/src/events/EventHub.ts",
+      "name": "CatchUp"
+    },
+    {
+      "module": "apps/server/src/events/EventHub.ts",
+      "name": "EventHubApi"
+    },
+    {
+      "module": "apps/server/src/files/FileService.ts",
+      "name": "FileResult"
+    },
+    {
+      "module": "apps/server/src/files/FileService.ts",
+      "name": "FileDenied"
+    },
+    {
+      "module": "apps/server/src/files/FileService.ts",
+      "name": "FileUnavailable"
+    },
+    {
+      "module": "apps/server/src/files/FileService.ts",
+      "name": "FileServiceHooks"
+    },
+    {
+      "module": "apps/server/src/files/RecentImages.ts",
+      "name": "IMAGE_EXTENSIONS"
+    },
+    {
+      "module": "apps/server/src/files/RecentImages.ts",
+      "name": "RecentImage"
+    },
+    {
+      "module": "apps/server/src/files/RecentImages.ts",
+      "name": "ScanFailed"
+    },
+    {
+      "module": "apps/server/src/git/Branche.ts",
+      "name": "Entree"
+    },
+    {
+      "module": "apps/server/src/herdr/HerdrClient.ts",
+      "name": "HerdrProtocolError"
+    },
+    {
+      "module": "apps/server/src/herdr/HerdrClient.ts",
+      "name": "HerdrDecodeError"
+    },
+    {
+      "module": "apps/server/src/herdr/HerdrClient.ts",
+      "name": "HerdrError"
+    },
+    {
+      "module": "apps/server/src/herdr/HerdrClient.ts",
+      "name": "ResultPayload"
+    },
+    {
+      "module": "apps/server/src/herdr/HerdrClient.ts",
+      "name": "TabCreated"
+    },
+    {
+      "module": "apps/server/src/herdr/HerdrClient.ts",
+      "name": "CreateTabParams"
+    },
+    {
+      "module": "apps/server/src/herdr/HerdrClient.ts",
+      "name": "StartAgentParams"
+    },
+    {
+      "module": "apps/server/src/herdr/HerdrClient.ts",
+      "name": "HerdrApi"
+    },
+    {
+      "module": "apps/server/src/herdr/Transport.ts",
+      "name": "TransportError"
+    },
+    {
+      "module": "apps/server/src/herdr/Transport.ts",
+      "name": "Transport"
+    },
+    {
+      "module": "apps/server/src/http/Api.ts",
+      "name": "ApiDeps"
+    },
+    {
+      "module": "apps/server/src/http/Api.ts",
+      "name": "PromptBody"
+    },
+    {
+      "module": "apps/server/src/http/Api.ts",
+      "name": "LaunchPhase"
+    },
+    {
+      "module": "apps/server/src/http/Api.ts",
+      "name": "LaunchFailed"
+    },
+    {
+      "module": "apps/server/src/http/Api.ts",
+      "name": "TrustBody"
+    },
+    {
+      "module": "apps/server/src/http/Api.ts",
+      "name": "InstalledList"
+    },
+    {
+      "module": "apps/server/src/http/AvecMethode.ts",
+      "name": "RequeteEntrante"
+    },
+    {
+      "module": "apps/server/src/http/AvecMethode.ts",
+      "name": "RoutesEntree"
+    },
+    {
+      "module": "apps/server/src/http/OriginGuard.ts",
+      "name": "GuardRejection"
+    },
+    {
+      "module": "apps/server/src/http/OriginGuard.ts",
+      "name": "GuardVerdict"
+    },
+    {
+      "module": "apps/server/src/http/Reply.ts",
+      "name": "RouteRequest"
+    },
+    {
+      "module": "apps/server/src/http/Reply.ts",
+      "name": "Routes"
+    },
+    {
+      "module": "apps/server/src/http/routes-sessions.ts",
+      "name": "AgentSessionSlot"
+    },
+    {
+      "module": "apps/server/src/logging/LogFile.ts",
+      "name": "LogLevel"
+    },
+    {
+      "module": "apps/server/src/logging/LogFile.ts",
+      "name": "LogEntry"
+    },
+    {
+      "module": "apps/server/src/main.ts",
+      "name": "ErrorShape"
+    },
+    {
+      "module": "apps/server/src/notifications/PushNotifications.ts",
+      "name": "VapidKeys"
+    },
+    {
+      "module": "apps/server/src/notifications/PushNotifications.ts",
+      "name": "PushStore"
+    },
+    {
+      "module": "apps/server/src/notifications/PushNotifications.ts",
+      "name": "PushNotificationsApi"
+    },
+    {
+      "module": "apps/server/src/notifications/PushNotifications.ts",
+      "name": "IdentiteNotification"
+    },
+    {
+      "module": "apps/server/src/send/PromptSender.ts",
+      "name": "DuplicatePrompt"
+    },
+    {
+      "module": "apps/server/src/send/PromptSender.ts",
+      "name": "PromptNotConfirmed"
+    },
+    {
+      "module": "apps/server/src/send/PromptSender.ts",
+      "name": "Record_"
+    },
+    {
+      "module": "apps/server/src/send/PromptSender.ts",
+      "name": "SendOutcome"
+    },
+    {
+      "module": "apps/server/src/send/PromptSender.ts",
+      "name": "PromptSenderApi"
+    },
+    {
+      "module": "apps/server/src/sessions/DevinReader.ts",
+      "name": "LigneBrute"
+    },
+    {
+      "module": "apps/server/src/sessions/DevinReader.ts",
+      "name": "moteurDevin"
+    },
+    {
+      "module": "apps/server/src/sessions/Fixture.ts",
+      "name": "Fixture"
+    },
+    {
+      "module": "apps/server/src/sessions/Fixture.ts",
+      "name": "TAILLE_REFERENCE"
+    },
+    {
+      "module": "apps/server/src/sessions/OpencodeReader.ts",
+      "name": "PageOpencode"
+    },
+    {
+      "module": "apps/server/src/sessions/OpencodeReader.ts",
+      "name": "LigneBrute"
+    },
+    {
+      "module": "apps/server/src/sessions/OpencodeReader.ts",
+      "name": "DemandeOpencode"
+    },
+    {
+      "module": "apps/server/src/sessions/OpencodeReader.ts",
+      "name": "ReponseOpencode"
+    },
+    {
+      "module": "apps/server/src/sessions/OpencodeReader.ts",
+      "name": "moteurOpencode"
+    },
+    {
+      "module": "apps/server/src/sessions/PathGuard.ts",
+      "name": "PathRejection"
+    },
+    {
+      "module": "apps/server/src/sessions/PathGuard.ts",
+      "name": "PathVerdict"
+    },
+    {
+      "module": "apps/server/src/sessions/ReadCause.ts",
+      "name": "ReadCause"
+    },
+    {
+      "module": "apps/server/src/sessions/ReadCause.ts",
+      "name": "ReadVerdict"
+    },
+    {
+      "module": "apps/server/src/sessions/SessionReader.ts",
+      "name": "HeaderLine"
+    },
+    {
+      "module": "apps/server/src/sessions/SessionReader.ts",
+      "name": "SessionReadError"
+    },
+    {
+      "module": "apps/server/src/sessions/SessionReader.ts",
+      "name": "SessionPathRejected"
+    },
+    {
+      "module": "apps/server/src/sessions/SessionReader.ts",
+      "name": "RawEntry"
+    },
+    {
+      "module": "apps/server/src/sessions/SessionReader.ts",
+      "name": "FileIdentity"
+    },
+    {
+      "module": "apps/server/src/sessions/SessionReader.ts",
+      "name": "TailedSession"
+    },
+    {
+      "module": "apps/server/src/sessions/SessionReader.ts",
+      "name": "LooseLine"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "HealthResponse"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "AgentViewSchema"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "WorkspaceViewSchema"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "OverviewResponse"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "SessionEntrySchema"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "SessionCursor"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "SessionResponse"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "PromptSentResponse"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "PromptFailedResponse"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "PromptSuppressedResponse"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "StopAgentResponse"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "LaunchAgentRequest"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "LaunchAgentResponse"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "InstalledKind"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "InstalledKindsResponse"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "AgentModel"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "ModelCatalogResponse"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "RecentImageSchema"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "RecentImagesResponse"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "TrustRequiredResponse"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "TrustResolvedResponse"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "QuestionAnsweredResponse"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "AgentFocusedResponse"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "ApiErrorResponse"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "SessionState"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "Choix"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "Question"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "ConversationSummary"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "ConversationsResponse"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "TabInfo"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "SnapshotPane"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "PaneLayoutRect"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "PaneLayoutPane"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "PaneLayout"
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "name": "SnapshotPayload"
+    },
+    {
+      "module": "packages/shared/src/limits.ts",
+      "name": "MAX_SSE_STREAMS"
+    },
+    {
+      "module": "packages/shared/src/limits.ts",
+      "name": "MAX_SESSION_READS"
+    },
+    {
+      "module": "packages/shared/src/limits.ts",
+      "name": "MODEL_CATALOG_TIMEOUT_MS"
+    },
+    {
+      "module": "packages/shared/src/limits.ts",
+      "name": "MODEL_CATALOG_CACHE_MS"
+    },
+    {
+      "module": "packages/shared/src/limits.ts",
+      "name": "DUPLICATE_WINDOW_MS"
+    },
+    {
+      "module": "packages/shared/src/limits.ts",
+      "name": "MIN_TAP_TARGET_PX"
+    },
+    {
+      "module": "packages/shared/src/limits.ts",
+      "name": "MIN_TEXT_CONTRAST"
+    },
+    {
+      "module": "packages/shared/src/nommage.ts",
+      "name": "PaneAEtiqueter"
+    },
+    {
+      "module": "packages/shared/src/pi.ts",
+      "name": "LignePi"
+    },
+    {
+      "module": "packages/shared/src/pi.ts",
+      "name": "ChangePi"
+    },
+    {
+      "module": "packages/shared/src/port.ts",
+      "name": "DEFAULT_BACKEND_PORT"
+    },
+    {
+      "module": "packages/shared/src/port.ts",
+      "name": "DEFAULT_TAILNET_PORT"
+    },
+    {
+      "module": "packages/shared/src/protocol.ts",
+      "name": "AgentStatus"
+    },
+    {
+      "module": "packages/shared/src/protocol.ts",
+      "name": "ReadSource"
+    },
+    {
+      "module": "packages/shared/src/protocol.ts",
+      "name": "AgentSessionRefKind"
+    },
+    {
+      "module": "packages/shared/src/protocol.ts",
+      "name": "AgentSessionInfo"
+    },
+    {
+      "module": "packages/shared/src/protocol.ts",
+      "name": "AgentInfo"
+    },
+    {
+      "module": "packages/shared/src/protocol.ts",
+      "name": "WorkspaceWorktreeInfo"
+    },
+    {
+      "module": "packages/shared/src/protocol.ts",
+      "name": "WorkspaceInfo"
+    },
+    {
+      "module": "packages/shared/src/protocol.ts",
+      "name": "PaneInfo"
+    },
+    {
+      "module": "packages/shared/src/protocol.ts",
+      "name": "SessionSnapshot"
+    },
+    {
+      "module": "packages/shared/src/protocol.ts",
+      "name": "HerdrErrorBody"
+    },
+    {
+      "module": "packages/shared/src/protocol.ts",
+      "name": "HerdrReply"
+    },
+    {
+      "module": "packages/shared/src/protocol.ts",
+      "name": "AgentListPayload"
+    },
+    {
+      "module": "packages/shared/src/protocol.ts",
+      "name": "PaneReadPayload"
+    },
+    {
+      "module": "packages/shared/src/protocol.ts",
+      "name": "PongPayload"
+    },
+    {
+      "module": "packages/shared/src/protocol.ts",
+      "name": "Method"
+    },
+    {
+      "module": "packages/shared/src/protocol.ts",
+      "name": "Method"
+    },
+    {
+      "module": "packages/shared/src/protocol.ts",
+      "name": "SUPPORTED_EVENT_WAIT_MATCHES"
+    },
+    {
+      "module": "packages/shared/src/question.ts",
+      "name": "Choix"
+    },
+    {
+      "module": "packages/shared/src/question.ts",
+      "name": "Question"
+    },
+    {
+      "module": "packages/shared/src/question.ts",
+      "name": "OPTION_SAISIE_LIBRE"
+    },
+    {
+      "module": "packages/shared/src/session.ts",
+      "name": "SessionHeader"
+    },
+    {
+      "module": "packages/shared/src/session.ts",
+      "name": "MessageRole"
+    },
+    {
+      "module": "packages/shared/src/session.ts",
+      "name": "EntryBase"
+    },
+    {
+      "module": "packages/shared/src/session.ts",
+      "name": "MessageEntry"
+    },
+    {
+      "module": "packages/shared/src/session.ts",
+      "name": "ModelChangeEntry"
+    },
+    {
+      "module": "packages/shared/src/session.ts",
+      "name": "ThinkingLevelChangeEntry"
+    },
+    {
+      "module": "packages/shared/src/session.ts",
+      "name": "SessionEntryType"
+    },
+    {
+      "module": "packages/shared/src/session.ts",
+      "name": "LooseEntry"
+    },
+    {
+      "module": "packages/shared/src/session.ts",
+      "name": "SESSIONS_ROOT"
+    }
+  ],
+  "inlineSchemas": [
+    {
+      "module": "apps/server/src/config.ts",
+      "name": "Inline schema at line 190"
+    },
+    {
+      "module": "apps/server/src/herdr/HerdrClient.ts",
+      "name": "Inline schema at line 243"
+    },
+    {
+      "module": "apps/server/src/http/Api.ts",
+      "name": "Inline schema at line 105"
+    },
+    {
+      "module": "apps/server/src/http/Api.ts",
+      "name": "Inline schema at line 165"
+    },
+    {
+      "module": "apps/server/src/http/Api.ts",
+      "name": "Inline schema at line 393"
+    },
+    {
+      "module": "apps/server/src/http/Api.ts",
+      "name": "Inline schema at line 490"
+    },
+    {
+      "module": "apps/server/src/http/Api.ts",
+      "name": "Inline schema at line 507"
+    },
+    {
+      "module": "apps/server/src/http/Api.ts",
+      "name": "Inline schema at line 1076"
+    },
+    {
+      "module": "apps/server/src/http/Reply.ts",
+      "name": "Inline schema at line 54"
+    },
+    {
+      "module": "apps/server/src/http/routes-files.ts",
+      "name": "Inline schema at line 60"
+    },
+    {
+      "module": "apps/server/src/http/routes-sessions.ts",
+      "name": "Inline schema at line 60"
+    }
+  ],
+  "sourceModules": [
+    {
+      "module": "apps/server/src/agents/AgentRegistry.ts",
+      "path": "apps/server/src/agents/AgentRegistry.ts",
+      "proposedOwner": "application",
+      "symbols": [
+        "`AgentView`",
+        "`WorkspaceView`",
+        "`OverviewView`",
+        "`SnapshotError`",
+        "`nomDeLancement`",
+        "`usefulLabel`",
+        "`checkoutPathOf`",
+        "`NamingContext`",
+        "`emptyNaming`",
+        "`namingFrom`",
+        "`enrichAgent`",
+        "`toAgentViews`",
+        "`toWorkspaceViews`",
+        "`attireLeRegard`",
+        "`estVisible`",
+        "`repartirAgents`",
+        "`composerOverview`",
+        "`buildOverview`"
+      ]
+    },
+    {
+      "module": "apps/server/src/agents/AnswerQuestion.ts",
+      "path": "apps/server/src/agents/AnswerQuestion.ts",
+      "proposedOwner": "application / interactions",
+      "symbols": [
+        "`HerdrPourQuestion`",
+        "`ReponseQuestion`",
+        "`numeroOffert`",
+        "`repondreQuestion`"
+      ]
+    },
+    {
+      "module": "apps/server/src/agents/Lisibilite.ts",
+      "path": "apps/server/src/agents/Lisibilite.ts",
+      "proposedOwner": "application",
+      "symbols": [
+        "`TYPES_A_SESSION_LISIBLE`",
+        "`MESURE_SUR`",
+        "`sessionLisible`",
+        "`typeLisible`"
+      ]
+    },
+    {
+      "module": "apps/server/src/agents/ModelArgs.ts",
+      "path": "apps/server/src/agents/ModelArgs.ts",
+      "proposedOwner": "catalog",
+      "symbols": [
+        "`MODEL_AWARE_KINDS`",
+        "`ArgsOutcome`",
+        "`buildModelArgs`",
+        "`checkThinkingSupported`"
+      ]
+    },
+    {
+      "module": "apps/server/src/agents/ModelCatalog.ts",
+      "path": "apps/server/src/agents/ModelCatalog.ts",
+      "proposedOwner": "catalog",
+      "symbols": [
+        "`CatalogModel`",
+        "`CatalogResult`",
+        "`modelsDeDevin`",
+        "`catalogOf`",
+        "`clearCatalogCache`",
+        "`CATALOG_KINDS`"
+      ]
+    },
+    {
+      "module": "apps/server/src/agents/SessionLocator.ts",
+      "path": "apps/server/src/agents/SessionLocator.ts",
+      "proposedOwner": "sessions",
+      "symbols": [
+        "`dossierCodex`",
+        "`nomDeSessionCodex`",
+        "`cheminCodexParNom`",
+        "`sessionCodexParTitre`",
+        "`SessionSlot`",
+        "`SourceSession`",
+        "`RACINE_CLAUDE`",
+        "`cheminClaudeParId`",
+        "`baseDevin`",
+        "`baseOpencode`",
+        "`racineCodex`",
+        "`cheminCodexParId`",
+        "`localiserSession`",
+        "`sourceSessionDe`",
+        "`sourceSession`"
+      ]
+    },
+    {
+      "module": "apps/server/src/agents/TrustPrompt.ts",
+      "path": "apps/server/src/agents/TrustPrompt.ts",
+      "proposedOwner": "application / interactions",
+      "symbols": [
+        "`touchesDeConfiance`",
+        "`isTrustPrompt`",
+        "`respondToTrust`",
+        "`isSafeKey`"
+      ]
+    },
+    {
+      "module": "apps/server/src/config.ts",
+      "path": "apps/server/src/config.ts",
+      "proposedOwner": "herdrchat",
+      "symbols": [
+        "`ConfigError`",
+        "`ServerConfig`",
+        "`originesDeServe`",
+        "`hoteUrl`",
+        "`ServerConfigTag`"
+      ]
+    },
+    {
+      "module": "apps/server/src/conversations/Summary.ts",
+      "path": "apps/server/src/conversations/Summary.ts",
+      "proposedOwner": "application",
+      "symbols": [
+        "`RawPane`",
+        "`estNumerique`",
+        "`toStatus`",
+        "`titleOf`",
+        "`previewOf`",
+        "`lastPromptOf`",
+        "`reglagesOf`",
+        "`timestampOf`",
+        "`PREVIEW_BYTES`",
+        "`summaryOf`",
+        "`defaultRead`"
+      ]
+    },
+    {
+      "module": "apps/server/src/events/AgentWatcher.ts",
+      "path": "apps/server/src/events/AgentWatcher.ts",
+      "proposedOwner": "application",
+      "symbols": [
+        "`fautNotifier`",
+        "`WatchTick`",
+        "`AgentWatcherApi`",
+        "`AgentWatcher`",
+        "`WatchLoop`",
+        "`startWatchLoop`"
+      ]
+    },
+    {
+      "module": "apps/server/src/events/EventHub.ts",
+      "path": "apps/server/src/events/EventHub.ts",
+      "proposedOwner": "application",
+      "symbols": [
+        "`BusEvent`",
+        "`CatchUp`",
+        "`EventHubApi`",
+        "`EventHub`"
+      ]
+    },
+    {
+      "module": "apps/server/src/files/FileService.ts",
+      "path": "apps/server/src/files/FileService.ts",
+      "proposedOwner": "files",
+      "symbols": [
+        "`MAX_FILE_BYTES`",
+        "`contentTypeOf`",
+        "`isInline`",
+        "`isInside`",
+        "`FileResult`",
+        "`FileDenied`",
+        "`FileUnavailable`",
+        "`FileServiceHooks`",
+        "`readAllowedFile`",
+        "`describeFileError`"
+      ]
+    },
+    {
+      "module": "apps/server/src/files/RecentImages.ts",
+      "path": "apps/server/src/files/RecentImages.ts",
+      "proposedOwner": "files",
+      "symbols": [
+        "`IMAGE_EXTENSIONS`",
+        "`isImageFile`",
+        "`RecentImage`",
+        "`ScanFailed`",
+        "`listRecentImages`"
+      ]
+    },
+    {
+      "module": "apps/server/src/git/Branche.ts",
+      "path": "apps/server/src/git/Branche.ts",
+      "proposedOwner": "application",
+      "symbols": [
+        "`brancheDe`",
+        "`viderCacheBranches`"
+      ]
+    },
+    {
+      "module": "apps/server/src/herdr/HerdrClient.ts",
+      "path": "apps/server/src/herdr/HerdrClient.ts",
+      "proposedOwner": "herdr-client",
+      "symbols": [
+        "`HerdrProtocolError`",
+        "`HerdrDecodeError`",
+        "`HerdrError`",
+        "`ResultPayload`",
+        "`CreateTabParams`",
+        "`StartAgentParams`",
+        "`HerdrApi`",
+        "`HerdrClient`"
+      ]
+    },
+    {
+      "module": "apps/server/src/herdr/Transport.ts",
+      "path": "apps/server/src/herdr/Transport.ts",
+      "proposedOwner": "herdr-client",
+      "symbols": [
+        "`TransportError`",
+        "`Transport`",
+        "`TransportTag`"
+      ]
+    },
+    {
+      "module": "apps/server/src/http/Api.ts",
+      "path": "apps/server/src/http/Api.ts",
+      "proposedOwner": "http-api",
+      "symbols": [
+        "`ApiDeps`",
+        "`makeRoutes`",
+        "`describeCause`"
+      ]
+    },
+    {
+      "module": "apps/server/src/http/AssetGuard.ts",
+      "path": "apps/server/src/http/AssetGuard.ts",
+      "proposedOwner": "http-api",
+      "symbols": [
+        "`isWithin`",
+        "`resolveAsset`"
+      ]
+    },
+    {
+      "module": "apps/server/src/http/AvecMethode.ts",
+      "path": "apps/server/src/http/AvecMethode.ts",
+      "proposedOwner": "http-api",
+      "symbols": [
+        "`RequeteEntrante`",
+        "`avecMethode`",
+        "`RoutesEntree`",
+        "`avecMethodePourRoutes`"
+      ]
+    },
+    {
+      "module": "apps/server/src/http/OriginGuard.ts",
+      "path": "apps/server/src/http/OriginGuard.ts",
+      "proposedOwner": "http-api",
+      "symbols": [
+        "`GuardRejection`",
+        "`GuardVerdict`",
+        "`isLoopbackOrigin`",
+        "`isAllowedOrigin`",
+        "`guardMutation`",
+        "`describeGuardRejection`",
+        "`methodNotAllowed`"
+      ]
+    },
+    {
+      "module": "apps/server/src/http/Reply.ts",
+      "path": "apps/server/src/http/Reply.ts",
+      "proposedOwner": "http-api",
+      "symbols": [
+        "`byteLengthUtf8`",
+        "`RouteRequest`",
+        "`Routes`",
+        "`describe`",
+        "`describeCause`",
+        "`stripIdentifiers`",
+        "`failureOf`",
+        "`json`",
+        "`respond`",
+        "`run`",
+        "`decoderOf`",
+        "`decodeSnapshot`"
+      ]
+    },
+    {
+      "module": "apps/server/src/http/routes-conversations.ts",
+      "path": "apps/server/src/http/routes-conversations.ts",
+      "proposedOwner": "http-api",
+      "symbols": [
+        "`MAX_CONCURRENT_READS`",
+        "`withConcurrency`",
+        "`fautLireLEcran`",
+        "`attenteDeLEcran`",
+        "`attenteDeLigne`",
+        "`makeConversationRoutes`"
+      ]
+    },
+    {
+      "module": "apps/server/src/http/routes-events.ts",
+      "path": "apps/server/src/http/routes-events.ts",
+      "proposedOwner": "http-api",
+      "symbols": [
+        "`makeEventRoutes`"
+      ]
+    },
+    {
+      "module": "apps/server/src/http/routes-files.ts",
+      "path": "apps/server/src/http/routes-files.ts",
+      "proposedOwner": "http-api",
+      "symbols": [
+        "`makeFileRoutes`"
+      ]
+    },
+    {
+      "module": "apps/server/src/http/routes-sessions.ts",
+      "path": "apps/server/src/http/routes-sessions.ts",
+      "proposedOwner": "http-api",
+      "symbols": [
+        "`sessionSourceOf`",
+        "`sessionPathOf`",
+        "`makeSessionRoutes`"
+      ]
+    },
+    {
+      "module": "apps/server/src/logging/LogFile.ts",
+      "path": "apps/server/src/logging/LogFile.ts",
+      "proposedOwner": "herdrchat",
+      "symbols": [
+        "`defaultLogPath`",
+        "`defaultPushStorePath`",
+        "`LogLevel`",
+        "`LogEntry`",
+        "`writeLog`",
+        "`writeLogs`",
+        "`rapatrierStorePush`"
+      ]
+    },
+    {
+      "module": "apps/server/src/main.ts",
+      "path": "apps/server/src/main.ts",
+      "proposedOwner": "herdrchat",
+      "symbols": [
+        "`makeStaticHandler`",
+        "`program`"
+      ]
+    },
+    {
+      "module": "apps/server/src/notifications/PushNotifications.ts",
+      "path": "apps/server/src/notifications/PushNotifications.ts",
+      "proposedOwner": "notifications",
+      "symbols": [
+        "`PushNotificationsApi`",
+        "`payloadDeNotification`",
+        "`IdentiteNotification`",
+        "`nomDeNotification`",
+        "`makePushNotifications`"
+      ]
+    },
+    {
+      "module": "apps/server/src/send/PromptSender.ts",
+      "path": "apps/server/src/send/PromptSender.ts",
+      "proposedOwner": "application",
+      "symbols": [
+        "`DuplicatePrompt`",
+        "`PromptNotConfirmed`",
+        "`fingerprintOf`",
+        "`SendOutcome`",
+        "`PromptSenderApi`",
+        "`PromptSender`"
+      ]
+    },
+    {
+      "module": "apps/server/src/sessions/DevinReader.ts",
+      "path": "apps/server/src/sessions/DevinReader.ts",
+      "proposedOwner": "sessions",
+      "symbols": [
+        "`baseDevin`",
+        "`sessionExiste`",
+        "`lireDerniere`",
+        "`lireDepuis`",
+        "`lireAvant`",
+        "`pageSession`",
+        "`moteurDevin`"
+      ]
+    },
+    {
+      "module": "apps/server/src/sessions/Fixture.ts",
+      "path": "apps/server/src/sessions/Fixture.ts",
+      "proposedOwner": "test-support",
+      "symbols": [
+        "`Fixture`",
+        "`ecrireFixture`",
+        "`TAILLE_REFERENCE`"
+      ]
+    },
+    {
+      "module": "apps/server/src/sessions/OpencodeReader.ts",
+      "path": "apps/server/src/sessions/OpencodeReader.ts",
+      "proposedOwner": "sessions",
+      "symbols": [
+        "`PageOpencode`",
+        "`sessionExiste`",
+        "`lireDerniere`",
+        "`lireDepuis`",
+        "`lireAvant`",
+        "`DemandeOpencode`",
+        "`ReponseOpencode`",
+        "`pageSessionOpencode`",
+        "`moteurOpencode`"
+      ]
+    },
+    {
+      "module": "apps/server/src/sessions/PathGuard.ts",
+      "path": "apps/server/src/sessions/PathGuard.ts",
+      "proposedOwner": "sessions",
+      "symbols": [
+        "`PathRejection`",
+        "`PathVerdict`",
+        "`isWithin`",
+        "`describeRejection`",
+        "`resolveWithin`"
+      ]
+    },
+    {
+      "module": "apps/server/src/sessions/ReadCause.ts",
+      "path": "apps/server/src/sessions/ReadCause.ts",
+      "proposedOwner": "sessions",
+      "symbols": [
+        "`ReadCause`",
+        "`ReadVerdict`",
+        "`verdictOf`",
+        "`classifyReadFailure`",
+        "`invalidSession`",
+        "`statusFor`",
+        "`estAbsence`"
+      ]
+    },
+    {
+      "module": "apps/server/src/sessions/SessionReader.ts",
+      "path": "apps/server/src/sessions/SessionReader.ts",
+      "proposedOwner": "sessions",
+      "symbols": [
+        "`SessionReadError`",
+        "`SessionPathRejected`",
+        "`isMissingFile`",
+        "`RawEntry`",
+        "`FileIdentity`",
+        "`TailedSession`",
+        "`splitCompleteLines`",
+        "`readHeader`",
+        "`tailFrom`",
+        "`tailFromRaw`",
+        "`readAll`",
+        "`readTail`",
+        "`readBefore`",
+        "`fileSize`"
+      ]
+    },
+    {
+      "module": "packages/shared/src/api.ts",
+      "path": "packages/shared/src/api.ts",
+      "proposedOwner": "contracts / herdr-client",
+      "symbols": [
+        "`HealthResponse`",
+        "`AgentViewSchema`",
+        "`AgentView`",
+        "`WorkspaceViewSchema`",
+        "`WorkspaceView`",
+        "`OverviewResponse`",
+        "`SessionEntrySchema`",
+        "`SessionEntry`",
+        "`SessionCursor`",
+        "`encodeCursor`",
+        "`decodeCursor`",
+        "`SessionResponse`",
+        "`PromptSentResponse`",
+        "`PromptFailedResponse`",
+        "`PromptSuppressedResponse`",
+        "`StopAgentResponse`",
+        "`LaunchAgentRequest`",
+        "`LaunchAgentResponse`",
+        "`InstalledKind`",
+        "`InstalledKindsResponse`",
+        "`AgentModel`",
+        "`ModelCatalogResponse`",
+        "`RecentImageSchema`",
+        "`RecentImage`",
+        "`RecentImagesResponse`",
+        "`TrustRequiredResponse`",
+        "`TrustResolvedResponse`",
+        "`QuestionAnsweredResponse`",
+        "`AgentFocusedResponse`",
+        "`ApiErrorResponse`",
+        "`SessionState`",
+        "`Choix`",
+        "`Question`",
+        "`ConversationSummary`",
+        "`ConversationsResponse`",
+        "`TabInfo`",
+        "`SnapshotPane`",
+        "`PaneLayoutRect`",
+        "`PaneLayoutPane`",
+        "`PaneLayout`",
+        "`SnapshotPayload`"
+      ]
+    },
+    {
+      "module": "packages/shared/src/claude.ts",
+      "path": "packages/shared/src/claude.ts",
+      "proposedOwner": "sessions / domain",
+      "symbols": [
+        "`estLigneDeConversationClaude`",
+        "`sansMessage`",
+        "`ligneClaudeVersPi`"
+      ]
+    },
+    {
+      "module": "packages/shared/src/codex.ts",
+      "path": "packages/shared/src/codex.ts",
+      "proposedOwner": "sessions / domain",
+      "symbols": [
+        "`ligneCodexVersPi`",
+        "`reglageCodexVersPi`"
+      ]
+    },
+    {
+      "module": "packages/shared/src/devin.ts",
+      "path": "packages/shared/src/devin.ts",
+      "proposedOwner": "sessions / domain",
+      "symbols": [
+        "`ligneDevinVersPi`"
+      ]
+    },
+    {
+      "module": "packages/shared/src/index.ts",
+      "path": "packages/shared/src/index.ts",
+      "proposedOwner": "domain / contracts",
+      "symbols": [
+        "`estLigneDeConversationClaude`",
+        "`ligneClaudeVersPi`",
+        "`sansMessage`",
+        "`ligneCodexVersPi`",
+        "`reglageCodexVersPi`",
+        "`ligneDevinVersPi`",
+        "`ligneOpencodeVersPi`",
+        "`dejaDit`",
+        "`etiquetteDePane`",
+        "`rangsDesPanes`",
+        "`PaneAEtiqueter`",
+        "`estObjet`",
+        "`modeleUtilisable`",
+        "`tableauDe`",
+        "`texteDe`",
+        "`ChangePi`",
+        "`LignePi`",
+        "`estOptionSaisieLibre`",
+        "`OPTION_SAISIE_LIBRE`",
+        "`questionDeLEcran`"
+      ]
+    },
+    {
+      "module": "packages/shared/src/limits.ts",
+      "path": "packages/shared/src/limits.ts",
+      "proposedOwner": "domain / contracts",
+      "symbols": [
+        "`MAX_JSON_BYTES`",
+        "`MAX_PROMPT_BYTES`",
+        "`MAX_FILE_BYTES`",
+        "`MAX_SSE_STREAMS`",
+        "`MAX_SESSION_READS`",
+        "`SESSION_TAIL_BYTES`",
+        "`SESSION_TAIL_HARD_CAP`",
+        "`PREVIEW_BYTES`",
+        "`MODEL_CATALOG_TIMEOUT_MS`",
+        "`MODEL_CATALOG_STDOUT_BYTES`",
+        "`MODEL_CATALOG_STDERR_BYTES`",
+        "`MODEL_CATALOG_CACHE_MS`",
+        "`DUPLICATE_WINDOW_MS`",
+        "`SESSION_HEADER_BYTES`",
+        "`MIN_TAP_TARGET_PX`",
+        "`MIN_TEXT_CONTRAST`",
+        "`byteLengthUtf8`"
+      ]
+    },
+    {
+      "module": "packages/shared/src/nommage.ts",
+      "path": "packages/shared/src/nommage.ts",
+      "proposedOwner": "domain / contracts",
+      "symbols": [
+        "`dejaDit`",
+        "`PaneAEtiqueter`",
+        "`etiquetteDePane`",
+        "`rangsDesPanes`"
+      ]
+    },
+    {
+      "module": "packages/shared/src/opencode.ts",
+      "path": "packages/shared/src/opencode.ts",
+      "proposedOwner": "sessions / domain",
+      "symbols": [
+        "`ligneOpencodeVersPi`"
+      ]
+    },
+    {
+      "module": "packages/shared/src/pi.ts",
+      "path": "packages/shared/src/pi.ts",
+      "proposedOwner": "sessions / domain",
+      "symbols": [
+        "`LignePi`",
+        "`ChangePi`",
+        "`estObjet`",
+        "`tableauDe`",
+        "`texteDe`",
+        "`modeleUtilisable`",
+        "`horodatageIso`"
+      ]
+    },
+    {
+      "module": "packages/shared/src/port.ts",
+      "path": "packages/shared/src/port.ts",
+      "proposedOwner": "domain / contracts",
+      "symbols": [
+        "`DEFAULT_BACKEND_PORT`",
+        "`DEFAULT_TAILNET_PORT`",
+        "`backendPort`"
+      ]
+    },
+    {
+      "module": "packages/shared/src/protocol.ts",
+      "path": "packages/shared/src/protocol.ts",
+      "proposedOwner": "contracts / herdr-client",
+      "symbols": [
+        "`AgentStatus`",
+        "`ReadSource`",
+        "`AgentSessionRefKind`",
+        "`AgentSessionInfo`",
+        "`AgentInfo`",
+        "`WorkspaceWorktreeInfo`",
+        "`WorkspaceInfo`",
+        "`PaneInfo`",
+        "`SessionSnapshot`",
+        "`HerdrErrorBody`",
+        "`HerdrReply`",
+        "`AgentListPayload`",
+        "`PaneReadPayload`",
+        "`PongPayload`",
+        "`Method`",
+        "`SUPPORTED_EVENT_WAIT_MATCHES`"
+      ]
+    },
+    {
+      "module": "packages/shared/src/question.ts",
+      "path": "packages/shared/src/question.ts",
+      "proposedOwner": "interactions / domain / contracts",
+      "symbols": [
+        "`Choix`",
+        "`Question`",
+        "`questionDeLEcran`",
+        "`OPTION_SAISIE_LIBRE`",
+        "`estOptionSaisieLibre`"
+      ]
+    },
+    {
+      "module": "packages/shared/src/session.ts",
+      "path": "packages/shared/src/session.ts",
+      "proposedOwner": "sessions / domain",
+      "symbols": [
+        "`SessionHeader`",
+        "`MessageRole`",
+        "`MessageEntry`",
+        "`ModelChangeEntry`",
+        "`ThinkingLevelChangeEntry`",
+        "`SessionEntryType`",
+        "`LooseEntry`",
+        "`SESSIONS_ROOT`",
+        "`projectSlug`"
+      ]
+    }
+  ],
+  "corrections": [
+    {
+      "id": "C01",
+      "label": "Single contract authority",
+      "currentBehavior": "Shared api.ts authority",
+      "rustBehavior": "Rust DTO/registry authority; generated TS types/validators",
+      "tasks": [
+        "T007",
+        "T008",
+        "T009",
+        "T057",
+        "T068"
+      ]
+    },
+    {
+      "id": "C02",
+      "label": "Partial-line/offset convention",
+      "currentBehavior": "Partial JSONL bytes double-counted in summary cache",
+      "rustBehavior": "Single byte-position convention",
+      "tasks": [
+        "T014",
+        "T025",
+        "T026",
+        "T027"
+      ]
+    },
+    {
+      "id": "C03",
+      "label": "Trust response complete",
+      "currentBehavior": "State discarded; response fails contract (500 on service outcome)",
+      "rustBehavior": "Return complete TrustResolvedResponse",
+      "tasks": [
+        "T033",
+        "T051"
+      ]
+    },
+    {
+      "id": "C04",
+      "label": "Read errors not swallowed",
+      "currentBehavior": "Some incremental errors replaced by empty success; SQLite exceptions may escape",
+      "rustBehavior": "Preserve typed failure/cause/status",
+      "tasks": [
+        "T010",
+        "T050"
+      ]
+    },
+    {
+      "id": "C05",
+      "label": "Prompt success proof",
+      "currentBehavior": "Success record confirmed without discriminator check",
+      "rustBehavior": "Validate expected success evidence before confirmed",
+      "tasks": [
+        "T013",
+        "T035",
+        "T051"
+      ]
+    },
+    {
+      "id": "C06",
+      "label": "Per-pane dedup atomic",
+      "currentBehavior": "Any recent identical text; unknown path recorded; concurrent race",
+      "rustBehavior": "Last-confirmed per-pane dedup + serialized admission",
+      "tasks": [
+        "T034",
+        "T035"
+      ]
+    },
+    {
+      "id": "C07",
+      "label": "Launch validation order",
+      "currentBehavior": "Tab created before args validation; 15 s socket vs 120 s detection",
+      "rustBehavior": "Validate first; reserve names; method deadline; cleanup owned only",
+      "tasks": [
+        "T030",
+        "T037",
+        "T051"
+      ]
+    },
+    {
+      "id": "C08",
+      "label": "Methods and unknown /api",
+      "currentBehavior": "Read routes accept unintended methods; unknown API path returns HTML",
+      "rustBehavior": "GET/HEAD read policy; POST commands; 405+Allow; JSON404",
+      "tasks": [
+        "T049",
+        "T054"
+      ]
+    },
+    {
+      "id": "C09",
+      "label": "Real body size",
+      "currentBehavior": "Content-Length-only guard",
+      "rustBehavior": "Enforce actual 64 KiB during streamed read",
+      "tasks": [
+        "T049"
+      ]
+    },
+    {
+      "id": "C10",
+      "label": "Bind/origin/port strictness",
+      "currentBehavior": "Prefix-only tailnet check; parseInt permissive ports",
+      "rustBehavior": "Parsed tailnet ranges + strict port decimal",
+      "tasks": [
+        "T048"
+      ]
+    },
+    {
+      "id": "C11",
+      "label": "SSE cancellation/replay",
+      "currentBehavior": "Idle canceled loop persists; no heartbeat; journal restart ambiguity",
+      "rustBehavior": "Owned cancellation, heartbeats, epoch IDs/resync",
+      "tasks": [
+        "T042",
+        "T043",
+        "T053"
+      ]
+    },
+    {
+      "id": "C12",
+      "label": "Cursor bound to source",
+      "currentBehavior": "SQLite cursors can refer to another source",
+      "rustBehavior": "Source-bound versioned cursor; legacy reset/409 rules",
+      "tasks": [
+        "T024",
+        "T025",
+        "T050"
+      ]
+    },
+    {
+      "id": "C13",
+      "label": "Confined paths/descriptors/scan",
+      "currentBehavior": "Path races; scanning can list outside roots",
+      "rustBehavior": "Descriptor-based confinement + bounded scan",
+      "tasks": [
+        "T011",
+        "T046",
+        "T047"
+      ]
+    },
+    {
+      "id": "C14",
+      "label": "Push store atomic",
+      "currentBehavior": "Direct rewrite; network sends hold serialized access",
+      "rustBehavior": "Atomic compatible store; independent bounded delivery",
+      "tasks": [
+        "T044",
+        "T045"
+      ]
+    },
+    {
+      "id": "C15",
+      "label": "Codex numeric versions",
+      "currentBehavior": "DB versions ordered lexically; fallback evidence in comments",
+      "rustBehavior": "Numeric order; exact name/cwd/file existence checks; source generation",
+      "tasks": [
+        "T023"
+      ]
+    },
+    {
+      "id": "C16",
+      "label": "Integration policy consistent",
+      "currentBehavior": "List/launch filters disagree",
+      "rustBehavior": "One measured launchable/readable policy",
+      "tasks": [
+        "T031",
+        "T037"
+      ]
+    },
+    {
+      "id": "C17",
+      "label": "Question/trust uncertainty",
+      "currentBehavior": "Disappearance can be overinterpreted",
+      "rustBehavior": "Retain uncertainty until agent/prompt evidence suffices",
+      "tasks": [
+        "T032",
+        "T033",
+        "T034"
+      ]
+    },
+    {
+      "id": "C18",
+      "label": "Bounded forward + caughtUp",
+      "currentBehavior": "Forward allocates entire remainder; hasMore overloaded for SQLite",
+      "rustBehavior": "Optional caughtUp; bounded serialized pages; watermark; oversized-record failure",
+      "tasks": [
+        "T025",
+        "T050",
+        "T057",
+        "T059"
+      ]
+    },
+    {
+      "id": "C19",
+      "label": "UI target isolation",
+      "currentBehavior": "Pending/failed message state crosses panes; retry targets current pane",
+      "rustBehavior": "Per-pane+session state; immutable action destination",
+      "tasks": [
+        "T058"
+      ]
+    },
+    {
+      "id": "C20",
+      "label": "Stale async UI guard",
+      "currentBehavior": "Late session response can overwrite another pane or newer refresh",
+      "rustBehavior": "Abort/generation guards; source identity ownership",
+      "tasks": [
+        "T058",
+        "T059"
+      ]
+    },
+    {
+      "id": "C21",
+      "label": "Deferred PWA update",
+      "currentBehavior": "Controllerchange reload loses drafts/action state",
+      "rustBehavior": "Deferred activation at safe boundary; explicit update action",
+      "tasks": [
+        "T060"
+      ]
+    },
+    {
+      "id": "C22",
+      "label": "Markdown/status correctness",
+      "currentBehavior": "Tables empty; nested lists flattened; blocked says working; idle implies finished",
+      "rustBehavior": "Shape-correct renderer; exhaustive truthful status labels",
+      "tasks": [
+        "T061"
+      ]
+    },
+    {
+      "id": "C23",
+      "label": "Refresh dedup/isolation",
+      "currentBehavior": "Duplicate refreshes; all-or-nothing Promise.all",
+      "rustBehavior": "Shared in-flight reads; generation; independent failures",
+      "tasks": [
+        "T038",
+        "T039",
+        "T059"
+      ]
+    },
+    {
+      "id": "C24",
+      "label": "Desktop focus on read",
+      "currentBehavior": "Reading/status change automatically changes real desktop focus",
+      "rustBehavior": "Explicit UI action only; endpoint preserved",
+      "tasks": [
+        "T036",
+        "T062"
+      ]
+    },
+    {
+      "id": "C25",
+      "label": "Sheet accessibility",
+      "currentBehavior": "aria-modal sheet leaves background interactive",
+      "rustBehavior": "Background inertness + keyboard/pointer/focus restoration",
+      "tasks": [
+        "T062",
+        "T067"
+      ]
+    },
+    {
+      "id": "C26",
+      "label": "Chat invalidation + recovery",
+      "currentBehavior": "Chat polls every 400 ms per client",
+      "rustBehavior": "Shared leased observations; session_changed; visible/hidden recovery",
+      "tasks": [
+        "T027",
+        "T053",
+        "T057",
+        "T059"
+      ]
+    },
+    {
+      "id": "C27",
+      "label": "Typing work isolation",
+      "currentBehavior": "Typing recalculates whole history metadata/items",
+      "rustBehavior": "Isolated composer; stable derived values/scroll anchor",
+      "tasks": [
+        "T063",
+        "T065"
+      ]
+    }
+  ],
+  "knownDefects": [
+    {
+      "capability": "D08",
+      "fact": "Codex fallback state DBs sorted reverse-lexically while comments claim highest version first",
+      "correction": "C15"
+    },
+    {
+      "capability": "D08",
+      "fact": "Unresolvable published slot falls through to title fallback without evidence trail",
+      "correction": "C15"
+    },
+    {
+      "capability": "A02",
+      "fact": "Dedup matches any retained fingerprint inside the window (A→B→A suppressed), comment says consecutive",
+      "correction": "C06"
+    },
+    {
+      "capability": "A02",
+      "fact": "Concurrent check/send/update not atomic; unknown transport reported as sent",
+      "correction": "C06"
+    },
+    {
+      "capability": "A03",
+      "fact": "agent_prompted discriminator not checked: success record confirms without evidence",
+      "correction": "C05"
+    },
+    {
+      "capability": "H12",
+      "fact": "Trust service state omitted from response; contract failure turns service outcomes into 500",
+      "correction": "C03"
+    },
+    {
+      "capability": "H07",
+      "fact": "Args validated after tab creation; LaunchFailed phase/pane flattened into error string",
+      "correction": "C07"
+    },
+    {
+      "capability": "A07",
+      "fact": "Generated-name fallback after 99 tries can return a taken -1 name",
+      "correction": "C07"
+    },
+    {
+      "capability": "A06",
+      "fact": "'available' decoded but never used; list endpoint does not mirror launch state filter",
+      "correction": "C16"
+    },
+    {
+      "capability": "H04",
+      "fact": "SQLite cursor identifies neither database, agent nor session; never reports rotation reset",
+      "correction": "C12"
+    },
+    {
+      "capability": "D10",
+      "fact": "Partial trailing bytes double-counted in summary cache identity",
+      "correction": "C02"
+    },
+    {
+      "capability": "E04",
+      "fact": "Resync construction may replay retained events in the same iteration; future cursor after restart not a discontinuity",
+      "correction": "C11"
+    },
+    {
+      "capability": "E05",
+      "fact": "Idle canceled SSE loop stays alive; stream count freed but loop persists",
+      "correction": "C11"
+    },
+    {
+      "capability": "S12",
+      "fact": "Repeat suppression advertises counts it never emits",
+      "correction": "S12 corrected expectation (truthful counters)"
+    },
+    {
+      "capability": "S03",
+      "fact": "Only declared Content-Length enforced; streamed chunked bodies unlimited",
+      "correction": "C09"
+    },
+    {
+      "capability": "S08",
+      "fact": "Shared 400-array across concurrent collectors; per-directory counter per walk invocation, no atomic budget",
+      "correction": "C13"
+    },
+    {
+      "capability": "S06",
+      "fact": "Canonicalize-then-open is not descriptor-relative; concurrent symlink swap unguarded",
+      "correction": "C13"
+    },
+    {
+      "capability": "S10",
+      "fact": "Some handlers collapse detailed causes; incremental read errors can become empty success",
+      "correction": "C04"
+    },
+    {
+      "capability": "O02",
+      "fact": "Tailnet check accepts '100.'/'fd7a:' string prefixes instead of parsed ranges",
+      "correction": "C10"
+    },
+    {
+      "capability": "E07",
+      "fact": "Notification text generation has no unmeasured fallback; identity may be lost on push race",
+      "correction": "C14"
+    },
+    {
+      "capability": "D19",
+      "fact": "Summary timestamps numeric milliseconds; message timestamps may be source ISO strings",
+      "correction": "kept as compatibility note (no change)"
+    },
+    {
+      "capability": "A14",
+      "fact": "provider accepted in LaunchAgentRequest but never consumed — must remain explicitly not applied",
+      "correction": "no change (explicit non-application)"
+    }
+  ],
+  "budgets": [
+    {
+      "name": "json_request_body",
+      "value": "64 KiB declared + streamed enforced (C09)"
+    },
+    {
+      "name": "prompt_utf8",
+      "value": "32 KiB"
+    },
+    {
+      "name": "jsonl_initial_window",
+      "value": "512 KiB"
+    },
+    {
+      "name": "jsonl_delta",
+      "value": "entire remainder today; bounded 2 MiB target / 16 MiB max + caughtUp from T025 (C18)"
+    },
+    {
+      "name": "summary_tail",
+      "value": "64 KiB"
+    },
+    {
+      "name": "metadata_search_windows",
+      "value": "32"
+    },
+    {
+      "name": "summary_cache_entries",
+      "value": "256"
+    },
+    {
+      "name": "header_read",
+      "value": "64 KiB"
+    },
+    {
+      "name": "sqlite_chat_window",
+      "value": "400 rows"
+    },
+    {
+      "name": "sqlite_list_window",
+      "value": "200 rows"
+    },
+    {
+      "name": "sqlite_busy_timeout_ms",
+      "value": "3000"
+    },
+    {
+      "name": "concurrent_session_reads",
+      "value": "4 per request"
+    },
+    {
+      "name": "herdr_transport_timeout_s",
+      "value": "15"
+    },
+    {
+      "name": "watcher_interval_s",
+      "value": "2"
+    },
+    {
+      "name": "overview_cache_freshness_s",
+      "value": "15 and nonempty cache"
+    },
+    {
+      "name": "sse_streams",
+      "value": "8"
+    },
+    {
+      "name": "sse_journal_events",
+      "value": "500"
+    },
+    {
+      "name": "sse_scan_cadence_ms",
+      "value": "300"
+    },
+    {
+      "name": "prompt_duplicate_window_s",
+      "value": "60"
+    },
+    {
+      "name": "catalog_timeout_s",
+      "value": "20"
+    },
+    {
+      "name": "catalog_stdout_bytes",
+      "value": "2 MiB"
+    },
+    {
+      "name": "catalog_stderr_bytes",
+      "value": "64 KiB"
+    },
+    {
+      "name": "catalog_cache_ms",
+      "value": "60000"
+    },
+    {
+      "name": "branch_timeout_s",
+      "value": "3"
+    },
+    {
+      "name": "branch_cache_s",
+      "value": "30"
+    },
+    {
+      "name": "branch_text_cap_chars",
+      "value": "4096"
+    },
+    {
+      "name": "launch_shell_retries",
+      "value": "10 × 3 s; detection 120 s; start deadline 125 s; launch overall 160 s"
+    },
+    {
+      "name": "image_depth",
+      "value": "3"
+    },
+    {
+      "name": "image_collect_cap",
+      "value": "400 (global from C13)"
+    },
+    {
+      "name": "image_return_cap",
+      "value": "60"
+    },
+    {
+      "name": "push_ttl_s",
+      "value": "60"
+    },
+    {
+      "name": "log_rotate_bytes",
+      "value": "4 MiB → .1, 1 retained generation, repeat window 60 s"
+    },
+    {
+      "name": "file_max_bytes",
+      "value": "12 MiB"
+    }
+  ],
+  "wireFlavoredEnums": {
+    "agentStatus": [
+      "idle",
+      "working",
+      "blocked",
+      "done",
+      "unknown"
+    ],
+    "readCause": [
+      "absente",
+      "vide",
+      "invalide",
+      "io"
+    ],
+    "sessionState": [
+      "available",
+      "absent",
+      "error"
+    ],
+    "promptFailure": [
+      "attente",
+      "erreur",
+      "inconnu"
+    ],
+    "trustState": [
+      "transmise",
+      "acceptee",
+      "refusee",
+      "non-applicable"
+    ],
+    "questionState": [
+      "appliquee",
+      "transmise",
+      "refusee"
+    ]
+  }
+}

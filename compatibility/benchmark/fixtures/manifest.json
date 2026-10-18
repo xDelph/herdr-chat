@@ -1,0 +1,523 @@
+{
+  "schemaVersion": 1,
+  "generatedAtUtc": "2026-10-18T00:37:37.071Z",
+  "host": "darwin/arm64",
+  "bunVersion": "1.4.2",
+  "command": "bun compatibility/benchmark/generate.ts",
+  "seed": 20240310,
+  "devOnly": true,
+  "warning": "Synthetic data only. No Herdr socket, no agent CLI, no user session, no real push/VAPID material touched.",
+  "files": [
+    {
+      "bytes": 2098466,
+      "path": "fixtures/pi/pane-01.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "bd7c20a5ad3c0a8717bb1fae0f3fcf1c85940c18545c331f5e958744be86211f"
+    },
+    {
+      "bytes": 40147,
+      "path": "fixtures/pi/pane-02.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "d04d547a9fb8caafb097fa4b4db98d32320d62ac42da6a2250d7bbe4da54f724"
+    },
+    {
+      "bytes": 40131,
+      "path": "fixtures/pi/pane-03.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "5c08636b333250fa164d7dcf7751e6a3adf346d87631e033357e2c7ff45f06ce"
+    },
+    {
+      "bytes": 41266,
+      "path": "fixtures/pi/pane-04.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "07c2d0364d31977d6014786ccd8f9b0a226a762a61af25435f54424c2d8990f4"
+    },
+    {
+      "bytes": 40050,
+      "path": "fixtures/pi/pane-05.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "2638ece9b271e1df0137e4aaf9e11eacc7870bf4f386a2b93560718ae1eb6655"
+    },
+    {
+      "bytes": 2098466,
+      "path": "fixtures/pi/pane-01.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "bd7c20a5ad3c0a8717bb1fae0f3fcf1c85940c18545c331f5e958744be86211f"
+    },
+    {
+      "bytes": 40147,
+      "path": "fixtures/pi/pane-02.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "d04d547a9fb8caafb097fa4b4db98d32320d62ac42da6a2250d7bbe4da54f724"
+    },
+    {
+      "bytes": 40131,
+      "path": "fixtures/pi/pane-03.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "5c08636b333250fa164d7dcf7751e6a3adf346d87631e033357e2c7ff45f06ce"
+    },
+    {
+      "bytes": 41266,
+      "path": "fixtures/pi/pane-04.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "07c2d0364d31977d6014786ccd8f9b0a226a762a61af25435f54424c2d8990f4"
+    },
+    {
+      "bytes": 40050,
+      "path": "fixtures/pi/pane-05.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "2638ece9b271e1df0137e4aaf9e11eacc7870bf4f386a2b93560718ae1eb6655"
+    },
+    {
+      "bytes": 40201,
+      "path": "fixtures/pi/pane-06.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "fd923938a8bf769384d145ae017572bbd559739174617861f7204cfe009cd984"
+    },
+    {
+      "bytes": 40086,
+      "path": "fixtures/pi/pane-07.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "11df694100b50fad4e5fb025734b1222e9d8ff50890ff51601be3a1155c17555"
+    },
+    {
+      "bytes": 40110,
+      "path": "fixtures/pi/pane-08.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "22bf7ca2e3849966fae0402d1143ddfbc5acc7c4e01ec536bbedfe4fc3a87a43"
+    },
+    {
+      "bytes": 41309,
+      "path": "fixtures/pi/pane-09.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "2f6aabedb4bc2096a650fdfef4f3cf6d3d916bccb4bbe182d27c916f0490701b"
+    },
+    {
+      "bytes": 40278,
+      "path": "fixtures/pi/pane-10.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "9703ab0dfb0a9da8a9211b1b5d5f1d1aa862faba4988c0fcdb02edfbe60afe3e"
+    },
+    {
+      "bytes": 40044,
+      "path": "fixtures/pi/pane-11.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "ffc02a88ae1849eff820893452e05e4370b361885338378f17b8f70302b87869"
+    },
+    {
+      "bytes": 40273,
+      "path": "fixtures/pi/pane-12.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "a667d08f06786f8dd5057224a246ff2f6c953ff24aa5661ea774242dc02046a8"
+    },
+    {
+      "bytes": 40040,
+      "path": "fixtures/pi/pane-13.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "cf110e8565861df728f567c8bef23c247695a18bb008a783bba4af3c5ec3aad1"
+    },
+    {
+      "bytes": 41329,
+      "path": "fixtures/pi/pane-14.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "a58b00c8391293fdb04b9d4800042e24415446091a775738ced54e764c69d799"
+    },
+    {
+      "bytes": 40223,
+      "path": "fixtures/pi/pane-15.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "34de12a8ba1ac6449d6e22cbd4238724dc22834ab9ec6c5a16b81d48cc2800fc"
+    },
+    {
+      "bytes": 40040,
+      "path": "fixtures/pi/pane-16.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "22bb87ee9ca3723c4fe4fb6f112e5b9b62ee361e5064518b599ba1eee3294761"
+    },
+    {
+      "bytes": 41215,
+      "path": "fixtures/pi/pane-17.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "6ab8dae6903fe364d59f4819cb91a9f9e6c09a690087f7f3246b3ce728306733"
+    },
+    {
+      "bytes": 40170,
+      "path": "fixtures/pi/pane-18.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "8437c6654e4c20bceee7c3e8b0adcda16269c7ebd10150d5f689c26b2598734a"
+    },
+    {
+      "bytes": 40150,
+      "path": "fixtures/pi/pane-19.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "7588ea2a79ed20a0f0187fd73791eb02bf6b07a8b46862f629a4dffaa1462840"
+    },
+    {
+      "bytes": 41288,
+      "path": "fixtures/pi/pane-20.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "91ab644213b331aac4e25c652fcebc90e082677d0449e19ef425d955a2257fa6"
+    },
+    {
+      "bytes": 40087,
+      "path": "fixtures/pi/pane-21.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "6d59459d1d46850b087eeb8601e4e2208c91a2b6c8c73e7d8fb2fea2f66569b1"
+    },
+    {
+      "bytes": 40039,
+      "path": "fixtures/pi/pane-22.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "1540152c050502d519006d22448e0a6767379dcac84bfb0680784b8e48d5fe03"
+    },
+    {
+      "bytes": 40168,
+      "path": "fixtures/pi/pane-23.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "d3ed3de68ced42a17855ff089d4f43dd9ebdc7d9cdf5cc96b93ff9c6a7c37604"
+    },
+    {
+      "bytes": 40005,
+      "path": "fixtures/pi/pane-24.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "bc0a7fe3d41eda354b3b350183487fd98d76a302bc8273351267cef689cae578"
+    },
+    {
+      "bytes": 41291,
+      "path": "fixtures/pi/pane-25.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "3d254d0bf4fb6e152d48865f7a94acc1036904d836b33b065fa84bcc1e5313d7"
+    },
+    {
+      "bytes": 41195,
+      "path": "fixtures/pi/pane-26.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "55c996cba7fdad91b6d18c8bd6c05f0a44a97bb33072e18a980b4cce305d8d79"
+    },
+    {
+      "bytes": 40047,
+      "path": "fixtures/pi/pane-27.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "15b7671391e4359ca8f78a159e5419986c50d504d5895400c424129a218ba0a5"
+    },
+    {
+      "bytes": 40072,
+      "path": "fixtures/pi/pane-28.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "c555a2153851857d12726872193414bcdba8d276b8290bbe70944ccfb78c0551"
+    },
+    {
+      "bytes": 40254,
+      "path": "fixtures/pi/pane-29.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "c88261e2f309fbb77024895fc5d920f14cd1f3bb7f3d18f50b6afdc56f33d227"
+    },
+    {
+      "bytes": 40122,
+      "path": "fixtures/pi/pane-30.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "0c4aee67569908ed2d5aea23ad1fc42512d1820458818afd903d1cfcaf99d116"
+    },
+    {
+      "bytes": 40207,
+      "path": "fixtures/pi/pane-31.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "3777e189d81535ecd27d1047ddbe35d8affba093ddc67a0ccd5736816a8dfe2c"
+    },
+    {
+      "bytes": 40143,
+      "path": "fixtures/pi/pane-32.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "fc46bed3ae4a45f67e028ea8beb07fa57e129feef02fa7aecc69b5a85636b509"
+    },
+    {
+      "bytes": 41086,
+      "path": "fixtures/pi/pane-33.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "7e350ee5252da20754258b0436609020a8529183fbd68b9a1617c81006b374de"
+    },
+    {
+      "bytes": 41309,
+      "path": "fixtures/pi/pane-34.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "d4a8388acd3a63dc8ff3daf7b228a0f4c47e90db6039c9211c0bd05fa95d9ac2"
+    },
+    {
+      "bytes": 40073,
+      "path": "fixtures/pi/pane-35.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "bec74ec93799f0e84cd201d2f6c763e8cabd6b7c80d5d65f6bc918a6eb016b95"
+    },
+    {
+      "bytes": 40197,
+      "path": "fixtures/pi/pane-36.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "77cd57a512a61bda73ce4df3076a738b703dc0174689fc013ffdd489c2536bfd"
+    },
+    {
+      "bytes": 41228,
+      "path": "fixtures/pi/pane-37.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "a182e0a23fb4e72dbf185b123460352da2bd07be112816035873516b900c65f7"
+    },
+    {
+      "bytes": 40118,
+      "path": "fixtures/pi/pane-38.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "cfc7fa577eb0f4a4ca2e704d7e38df41cd21249af1915a01be7335e89abc7d83"
+    },
+    {
+      "bytes": 41282,
+      "path": "fixtures/pi/pane-39.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "ad673c6f4adceff0103b17bf99cddb62b158de75b5d1ea315f67aa00d1b1c001"
+    },
+    {
+      "bytes": 40275,
+      "path": "fixtures/pi/pane-40.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "5fc18ea3734630114ebfa46c9e19df0ad120645e196231d02bdd6a7b2696756f"
+    },
+    {
+      "bytes": 40029,
+      "path": "fixtures/pi/pane-41.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "094abd713c948a10a64d33156495c871d0ab334a095dfbc52b064c3572bc7a94"
+    },
+    {
+      "bytes": 40101,
+      "path": "fixtures/pi/pane-42.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "7b82ed5cc21717a66415c82371c3d4e732bc0a5e082834bb11546fb2042cf665"
+    },
+    {
+      "bytes": 40162,
+      "path": "fixtures/pi/pane-43.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "a36a844a2f5dfdc2ad351125692ff9de820f06d6ab3188d6519b502a80a17a78"
+    },
+    {
+      "bytes": 41340,
+      "path": "fixtures/pi/pane-44.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "34f24afb54c69914a577771081d4074b56f3a598067b28d4cf4a7d30cbbfcf3c"
+    },
+    {
+      "bytes": 40145,
+      "path": "fixtures/pi/pane-45.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "9617f9d0be87fff6b651ad08715656c5e7d83e77d91315eaff98fa441e21d7cb"
+    },
+    {
+      "bytes": 41134,
+      "path": "fixtures/pi/pane-46.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "c45cd6ed55c72059a3a92be904adfbeddbe568f9a45cc1dc650c0dc1977c4d59"
+    },
+    {
+      "bytes": 40211,
+      "path": "fixtures/pi/pane-47.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "f692c26efcfe0920f370180745326f4c31b43172f52a2c5fecf90dd5b4bddd9c"
+    },
+    {
+      "bytes": 40003,
+      "path": "fixtures/pi/pane-48.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "82049efebb8674595a34173eebf8a202e72c3e5589d0176f4c64797763fbd0eb"
+    },
+    {
+      "bytes": 41250,
+      "path": "fixtures/pi/pane-49.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "c68e4b6bb3d824614fb7439eb074407a4493ff85f45edce8fdf6797ba54394e7"
+    },
+    {
+      "bytes": 41289,
+      "path": "fixtures/pi/pane-50.jsonl",
+      "purpose": "pi JSONL session (synthetic; ecrireFixture)",
+      "sha256": "0ba4622f02e0088e139b7a542718501bb263ddc9fe747021aa5ea641001171c9"
+    },
+    {
+      "bytes": 34089,
+      "path": "fixtures/codex/pane-01.jsonl",
+      "purpose": "codex rollout-shaped JSONL (synthetic)",
+      "sha256": "204c55e520f0ef4de2421d8380a1ac4c0c01770b8c5e2e4e6d2cfc50ea82a55a"
+    },
+    {
+      "bytes": 33729,
+      "path": "fixtures/codex/pane-02.jsonl",
+      "purpose": "codex rollout-shaped JSONL (synthetic)",
+      "sha256": "4d42e6f9ab0c7fcdbd07d0b49c6fbbda9dc72f82f54a6ba17cc8fcdea558d42c"
+    },
+    {
+      "bytes": 34017,
+      "path": "fixtures/codex/pane-03.jsonl",
+      "purpose": "codex rollout-shaped JSONL (synthetic)",
+      "sha256": "126e96d637d37cb17c668a5de9b5478ff159fd52cf577b3b6da9497932f0e353"
+    },
+    {
+      "bytes": 34377,
+      "path": "fixtures/codex/pane-04.jsonl",
+      "purpose": "codex rollout-shaped JSONL (synthetic)",
+      "sha256": "01e8ed1b7f248bfa6413fc6c6010ab059f38e3845afb5b75c83a68697fde5591"
+    },
+    {
+      "bytes": 34251,
+      "path": "fixtures/codex/pane-05.jsonl",
+      "purpose": "codex rollout-shaped JSONL (synthetic)",
+      "sha256": "61319ea58521670ff873fcbe1292c2a84aae1629b666e95aded67b0979fea452"
+    },
+    {
+      "bytes": 34269,
+      "path": "fixtures/codex/pane-06.jsonl",
+      "purpose": "codex rollout-shaped JSONL (synthetic)",
+      "sha256": "781fcc80ad11fa8011cf4ac2fe2ad760dc62bd60837c24e815e68cf23497d9dc"
+    },
+    {
+      "bytes": 34305,
+      "path": "fixtures/codex/pane-07.jsonl",
+      "purpose": "codex rollout-shaped JSONL (synthetic)",
+      "sha256": "7873d1df0850bf374091ab4356f2342a41757992983ab0517041ef4c186cdd55"
+    },
+    {
+      "bytes": 34305,
+      "path": "fixtures/codex/pane-08.jsonl",
+      "purpose": "codex rollout-shaped JSONL (synthetic)",
+      "sha256": "5972ac9a802e185e1083aa05eaec814a86ac16e3f2c3cb85b2fd640c2439178c"
+    },
+    {
+      "bytes": 34179,
+      "path": "fixtures/codex/pane-09.jsonl",
+      "purpose": "codex rollout-shaped JSONL (synthetic)",
+      "sha256": "0dbefc48d9c1cf27b63576db43ce94728ef99f1cbc9da74e34d916de37a02f0e"
+    },
+    {
+      "bytes": 34452,
+      "path": "fixtures/codex/pane-10.jsonl",
+      "purpose": "codex rollout-shaped JSONL (synthetic)",
+      "sha256": "c62ee0f9edf3c26d9d29f27cb5a3cf05a4458a31c638545f223daa11953781f2"
+    },
+    {
+      "bytes": 35016,
+      "path": "fixtures/claude/pane-01.jsonl",
+      "purpose": "claude user/assistant JSONL (synthetic)",
+      "sha256": "7217b3b2f6fa4fcd24ad11f82b9e645672f0c04a195b77c96b5fcb711dc5c1b1"
+    },
+    {
+      "bytes": 35016,
+      "path": "fixtures/claude/pane-02.jsonl",
+      "purpose": "claude user/assistant JSONL (synthetic)",
+      "sha256": "08777749c56bf3dc01558e8c3d7a164babbe8256de4d826bd899e39f49d9be56"
+    },
+    {
+      "bytes": 35016,
+      "path": "fixtures/claude/pane-03.jsonl",
+      "purpose": "claude user/assistant JSONL (synthetic)",
+      "sha256": "a94d7266335479005fd2d9c9113848d4c79066252f5c36bce7cbce5af0e74ac3"
+    },
+    {
+      "bytes": 35016,
+      "path": "fixtures/claude/pane-04.jsonl",
+      "purpose": "claude user/assistant JSONL (synthetic)",
+      "sha256": "ed2168c85d93e6e5b98bf4caf38244ab7c0f6c5e5711e9cc9063a3f685d452d6"
+    },
+    {
+      "bytes": 35016,
+      "path": "fixtures/claude/pane-05.jsonl",
+      "purpose": "claude user/assistant JSONL (synthetic)",
+      "sha256": "ce121b182c853c8e7c79cd24a494dd6171978de17780e562170aa27ad6786fcf"
+    },
+    {
+      "bytes": 35016,
+      "path": "fixtures/claude/pane-06.jsonl",
+      "purpose": "claude user/assistant JSONL (synthetic)",
+      "sha256": "ddab9af2240c3424c40ed9c236c9d2610b67f9cf8a4f1807162dd928d6bf3845"
+    },
+    {
+      "bytes": 35016,
+      "path": "fixtures/claude/pane-07.jsonl",
+      "purpose": "claude user/assistant JSONL (synthetic)",
+      "sha256": "87fef2afb06b3ce9411ec46d836bf893e92741b0dd4dc89a109f24cdb482beb9"
+    },
+    {
+      "bytes": 35016,
+      "path": "fixtures/claude/pane-08.jsonl",
+      "purpose": "claude user/assistant JSONL (synthetic)",
+      "sha256": "40c53aca21948533e538167a08a5eb3b1ff741a90315b56436869e0f8db72d50"
+    },
+    {
+      "bytes": 35016,
+      "path": "fixtures/claude/pane-09.jsonl",
+      "purpose": "claude user/assistant JSONL (synthetic)",
+      "sha256": "5865f005eab42e369d3f3c1d3995b8efd30dd27e575d242fdc758e657b88e297"
+    },
+    {
+      "bytes": 35336,
+      "path": "fixtures/claude/pane-10.jsonl",
+      "purpose": "claude user/assistant JSONL (synthetic)",
+      "sha256": "9085323160c5a1f87fe9c91102af11bd36b77dd5379aa799541b942f92d8e347"
+    },
+    {
+      "bytes": 1667072,
+      "path": "fixtures/opencode/opencode.db",
+      "purpose": "opencode synthetic store: session_v2/session_message, 50×120 rows",
+      "sha256": "85a0cbe63a056f5d6c349c6ce9b6588c1f67ebe955c1721e3d047853db1d115e"
+    },
+    {
+      "bytes": 1888256,
+      "path": "fixtures/devin/devin.db",
+      "purpose": "devin synthetic store: sessions/message_nodes, 50×120 rows",
+      "sha256": "2a2e5b69b5b6836bad45c697a00c0079c7de688120efba7890adbba119b7f55d"
+    },
+    {
+      "bytes": 2098466,
+      "path": "fixtures/pi/pane-01.jsonl",
+      "purpose": "pi base JSONL (2 MiB) for the 32 MiB delta catch-up scenario",
+      "sha256": "bd7c20a5ad3c0a8717bb1fae0f3fcf1c85940c18545c331f5e958744be86211f"
+    }
+  ],
+  "delta": {
+    "generator": "bun compatibility/benchmark/generate.ts --delta",
+    "note": "Not committed: regenerated deterministically (seed 21050318) and hash-verified before each T065 measurement run.",
+    "path": "fixtures/delta/append-pi.jsonl",
+    "seed": 21050318,
+    "byteTarget": 33554432,
+    "bytes": 33554963,
+    "sha256Expected": "51f047366143a5b432ed475445a6d9a93af9820296b0dd1e5ea8e7ffe20731da"
+  },
+  "scenarios": [
+    {
+      "id": "panes-1",
+      "note": "single pane: first session of each family"
+    },
+    {
+      "id": "panes-10",
+      "note": "10 sessions read concurrently across families"
+    },
+    {
+      "id": "panes-50",
+      "note": "50 sessions, up to 8 clients"
+    },
+    {
+      "id": "clients-1-4-8",
+      "note": "concurrent HTTP clients 1/4/8 (harness built at T065)"
+    },
+    {
+      "id": "cold-warm",
+      "note": "first read per source (cold resolution) vs cache-warmed read"
+    },
+    {
+      "id": "delta32MiB",
+      "note": "base file + deterministic 32 MiB append; reconnect then full catch-up"
+    },
+    {
+      "id": "lockDB",
+      "note": "opencode store opened with a held write transaction during reads (busy 3 s)"
+    },
+    {
+      "id": "sse-idle",
+      "note": "quiet journal feed with 8 idle connections (harness-built)"
+    }
+  ]
+}
