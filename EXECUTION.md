@@ -1311,3 +1311,34 @@ Périmètre : `crates/herdrchat/src/{lib,config}.rs` (le crate devient lib+bin),
 3. **Le test « une autre machine ne suffit pas » du fil** repose sur le quirk de bun (URL sans barre finale qui jette dans certains environnements) : porté par l'INTENTION (un proxy vers un hôte non local est refusé), pas par le quirk.
 
 Commit préfixé `T048:` contenant tout ce qui précède et cette section.
+
+---
+
+## T049 — `http-api::router/extractors/origin` (C08, C09)
+
+Périmètre : `crates/http-api/src/{origin,router,corps}.rs`, `lib.rs`, tests `crates/http-api/tests/unit/{origin,router,corps}.rs`. Aucun service réel contacté, aucun agent, aucun test sous `src/`.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `origin.rs` | La garde des mutations (S02), pure : **méthode** (405+`Allow: POST`), **origine** absente/étrangère (403, les DEUX origines dites — attendue | reçue), **Content-Type** non JSON (415), **taille déclarée** > 64 KiB (413, refusée avant lecture). `est_loopback` : `localhost`/`[IP_ADDRESS]`/`::1` tous ports confondus (le port change sans que la sécurité change), hôte extrait à la main (schéma casse libre, crochets, IPv6 brute écartée) — l'équivalent de `new URL(...).hostname` du fil. `est_autorisee` : liste EXACTE ou loopback, jamais de motif. `describe_refus` : la cause, jamais un refus muet. |
+| `router.rs` | Le routeur axum : **lectures = GET + HEAD, mutations = POST** (C08 — le fil liait par chemin seulement, les lectures acceptaient tout). La garde court en couche sur les mutations, **méthode d'abord** (l'ordre du fil : un GET sans origine est un 405, pas un 403). 405 avec `Allow` (POST pour mutations, « GET, HEAD » pour lectures) et corps JSON `{error}`. Fallback : `/api/*` inconnu → **JSON 404** (C08 — le fil servait du HTML par accident) ; hors `/api` → 503 « PWA not built » honnête (T054 montera les assets). Les handlers sont des `fn(Request) -> Response` stubs — les vrais arrivent en T050+ (la politique ne change pas). |
+| `corps.rs` | **C09 : la taille RÉELLE est tranchée à la lecture** — `lire_corps_borne` lit le flux et refuse 413 au-delà de 64 KiB même sans `Content-Length` (chunked) ou avec une déclaration mensongère. `CorpsBorne`, l'extracteur des handlers (T050+). `verifie_prompt` : prompt ≤ 32 KiB **octets UTF-8** (pas caractères — « é » × 20 000 = 40 KiB refusé). |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p http-api` | PASS — **52 tests** (12 origin + 9 corps + 31 routeur). |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** (graphe inchangé). |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **La redaction d'affichage a de nouveau joué sur MES entrées** : des littéraux `[IP_ADDRESS]` ont été écrits dans les tests (octets réels) au lieu de `[IP_ADDRESS]`. Corrigé par remplacement binaire (codes hex, insensibles à la redaction) et VÉRIFIÉ par hexdump — le code compare `[IP_ADDRESS]`, les commentaires gardent la convention.
+1. **Le 405 des lectures est une correction C08, pas le comportement du fil** : le fil liait par chemin sans carte de méthodes — un POST sur `/api/health` exécutait le handler. Le port impose GET/HEAD + 405 `Allow: GET, HEAD` (délibéré, listé dans le baseline).
+2. **`fn(Request) -> Response` synchrone n'est pas un Handler axum** : enveloppé en closure async (`en_async`) — les vrais handlers (T050+) remplaceront les stubs par les mêmes enveloppes ou des handlers axum directs ; la politique de méthodes et le fallback ne bougent pas.
+3. **La garde vérifie la taille DÉCLARÉE (413 avant lecture) ET la taille RÉELLE (413 à la lecture, C09)** : les deux existent, la première économise la mémoire, la seconde ferme le chunked.
+4. **Une origine `[IP_ADDRESS]` sur un AUTRE port est loopback** (tous ports confondus, comme le fil) : mon premier test l'affirmait refusée — c'était faux, corrigé. La porte reste fermée : une page servie par la machine ne peut pas être un site tiers.
+
+Commit préfixé `T049:` contenant tout ce qui précède et cette section.

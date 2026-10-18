@@ -1,4 +1,7 @@
 //! http-api — le routeur, les extracteurs, les handlers et leurs erreurs
 //! (TECH §2) ; les modules arrivent avec leurs tâches (T010, T050+).
 
+pub mod corps;
 pub mod errors;
+pub mod origin;
+pub mod router;
