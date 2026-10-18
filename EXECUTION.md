@@ -559,4 +559,16 @@ Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'ex
 | `history.rs` | L'en-tête (`type: "session"`) et la queue (même moteur, nom du fil). |
 | 7 tests (14 sur la crate) | Page vide (après la semence), **coupure UTF-8 réelle** (0xC3 puis 0xA9 en deux appends — rien rendu, puis la ligne entière UNE fois), cinq appends suivis (invariant `offset ≤ taille` à chaque page), troncature + rotation réinitialisées **nommément**, record géant de 5 MiB rendu seul et **faisant avancer**, arrière qui recule sans saut, en-tête/queue. |
 
-Commit préfixé `T014:` contenant `crates/sessions/src/storage/**`, `crates/sessions/src/lib.rs`, `crates/sessions/tests/**` et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T015 — `sessions::storage::sqlite` : le moteur commun, l'ouvrier dédié (T015)
+
+| Livrable | Détail |
+|---|---|
+| `worker.rs` — `Ouvrier` | Un **fil dédié par base**, connexion `SQLITE_OPEN_READ_ONLY` (ni base, ni WAL, ni schéma ne bougent), `busy_timeout` 3 s (mesuré), file de travaux **bornée à 32** (`try_send` → `FilePleine` nommé, jamais une file infinie) ; `interroge` (dépose + attente) et `depose` (sans attente — l'API pour l'adaptateur asynchrone) ; `poignee_interruption` = `InterruptHandle` partageable — une requête en cours se coupe, l'ouvrier **survit**. SQL verbatim, paramètres **liés** (jamais interpolés) ; lignes rendues avec noms de colonnes + valeurs (blob = octets, pas une chaîne déguisée). |
+| `paging.rs` | Les formes communes : avant `ASC LIMIT ?`, avant-après `> ?1 ASC`, arrière **`< ?1` DESC** (mesuré) + `borne_de` (la valeur d'ordre du dernier — le curseur de la page suivante). |
+| 5 tests (18 sur la crate) | **Deux schémas factices différents** (row_id/chat_message vs seq/texte) par le MÊME moteur ; pages avant par bornes (2+2, bornes 2 puis 4) ; **mutation de borne relue** (UPDATE par connexion séparée, la relecture voit `deux-muté`) ; file bornée (33 dépôts acceptés = 1 en cours + 32 en file, le refus nommé, l'ouvrier survit à l'interruption puis au drain) ; paramètres liés (apostrophe/valeur exacte). |
+
+Commit préfixé `T015:` contenant `crates/sessions/src/storage/sqlite/**`, `storage/mod.rs`, `tests/unit/sqlite.rs` et cette section. Cargo.lock inchangé.
