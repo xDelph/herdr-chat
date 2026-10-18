@@ -742,4 +742,18 @@ Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'ex
 | Les bornes de mémoire | **256 entrées, LRU** (le moins récemment utilisé part) — testé par le CACHE (l'évincée n'a plus de résumé), pas par un proxy de génération. |
 | 5 tests (82 sur la crate) | Les huit clients, la réponse tardive ignorée, disparition/réapparition, le lease, les bornes. |
 
-Commit préfixé `T027:` contenant `crates/sessions/src/index.rs`, `lib.rs`, `tests/unit/{index,mod}.rs` et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T028 — `catalog::process` : l'exécuteur de processus borné (T028)
+
+| Livrable | Détail |
+|---|---|
+| `execute(argv, délai, annulation)` | **Argv FIXE — aucun shell, jamais `sh -c`** ; délai 20 s (mesuré T028) ; sortie bornée stdout 2 MiB / stderr 64 KiB — **refusée, jamais tronquée en silence** (`SortieTropGrande`) ; les deux flux lus en parallèle (des fils) — un flux plein ne bloque pas l'enfant. |
+| Fin et nettoyage | Au délai OU à l'annulation : l'enfant est **tué ET ramassé** (`kill` + `wait` — pas de zombie) ; **les seuls enfants tués sont les nôtres** (un processus qui occupe un port n'est pas un orphelin — règle du dépôt, respectée ici par construction : on ne touche que ce qu'on a créé). |
+| ⚠️ Leçon du blocage (vue au test, 10 min de timeout) | Tuer le `sh` orphelinise ses ENFANTS qui tiennent le tuyau → les lecteurs s'accrochaient au `join` pour toujours. Deux corrections : **l'exécuteur ne bloque JAMAIS l'appelant sur les lecteurs après un kill** (ils s'arrêtent à la fermeture du tuyau), et les scripts de test tournent en boucle **pure sh** (aucun enfant à orpheliniser). |
+| `Annulation` | Un drapeau coopératif partagé — posé par le détenteur d'un clone ; l'enfant en cours est tué, `Annule` rendu, et un exécutable **sain** marche ensuite (rien n'est « sali »). |
+| 6 tests | Sortie/erreur/code non-nul portés, délai tué+ramassé (200 kills consécutifs sans épuisement), surtaille refusée, annulation + sain après, lancement impossible nommé. |
+
+Commit préfixé `T028:` contenant `crates/catalog/src/{process.rs, lib.rs}`, `crates/catalog/tests/**` et cette section. Cargo.lock inchangé.

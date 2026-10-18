@@ -1,1 +1,4 @@
-//! catalog — module layout and API surface are delivered by their owning tasks (TECH §2).
+//! catalog — l'exécuteur borné, les adaptateurs de parse, le cache, la
+//! validation des arguments de lancement (TECH §2).
+
+pub mod process;
