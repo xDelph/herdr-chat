@@ -8,6 +8,7 @@ use application::commands::stop::ArreteurAgent;
 use application::conversations::{
     BrancheDeProjet, EntreeLu, ErreurDeLecture, LitSessions, ServiceConversations,
 };
+use application::diagnostics::SinkMuet;
 use application::events::journal::Journal;
 use application::events::subscription::ServiceAbonnements;
 use application::overview::ResoutSessions;
@@ -386,6 +387,7 @@ pub(crate) fn services(
         // vite, et un test ne laisse pas un fil bloqué 15 s derrière lui.
         battement_flux: Duration::from_millis(20),
         assets: Arc::new(FauxAssets::defaut()),
+        diagnostics: Arc::new(SinkMuet),
     });
     (services, herdr)
 }

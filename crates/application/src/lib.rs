@@ -3,6 +3,7 @@
 
 pub mod commands;
 pub mod conversations;
+pub mod diagnostics;
 pub mod events;
 pub mod git;
 pub mod overview;

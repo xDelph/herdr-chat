@@ -1528,3 +1528,37 @@ Périmètre : `crates/http-api/src/assets.rs` (+ `services.rs`, `router.rs` : le
 5. **Le MIME vit dans `http-api`**, pas dans le fournisseur : la fourniture ne porte que des octets, donc la politique de type et de cache est une seule fois, testée, et ne peut pas diverger entre le vrai build et un faux.
 
 Commit préfixé `T054:` contenant tout ce qui précède et cette section.
+
+## T055 — `herdrchat::logging` + `application::diagnostics` (S10–S13)
+
+Périmètre : `crates/application/src/diagnostics.rs`, `crates/herdrchat/src/logging.rs`, `crates/http-api/src/{services.rs, handlers/journal_client.rs}` (H13 branché sur le puits), tests `crates/application/tests/unit/diagnostics.rs`, `crates/herdrchat/tests/unit/logging.rs`, `crates/http-api/tests/unit/support.rs`. Aucun test n'écrit dans le journal de l'utilisateur (dossier temporaire unique par test), aucun service réel.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `application::diagnostics` | La **politique**, sans I/O : `Niveau` (libellés `ERROR|WARN|INFO`), `EntreeDiagnostic` (+ `cle()` = chemin\|source\|niveau\|message, **sans le détail**), `ligne_de` (`ISO [LEVEL] [source] message \| detail`), `iso_8601` (calendrier civil calculé — zéro dépendance, testé sur 1970, une bissextile et le réveillon), `tronque` **en caractères** (2000, aucun accent coupé), `AntiRepetition` (fenêtre **glissante** de 60 s, compte des répétitions supprimées, remis à zéro après annonce), `MemoireAntiRepetition` (par **chemin** : deux instances ne se masquent pas), `SinkDiagnostic` (rend `()` — un journal ne peut pas changer l'issue d'une commande), `SinkMuet`. |
+| `herdrchat::logging` | Le journal réel : dossier créé en 0700, fichier en 0600, **rotation à 4 MiB** vers `.1` (une génération, la plus ancienne écrasée), écriture `append` + flush, **horloge injectable** (la fenêtre se teste sans dormir), compteurs `ecrites()`/`supprimees()`. Toute panne d'écriture part sur `stderr` et s'arrête — elle ne remonte jamais. `journal_par_defaut(dossier_maison)` = `~/.herdr-remote/herdr-remote.log` (jamais le cwd, A03). |
+| H13 branché | `Services::diagnostics` reçoit les remontées du navigateur (`source: "client"`), en plus de la trace console. Le corps accepte `error` seul ; le détail est **déjà sérialisé** par le handler (le contrat `detail: unknown` reste inconnu du domaine). |
+| Rédaction (S13) | La ligne passe par `supprime_identifiants` : le journal parle de « le nouvel onglet », pas de `w1:p2`. Même règle que les messages d'erreur du fil — une seule fonction, dans le domaine. |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p application` | PASS — **147 tests** (10 nouveaux sur les diagnostics). |
+| `cargo test -p herdrchat` | PASS — **27 tests** (7 nouveaux sur le journal réel). |
+| `cargo test -p http-api` | PASS — **172 tests** (H13 branché, aucun comportement de route changé). |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** (2 passages). |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **`iso_8601` est calculé, pas emprunté** : le calendrier civil (Hinnant) tient en quinze lignes, se teste exactement, et évite une dépendance d'horodatage pour un seul format. Trois ancres le vérifient (époque, 29 février, 31 décembre 23:59:59).
+1. **La fenêtre d'anti-répétition est GLISSANTE** (chaque répétition repousse l'échéance) : c'est le comportement du fil, et c'est le bon — une erreur qui continue reste silencieuse, une erreur qui revient après une accalmie réapparaît.
+2. **Le compte des répétitions est ANNONCÉ** avec l'écriture suivante (`— 3 repetitions supprimees`) : S12/TASKS demande un compteur, et un journal qui cache 300 occurrences sans le dire mentirait sur la fréquence.
+3. **Le détail n'entre pas dans la clé de déduplication** : deux piles d'appels différentes du même message sont la même erreur qui se répète ; les compter séparément rendrait la suppression inutile.
+4. **L'anti-répétition est par chemin** : deux instances (ou deux tests parallèles) ne se masquent pas — c'était le défaut d'une table globale, et il aurait rendu les tests dépendants les uns des autres.
+5. **Le test de rotation écrit 4 MiB dans un dossier temporaire** (et le supprime) : c'est le seul moyen de prouver la rotation, et il ne touche à rien de l'utilisateur.
+6. **Le chemin impraticable est testé** (parent = fichier) : le journal ne lève pas, n'écrit rien, et le compte `ecrites()` reste à zéro — la preuve que l'échec est avalé sans devenir un succès trompeur.
+
+Commit préfixé `T055:` contenant tout ce qui précède et cette section.

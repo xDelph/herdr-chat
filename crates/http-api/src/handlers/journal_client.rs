@@ -8,7 +8,10 @@
 //! un journal en panne ne doit pas casser l'écran qui signale une panne.
 
 use crate::corps::CorpsBorne;
+use crate::services::Services;
+use application::diagnostics::{EntreeDiagnostic, Niveau};
 use axum::response::IntoResponse;
+use std::sync::Arc;
 
 /// Le corps exact du fil — `level` est le littéral `"error"` (une autre
 /// valeur est un corps invalide, jamais un niveau inventé).
@@ -21,7 +24,10 @@ struct Corps {
 }
 
 /// La remontée — tracée dans le journal du démon, acquittée `{ok:true}`.
-pub async fn journal_client(corps: CorpsBorne) -> axum::response::Response {
+pub async fn journal_client(
+    axum::extract::State(services): axum::extract::State<Arc<Services>>,
+    corps: CorpsBorne,
+) -> axum::response::Response {
     let entree = serde_json::from_slice::<Corps>(&corps.octets)
         .ok()
         .filter(|entree| entree.level == "error");
@@ -33,11 +39,17 @@ pub async fn journal_client(corps: CorpsBorne) -> axum::response::Response {
             .into_response();
     };
     // La trace console ET le journal, comme pour les réponses du serveur.
+    let niveau = Niveau::depuis_libelle(&entree.level).unwrap_or(Niveau::Error);
+    let mut diagnostic = EntreeDiagnostic::nouvelle(niveau, "client", &entree.message);
     if let Some(detail) = &entree.detail {
+        diagnostic = diagnostic.avec_detail(detail.to_string());
         tracing::error!(source = "client", message = %entree.message, detail = %detail);
     } else {
         tracing::error!(source = "client", message = %entree.message);
     }
+    // Le puits ne rend rien : une panne de journal ne peut pas transformer
+    // cet acquittement en échec (T055).
+    services.diagnostics.ecrit(&diagnostic);
     (
         axum::http::StatusCode::OK,
         axum::Json(serde_json::json!({ "ok": true })),

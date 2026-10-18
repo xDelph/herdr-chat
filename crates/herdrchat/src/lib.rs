@@ -9,3 +9,4 @@ mod assets_pwa {
     include!(concat!(env!("OUT_DIR"), "/assets_pwa.rs"));
 }
 pub mod config;
+pub mod logging;

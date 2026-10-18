@@ -12,6 +12,7 @@ use application::commands::launch::{ConstructeurArgs, HorlogeMoteur, LanceurAgen
 use application::commands::prompt::EnvoieurPrompt;
 use application::commands::stop::ArreteurAgent;
 use application::conversations::ServiceConversations;
+use application::diagnostics::SinkDiagnostic;
 use application::events::subscription::ServiceAbonnements;
 use application::overview::ResoutSessions;
 use application::refresh::{ServiceSnapshots, SourceMaintenant};
@@ -76,6 +77,9 @@ pub struct Services {
     pub battement_flux: std::time::Duration,
     /// Les assets de la PWA (T054) — le build embarqué, composé au sommet.
     pub assets: Arc<dyn FournisseurAssets>,
+    /// Le journal de diagnostics (T055) — le puits ne rend rien, donc une
+    /// panne d'écriture ne change jamais l'issue d'une commande.
+    pub diagnostics: Arc<dyn SinkDiagnostic>,
 }
 
 impl Services {
