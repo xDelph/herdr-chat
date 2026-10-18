@@ -531,4 +531,18 @@ Périmètre : `crates/herdr-client/src/transport.rs (+tests)` — JSONL ligne pa
 
 Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'exigent simplement ; l'adaptateur asynchrone l'enveloppera (T021) sans re-décoder ici.
 
-Commit préfixé `T012:` contenant `crates/herdr-client/src/{transport.rs, lib.rs}`, `crates/herdr-client/tests/**` et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T013 — `herdr-client::wire/client/capabilities` : les méthodes utilisées, réponses vérifiées (C05)
+
+| Livrable | Détail |
+|---|---|
+| `wire.rs` | Les formes protocol.ts **privées à l'adaptateur** (InfoAgent, InfoSessionAgent, InfoWorkspace, InfoWorktree, InfoPane, PhotoSession, Pong, ListeAgents, LecturePane, OngletCree) — omissible/nullable **trois états** portés tels quels, jamais aplatis. |
+| `client.rs` — les méthodes **mesurées** | Les 12 sites de demande de HerdrClient (`of`) : ping, photo_session, liste_agents, fiche_agent (résultat opaque — le décodage ciblé reste chez l'appelant), lecture_ecran (**`strip_ansi: true` au fil ; `visible` sans `lines`** ; charge partielle = vide, pas une panne), prompt, texte_brut (`pane_id`), touches (`target`), focus, creation_onglet (réponse `{tab, root_pane}` **vérifiée**), lancement, fermeture_onglet. |
+| C05 — le discriminant | `demande_objet` exige `result` **objet** (le `Schema.Record` du fil) : `null`, `"ok"`, `[]` ne confirment PAS un prompt — testé pour les trois. |
+| `capabilities.rs` | 14 méthodes déclarées, **12 utilisées** (sites mesurés), 2 déclarées non activées (`events.subscribe/wait` — E3 : l'amont ne les implémente pas) ; `est_activee` les expose absentes, jamais en no-op. Le corpus dit « runtime uses 13 » : l'écart (12 sites + `request`) est consigné, mesuré ici site par site. |
+| 13 tests (8 transport + 5 client) | Vocabulaire cohérent, orthographes exactes (`pane_id` vs `target`, tab.create cwd/focus/label/workspace_id), lecture visible/recent, C05 ×3 + l'objet qui confirme, onglet sans pane racine refusé nommé. |
+
+Commit préfixé `T013:` contenant `crates/herdr-client/src/{wire,client,capabilities}.rs`, `tests/unit/{client,mod}.rs` et cette section. Cargo.lock inchangé.
