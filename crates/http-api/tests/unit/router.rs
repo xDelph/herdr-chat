@@ -260,17 +260,19 @@ async fn api_inconnu_json_404() {
     assert_eq!(valeur["error"], "route inconnue");
 }
 
-/// Hors `/api` : la PWA n'est pas montée (T054) — 503 nommé.
+/// Hors `/api` : les assets de la PWA (T054) — ici le faux en porte un, donc
+/// l'accueil rend l'index, jamais du JSON.
 #[tokio::test(flavor = "multi_thread")]
-async fn hors_api_503_pwa_absente() {
+async fn hors_api_sert_les_assets() {
     let reponse = envoie("GET", "/", &[], Vec::new()).await;
-    assert_eq!(reponse.status(), StatusCode::SERVICE_UNAVAILABLE);
-    let octets = axum::body::to_bytes(reponse.into_body(), 64 * 1024)
-        .await
-        .unwrap_or_else(|cause| panic!("corps lu : {cause:?}"));
-    let valeur: serde_json::Value = serde_json::from_slice(&octets)
-        .unwrap_or_else(|cause| panic!("JSON illisible : {cause:?}"));
-    assert_eq!(valeur["error"], "PWA not built");
+    assert_eq!(reponse.status(), StatusCode::OK);
+    assert_eq!(
+        reponse
+            .headers()
+            .get("content-type")
+            .and_then(|valeur| valeur.to_str().ok()),
+        Some("text/html; charset=utf-8")
+    );
 }
 
 /// La politique de lecture (C08), unitaire : 405 + `Allow: GET, HEAD`.

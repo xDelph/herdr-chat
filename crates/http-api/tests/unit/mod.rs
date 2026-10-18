@@ -3,6 +3,7 @@
 //! catalogues/fichiers/push/journal H08–H09/H13/H15–H18 (T052).
 
 pub(crate) mod arret;
+pub(crate) mod assets;
 pub(crate) mod catalogues;
 pub(crate) mod confiance;
 pub(crate) mod conversations;

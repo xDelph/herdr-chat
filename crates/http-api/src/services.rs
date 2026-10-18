@@ -6,6 +6,7 @@
 //! conversation sont des ports `dyn` — le graphe interdit `http-api →
 //! sessions` ; la composition réelle vit au sommet (T056).
 
+use crate::assets::FournisseurAssets;
 use application::commands::focus::FocaliseurAgent;
 use application::commands::launch::{ConstructeurArgs, HorlogeMoteur, LanceurAgent};
 use application::commands::prompt::EnvoieurPrompt;
@@ -73,6 +74,8 @@ pub struct Services {
     /// heartbeat). Injectable pour que les tests n'attendent pas 15 s : le
     /// travailleur bloquant d'un flux se réveille à cette cadence.
     pub battement_flux: std::time::Duration,
+    /// Les assets de la PWA (T054) — le build embarqué, composé au sommet.
+    pub assets: Arc<dyn FournisseurAssets>,
 }
 
 impl Services {

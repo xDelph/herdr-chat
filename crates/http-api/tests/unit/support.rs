@@ -36,6 +36,7 @@ use domain::session::{
     SessionPageRequest,
 };
 use domain::status::AgentStatus;
+use http_api::assets::{FichierAsset, FournisseurAssets};
 use http_api::services::Services;
 use std::collections::{BTreeMap, VecDeque};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -384,6 +385,7 @@ pub(crate) fn services(
         // Le battement de test : 20 ms — le travailleur d'un flux se réveille
         // vite, et un test ne laisse pas un fil bloqué 15 s derrière lui.
         battement_flux: Duration::from_millis(20),
+        assets: Arc::new(FauxAssets::defaut()),
     });
     (services, herdr)
 }
@@ -726,5 +728,58 @@ impl ArtifactPort for FauxArtefacts {
     fn recent_images(&self, _roots: AuthorizedRoots) -> PortFuture<'_, ImageScan> {
         let resultat = self.images.clone().map(|images| ImageScan { images });
         Box::pin(async move { resultat })
+    }
+}
+
+/// Le faux fournisseur d'assets (T054) : un index, un asset fingerprinté, un
+/// manifest et un worker — et **rien d'autre** (le confinement est une
+/// conséquence de la table).
+pub(crate) struct FauxAssets {
+    fichiers: BTreeMap<String, Vec<u8>>,
+    index: Option<Vec<u8>>,
+}
+
+impl FauxAssets {
+    pub(crate) fn defaut() -> Self {
+        let mut fichiers = BTreeMap::new();
+        fichiers.insert(String::from("/assets/app.js"), b"console.log(1)".to_vec());
+        fichiers.insert(String::from("/assets/app.css"), b"body{}".to_vec());
+        fichiers.insert(
+            String::from("/manifest.webmanifest"),
+            br#"{"name":"Herdr"}"#.to_vec(),
+        );
+        fichiers.insert(
+            String::from("/sw.js"),
+            b"self.addEventListener('install',()=>{})".to_vec(),
+        );
+        fichiers.insert(
+            String::from("/push-sw.js"),
+            b"self.addEventListener('push',()=>{})".to_vec(),
+        );
+        fichiers.insert(String::from("/index.html"), b"<html>PWA</html>".to_vec());
+        Self {
+            fichiers,
+            index: Some(b"<html>PWA</html>".to_vec()),
+        }
+    }
+
+    /// Un binaire de développement : aucun build, donc aucun index.
+    pub(crate) fn sans_index() -> Self {
+        Self {
+            fichiers: BTreeMap::new(),
+            index: None,
+        }
+    }
+}
+
+impl FournisseurAssets for FauxAssets {
+    fn fichier(&self, chemin: &str) -> Option<FichierAsset> {
+        self.fichiers
+            .get(chemin)
+            .map(|octets| FichierAsset::nouveau(octets.clone()))
+    }
+
+    fn index(&self) -> Option<FichierAsset> {
+        self.index.clone().map(FichierAsset::nouveau)
     }
 }

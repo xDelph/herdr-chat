@@ -2,6 +2,9 @@
 //! cartographie HTTP en face du registre (`contracts::registry`).
 
 pub mod arret;
+/// Réexporté pour le repli du routeur (l'asset statique n'est pas une route
+/// de l'API : il vit dans `assets`, mais le routeur a besoin d'un handler).
+pub use crate::assets as assets_router;
 pub mod catalogues;
 pub mod confiance;
 pub mod conversations;

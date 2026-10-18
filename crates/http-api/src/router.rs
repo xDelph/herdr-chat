@@ -115,7 +115,9 @@ pub fn routeur(services: Arc<Services>, origines: Vec<String>) -> Router<()> {
 
     lectures
         .merge(mutations)
-        .fallback(en_async(fallback_json_404))
+        // Le repli : `/api/*` inconnu reste un JSON 404 (C08) ; tout le reste
+        // va aux assets de la PWA (T054) — jamais du HTML sur `/api`.
+        .fallback(handlers::assets_router::statique)
         .with_state(services)
 }
 

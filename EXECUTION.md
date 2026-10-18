@@ -1495,3 +1495,36 @@ Périmètre : `crates/http-api/src/{publication.rs, handlers/events.rs, services
 7. **`publie` rend son `ErreurJournal`** (clippy refusait `Result<_, ()>`) : l'échec est nommé, l'appelant choisit de l'ignorer — les handlers écrivent `let _ =` en le documentant.
 
 Commit préfixé `T053:` contenant tout ce qui précède et cette section.
+
+## T054 — `herdrchat::assets` + `http-api::assets` (O05–O07)
+
+Périmètre : `crates/http-api/src/assets.rs` (+ `services.rs`, `router.rs` : le repli passe aux assets), `crates/herdrchat/{build.rs, src/assets.rs, src/lib.rs}`, tests `crates/http-api/tests/unit/{assets,support,router,mod}.rs`, `crates/herdrchat/tests/unit/assets.rs`. Aucun fichier de l'utilisateur lu par un test (le fournisseur de test porte ses octets), aucun service réel.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `http-api::assets` | La **politique** de service : `normalise` (décodage `%XX` **avant** normalisation, `..` refusé au-delà de la racine, encodage invalide ⇒ pas un asset), `content_type_asset` (table par extension, inconnu ⇒ `application/octet-stream`), `est_volatil` (index/`sw.js`/`push-sw.js`/manifest ⇒ `no-cache, no-store, must-revalidate`), `reponse_asset` (fichier → index SPA → **503 « PWA not built »** avec son indice), `statique` (le repli du routeur : `/api/*` inconnu reste un **JSON 404**, tout le reste va aux assets). |
+| `FournisseurAssets` | Le trait : `fichier(chemin)` / `index()` → des **octets**, jamais un chemin disque. `SansAssets` = le binaire sans build (503 dit). |
+| `herdrchat::build.rs` | Embarque `apps/web/dist` au link (`include_bytes!` générés dans `OUT_DIR`) ; **refuse un build de publication sans PWA** (profil release, ou `HERDRCHAT_REQUIRE_PWA=1` — la variable existe pour *prouver* que la porte échoue). Rerun si le build change. |
+| `herdrchat::assets` | `AssetsEmbarques` : la table générée, recherche linéaire, **aucune lecture disque à l'exécution** — donc indépendance au cwd (O05) et confinement par construction (O06 : un chemin absent de la table n'a pas d'octets). |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p http-api` | PASS — **172 tests** (12 nouveaux sur les assets + repli réécrit). |
+| `cargo test -p herdrchat` | PASS — **20 tests** (5 nouveaux sur le fournisseur). |
+| `HERDRCHAT_REQUIRE_PWA=1 cargo build -p herdrchat` | **ÉCHEC attendu** : « le build de publication exige la PWA compilée (…absent) » — la porte est prouvée capable d'échouer. |
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** (2 passages). |
+
+### Décisions et honnêteté (notées, pas masquées)
+
+0. **Le confinement change de nature, et c'est un gain** : le fil résolvait des chemins disque (`realpath`, comparaison par segments) parce que le build vivait à côté de sa source. Ici il n'y a **aucun chemin disque à l'exécution** — la table embarquée EST la surface. Les tests prouvent quand même la garde sur l'entrée hostile (`..`, `%2e%2e%2f`, `%` isolé), parce qu'un chemin d'URL reste une entrée non fiable.
+1. **Pas de dépendance `include_dir`** : `build.rs` génère un module `FICHIERS: &[(&str, &[u8])]` avec `include_bytes!` — même résultat, et le générateur est lisible (donc vérifiable) plutôt qu'une boîte noire.
+2. **`mod assets_pwa { include!(...) }` et non `mod assets_pwa;`** : `rustfmt` cherchait `src/assets_pwa.rs` (le `#[path]` vers `OUT_DIR` le déroute). L'`include!` garde le code généré hors de `src/`.
+3. **Le garde-fou de publication a une variable dédiée** (`HERDRCHAT_REQUIRE_PWA=1`) : un `cargo build --release` complet prendrait des minutes pour prouver une ligne de `build.rs`. La porte est testée pour de vrai — pas seulement affirmée.
+4. **Le repli `/api` ne sert jamais de HTML** : la branche JSON 404 (C08) est vérifiée alors même que des assets existent — c'est le piège que le test couvre.
+5. **Le MIME vit dans `http-api`**, pas dans le fournisseur : la fourniture ne porte que des octets, donc la politique de type et de cache est une seule fois, testée, et ne peut pas diverger entre le vrai build et un faux.
+
+Commit préfixé `T054:` contenant tout ce qui précède et cette section.
