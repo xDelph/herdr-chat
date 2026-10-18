@@ -727,4 +727,19 @@ Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'ex
 | `CacheResumes` | **256 sources**, la plus ancienne évincée ; la **fusion incrémentale préserve** les déclarations précédentes (D19 — une fenêtre muette n'efface pas le modèle d'une vieille) ; **une source invalide n'efface pas les autres** (D20 — testé) ; invalidation explicite. |
 | 8 tests (82 sur la crate) | Les cinq profils réduits **cohéremment** (la forme pi commune), le repli outil (nom seul / première ligne 80), la paire (3 cas), les placeholders, la fusion, l'éviction, l'isolement, l'ISO aller-retour. |
 
-Commit préfixé `T026:` contenant `crates/sessions/src/metadata.rs`, `lib.rs`, `tests/unit/{metadata,mod}.rs` et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T027 — `sessions::index` : l'index partagé par source (T027)
+
+| Livrable | Détail |
+|---|---|
+| **Single-flight** | Le premier entrant lit, les autres attendent le MÊME résultat (`Arc<EnVol>` + Condvar) — **huit clients = UNE lecture sous-jacente** (compteur testé). Le résultat, bon OU mauvais, est posé UNE fois pour tous — jamais de suspension éternelle en cas d'échec (le premier bug, vu avant le commit : un échec de lecture laissait les attendants bloqués). |
+| **Générations** | Une invalidation avance la génération de la source — une réponse qui arrive APRÈS l'invalidation est **ignorée** (`GenerationDepassee`, testée : la lecture lente invalidée en vol rend l'erreur, le résultat périmé n'entre JAMAIS au cache). |
+| Disparition/réapparition | `invalide` = cold miss forcé (le compteur de lectures repart), la réapparition lit le NOUVEAU contenu. |
+| Le lease d'observation | `observe=1` (T025) le renouvelle, `observe=0` le laisse tel quel — la préparation du lien T025→T039. |
+| Les bornes de mémoire | **256 entrées, LRU** (le moins récemment utilisé part) — testé par le CACHE (l'évincée n'a plus de résumé), pas par un proxy de génération. |
+| 5 tests (82 sur la crate) | Les huit clients, la réponse tardive ignorée, disparition/réapparition, le lease, les bornes. |
+
+Commit préfixé `T027:` contenant `crates/sessions/src/index.rs`, `lib.rs`, `tests/unit/{index,mod}.rs` et cette section. Cargo.lock inchangé.
