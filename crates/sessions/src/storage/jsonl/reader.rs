@@ -1,0 +1,129 @@
+//! Le lecteur JSONL (T014) : pages **avant** (suivre les appends) et
+//! **arrière** (l'historique) — chaque page repart d'un curseur vérifié.
+
+use crate::storage::jsonl::framing::{self, Cadre};
+use crate::storage::jsonl::identity::{CurseurFichier, continuite, identite_de};
+use std::fs;
+use std::io;
+use std::path::Path;
+
+/// Une page **avant** : les nouveaux cadres complets, le curseur nouveau
+/// (≤ octets consommés, toujours), et l'état de continuité.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct PageAvant {
+    pub cadres: Vec<Cadre>,
+    pub curseur: CurseurFichier,
+    /// `true` quand la continuité est rompue (rotation/troncature) : la page
+    /// repart de zéro et le dit — jamais une suite silencieuse d'un autre
+    /// fichier.
+    pub reinitialisee: bool,
+    /// `true` quand tout le fichier a été consommé (aucune ligne en attente
+    /// laissée) — le « rattrapé » du fil (T025 le reprend).
+    pub a_rattrape: bool,
+}
+
+/// Une page **arrière** (l'historique) : les cadres rendus, dans l'ordre de
+/// lecture, et le curseur du **début de la première ligne rendue** — la
+/// position où la page précédente recommence.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct PageArriere {
+    pub cadres: Vec<Cadre>,
+    pub curseur: CurseurFichier,
+}
+
+fn ouvre(chemin: &Path) -> io::Result<fs::File> {
+    fs::File::open(chemin)
+}
+
+/// Une page avant depuis le curseur — la continuité est vérifiée AVANT de
+/// lire : rotation/troncature → page réinitialisée depuis zéro (le curseur
+/// rendu porte la NOUVELLE identité).
+pub fn page_avant(
+    chemin: &Path,
+    curseur: &CurseurFichier,
+    cible_octets: usize,
+) -> io::Result<PageAvant> {
+    let mut fichier = ouvre(chemin)?;
+    let mesuree = identite_de(chemin)?;
+    if continuite(curseur, &mesuree) {
+        let (cadres, nouvel_offset) =
+            framing::cadres_depuis(&mut fichier, curseur.offset, cible_octets)?;
+        let taille_reelle = mesuree.taille;
+        Ok(PageAvant {
+            a_rattrape: nouveau_offset_du_dernier(&cadres, curseur.offset) >= taille_reelle,
+            cadres,
+            curseur: CurseurFichier {
+                dev: mesuree.curseur.dev,
+                ino: mesuree.curseur.ino,
+                offset: nouvel_offset,
+            },
+            reinitialisee: false,
+        })
+    } else {
+        // Rotation ou troncature : repartir de zéro — et le DIRE.
+        let (cadres, nouvel_offset) = framing::cadres_depuis(&mut fichier, 0, cible_octets)?;
+        Ok(PageAvant {
+            a_rattrape: nouvel_offset >= mesuree.taille,
+            cadres,
+            curseur: CurseurFichier {
+                dev: mesuree.curseur.dev,
+                ino: mesuree.curseur.ino,
+                offset: nouvel_offset,
+            },
+            reinitialisee: true,
+        })
+    }
+}
+
+fn nouveau_offset_du_dernier(cadres: &[Cadre], defaut: u64) -> u64 {
+    cadres
+        .last()
+        .map(|cadre| cadre.depart + cadre.consomme)
+        .unwrap_or(defaut)
+}
+
+/// Une page **arrière** (l'historique) : les cadres complets dont la somme
+/// consommée tient dans la cible, en remontant depuis `avant_offset` — le
+/// curseur rendu est le début de la première ligne rendue (la position où
+/// une page arrière précédente recommence).
+pub fn page_arriere(
+    chemin: &Path,
+    curseur: &CurseurFichier,
+    cible_octets: usize,
+) -> io::Result<PageArriere> {
+    let mut fichier = ouvre(chemin)?;
+    let mesuree = identite_de(chemin)?;
+    let identite_curseur = if continuite(curseur, &mesuree) {
+        curseur.offset
+    } else {
+        mesuree.taille
+    };
+    let debut = identite_curseur.min(mesuree.taille);
+    // On lit TOUT depuis le début borné (les fichiers de session tiennent
+    // dans la mémoire du test ; une vraie pagination arrière par la FIN
+    // viendra avec le bornage T025 si le corpus l'exige)…
+    let (cadres, _) = framing::cadres_depuis(&mut fichier, 0, usize::MAX)?;
+    // On garde les cadres dont le DÉPART est avant le curseur, en remontant
+    // jusqu'à la cible consommée.
+    let avant_debut: Vec<&Cadre> = cadres.iter().filter(|cadre| cadre.depart < debut).collect();
+    let mut retenus: Vec<&Cadre> = Vec::new();
+    let mut somme = 0_usize;
+    for cadre in avant_debut.iter().rev() {
+        if somme + cadre.consomme as usize > cible_octets && !retenus.is_empty() {
+            break;
+        }
+        somme += cadre.consomme as usize;
+        retenus.push(cadre);
+    }
+    retenus.reverse();
+    let rendus: Vec<Cadre> = retenus.into_iter().cloned().collect();
+    let nouveau_depart = rendus.first().map(|cadre| cadre.depart).unwrap_or(0);
+    Ok(PageArriere {
+        cadres: rendus,
+        curseur: CurseurFichier {
+            dev: mesuree.curseur.dev,
+            ino: mesuree.curseur.ino,
+            offset: nouveau_depart,
+        },
+    })
+}

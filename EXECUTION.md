@@ -545,4 +545,18 @@ Transport **bloquant** (`std::os::unix::net`) : les tests et les politiques l'ex
 | `capabilities.rs` | 14 méthodes déclarées, **12 utilisées** (sites mesurés), 2 déclarées non activées (`events.subscribe/wait` — E3 : l'amont ne les implémente pas) ; `est_activee` les expose absentes, jamais en no-op. Le corpus dit « runtime uses 13 » : l'écart (12 sites + `request`) est consigné, mesuré ici site par site. |
 | 13 tests (8 transport + 5 client) | Vocabulaire cohérent, orthographes exactes (`pane_id` vs `target`, tab.create cwd/focus/label/workspace_id), lecture visible/recent, C05 ×3 + l'objet qui confirme, onglet sans pane racine refusé nommé. |
 
-Commit préfixé `T013:` contenant `crates/herdr-client/src/{wire,client,capabilities}.rs`, `tests/unit/{client,mod}.rs` et cette section. Cargo.lock inchangé.
+
+
+---
+
+## T014 — `sessions::storage::jsonl` : framing par octets, identité, pages avant/arrière (C02)
+
+| Livrable | Détail |
+|---|---|
+| `framing.rs` | La découpe **par octets** : une ligne = octets jusqu'au saut de ligne compris ; une queue sans saut = **en attente** (ni rendue, ni comptée) ; la cible est douce — un premier cadre au-delà est rendu **seul** (le lecteur buterait sinon à jamais) ; l'offset nouveau = la fin du dernier cadre complet. |
+| `identity.rs` | `(dev, ino, offset)` = le curseur du fil (`SessionCursor` d'api.ts) ; `continuite` : même identité **et** offset ≤ taille — troncature ou rotation → repartir de zéro **en le disant**. |
+| `reader.rs` | `page_avant` (suivre les appends, `a_rattrape`/`reinitialisee` nommés) et `page_arriere` (l'historique : les cadres dont la somme tient dans la cible, curseur = le début de la première rendue — la page précédente y recommence sans saut ni doublon). |
+| `history.rs` | L'en-tête (`type: "session"`) et la queue (même moteur, nom du fil). |
+| 7 tests (14 sur la crate) | Page vide (après la semence), **coupure UTF-8 réelle** (0xC3 puis 0xA9 en deux appends — rien rendu, puis la ligne entière UNE fois), cinq appends suivis (invariant `offset ≤ taille` à chaque page), troncature + rotation réinitialisées **nommément**, record géant de 5 MiB rendu seul et **faisant avancer**, arrière qui recule sans saut, en-tête/queue. |
+
+Commit préfixé `T014:` contenant `crates/sessions/src/storage/**`, `crates/sessions/src/lib.rs`, `crates/sessions/tests/**` et cette section. Cargo.lock inchangé.

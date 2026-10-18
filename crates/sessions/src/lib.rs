@@ -2,3 +2,4 @@
 //! métadonnées (TECH §2) ; les modules arrivent avec leurs tâches.
 
 pub mod path_policy;
+pub mod storage;
