@@ -307,3 +307,45 @@ Périmètre : `crates/test-support/src + crates/test-support/tests` — faux Con
 ### Commit
 
 Commit préfixé `T006:` contenant `crates/test-support/src/**` (5 modules + `lib.rs`), `crates/test-support/tests/**` et cette section. `Cargo.lock` inchangé (dépendances déjà verrouillées par T002). Aucune autre crate touchée, aucun test sous `src/`, aucune écriture hors dépôt (racines temporaires du système uniquement, nettoyées).
+
+---
+
+## T007 — Crate `contracts` : DTO publics, présence exacte, renames, corpus C01
+
+Périmètre : `crates/contracts/src + crates/contracts/tests` — tous les DTO publics de `api.ts` (corps inline, SSE, push, résultats non JSON), `Field`/`Nullable` et les renames exacts. L'autorité du fil actif reste `api.ts` jusqu'à T057 ; les DTO Rust sont développés contre le corpus gelé (296 échantillons), acceptés/refusés **identiquement**.
+
+### Livrables produits
+
+| Livrable | Détail |
+|---|---|
+| `presence.rs` — les quatre présences | `Nullable<T>` (présent, peut valoir null — champ **obligatoire** nullable) et `Field<T>` = `Option<T>` + décodeurs : `refuse_null` (omissible : absent ou valeur, **null refusé**), `optionnel_nullable` (omissible et nullable : absent, null, ou valeur — les trois états distincts). |
+| `events.rs` — six charges SSE nommées | `EvenementSse`, enveloppe taguée `{"event", "data"}` mesurée sur la boucle de flux (nom `agent_status` à soulignement, les autres à traits) : `Ready{cursor}`, `Resync{reason, resumeFrom}`, `PromptDelivered{paneId, confirmation, fingerprint, status:"sent"}`, `PromptSuppressed{paneId, reason}`, `AgentLaunched{kind, paneId, workspaceId}`, `AgentStatusChanged{from:null\|état, kind:"status"\|"appeared"\|"disappeared", paneId, to}` — formes mesurées sur les producteurs, plus de `data: unknown`. |
+| `http/` — 12 modules par famille | `health` (HealthResponse + HerdrHealth), `overview` (AgentView, WorkspaceView, OverviewResponse — tous champs présents, vagues via `Nullable`), `sessions` (SessionEntry avec `raw` entier + SessionResponse, curseurs opaques), `commands` (PromptRequest, PromptSent/Suppressed/Failed, StopAgent, AgentFocused), `launch` (request/response, LaunchPhase union fermée, LaunchFailed), `catalog` (InstalledKind(s), AgentModel, ModelCatalogResponse — `error` nullable **obligatoire**), `files` (RecentImage(s) + FileBody non JSON), `interactive` (TrustRequest, AnswerRequest, TrustRequired/Resolved, QuestionAnswered, Choice/Question — noms du fil conservés : `numero`, `libelle`, `selectionne`, `detail`), `conversations` (ConversationSummary, ConversationsResponse), `errors` (ApiErrorResponse), `diagnostics` (ClientLogRequest/Response), `push` (SubscribeRequest avec `expirationTime` omissible-nullable, UnsubscribeRequest, union `PushBody` à **précédence désabonnement**, `endpoint_en_https` — règle du 400, VapidKeyText en texte brut, AcquittementVide pour les 204 sans corps). |
+| `limits.rs` | Les sept limites partagées de `limits.ts` (MAX_SSE_STREAMS 8, MAX_SESSION_READS 4, timeout/cache catalogue, fenêtre de dedup, tap target, contraste) — une source unique. |
+| Réexports C01 | `AgentStatus`, `SessionState`, `ReadSource`, `ReadCause`, `PushPayload`, `SessionRefKind` — les unions fermées restent définies **dans le domaine**, jamais recopiées. |
+| 7 tests verts, dont le coureur de corpus | Le coureur charge `compatibility/contracts/corpus.json`, décode chaque échantillon dans **le type mappé à sa cible** (41 cibles), exige accept/refus identique au schéma TS, et vérifie la **fidélité** du rendu (tout champ rendu existait dans le fil avec la même valeur — les champs non déclarés sont retirés, mesuré : le corpus pose un champ `notDeclared` « stripped on decode »). |
+
+### Commandes et résultats
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p contracts --all-targets --locked` | **7 passed / 0 failed** — dont les 296 échantillons du corpus (accept/refus + fidélité du rendu). |
+| `cargo clippy -p contracts --all-targets -- -D warnings` | OK après corrections : doc-lazy-continuation (ligne commençant par « + » lue comme sous-liste), single-match → `is_ok()`. |
+| `cargo fmt -p contracts` puis `--check` | OK. |
+| `cargo run --locked -p xtask -- verify` | **Cinq portes vertes** : layout (381 fichiers, 0 autorisés, 0 ouverts), graph, format, clippy, tests. |
+| Portes TS | Non relancées ici : aucun fichier TypeScript touché (le hook de commit les relance). |
+
+### Décisions / honnêteté
+
+1. **Les quatre présences, pas deux.** `Option<T>` de serde confond absent et null ; le schéma TS ne le fait pas. D'où `Nullable` (présent-nullable, **refuse le champ absent**) et `Field` (omissible, **refuse le null explicite**), composables — chaque cas testé sur les deux fils (décode/sérialise).
+2. **Le piège serde `missing_field`, vu en test.** Un type décodé via `deserialize_option` réussit même **absent** (le `missing_field` de serde délègue à `deserialize_option`) : `Nullable` passe donc par `serde_json::Value` (`deserialize_any`) — un champ absent reste une erreur, un null mesuré devient `Nulle`. Premier run : `{}` décodait en silence ; corrigé, testé.
+3. **La fidélité n'est pas l'égalité d'octets.** Premier run : un échantillon positif portait `notDeclared: "stripped on decode"` — le schéma TS **retire** les champs non déclarés. Le contrôle devient `fidele()` récursif : tout champ rendu existait dans le fil avec la même valeur ; l'égalité stricte aurait été une règle que le corpus contredit.
+4. **Les échantillons SSE sont des enveloppes.** Le corpus teste `{"event", "data"}` — le contrat est donc l'enveloppe taguée entière (`EvenementSse`), utile telle quelle au T008 et au routeur SSE.
+5. **Exclusions nommées et assertées (21 cibles).** La famille fil Herdr (AgentInfo, WorkspaceInfo, PaneInfo, HerdrReply, PaneReadPayload, PongPayload, AgentSessionInfo, AgentListPayload + vocabulaires Method/EventWait) et la famille snapshot passthrough (TabInfo, PaneLayout*, SnapshotPane, SnapshotPayload) appartiennent à `herdr_client::wire` (TECH §5 : les DTO HTTP ne servent pas de décodeurs amont — T021) ; `SessionCursor` au codec privé de `sessions` ; `PushStore.legacy*` à la persistance privée de `notifications` (T030). Le test ferme les deux bouts : toute cible nouvelle doit être mappée ou exclue nommément, et aucune exclusion ne doit devenir obsolète.
+6. **Résultats non JSON typés, pas des DTO fictifs.** VAPID en `text/plain` (`VapidKeyText`), corps de fichier (`FileBody`, conversion exhaustive depuis `ArtifactBody`), 204 sans corps (`AcquittementVide`, variant du registre T008).
+7. **La règle https est un contrat testé.** L'échantillon construit `SubscribeHttpPrefixRule` (endpoint en `http://`, accepté au schéma) est porté par `push::endpoint_en_https` — c'est la route qui refuse avec 400 ; les deux faits sont testés séparément.
+8. **`registry.rs` et `schema.rs` volontairement absents** — T008 (registre des 18 routes) et T009 (exports de schémas) les livrent ; le journal de T003 n'exige pas les fichiers non livrés.
+
+### Commit
+
+Commit préfixé `T007:` contenant `crates/contracts/src/**` (lib + presence + limits + events + http/12 modules), `crates/contracts/tests/**` et cette section. `Cargo.lock` inchangé. Aucune autre crate touchée, aucun test sous `src/`, aucune écriture hors dépôt.
