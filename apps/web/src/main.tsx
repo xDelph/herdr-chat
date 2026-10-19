@@ -73,13 +73,38 @@ registerSW({
   },
 });
 
-const container = document.getElementById("root");
-if (container === null) {
-  throw new Error("#root element not found");
-}
+/*
+  ⚠️ **La sortie de secours : `?reset=1`.** Un worker coincé peut servir une
+  version périmée sans jamais proposer de mise à jour — c'est arrivé, et il n'y
+  avait aucun moyen de s'en sortir depuis l'interface. Ici on désinscrit les
+  workers, on efface les caches, puis on recharge sans le paramètre. C'est la
+  seule action destructive, et elle est explicite.
+*/
+const reinitialiser = async (): Promise<void> => {
+  try {
+    const enregistrements = (await navigator.serviceWorker?.getRegistrations()) ?? [];
+    await Promise.all(enregistrements.map((enregistrement) => enregistrement.unregister()));
+    const caches = (await globalThis.caches?.keys()) ?? [];
+    await Promise.all(caches.map((cle) => globalThis.caches.delete(cle)));
+  } catch {
+    // Un échec de nettoyage ne doit pas empêcher le rechargement.
+  }
+  const url = new URL(window.location.href);
+  url.searchParams.delete("reset");
+  window.location.replace(url.toString());
+};
 
-createRoot(container).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-);
+if (new URL(window.location.href).searchParams.get("reset") === "1") {
+  void reinitialiser();
+} else {
+  const container = document.getElementById("root");
+  if (container === null) {
+    throw new Error("#root element not found");
+  }
+
+  createRoot(container).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  );
+}

@@ -26,7 +26,16 @@ export default defineConfig({
        * traité par `skipWaiting` + `clientsClaim` : la mise à jour s'applique à
        * la prochaine navigation, pas au milieu d'une frappe.
        */
-      registerType: "autoUpdate",
+      /*
+        ⚠️ **`prompt`, pas `autoUpdate`.** Les deux se contredisaient : avec
+        `autoUpdate`, le nouveau worker prend la main tout de suite, la page
+        continue de tourner sur l'ANCIEN code en mémoire, et `onNeedRefresh`
+        n'est **jamais** appelé — donc **aucun bandeau**, et l'utilisateur reste
+        bloqué sur une version périmée sans le savoir. `prompt` fait attendre le
+        worker, ce qui déclenche le bandeau, et le rechargement reste une
+        décision explicite (C21 : jamais de rechargement subi).
+      */
+      registerType: "prompt",
       workbox: {
         clientsClaim: true,
         importScripts: ["/push-sw.js"],
