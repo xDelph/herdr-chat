@@ -1107,26 +1107,19 @@
           "description": "Événement AJOUTÉ par la migration (C26), jamais mesuré sur le fil :\nla source de session d'un pane a changé, le client relit la page.\nLe nom garde le soulignement de `agent_status`, pas un trait d'union.",
           "properties": {
             "data": {
-              "description": "La source de session d'un pane a changé (`event: session_changed`) —\n**événement AJOUTÉ par la migration** (C26), pas mesuré sur le fil.\n\n⚠️ La matière est **l'observation de la source seule** : le chemin publié\npar Herdr (ou son absence). Aucun compteur de messages n'existe côté\nHerdr — prétendre « nouveau message » exigerait de lire la session, ce\nque le flux ne fait pas. Le client invalide, il ne devine pas.",
+              "description": "La source de session d'un pane a changé (`event: session_changed`) —\n**événement AJOUTÉ par la migration** (C26), pas mesuré sur le fil.\n\n⚠️ **Aucun chemin, aucun texte** (TECH §7) : la charge ne porte qu'un\n`paneId` et une **révision opaque** de la source observée. Le client n'a\nqu'une question à trancher — « la source a-t-elle changé ? » — et il\ninvalide sa vue ; il ne devine pas de contenu, et le chemin de session ne\ntraverse pas le flux.",
               "properties": {
                 "paneId": {
                   "type": "string"
                 },
-                "path": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "La source APRÈS le changement — `null` quand elle a disparu (agent\nparti ou chemin retiré) : un null mesuré, jamais un absent."
+                "sourceRevision": {
+                  "description": "L'empreinte stable de l'identité de source APRÈS le changement —\n**opaque** (16 hexadécimaux), jamais réversible vers un chemin.\nDeux observations de la même source donnent la même révision : le\nveilleur ne publie donc rien (T053 : « repeated observations … are\ncoalesced »).",
+                  "type": "string"
                 }
               },
               "required": [
-                "path",
-                "paneId"
+                "paneId",
+                "sourceRevision"
               ],
               "type": "object"
             },
@@ -2301,26 +2294,19 @@
     },
     "SessionChanged": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
-      "description": "La source de session d'un pane a changé (`event: session_changed`) —\n**événement AJOUTÉ par la migration** (C26), pas mesuré sur le fil.\n\n⚠️ La matière est **l'observation de la source seule** : le chemin publié\npar Herdr (ou son absence). Aucun compteur de messages n'existe côté\nHerdr — prétendre « nouveau message » exigerait de lire la session, ce\nque le flux ne fait pas. Le client invalide, il ne devine pas.",
+      "description": "La source de session d'un pane a changé (`event: session_changed`) —\n**événement AJOUTÉ par la migration** (C26), pas mesuré sur le fil.\n\n⚠️ **Aucun chemin, aucun texte** (TECH §7) : la charge ne porte qu'un\n`paneId` et une **révision opaque** de la source observée. Le client n'a\nqu'une question à trancher — « la source a-t-elle changé ? » — et il\ninvalide sa vue ; il ne devine pas de contenu, et le chemin de session ne\ntraverse pas le flux.",
       "properties": {
         "paneId": {
           "type": "string"
         },
-        "path": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "description": "La source APRÈS le changement — `null` quand elle a disparu (agent\nparti ou chemin retiré) : un null mesuré, jamais un absent."
+        "sourceRevision": {
+          "description": "L'empreinte stable de l'identité de source APRÈS le changement —\n**opaque** (16 hexadécimaux), jamais réversible vers un chemin.\nDeux observations de la même source donnent la même révision : le\nveilleur ne publie donc rien (T053 : « repeated observations … are\ncoalesced »).",
+          "type": "string"
         }
       },
       "required": [
-        "path",
-        "paneId"
+        "paneId",
+        "sourceRevision"
       ],
       "title": "SessionChanged",
       "type": "object"

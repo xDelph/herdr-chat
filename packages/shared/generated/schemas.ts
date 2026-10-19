@@ -236,7 +236,7 @@ export const EvenementSse = Schema.Union([Schema.Struct({
 }), Schema.Struct({
   "data": Schema.Struct({
   "paneId": Schema.String,
-  "path": Schema.NullOr(Schema.String),
+  "sourceRevision": Schema.String,
 }),
   "event": Schema.Literal("session_changed"),
 }), Schema.Struct({
@@ -517,7 +517,7 @@ export type SendState = typeof SendState.Type;
 /** La source de session d'un pane a changé (`event: session_changed`) — */
 export const SessionChanged = Schema.Struct({
   "paneId": Schema.String,
-  "path": Schema.NullOr(Schema.String),
+  "sourceRevision": Schema.String,
 });
 export type SessionChanged = typeof SessionChanged.Type;
 

@@ -57,6 +57,48 @@ pub fn signature_de(agent: &AgentView) -> String {
     .join("\u{0}")
 }
 
+/// La **révision opaque** de la source d'un agent (T053, TECH : « source
+/// revision from actual source observations, **no prompt text/path** »).
+///
+/// ⚠️ Le client n'a besoin que d'une chose : « la source a-t-elle changé ? ».
+/// Le chemin (ou l'identifiant) de session ne sort donc PAS du veilleur — il
+/// est réduit à une empreinte stable, et deux observations de la même source
+/// donnent la même révision (donc aucune publication, T053 : « repeated
+/// observations of the same revision are coalesced »).
+///
+/// L'absence de source est sa **propre identité** : elle a une révision
+/// stable, distincte de toute source réelle.
+#[must_use]
+pub fn revision_de(vue: &AgentView) -> String {
+    let identite = match (&vue.session_kind, &vue.session_path, &vue.session_id) {
+        (_, Some(chemin), _) if !chemin.is_empty() => format!("path{}{chemin}", '\u{0}'),
+        (_, _, Some(id)) if !id.as_str().is_empty() => format!("id{}{}", '\u{0}', id.as_str()),
+        _ => String::from("absent"),
+    };
+    empreinte_de_source(&identite)
+}
+
+/// La révision de l'absence de source — une identité stable, distincte de
+/// toute source réelle.
+#[must_use]
+pub fn revision_absente() -> String {
+    empreinte_de_source("absent")
+}
+
+/// L'empreinte d'une identité de source — 16 hexadécimaux, jamais réversible
+/// vers un chemin.
+fn empreinte_de_source(identite: &str) -> String {
+    use sha2::Digest;
+    let mut hacheur = sha2::Sha256::new();
+    hacheur.update(identite.as_bytes());
+    hacheur
+        .finalize()
+        .iter()
+        .take(8)
+        .map(|octet| format!("{octet:02x}"))
+        .collect()
+}
+
 /// Le genre d'un changement publié.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum GenreDeChangement {
@@ -85,19 +127,18 @@ pub struct Changement {
     pub genre: GenreDeChangement,
     /// La dernière vue connue quand l'agent a **disparu** (E03).
     pub disparu: Option<AgentView>,
-    /// La **source de session** avant et après (C26) — la seule matière de
-    /// `session_changed` : le chat est invalidé quand la source change, pas
-    /// quand un message arrive (Herdr n'expose aucun compteur de messages).
-    pub source_avant: Option<String>,
-    pub source_apres: Option<String>,
+    /// Les **révisions opaques** de la source avant et après (T053) — la
+    /// seule matière de `session_changed`. Aucun chemin n'est transporté.
+    pub revision_avant: String,
+    pub revision_apres: String,
 }
 
 impl Changement {
-    /// La source de session a-t-elle changé ? (apparition, disparition ou
-    /// nouveau chemin) — la question que `session_changed` répond.
+    /// La source a-t-elle changé ? (apparition, disparition ou autre source)
+    /// — la question que `session_changed` répond, et la seule.
     #[must_use]
     pub fn source_change(&self) -> bool {
-        self.source_avant != self.source_apres
+        self.revision_avant != self.revision_apres
     }
 }
 
@@ -160,10 +201,11 @@ impl Veilleur {
                             a: CibleDeChangement::Statut(agent.status),
                             genre: GenreDeChangement::Apparu,
                             disparu: None,
-                            // Aucune source avant : l'apparition EST un
-                            // changement de source si l'agent en publie une.
-                            source_avant: None,
-                            source_apres: agent.session_path.clone(),
+                            // La révision d'AVANT est celle de l'identité
+                            // absente : une apparition avec source change
+                            // bien la révision.
+                            revision_avant: revision_absente(),
+                            revision_apres: revision_de(agent),
                         });
                     }
                 }
@@ -174,8 +216,8 @@ impl Veilleur {
                         a: CibleDeChangement::Statut(agent.status),
                         genre: GenreDeChangement::Statut,
                         disparu: None,
-                        source_avant: ancienne.vue.session_path.clone(),
-                        source_apres: agent.session_path.clone(),
+                        revision_avant: revision_de(&ancienne.vue),
+                        revision_apres: revision_de(agent),
                     });
                 }
                 Some(_) => {}
@@ -191,10 +233,10 @@ impl Veilleur {
                     a: CibleDeChangement::Disparu,
                     genre: GenreDeChangement::Disparu,
                     disparu: connue.map(|entree| entree.vue.clone()),
-                    // La source s'éteint avec l'agent : le chat ne doit plus
-                    // croire à un direct sur ce pane.
-                    source_avant: connue.and_then(|entree| entree.vue.session_path.clone()),
-                    source_apres: None,
+                    // La source s'éteint avec l'agent : révision d'absence.
+                    revision_avant: connue
+                        .map_or_else(revision_absente, |entree| revision_de(&entree.vue)),
+                    revision_apres: revision_absente(),
                 });
             }
         }

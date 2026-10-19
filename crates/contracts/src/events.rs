@@ -105,17 +105,21 @@ pub struct AgentLaunched {
 /// La source de session d'un pane a changé (`event: session_changed`) —
 /// **événement AJOUTÉ par la migration** (C26), pas mesuré sur le fil.
 ///
-/// ⚠️ La matière est **l'observation de la source seule** : le chemin publié
-/// par Herdr (ou son absence). Aucun compteur de messages n'existe côté
-/// Herdr — prétendre « nouveau message » exigerait de lire la session, ce
-/// que le flux ne fait pas. Le client invalide, il ne devine pas.
+/// ⚠️ **Aucun chemin, aucun texte** (TECH §7) : la charge ne porte qu'un
+/// `paneId` et une **révision opaque** de la source observée. Le client n'a
+/// qu'une question à trancher — « la source a-t-elle changé ? » — et il
+/// invalide sa vue ; il ne devine pas de contenu, et le chemin de session ne
+/// traverse pas le flux.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct SessionChanged {
-    /// La source APRÈS le changement — `null` quand elle a disparu (agent
-    /// parti ou chemin retiré) : un null mesuré, jamais un absent.
-    pub path: Nullable<String>,
     pub pane_id: String,
+    /// L'empreinte stable de l'identité de source APRÈS le changement —
+    /// **opaque** (16 hexadécimaux), jamais réversible vers un chemin.
+    /// Deux observations de la même source donnent la même révision : le
+    /// veilleur ne publie donc rien (T053 : « repeated observations … are
+    /// coalesced »).
+    pub source_revision: String,
 }
 
 /// Le genre de changement d'état, union fermée mesurée d'AgentWatcher

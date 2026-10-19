@@ -307,7 +307,7 @@ async fn flux_live_emet_un_evenement_publie() {
     journal
         .publie(
             "session_changed",
-            br#"{"paneId":"w1:p1","path":"/s.jsonl"}"#.to_vec(),
+            br#"{"paneId":"w1:p1","sourceRevision":"0123456789abcdef"}"#.to_vec(),
         )
         .unwrap_or_else(|cause| panic!("publication : {cause:?}"));
     let mut live = Vec::new();
@@ -328,7 +328,7 @@ async fn flux_live_emet_un_evenement_publie() {
     assert_eq!(live[0].genre, "session_changed");
     assert_eq!(
         live[0].donnees,
-        "{\"paneId\":\"w1:p1\",\"path\":\"/s.jsonl\"}"
+        "{\"paneId\":\"w1:p1\",\"sourceRevision\":\"0123456789abcdef\"}"
     );
     assert!(live[0].id.is_some(), "un événement du journal a un id");
 }
@@ -366,7 +366,7 @@ async fn les_charges_du_contrat_se_decodent() {
         ),
         (
             "session_changed",
-            json!({ "paneId": "w1:p1", "path": "/sessions/wx.jsonl" }),
+            json!({ "paneId": "w1:p1", "sourceRevision": "0123456789abcdef" }),
         ),
     ];
     for (genre, charge) in charges {

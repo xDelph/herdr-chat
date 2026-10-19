@@ -203,15 +203,17 @@ describe("façade générée — parité avec les schemas écrits à la main", (
 
 describe("événements du flux — la façade générée couvre le contrat", () => {
   test("session_changed est décodé (événement AJOUTÉ, C26)", () => {
+    // TECH §7 : la charge porte un `paneId` et une révision OPAQUE — aucun
+    // chemin, aucun texte.
     const present = decode(genere.SessionChanged, {
       paneId: "w1:p1",
-      path: "/sessions/pi/wx.jsonl",
+      sourceRevision: "0123456789abcdef",
     });
-    expect(present).toEqual({ paneId: "w1:p1", path: "/sessions/pi/wx.jsonl" });
-    const disparu = decode(genere.SessionChanged, { paneId: "w1:p1", path: null });
-    expect(disparu).toEqual({ paneId: "w1:p1", path: null });
-    // Refus : paneId manquant.
-    expect(decode(genere.SessionChanged, { path: "/s.jsonl" })).toBeUndefined();
+    expect(present).toEqual({ paneId: "w1:p1", sourceRevision: "0123456789abcdef" });
+    // Refus : révision manquante (c'est le cœur de la charge).
+    expect(decode(genere.SessionChanged, { paneId: "w1:p1" })).toBeUndefined();
+    // Refus : un CHEMIN à la place de la révision — le contrat n'en veut pas.
+    expect(decode(genere.SessionChanged, { paneId: "w1:p1", path: "/s.jsonl" })).toBeUndefined();
   });
 
   test("l'enveloppe SSE accepte les six genres", () => {
@@ -235,7 +237,10 @@ describe("événements du flux — la façade générée couvre le contrat", () 
         data: { paneId: "w1:p1", reason: "consecutive identical send" },
       },
       { event: "agent-launched", data: { kind: "pi", paneId: "w1:p4", workspaceId: "w1" } },
-      { event: "session_changed", data: { paneId: "w1:p1", path: "/s.jsonl" } },
+      {
+        event: "session_changed",
+        data: { paneId: "w1:p1", sourceRevision: "0123456789abcdef" },
+      },
       { event: "resync", data: { reason: "truncated journal", resumeFrom: 12 } },
     ];
     for (const enveloppe of enveloppes) {
@@ -259,10 +264,9 @@ describe("événements du flux — la façade générée couvre le contrat", () 
         caughtUp: true,
       }),
     ).toBeDefined();
-    expect(decode(manuel.SessionChanged, { paneId: "w1:p1", path: null })).toEqual({
-      paneId: "w1:p1",
-      path: null,
-    });
+    expect(
+      decode(manuel.SessionChanged, { paneId: "w1:p1", sourceRevision: "0123456789abcdef" }),
+    ).toEqual({ paneId: "w1:p1", sourceRevision: "0123456789abcdef" });
   });
 });
 

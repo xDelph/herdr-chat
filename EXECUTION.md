@@ -1632,3 +1632,30 @@ Périmètre : `scripts/contracts-schemas.ts` (nouveau), `xtask/src/contracts.rs`
 5. **Effect 4** : `Schema.Union` prend un **tableau** de membres et `decodeUnknownOption` rend un `Option` — le générateur et le test suivent l'API réelle, pas mes souvenirs d'Effect 3.
 
 Commit préfixé `T057a:` contenant tout ce qui précède et cette section.
+
+## Correctif — `session_changed` : `sourceRevision`, **sans chemin** (T053, TECH §7)
+
+**Défaut introduit par ma T053, corrigé ici.** TECH §7 dit : « T053 adds the named `session_changed` invalidation event with `{paneId,sourceRevision:string}` from actual source observations. **No prompt text/path is included.** » J'avais livré `{paneId, path}` (nullable), en m'appuyant sur la commodité du veilleur (il portait déjà `source_avant/apres`) au lieu du texte de la spec. Le payload ne correspondait donc pas, et il **faisait traverser le chemin de session** par le flux — exactement ce que la spec interdit.
+
+| Avant | Après |
+|---|---|
+| `SessionChanged { pane_id, path: Nullable<String> }` | `SessionChanged { pane_id, source_revision: String }` |
+| `Changement.source_avant/apres: Option<String>` (chemins) | `Changement.revision_avant/apres: String` (**opaque**) |
+| Le veilleur exposait `session_path` | `revision_de(vue)` = empreinte **16 hex** de l'identité `(kind, path\|id)` — réversible vers rien |
+| — | `revision_absente()` : l'absence de source est une identité stable, distincte de toute source |
+
+Ce qui reste vrai et vérifié : deux observations de la **même** source donnent la même révision ⇒ le veilleur ne publie rien (T053 : « repeated observations of the same revision are coalesced ») ; la disparition éteint la source (`revision_absente`) ; un changement de statut à source constante n'émet **pas** `session_changed`.
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p application` | PASS — **148 tests** (dont la stabilité de la révision et l'absence de chemin). |
+| `cargo test -p http-api` | PASS — **172 tests** (SSE : la charge porte `sourceRevision`, et un `path` est **refusé**). |
+| `bun test` | PASS — **1092 tests** (le test de parité refuse désormais un `path` à la place de la révision). |
+| `cargo xtask contracts check` | PASS — corpus 214 identique, génération déterministe. |
+| `cargo xtask verify` | **5 portes vertes**. |
+
+Note : la lecture de la spec est ce qui a rattrapé le défaut — pas un test. J'ajoute donc au test de parité deux charges **de refus** (`sourceRevision` manquante, `path` fourni) pour que le contrat ne puisse plus dériver silencieusement dans ce sens.
+
+Commit préfixé `T053-fix:`.
+
+**Note de traçabilité** : le message de commit de ce correctif a perdu un fragment (`le test de parité REFUSE un path` → `REFUSE un`) parce que le shell a interprété les accents graves du message. Le code, les tests et le journal ci-dessus sont complets ; seul le message a été tronqué. Corrigé par le commit de journal suivant, qui ne change aucun code.

@@ -4,7 +4,7 @@
 
 use application::events::watcher::{
     BoucleDeVeille, CibleDeChangement, GenreDeChangement, PublicateurDeChangements, SourceDeVues,
-    Veilleur, faut_notifier,
+    Veilleur, faut_notifier, revision_absente,
 };
 use application::refresh::SourceMaintenant;
 use domain::ids::{AgentKind, PaneId, TabId, WorkspaceId};
@@ -529,13 +529,14 @@ fn la_source_change_quand_le_chemin_change() {
         changement.source_change(),
         "un autre chemin = une autre source"
     );
-    assert_eq!(
-        changement.source_avant.as_deref(),
-        Some("/sessions/w1:p1.jsonl")
-    );
-    assert_eq!(
-        changement.source_apres.as_deref(),
-        Some("/sessions/autre.jsonl")
+    // ⚠️ La révision est OPAQUE : aucun chemin ne sort du veilleur (TECH §7),
+    // et deux sources différentes donnent deux révisions différentes.
+    assert_ne!(changement.revision_avant, changement.revision_apres);
+    assert_eq!(changement.revision_avant.len(), 16);
+    assert_eq!(changement.revision_apres.len(), 16);
+    assert!(
+        !changement.revision_apres.contains('/'),
+        "aucun chemin dans la révision"
     );
 }
 
@@ -565,8 +566,11 @@ fn une_apparition_publie_la_source_quand_elle_existe() {
         .iter()
         .find(|changement| changement.genre == GenreDeChangement::Apparu)
         .unwrap_or_else(|| panic!("un agent apparaît"));
-    assert!(apparu.source_change(), "aucune source avant, une après");
-    assert!(apparu.source_apres.is_some());
+    assert!(
+        apparu.source_change(),
+        "la révision d'absence cède la place à une source"
+    );
+    assert_ne!(apparu.revision_apres, revision_absente());
 }
 
 #[test]
@@ -578,5 +582,30 @@ fn une_disparition_eteint_la_source() {
     let disparu = &tour.changements[0];
     assert_eq!(disparu.genre, GenreDeChangement::Disparu);
     assert!(disparu.source_change(), "la source s'éteint avec l'agent");
-    assert!(disparu.source_apres.is_none());
+    assert_eq!(disparu.revision_apres, revision_absente());
+}
+
+#[test]
+fn la_revision_est_stable_et_ne_transporte_aucun_chemin() {
+    let vue_a = vue("w1:p1", AgentStatus::Idle, "un", "/a");
+    let meme = vue("w1:p1", AgentStatus::Working, "autre titre", "/b");
+    // Même source (même session_path) : MÊME révision, malgré un statut et un
+    // titre différents — c'est ce qui rend le coalescing possible.
+    assert_eq!(revision_absente(), revision_absente());
+    assert_ne!(
+        revision_absente(),
+        application::events::watcher::revision_de(&vue_a)
+    );
+    assert_eq!(
+        application::events::watcher::revision_de(&vue_a),
+        application::events::watcher::revision_de(&meme)
+    );
+    // Un identifiant de session compte comme une identité de source.
+    let mut par_id = vue("w1:p1", AgentStatus::Idle, "un", "/a");
+    par_id.session_path = None;
+    par_id.session_id = Some(domain::ids::SessionId::from(String::from("sess-1")));
+    assert_ne!(
+        application::events::watcher::revision_de(&par_id),
+        application::events::watcher::revision_de(&vue_a)
+    );
 }

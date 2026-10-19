@@ -221,9 +221,13 @@ export type SessionResponse = typeof SessionResponse.Type;
  * n'expose aucun compteur. Le client invalide sa vue, il ne devine pas.
  */
 export const SessionChanged = Schema.Struct({
-  /** La source APRÈS le changement — `null` quand elle a disparu. */
-  path: Schema.NullOr(Schema.String),
   paneId: Schema.String,
+  /**
+   * L'empreinte **opaque** de l'identité de source (16 hexadécimaux) —
+   * aucun chemin ne traverse le flux. Le client compare : révision différente
+   * = invalider la vue.
+   */
+  sourceRevision: Schema.String,
 });
 export type SessionChanged = typeof SessionChanged.Type;
 

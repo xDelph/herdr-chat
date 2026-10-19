@@ -72,11 +72,11 @@ pub fn evenements_de_changement(changement: &Changement) -> Vec<APublier> {
         evenements.push(APublier {
             genre: GENRE_SESSION_CHANGED,
             donnees: serialise(&SessionChanged {
-                path: match &changement.source_apres {
-                    Some(chemin) => Nullable::Valeur(chemin.clone()),
-                    None => Nullable::Nulle,
-                },
                 pane_id: changement.pane_id.as_str().to_string(),
+                // La révision est OPAQUE : aucun chemin ne traverse le flux
+                // (TECH §7), et deux observations identiques sont coalescées
+                // par le veilleur — rien à publier.
+                source_revision: changement.revision_apres.clone(),
             }),
         });
     }
