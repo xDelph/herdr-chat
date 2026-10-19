@@ -127,12 +127,18 @@ pub fn execute(
     // Le VEILLEUR : au délai OU à l'annulation, il tue CET enfant (et lui
     // seul) — l'enfant est ensuite ramassé (pas de zombie).
     let meurtre = Arc::new(AtomicBool::new(false));
+    let fini = Arc::new(AtomicBool::new(false));
     let veilleur_meurtre = Arc::clone(&meurtre);
+    let veilleur_fini = Arc::clone(&fini);
     let pid_meurtre = enfant.id();
     let veilleur = thread::spawn(move || {
         let debut = std::time::Instant::now();
+        // ⚠️ Le veilleur s'arrête **quand l'enfant est fini**. Sans cela il
+        // dormait le délai entier et `join` rendait la main au bout du délai :
+        // `pi --list-models` (0,65 s) était servi en **20 s**, mesuré sur le
+        // vrai démon.
         while debut.elapsed() < delai {
-            if veilleur_meurtre.load(Ordering::SeqCst) {
+            if veilleur_meurtre.load(Ordering::SeqCst) || veilleur_fini.load(Ordering::SeqCst) {
                 break;
             }
             thread::sleep(Duration::from_millis(10));
@@ -183,6 +189,7 @@ pub fn execute(
             Err(cause) => break Err(ErreurProcess::Lancement(cause.to_string())),
         }
     };
+    fini.store(true, Ordering::SeqCst);
     let _ = veilleur.join();
     // ⚠️ Sur un kill : on ne bloque JAMAIS l'appelant sur les lecteurs — un
     // enfant tué peut laisser des descendants qui tiennent le tuyau ; les

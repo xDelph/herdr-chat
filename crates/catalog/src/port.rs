@@ -162,7 +162,12 @@ impl CatalogPort for PortCatalogue {
         Box::pin(async move {
             // `CacheCatalogues` fait le single-flight et le TTL ; un échec
             // n'est pas figé (T031).
-            let resultat = cache.catalogue(&genre, &[]);
+            //
+            // ⚠️ La commande est celle de la TABLE d'adaptateurs. Un argv vide
+            // rendait `argv vide` pour TOUS les kinds : la production
+            // n'injecte rien, elle exécute.
+            let commande = crate::adapters::commande_par_defaut(&genre);
+            let resultat = cache.catalogue(&genre, &commande);
             Ok(observation_depuis(&kind, &resultat))
         })
     }

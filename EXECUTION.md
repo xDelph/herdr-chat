@@ -2128,3 +2128,21 @@ ANCIEN https://<hôte>:8790/api/health → 200  (le service de l'utilisateur, in
 ```
 tailscale serve --https=8443 off
 ```
+
+### Trois défauts de plus, trouvés en interrogeant les routes de catalogue
+
+| # | Défaut | Preuve | Correction |
+|---|---|---|---|
+| 7 | `PortCatalogue::catalog` passait un **argv vide** | `/api/agents/claude/models` → `{"error":"lancement : argv vide"}` pour **tous** les kinds | la commande vient de la table (`commande_par_defaut`) ; la production n'injecte rien |
+| 8 | L'adaptateur `claude` **lançait le vrai `claude`** | avec son vrai argv il ouvrait une session interactive pour jeter la sortie | `ClaudeAlias` ne lance **aucun** processus (test : commande bidon ⇒ succès instantané) |
+| 9 | Le veilleur de `catalog::process` dormait **le délai entier** | `pi --list-models` (0,65 s en shell) servi en **20,02 s** par l'API | le veilleur s'arrête quand l'enfant est fini |
+
+```
+claude   0,02 s   4 alias      (aucun processus)
+codex    1,44 s   9 modèles
+pi       0,87 s  39 modèles
+```
+
+Les trois commandes sont des **listes en lecture seule** (`--list-models`, `debug models`) : aucune session d'agent n'est créée.
+
+Autres routes vérifiées sur le vrai Herdr : `/api/agents/kinds` 200 (5 kinds), `/api/notifications/vapid-key` 200 (clé `BIW…`, `text/plain`), `/api/events` → `event: ready` puis keep-alive, `/api/file` dans un dossier autorisé 200 `text/plain`, hors racine **403** (`path rejected: outside the project folders`), `/api/workspaces/w5/agents` en GET **405** (c'est un POST de lancement — le refus est correct).

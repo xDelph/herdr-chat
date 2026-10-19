@@ -4,8 +4,8 @@
 //! l'exécuteur borné avec des CLIs factices.
 
 use catalog::adapters::{
-    Adaptateur, Parseur, adaptateur_de, catalogue_d_adaptateur, catalogue_de, parse_claude,
-    parse_codex, parse_cursor, parse_devin, parse_pi,
+    Adaptateur, Parseur, adaptateur_de, catalogue_d_adaptateur, catalogue_de, commande_par_defaut,
+    parse_claude, parse_codex, parse_cursor, parse_devin, parse_pi,
 };
 use serde_json::json;
 use std::fs;
@@ -214,6 +214,49 @@ fn le_chemin_passe_par_lexécuteur_avec_des_clis_factices() {
         "code + stderr déclarés : {erreur}"
     );
     assert!(catalogue.modeles.is_empty());
+}
+
+#[test]
+fn claude_ne_lance_aucun_processus_meme_avec_une_commande_bidon() {
+    // ⚠️ Trouvé en exécutant le port réel : l'adaptateur `claude` recevait sa
+    // vraie commande et **lançait `claude`** (une session interactive) pour
+    // jeter sa sortie. Le catalogue est la liste documentée des alias — donc
+    // aucune exécution, même avec une commande qui n'existe pas.
+    let adaptateur = adaptateur_de("claude").unwrap_or_else(|| panic!("claude est dans la table"));
+    let catalogue = catalogue_d_adaptateur(
+        adaptateur,
+        &[String::from("/chemin/qui/n/existe/pas/claude")],
+    );
+    assert!(
+        !catalogue.modeles.is_empty(),
+        "les alias documentés sont servis sans processus"
+    );
+    let erreur = catalogue.erreur.unwrap_or_default();
+    assert!(
+        erreur.contains("authenticated"),
+        "la limitation reste dite : {erreur}"
+    );
+}
+
+#[test]
+fn la_commande_par_defaut_est_celle_de_la_table() {
+    // La production n'injecte rien : c'est CETTE commande qui part.
+    assert_eq!(
+        commande_par_defaut("pi"),
+        vec![String::from("pi"), String::from("--list-models")]
+    );
+    assert_eq!(
+        commande_par_defaut("codex"),
+        vec![
+            String::from("codex"),
+            String::from("debug"),
+            String::from("models")
+        ]
+    );
+    assert!(
+        commande_par_defaut("agent-inconnu").is_empty(),
+        "un genre hors table n'a pas de commande"
+    );
 }
 
 #[test]

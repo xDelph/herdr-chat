@@ -278,7 +278,7 @@ pub struct Adaptateur {
 }
 
 /// Le parseur d'un adaptateur — chaque forme a le sien.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 pub enum Parseur {
     TabulairePi,
     ClaudeAlias,
@@ -344,20 +344,38 @@ pub fn catalogue_de(genre: &str) -> ResultatCatalogue {
             source: format!("aucun adaptateur pour {genre}"),
             niveaux: Vec::new(),
         },
-        Some(adaptateur) => catalogue_d_adaptateur(
-            adaptateur,
-            &adaptateur
+        Some(adaptateur) => catalogue_d_adaptateur(adaptateur, &commande_par_defaut(genre)),
+    }
+}
+
+/// La commande **de la table** pour un genre — ce que la production lance.
+///
+/// ⚠️ Un genre inconnu n'a pas de commande : la liste vide est un fait, pas un
+/// défaut (l'absence d'adaptateur est dite par `adaptateur_de`).
+#[must_use]
+pub fn commande_par_defaut(genre: &str) -> Vec<String> {
+    adaptateur_de(genre)
+        .map(|adaptateur| {
+            adaptateur
                 .commande
                 .iter()
-                .map(|s| s.to_string())
-                .collect::<Vec<String>>(),
-        ),
-    }
+                .map(|mot| (*mot).to_string())
+                .collect()
+        })
+        .unwrap_or_default()
 }
 
 /// Le catalogue d'un adaptateur avec une commande INJECTÉE — les tests
 /// passent par des exécutables factices (jamais de CLI d'agent réel).
 pub fn catalogue_d_adaptateur(adaptateur: &Adaptateur, commande: &[String]) -> ResultatCatalogue {
+    // ⚠️ **Aucun processus pour `claude`** : il ne liste pas ses modèles hors
+    // session authentifiée (mesuré), le catalogue est la liste documentée des
+    // alias. Lancer `claude` sans argument ouvrait une session interactive
+    // pour jeter sa sortie — trouvé en exécutant le port avec son vrai argv.
+    if adaptateur.parseur == Parseur::ClaudeAlias {
+        // La réponse porte déjà sa source et sa raison (alias seulement).
+        return parse_claude();
+    }
     let argv: Vec<&str> = commande.iter().map(String::as_str).collect();
     match execute(&argv, DELAI_PROCESS, &Annulation::nouveau()) {
         Err(cause) => ResultatCatalogue {
