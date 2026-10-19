@@ -1,0 +1,55 @@
+{
+  "arch": "aarch64",
+  "clients": 1,
+  "fixture": {
+    "bundle": "compatibility/benchmark/fixtures",
+    "delta_verifie": false,
+    "fichiers_verifies": 78
+  },
+  "hote": "macos",
+  "panes": 1,
+  "piles": [
+    {
+      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=56743 HERDR_REMOTE_BIND=127.0.0.1 target/{release,debug}/herdrchat",
+      "demandes_fixture": 3,
+      "pile": "rust",
+      "pret_ms": 1416,
+      "routes": [
+        "/api/overview",
+        "/api/conversations"
+      ],
+      "runs": [
+        {
+          "cpu_ms": 1070,
+          "echantillons": 9,
+          "froid": true,
+          "max_us": 150239,
+          "non_200": 0,
+          "octets": 69727,
+          "p50_us": 18155,
+          "p95_us": 61974,
+          "p99_us": 150239,
+          "requetes": 98,
+          "rss_max_kio": 21296,
+          "run": 0
+        }
+      ],
+      "sondes": [
+        {
+          "corps": "{\"agents\":[{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p1\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-47612-1792428459194722000/sessions/banc-0.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"worksp",
+          "route": "/api/overview",
+          "statut": 200
+        },
+        {
+          "corps": "{\"conversations\":[{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\nlecture repli repli focus catalogne opaque référence cause curseur état mesure rafraîchissement verdict verdict accessibilité rafraîchissement lecture rendu\",\"sessionState\":\"available\",\"timestamp\":1709715240000,\"titl",
+          "route": "/api/conversations",
+          "statut": 200
+        }
+      ]
+    }
+  ],
+  "runs": 1,
+  "scenario": "base",
+  "schemaVersion": 1,
+  "secondes": 2
+}

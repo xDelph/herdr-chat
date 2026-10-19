@@ -1,0 +1,101 @@
+{
+  "arch": "aarch64",
+  "clients": 4,
+  "fixture": {
+    "bundle": "compatibility/benchmark/fixtures",
+    "delta_verifie": false,
+    "fichiers_verifies": 78
+  },
+  "hote": "macos",
+  "panes": 10,
+  "piles": [
+    {
+      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=57655 HERDR_REMOTE_BIND=127.0.0.1 bun run apps/server/src/main.ts",
+      "demandes_fixture": 827,
+      "pile": "ts",
+      "pret_ms": 628,
+      "routes": [
+        "/api/overview",
+        "/api/conversations"
+      ],
+      "runs": [
+        {
+          "cpu_ms": 500,
+          "echantillons": 7,
+          "froid": true,
+          "max_us": 177041,
+          "non_200": 0,
+          "octets": 1193824,
+          "p50_us": 8056,
+          "p95_us": 76659,
+          "p99_us": 149785,
+          "par_route": {
+            "/api/conversations": {
+              "max_us": 177041,
+              "n": 224,
+              "p50_us": 7861,
+              "p95_us": 74430,
+              "p99_us": 149785
+            },
+            "/api/overview": {
+              "max_us": 176843,
+              "n": 228,
+              "p50_us": 8105,
+              "p95_us": 87582,
+              "p99_us": 128200
+            }
+          },
+          "requetes": 452,
+          "rss_max_kio": 112368,
+          "run": 0
+        },
+        {
+          "cpu_ms": 290,
+          "echantillons": 6,
+          "froid": false,
+          "max_us": 679554,
+          "non_200": 0,
+          "octets": 968881,
+          "p50_us": 7214,
+          "p95_us": 49934,
+          "p99_us": 517088,
+          "par_route": {
+            "/api/conversations": {
+              "max_us": 679554,
+              "n": 183,
+              "p50_us": 7449,
+              "p95_us": 47834,
+              "p99_us": 665507
+            },
+            "/api/overview": {
+              "max_us": 556702,
+              "n": 185,
+              "p50_us": 7151,
+              "p95_us": 53778,
+              "p99_us": 241028
+            }
+          },
+          "requetes": 368,
+          "rss_max_kio": 102976,
+          "run": 1
+        }
+      ],
+      "sondes": [
+        {
+          "corps": "{\"agents\":[{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p1\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-82427-1792428512518495000/sessions/banc-0.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"w",
+          "route": "/api/overview",
+          "statut": 200
+        },
+        {
+          "corps": "{\"conversations\":[]}",
+          "route": "/api/conversations",
+          "statut": 200
+        }
+      ]
+    }
+  ],
+  "runs": 2,
+  "scenario": "base",
+  "schemaVersion": 1,
+  "secondes": 2
+}

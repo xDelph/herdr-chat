@@ -2211,3 +2211,60 @@ Le générateur est un LCG explicite à graine fixe : chaque échec nomme la gra
 ### Les 18 routes
 
 `crates/contracts/tests/unit/registry.rs` : `le_manifeste_compte_18_routes_distinctes` + chemins/méthodes du fil + politique mutante mesurée + formes non-JSON nommées.
+
+## T065 — le banc d'essai (harness livré, comparaison NON concluante)
+
+### Ce qui est livré
+
+`cargo xtask bench --panes <n> --clients <n> --runs <n> --seconds <n> --stack <rust|ts|both> [--scenario base|delta32]`
+
+| Pièce | Rôle |
+|---|---|
+| `xtask/src/bench/fixture.rs` | une **fausse Herdr** (socket Unix) qui sert `ping`, `session.snapshot`, `agent.list`, `integration.list`, `agent.read` — au **fil mesuré** : une connexion par demande, `id` en chaîne, enveloppe `{type, snapshot}` |
+| `xtask/src/bench/charge.rs` | des clients (un fil chacun) qui font des `GET` réels et mesurent la latence, par route |
+| `xtask/src/bench/mesure.rs` | centiles (p50/p95/p99/max), RSS max et CPU du processus, sonde de réponse |
+| `xtask/src/bench/mod.rs` | orchestration : bundle **vérifié**, port libre, lancement de la pile, runs froids/chauds, rapport JSON |
+
+⚠️ **Le bundle gelé est vérifié avant toute mesure.** `compatibility/benchmark/fixtures/manifest.json` porte 78 empreintes ; le README du bundle dit qu'une différence rend les mesures **nulles**. Le banc recalcule les sha256 et refuse de mesurer si l'un diffère — et il n'écrit **jamais** dans le bundle (les sessions mesurées sont des copies temporaires ; le delta 32 Mio s'ajoute à une copie, à une seule session).
+
+### Ce qui est mesuré (Rust, `--panes 10 --clients 4`, release, 3 runs de 3 s)
+
+```
+fixture : 6 demandes | prêt : 419 ms | non-200 : 0
+run 0 (froid)  n=316  p50 18,4 ms  p95 166 ms  RSS 48,6 Mio  CPU 5,25 s
+   /api/overview      n=158  p50  1,4 ms  p95   7,9 ms
+   /api/conversations n=158  p50 47,9 ms  p95 191,8 ms
+run 1 (chaud)  n=158  p50 31,2 ms  p95 441 ms  RSS 48,2 Mio  CPU 2,64 s
+run 2 (chaud)  n=134  p50 17,6 ms  p95 426 ms  RSS 52,9 Mio  CPU 2,18 s
+```
+
+Les rapports sont dans `compatibility/results/` avec la commande, les routes, les sondes et le nombre de demandes servies.
+
+### ⚠️ Ce qui n'est PAS concluant — et pourquoi T065 reste ouverte
+
+La pile TS a été lancée **avec la même fixture** (port libre, même socket, mêmes sessions) :
+
+```
+ts  prêt 628 ms | non-200 0
+   /api/conversations → {"conversations":[]}     ← VIDE
+   /api/overview      p50 8,1 ms  p95 87,6 ms
+```
+
+**TS ne voit aucune conversation.** Sa liste est vide alors que les mêmes fichiers sont sous `PI_SESSIONS_ROOT` : la référence lit la référence de session publiée par Herdr dans **sa** forme (`agentSession` du protocole TS), là où le contrat Rust lit `agent_session`/`kind`/`source`/`value`. Ma fausse Herdr satisfait le fil Rust, pas celui de TS.
+
+Conséquence directe : **comparer `conversations` serait comparer « Rust lit 10 sessions » à « TS ne lit rien »**. Je ne publie donc aucune conclusion de performance. Les mesures ci-dessus décrivent Rust seul, ce qui est utile mais ne satisfait pas la condition de T065 (« mêmes fixtures »).
+
+Pistes pour fermer T065 (dans cet ordre) :
+1. que la fausse Herdr serve **les deux** formes de référence de session (ou que la composition choisisse la forme selon la pile mesurée) ;
+2. rejouer la matrice 1/10/50 panes × 1/4/8 clients × 5 runs, `cold`/`warm` ;
+3. les trois scénarios restants : `delta32` (le delta doit être régénéré par `bun compatibility/benchmark/generate.ts --delta` puis vérifié), `lockDB` (transaction d'écriture tenue sur la base opencode), `sse-idle` (8 connexions inactives) ;
+4. vérifier les invariants : 1 rafraîchissement partagé par source, 0 tâche orpheline.
+
+### Deux défauts trouvés en construisant le banc
+
+| # | Défaut | Preuve | Correction |
+|---|---|---|---|
+| 10 | Le démon **refusait de démarrer** sans Herdr | socket absent → `Herdr injoignable (…): …` puis sortie, alors que O03 exige « avertissement, HTTP disponible » | `TransportUnix::connecte` ne se connecte plus (la joignabilité se prouve au ping) ; mesuré : `/api/health` → `{"reachable":false,…}`, `/api/overview` → 500 nommé `upstream_unavailable`, processus vivant |
+| 11 | Le build **release** cassait clippy dès que la PWA existait | `include!(OUT_DIR)` émettait `pub static FICHIERS` dans un module privé → `unreachable_pub` | `pub(crate) static` |
+
+Bonus : un test de transport passait alors que le faux serveur **paniquait dans un fil détaché** (`Ok(0)` sur la connexion d'essai) — le bruit était invisible parce que le panic ne tuait qu'un fil. C'est ce qui a masqué le défaut 10.

@@ -95,9 +95,15 @@ pub struct TransportUnix {
 }
 
 impl TransportUnix {
-    /// Vérifie que le socket répond, et retient son chemin.
+    /// Retient le chemin — **sans ouvrir de connexion**.
+    ///
+    /// ⚠️ Une connexion d'essai serait une connexion de trop : Herdr sert
+    /// **une** demande par connexion (mesuré), et la joignabilité se prouve au
+    /// premier `appelle` (le ping de santé). Un démon doit pouvoir démarrer
+    /// même si Herdr est momentanément absent, et le dire dans `/api/health`
+    /// (O03) — refuser de démarrer pour un socket absent privait l'utilisateur
+    /// de son interface à cause d'un voisin en panne.
     pub fn connecte(chemin: &Path) -> Result<Self, ErreurTransport> {
-        UnixStream::connect(chemin).map_err(|cause| ErreurTransport::Socket(cause.to_string()))?;
         Ok(Self {
             chemin: chemin.to_path_buf(),
             prochain_id: 1,

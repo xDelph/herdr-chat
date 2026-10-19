@@ -66,7 +66,7 @@ fn genere(fichiers: &[(String, PathBuf)]) -> String {
     let mut source = String::from(
         "// Généré par build.rs — ne pas éditer.\n\
          /// Les fichiers du build, embarqués au link.\n\
-         pub static FICHIERS: &[(&str, &[u8])] = &[\n",
+         pub(crate) static FICHIERS: &[(&str, &[u8])] = &[\n",
     );
     for (url, chemin) in fichiers {
         source.push_str(&format!(
