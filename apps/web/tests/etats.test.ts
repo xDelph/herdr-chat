@@ -10,7 +10,7 @@
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { etatLecture, heureLue } from "../src/etats.ts";
+import { FENETRE_DEMARRAGE_MS, etatLecture, heureLue } from "../src/etats.ts";
 
 const situation = (modification: Partial<Parameters<typeof etatLecture>[0]> = {}) =>
   etatLecture({
@@ -147,5 +147,38 @@ describe("U10 — une coupure ne sort pas de la conversation", () => {
     // L'ancien avis d'erreur sans action : l'utilisateur n'avait rien à faire
     // de l'information.
     expect(app).not.toContain('<p className="notice notice--error">{error}</p>');
+  });
+});
+
+describe("le démarrage n'est pas une panne", () => {
+  const base = { chargement: false, dernierSucces: null, live: false, total: 0 };
+
+  test("un premier échec pendant la fenêtre de grâce est une connexion", () => {
+    // ⚠️ Défaut rapporté : au rechargement, le premier vol part avant que le
+    // flux soit ouvert ; s'il échoue, un bandeau ROUGE s'affichait alors qu'on
+    // était simplement en train de se connecter.
+    expect(etatLecture({ ...base, depuisOuverture: 300, erreur: "transport" })).toEqual({
+      phase: "chargement",
+    });
+  });
+
+  test("passé la fenêtre, le même échec est une vraie erreur", () => {
+    const etat = etatLecture({
+      ...base,
+      depuisOuverture: FENETRE_DEMARRAGE_MS + 1,
+      erreur: "transport",
+    });
+    expect(etat.phase).toBe("erreur");
+  });
+
+  test("un échec APRÈS un succès n'est jamais pris pour un démarrage", () => {
+    // Sinon la grâce masquerait une panne réelle sur une session déjà lue.
+    const etat = etatLecture({
+      ...base,
+      dernierSucces: 1_000,
+      depuisOuverture: 100,
+      erreur: "transport",
+    });
+    expect(etat.phase).toBe("erreur");
   });
 });

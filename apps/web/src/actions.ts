@@ -460,6 +460,14 @@ export interface Cout {
   /** Durée mesurée entre le premier et le dernier message, ou `null`. */
   readonly dureeMs: number | null;
   /**
+   * Instant du **premier** message du groupe, ou `null`.
+   *
+   * ⚠️ Il sert à faire **avancer** la durée pendant que l'agent travaille : sans
+   * lui, « Working 2 min » restait figé jusqu'au rafraîchissement suivant, alors
+   * qu'un travail en cours est exactement ce qu'on regarde.
+   */
+  readonly debutMs: number | null;
+  /**
    * Jetons **du travail**, jamais le cumul de la session.
    *
    * ⚠️ Chaque message porte ses propres `usage.totalTokens` ; on les **somme
@@ -506,7 +514,7 @@ export const coutDuGroupe = (messages: ReadonlyArray<RenderedMessage>): Cout => 
   // intervalle qui n'existe pas.
   const dureeMs =
     premier !== null && dernier !== null && dernier > premier ? dernier - premier : null;
-  return { added, dureeMs, jetons: avecJetons ? jetons : null, removed };
+  return { added, debutMs: premier, dureeMs, jetons: avecJetons ? jetons : null, removed };
 };
 
 /**

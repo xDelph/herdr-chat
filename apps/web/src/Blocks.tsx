@@ -887,10 +887,13 @@ const ToolGroup = ({
   item,
   enCours,
   cwd,
+  maintenant,
 }: {
   item: Extract<Item, { kind: "tools" }>;
   enCours: boolean;
   cwd?: string | null | undefined;
+  /** Instant courant, tické chaque seconde pendant le travail. */
+  maintenant?: number | undefined;
 }) => {
   /*
     ⚠️ **Le dépliage suit l'état, SAUF si l'utilisateur a tranché.**
@@ -912,7 +915,18 @@ const ToolGroup = ({
 
   const lignes = regrouperCommandes(lignesDeTravail(item.messages));
   const cout = coutDuGroupe(item.messages);
-  const duree = dureeEnMots(cout.dureeMs ?? 0);
+  /*
+    ⚠️ **Pendant le travail, la durée se calcule contre MAINTENANT.** Elle
+    venait des horodatages des messages : « Working 2 min » restait donc figé
+    jusqu'au rafraîchissement suivant (30 s avec le flux vivant, jamais quand il
+    se tait). Un compteur de travail qui ne compte pas est un mensonge — c'est
+    exactement l'information qu'on regarde pendant qu'on attend.
+  */
+  const dureeMs =
+    enCours && maintenant !== undefined && cout.debutMs !== null
+      ? Math.max(cout.dureeMs ?? 0, maintenant - cout.debutMs)
+      : (cout.dureeMs ?? 0);
+  const duree = dureeEnMots(dureeMs);
   const jetons = cout.jetons === null ? "" : jetonsCourts(cout.jetons);
   const diff =
     cout.added > 0 || cout.removed > 0 ? (
@@ -1014,11 +1028,14 @@ export const ItemsView = ({
   items,
   enCours = false,
   cwd,
+  maintenant,
 }: {
   readonly items: ReadonlyArray<Item>;
   /** L'agent travaille-t-il en ce moment ? Décide du dépliage du dernier groupe. */
   readonly enCours?: boolean;
   readonly cwd?: string | null;
+  /** Instant courant — fait avancer la durée d'un travail en cours. */
+  readonly maintenant?: number | undefined;
 }) => {
   const latestWork = items.findLast((item) => item.kind === "tools");
   return (
@@ -1032,6 +1049,7 @@ export const ItemsView = ({
             item={item}
             enCours={enCours && item === items.at(-1)}
             cwd={cwd}
+            maintenant={maintenant}
           />
         ),
       )}

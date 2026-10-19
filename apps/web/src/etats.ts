@@ -41,6 +41,7 @@ export const etatLecture = ({
   live,
   total,
   dernierSucces,
+  depuisOuverture,
 }: {
   readonly chargement: boolean;
   /** Cause de la dernière lecture échouée, `null` si elle a réussi. */
@@ -50,12 +51,33 @@ export const etatLecture = ({
   /** Nombre d'éléments déjà affichés. */
   readonly total: number;
   readonly dernierSucces: number | null;
+  /**
+   * Depuis quand la page est ouverte, en millisecondes.
+   *
+   * ⚠️ **Le démarrage n'est pas une panne.** Au rechargement, le premier vol
+   * part avant que le flux SSE soit ouvert : si cette lecture échoue (reconnexion
+   * en cours, onglet restauré, réseau qui se rétablit), l'écran affichait un
+   * **bandeau d'erreur rouge** alors qu'il était simplement en train de se
+   * connecter. Trompeur, et décourageant : on croit à une panne pendant la
+   * première seconde de chaque ouverture.
+   */
+  readonly depuisOuverture?: number;
 }): EtatLecture => {
+  /*
+    La fenêtre de grâce du démarrage : tant qu'aucune lecture n'a réussi et que
+    la page vient de s'ouvrir, un échec est une **connexion en cours**, pas une
+    erreur. Cinq secondes : le temps d'un premier vol sur un réseau lent, pas
+    assez pour masquer une vraie panne.
+  */
+  const demarrage = (depuisOuverture ?? Number.POSITIVE_INFINITY) < FENETRE_DEMARRAGE_MS;
   if (total === 0) {
     // Rien à afficher : la lecture en cours et l'échec sont les deux seules
     // choses à dire. Dans cet ordre, parce qu'un échec puis un succès rapide
     // ne doivent pas laisser un bandeau d'erreur pendant le chargement suivant.
-    if (erreur !== null) return { phase: "erreur", cause: erreur };
+    if (erreur !== null && !(demarrage && dernierSucces === null)) {
+      return { phase: "erreur", cause: erreur };
+    }
+    if (erreur !== null) return { phase: "chargement" };
     if (chargement) return { phase: "chargement" };
     // ⚠️ `erreur` est `null` ici : une absence de données n'est pas une panne,
     // c'est un parc vide. Le dire autrement ferait croire à une erreur.
@@ -69,6 +91,13 @@ export const etatLecture = ({
   if (!live) return { phase: "reconnexion" };
   return { phase: "pret" };
 };
+
+/**
+ * La fenêtre pendant laquelle un premier échec est une **connexion**, pas une
+ * panne. Cinq secondes : le temps d'un premier vol sur un réseau lent, pas assez
+ * pour masquer une vraie panne.
+ */
+export const FENETRE_DEMARRAGE_MS = 5_000;
 
 /**
  * Heure de la dernière lecture réussie — ou `null` si on ne sait pas.

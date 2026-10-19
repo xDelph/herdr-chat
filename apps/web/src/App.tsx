@@ -28,7 +28,7 @@ import type { AgentView, Health, InstalledKind, Overview, TrustRequired } from "
 import { ChatScreen } from "./ChatScreen.tsx";
 import { BandeauEtat } from "./EtatLecture.tsx";
 import { SettingsSheet } from "./SettingsSheet.tsx";
-import { etatLecture } from "./etats.ts";
+import { FENETRE_DEMARRAGE_MS, etatLecture } from "./etats.ts";
 import { ProjectAgentsOf } from "./ProjectDetail.tsx";
 import type { LaunchChoice } from "./launch.ts";
 import { TrustCard } from "./TrustCard.tsx";
@@ -102,6 +102,8 @@ export const App = () => {
   const [health, setHealth] = useState<Health | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [live, setLive] = useState<"live" | "down">("down");
+  /** L'instant d'ouverture, posé une seule fois dans un effet. */
+  const debutPage = useRef<number | null>(null);
 
   /*
     La coquille **est** le viewport visuel. Rien à deviner.
@@ -425,8 +427,23 @@ export const App = () => {
    * `error` garde son nom : c'est la cause d'échec de la dernière lecture. Ce
    * qui change, c'est ce qu'on en fait — voir `etats.ts`.
    */
+  /*
+    ⚠️ L'âge de la page, tické pendant les premières secondes seulement : après
+    la fenêtre de grâce, il n'a plus d'usage et un minuteur de plus serait du
+    bruit.
+  */
+  const [agePage, setAgePage] = useState(0);
+  useEffect(() => {
+    if (debutPage.current === null) debutPage.current = Date.now();
+    if (agePage >= FENETRE_DEMARRAGE_MS) return undefined;
+    const debut = debutPage.current;
+    const timer = window.setTimeout(() => setAgePage(Date.now() - debut), 500);
+    return () => window.clearTimeout(timer);
+  }, [agePage]);
+
   const etat = etatLecture({
     chargement,
+    depuisOuverture: agePage,
     erreur: error,
     live: live === "live",
     total,

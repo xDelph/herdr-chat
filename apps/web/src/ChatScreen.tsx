@@ -682,6 +682,20 @@ export const ChatScreen = ({
     fois, dès que le contenu est là. Sans mémoire (première visite), c'est la
     règle d'ancrage qui tranche — et elle est appliquée par l'effet de statut.
   */
+  /*
+    ⚠️ **Un tick d'une seconde pendant le travail.** Sans lui, la durée du bloc
+    « Working » ne bougeait qu'à l'arrivée de nouvelles données — donc toutes les
+    30 s avec le flux vivant, et jamais quand il se tait. Il ne tourne que
+    pendant le travail : au repos, aucun minuteur ne consomme la batterie.
+  */
+  const [maintenant, setMaintenant] = useState(() => Date.now());
+  useEffect(() => {
+    if (!aguiche) return undefined;
+    setMaintenant(Date.now());
+    const timer = window.setInterval(() => setMaintenant(Date.now()), 1_000);
+    return () => window.clearInterval(timer);
+  }, [aguiche]);
+
   const repriseFaite = useRef(false);
   useEffect(() => {
     repriseFaite.current = false;
@@ -1256,7 +1270,7 @@ export const ChatScreen = ({
                   {previousError === null ? null : <p role="alert">{previousError}</p>}
                 </div>
               )}
-              <ItemsView enCours={aguiche} items={items} cwd={agent.cwd} />
+              <ItemsView enCours={aguiche} items={items} cwd={agent.cwd} maintenant={maintenant} />
               {/*
                   ⚠️ **Les envois en attente restent COLLÉS au bas du fil.**
               
