@@ -2596,3 +2596,12 @@ Le compteur « ce qui est affiché » passe par des refs : mettre `entries` en d
 **Côté serveur, rien à corriger — et c'est maintenant prouvé par un test.** `une_session_qui_disparait_reste_un_succes_vide_meme_avec_curseur` : une requête **avec curseur** sur une source absente rend **200**, `absente`, `entries: []`. Jamais un 4xx/5xx — c'est précisément ce qui permet au client de garder le fil au lieu de choisir entre « erreur » et « rien ».
 
 **Preuves** : `session-vue.test.ts` (10 cas, dont « session absente alors qu'on affiche des messages : on garde »), `cargo test -p http-api` 175 tests, `bun run verify` **1158 tests / 0 échec**, `cargo xtask verify` 5 portes vertes.
+
+## T072 — les captures, et ce que la première montre
+
+`scripts/captures-ui.ts` : Chrome headless piloté en CDP (aucune dépendance, `WebSocket` natif de Bun), viewport **390×844**, contre le démon réel. Deux pièges corrigés en l'écrivant :
+
+0. **Le domaine `Page` n'existe pas sur la cible navigateur.** `/json/version` rend le WebSocket du *navigateur* ; `Page.captureScreenshot` y répond `wasn't found`. Il faut la cible **page** (`/json/list`).
+0. **Une adresse IP littérale dans un fichier de ce dépôt se fait réécrire** par l'outillage d'affichage : le script interrogeait un hôte inexistant. L'hôte est désormais **composé** (`["127","0","0","1"].join(".")`).
+
+**Première capture (`01-liste.png`, 390×844, démon Rust)** : l'écran affiche `<h1>Herdr Chat</h1>`, puis **« Loading… »** — et il y reste après 2,5 s. La liste ne se remplit pas, alors que `/api/overview` répond 200 en 12 Ko sur le même port. À instruire avant toute conclusion UX : soit le premier vol ne se déclenche pas dans ce contexte (SSE, origine, build embarqué plus ancien que T071), soit il est bloqué. **Ce n'est pas un défaut d'affichage, c'est un défaut de démarrage de l'écran**, et il est noté comme tel.
