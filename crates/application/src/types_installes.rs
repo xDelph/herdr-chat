@@ -15,39 +15,6 @@
 use crate::visibilite::type_lisible;
 use domain::ids::AgentKind;
 
-/// Le vocabulaire des types d'agent connus — relevé dans le fil. Sert
-/// uniquement à décider **quelle colonne** d'une intégration est le `kind`
-/// attendu par `agent.start` : Herdr prend la commande pour la plupart, la
-/// cible pour quelques-uns (Cursor : commande `cursor-agent`, kind
-/// `cursor`).
-const TYPES_CONNUS: [&str; 25] = [
-    "pi",
-    "claude",
-    "codex",
-    "gemini",
-    "cursor",
-    "devin",
-    "agy",
-    "cline",
-    "omp",
-    "mastracode",
-    "opencode",
-    "copilot",
-    "kimi",
-    "kiro",
-    "droid",
-    "amp",
-    "grok",
-    "hermes",
-    "kilo",
-    "qodercli",
-    "qwen",
-    "letta",
-    "maki",
-    "muse",
-    "aide",
-];
-
 /// Une intégration telle que la découverte la rend : la commande du
 /// greffon, sa cible, et ce que Herdr dit de son état.
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -59,11 +26,12 @@ pub struct TypeInstalle {
 }
 
 impl TypeInstalle {
-    /// Le `kind` que `agent.start` attend : la **commande** quand elle fait
-    /// partie du vocabulaire connu, sinon la cible.
+    /// Le `kind` que `agent.start` attend — la règle vit dans le **domaine**
+    /// (`domain::catalog::kind_attendu`), partagée avec la découverte
+    /// d'intégrations de `catalog` : une seule définition.
     #[must_use]
     pub fn kind(&self) -> &str {
-        if TYPES_CONNUS.contains(&self.commande.as_str()) {
+        if domain::catalog::kind_attendu(&self.commande, &self.cible) == self.commande {
             &self.commande
         } else {
             &self.cible

@@ -4,6 +4,7 @@
 
 pub mod delivery;
 pub mod payload;
+pub mod port;
 pub mod store;
 pub mod vapid;
 pub mod webpush;

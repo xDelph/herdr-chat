@@ -1986,3 +1986,36 @@ Périmètre : `crates/herdr-client/src/port.rs` (nouveau), `crates/herdr-client/
 ### Reste (nommé)
 
 Les quatre adaptateurs restants : `SessionPort` (sessions), `CatalogPort` (catalog), `ArtifactPort` (files), `NotificationPort` (notifications). Tant qu'ils manquent, `main` refuse — et c'est ce qu'on veut : une API servie à moitié mentirait sur ses lectures.
+
+## T056 (suite 2) — trois adaptateurs de plus : fichiers, notifications, catalogues
+
+Périmètre : `crates/files/src/port.rs`, `crates/notifications/src/port.rs`, `crates/catalog/src/port.rs` (nouveaux), `crates/domain/src/catalog.rs` (vocabulaire partagé), `crates/herdr-client/src/{port.rs, client.rs}` (client partagé + `integration.list`), `crates/herdrchat/src/main.rs`, tests `crates/{files,notifications,catalog}/tests/unit/port.rs`.
+
+### Ce qui est branché
+
+| Port | Implémentation | Ce qu'elle garantit |
+|---|---|---|
+| `ArtifactPort` (`files`) | `lit_fichier_autorise` (racines **de la requête**, résolution puis contrôle, descripteur) + `liste_images_recentes` | un refus est `PathRejected` (403 nommé) ; le type et la disposition suivent le chemin **réel** ; le SVG reste **octet-stream** (jamais interprété) |
+| `NotificationPort` (`notifications`) | `GardienDeStore` (clés + abonnements) + `LivraisonWebPush` | **trois issues distinctes** : pas de clé = `None` (capacité absente), magasin illisible = `Err` (panne, 500 ‡ 503), remise = `Delivered` **ou** `Unknown` — jamais « envoyé » sans preuve |
+| `CatalogPort` (`catalog`) | `CacheCatalogues` (single-flight + TTL) + `integration.list` **injecté** | catalogue = **valeur** avec son erreur (H09) ; découverte en panne = erreur (le lancement refuse) ; `not_installed` écarté (B07) ; validation C07 |
+
+### Trois arbitrages que le graphe a imposés
+
+1. **L'adaptateur de catalogues ne peut pas vivre dans `herdr-client`** (`herdr-client → catalog` interdit) **ni dans `herdrchat`** (pas de `domain` en production) : il vit donc dans **`catalog`**, avec la découverte d'intégrations **injectée** (`SourceIntegrations`). La composition fournit la fermeture sur le client Herdr ; les tests fournissent une fausse source.
+2. **Le vocabulaire des types ne peut pas venir d'`application`** (`catalog → application` interdit) : il **descend dans le domaine** (`domain::catalog::{TYPES_CONNUS, kind_attendu}`), et `application::types_installes::TypeInstalle::kind()` y **délègue**. Une seule définition, deux appelants — pas deux copies qui divergent.
+3. **Un seul socket, deux ports** : `PortHerdr::client()` rend le client partagé (`Arc<Mutex<ClientHerdr>>`), et `PortCatalogue` travaille sur le même. Deux connexions concurrentes mélangeraient les corrélations du fil.
+
+### Preuve
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p files` | PASS — **52** (dont 6 sur le port : fichier servi, SVG en octet-stream, hors-racine nommé, sans racine, images, erreur→PortError). |
+| `cargo test -p notifications` | PASS — **41** (dont 6 : clé générée, magasin illisible = panne ≠ absence, abonner/désabonner, remise ratée = `Unknown`, expiré = `Unknown`, payload à quatre champs). |
+| `cargo test -p catalog` | PASS — **24** (dont 6 : catalogue mesuré, sans mécanisme = valeur nommée, `not_installed` écarté, liste illisible, validation exige un nom). |
+| `cargo test -p herdr-client` | PASS — **25** (mappages du port de contrôle). |
+| `cargo xtask verify` + `bun run verify` | **5 portes vertes** · **1137 tests TS**. |
+| `./target/debug/herdrchat` | refuse encore — mais pour **un seul** port : `sessions (sessions)`. |
+
+### Reste
+
+**`SessionPort`** : les lecteurs par famille (jsonl + SQLite), les curseurs liés (`hc2:`), le bornage (T025 : 2 MiB/16 MiB, `caughtUp`), et la traduction des clauses en `SessionPageOutcome`. C'est le morceau le plus lourd — et le seul qui empêche le démon de démarrer.

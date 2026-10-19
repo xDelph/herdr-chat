@@ -243,4 +243,12 @@ impl ClientHerdr {
     pub fn fermeture_onglet(&mut self, onglet: &str) -> Resultat<Value> {
         self.demande_objet("tab.close", &json!({ "tab_id": onglet }))
     }
+
+    /// `integration.list` — la SEULE source des types réellement installés
+    /// (B07 : une liste écrite à la main proposait des agents inexistants).
+    /// Le résultat est laissé **opaque** : le mappage en `TypeInstalle` vit
+    /// dans l'adaptateur, où il est testé sur la forme mesurée.
+    pub fn integrations(&mut self) -> Resultat<Value> {
+        self.demande_objet("integration.list", &json!({}))
+    }
 }

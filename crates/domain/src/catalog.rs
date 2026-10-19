@@ -76,3 +76,51 @@ pub struct ValidatedArgs {
     pub name: AgentName,
     pub thinking: Option<String>,
 }
+
+/// Le vocabulaire des types d'agent connus — relevé dans le fil.
+///
+/// ⚠️ **Pourquoi ici et pas dans `application`.** La règle « la commande si
+/// elle est connue, sinon la cible » sert à la fois au **lancement**
+/// (`application`) et à la **découverte d'intégrations** (`catalog`). Ces
+/// deux crates ne peuvent pas se parler (graphe TECH §2) : la règle vit donc
+/// dans le domaine, et les deux l'appellent — une seule définition, jamais
+/// deux copies qui divergent.
+pub const TYPES_CONNUS: [&str; 25] = [
+    "pi",
+    "claude",
+    "codex",
+    "gemini",
+    "cursor",
+    "devin",
+    "agy",
+    "cline",
+    "omp",
+    "mastracode",
+    "opencode",
+    "copilot",
+    "kimi",
+    "kiro",
+    "droid",
+    "amp",
+    "grok",
+    "hermes",
+    "kilo",
+    "qodercli",
+    "qwen",
+    "letta",
+    "maki",
+    "muse",
+    "aide",
+];
+
+/// Le `kind` que `agent.start` attend : la **commande** quand elle est au
+/// vocabulaire connu, sinon la **cible** (mesuré : Cursor, dont la commande
+/// est `cursor-agent` et le kind `cursor`).
+#[must_use]
+pub fn kind_attendu(commande: &str, cible: &str) -> String {
+    if TYPES_CONNUS.contains(&commande) {
+        String::from(commande)
+    } else {
+        String::from(cible)
+    }
+}

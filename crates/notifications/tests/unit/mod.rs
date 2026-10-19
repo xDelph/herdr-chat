@@ -2,5 +2,6 @@
 
 pub(crate) mod delivery;
 pub(crate) mod payload;
+pub(crate) mod port;
 pub(crate) mod store;
 pub(crate) mod vapid;

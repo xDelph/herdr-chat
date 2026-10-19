@@ -30,7 +30,7 @@ use domain::ports::{
     TargetedText, TransportEvidence, TransportOutcome,
 };
 use domain::status::AgentStatus;
-use std::sync::{Mutex, PoisonError};
+use std::sync::{Arc, Mutex, PoisonError};
 
 /// Le statut amont → le statut du domaine. **Union fermée des deux côtés** :
 /// un ajout d'un côté casse la compilation ici, pas le comportement.
@@ -270,7 +270,11 @@ pub fn erreur_de_port(cause: &ErreurTransport) -> PortError {
 /// Le port réel : un client Herdr derrière un verrou (une seule conversation
 /// à la fois sur le socket, comme le fil).
 pub struct PortHerdr {
-    client: Mutex<ClientHerdr>,
+    /// ⚠️ **Partagé** avec les autres ports qui parlent à Herdr (catalogues) :
+    /// un seul socket, donc un seul client derrière un seul verrou — deux
+    /// connexions concurrentes sur le même socket mélangeraient les
+    /// corrélations.
+    client: Arc<Mutex<ClientHerdr>>,
 }
 
 impl PortHerdr {
@@ -278,10 +282,22 @@ impl PortHerdr {
     /// démon dira « Herdr injoignable » au lieu de servir des données vides.
     pub fn connecte(chemin: &std::path::Path) -> Result<Self, PortError> {
         ClientHerdr::connecte(chemin)
-            .map(|client| Self {
-                client: Mutex::new(client),
-            })
+            .map(Self::avec_client)
             .map_err(|cause| erreur_de_port(&cause))
+    }
+
+    /// Le port sur un client déjà ouvert — partagé avec les autres ports.
+    #[must_use]
+    pub fn avec_client(client: ClientHerdr) -> Self {
+        Self {
+            client: Arc::new(Mutex::new(client)),
+        }
+    }
+
+    /// Le client partagé, pour un autre port du même socket.
+    #[must_use]
+    pub fn client(&self) -> Arc<Mutex<ClientHerdr>> {
+        Arc::clone(&self.client)
     }
 
     /// Exécute une demande **bloquante** et la rend comme un futur qui répond
