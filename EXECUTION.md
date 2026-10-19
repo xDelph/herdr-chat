@@ -1744,3 +1744,35 @@ Le tableau de messages est enveloppé dans un `Proxy` qui **compte les accès au
 - **C25 (fond inerte des feuilles)** n'est pas prouvable ici : aucun harnais DOM (`happy-dom`/`jsdom`) n'est installé ; les tests existants vérifient le piège de focus par fonctions pures. Ajouter le harnais est un choix de toolchain, pas une ligne de code.
 
 Commit préfixé `T061+T063:`.
+
+## T060 — mise à jour PWA différée et explicite (C21)
+
+Périmètre : `apps/web/src/mise-a-jour.ts` (nouveau), `apps/web/src/BandeauMiseAJour.tsx` (nouveau), `apps/web/src/envois-en-cours.ts` (nouveau), `apps/web/src/{main.tsx, App.tsx, brouillons.ts, ChatScreen.tsx}`, `apps/web/tests/mise-a-jour.test.ts` (nouveau).
+
+### Le défaut, et ce qui le ferme
+
+| Avant | Après |
+|---|---|
+| `controllerchange` rechargeait la page **tout seul** | le rechargement n'a lieu que si **nous** avons appliqué la mise à jour (`doitRecharger()`), jamais sur un `controllerchange` subi |
+| Le nouveau worker prenait la main à la première occasion | le worker **attend** ; `signaleMiseAJour` ne fait que publier le fait |
+| Rien ne demandait l'avis de l'utilisateur | un bandeau dit qu'une version est prête, avec un bouton **désactivé** tant qu'un brouillon ou un envoi non résolu existe |
+| Perte silencieuse d'un brouillon / d'un envoi incertain | la règle `blocageDeMiseAJour` refuse **et nomme la cause** (« draft » / « being sent ») |
+| — | **aucun stockage persistant de prompt** ajouté : on attend, on ne sauvegarde pas |
+
+Les deux faits qui bloquent sont publiés, pas devinés : `unBrouillonExiste()` (le store de brouillons, déjà par agent) et `envoiEnCours()` (un booléen publié par `ChatScreen` dès qu'un envoi est `queued`/`sending`/`uncertain`).
+
+### Preuve
+
+| Commande | Résultat |
+|---|---|
+| `bun test apps/web/tests/mise-a-jour.test.ts` | PASS — **8 tests** : la règle (aucun / brouillon / envoi, avec l'ordre de gravité), le geste (un seul `SKIP_WAITING`, refus sans effet, worker conservé après refus), les abonnés, et une registration sans worker qui n'annonce **rien**. |
+| `bun test` | PASS — **1113 tests**. |
+| `bun run verify` + `cargo xtask verify` | verts. |
+
+### Notes d'honnêteté
+
+- **Le bouton n'est pas testé « monté »** : aucun harnais DOM dans le dépôt. Ce qui est prouvé, c'est la **règle** (pure) et le **geste** (store), c'est-à-dire les deux endroits où une erreur coûte des données. Le rendu du bandeau est vérifié par le typecheck, pas par un test de navigation.
+- **`ServiceWorker.postMessage` n'a pas de `targetOrigin`** : le lint applique la règle de `window.postMessage` et signale une absence qui n'existe pas. La désactivation est locale à la ligne, avec sa raison écrite — pas une exception globale.
+- **Les types du store sont structurels** (`WorkerEnAttente`, `RegistrationAvecWorker`) : le faux de test n'a besoin d'aucune assertion `as`, et une évolution du DOM ne cassera pas silencieusement la règle.
+
+Commit préfixé `T060:`.

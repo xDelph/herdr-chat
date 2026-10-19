@@ -41,6 +41,8 @@ import { SectionTitle } from "./SectionTitle.tsx";
 import { ProjectPicker } from "./ProjectPicker.tsx";
 import type { Route } from "./routing.ts";
 import { Notice } from "./Notice.tsx";
+import { miseAJourEnAttente } from "./mise-a-jour.ts";
+import { BandeauMiseAJour } from "./BandeauMiseAJour.tsx";
 /**
  * Lit le fragment courant et se resynchronise sur les navigations, y compris le
  * bouton retour. L'analyse vit dans `routing.ts`, où elle est testée.
@@ -630,6 +632,11 @@ export const App = () => {
 
   return (
     <div className="app">
+      {/*
+        La mise à jour ne s'applique QUE sur action (C21) : le bandeau explique
+        pourquoi elle attend, et n'est présent que si un worker est en attente.
+      */}
+      {miseAJourEnAttente() ? <BandeauMiseAJour /> : null}
       {/*
         En-tête : le titre, puis l'état de connexion et les réglages.
 

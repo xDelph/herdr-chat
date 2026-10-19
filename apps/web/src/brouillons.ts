@@ -22,6 +22,15 @@ const brouillons = new Map<string, string>();
 export const lireBrouillon = (paneId: string): string => brouillons.get(paneId) ?? "";
 
 /**
+ * Y a-t-il **un** brouillon, chez n'importe quel agent ?
+ *
+ * ⚠️ C'est la question de la mise à jour (T060) : recharger pour appliquer une
+ * nouvelle version efface le composeur, donc le brouillon. On ne le persiste
+ * pas (ce serait écrire un texte non envoyé sur le disque) : on attend.
+ */
+export const unBrouillonExiste = (): boolean => brouillons.size > 0;
+
+/**
  * Retient le brouillon d'un agent.
  *
  * ⚠️ Un texte vide **efface** l'entrée au lieu de stocker `""` : sans cela, la

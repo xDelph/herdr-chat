@@ -25,6 +25,7 @@ import type { Question } from "@herdr-remote/shared";
 import { ecrireBrouillon, lireBrouillon } from "./brouillons.ts";
 import type { RenderedMessage } from "./blocks.ts";
 import { avecTravailEnCours, toItems, toMessages, touchedFilesOf } from "./blocks.ts";
+import { marqueEnvoisEnCours } from "./envois-en-cours.ts";
 import { fusionnerEntrees } from "./messages.ts";
 import { agentName, headerContext, headerReglages, statusClass } from "./labels.tsx";
 import { TabPanes } from "./TabPanes.tsx";
@@ -115,6 +116,20 @@ export const ChatScreen = ({
   const champRef = useRef<HTMLTextAreaElement | null>(null);
   const [sending, setSending] = useState(false);
   const [envoisLocaux, setEnvoisLocaux] = useState<readonly EnvoiLocal[]>([]);
+
+  /*
+    ⚠️ La mise à jour de la PWA a besoin de savoir qu'un envoi n'est pas
+    résolu (T060) : un « sending » ou un « uncertain » peut être parti, et
+    recharger l'effacerait. On publie le fait, pas le détail.
+  */
+  useEffect(() => {
+    marqueEnvoisEnCours(
+      envoisLocaux.some(
+        (envoi) =>
+          envoi.state === "queued" || envoi.state === "sending" || envoi.state === "uncertain",
+      ),
+    );
+  });
   const [messageOuvert, setMessageOuvert] = useState<string | null>(null);
   const [stopping, setStopping] = useState(false);
   const [stopFeedback, setStopFeedback] = useState<string | null>(null);
