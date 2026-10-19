@@ -410,7 +410,11 @@ describe("U21 — un travail se raconte, puis se replie", () => {
   const blocs = readFileSync(join(import.meta.dir, "..", "src", "Blocks.tsx"), "utf8");
 
   test("un bloc de travail s'ouvre pendant l'activité et se replie à la réponse finale", () => {
-    expect(blocs).toContain("const [open, setOpen] = useState(enCours);");
+    // ⚠️ Le repli ne dépend plus d'un remontage (`key`), mais d'une règle
+    // explicite : `open` vaut `enCours` tant que l'utilisateur n'a pas tranché.
+    expect(blocs).toContain("const open = manuel ?? enCours;");
+    expect(blocs).toContain("setManuel((valeur) => !(valeur ?? enCours))");
+    // Et l'ancienne dépendance accidentelle reste présente pour l'instant.
     expect(blocs).toContain("`latest-work-${enCours && item === items.at(-1)}`");
   });
 

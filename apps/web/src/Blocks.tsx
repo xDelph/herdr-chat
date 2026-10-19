@@ -893,13 +893,22 @@ const ToolGroup = ({
   cwd?: string | null | undefined;
 }) => {
   /*
-    Le groupe reste ouvert pendant le travail pour montrer les mises à jour, puis
-    se replie à la fin afin de mettre la réponse finale en avant. L'état ne se
-    resynchronise que lorsque `enCours` change : les nouvelles données ne
-    réinitialisent pas le choix d'ouverture.
+    ⚠️ **Le dépliage suit l'état, SAUF si l'utilisateur a tranché.**
+    `manuel` vaut `null` tant que personne n'a cliqué : le groupe s'ouvre pendant
+    le travail et **se referme tout seul** à la fin (c'est ce qui met la réponse
+    finale en avant). Dès qu'on clique, la décision est humaine et l'état ne la
+    reprend plus — sinon un dépliage manuel serait annulé au tour suivant.
+
+    ⚠️ **Pourquoi pas un `useEffect` qui recopie `enCours`.** Le repli
+    fonctionnait par un remontage (la `key` du groupe change quand `enCours`
+    passe à `false`), donc par accident : le jour où cette clé est stabilisée —
+    ce qui est souhaitable pour ne pas perdre l'état pendant le streaming — le
+    repli disparaissait en silence. Et dériver l'état dans un effet coûte un
+    rendu de plus, ce que le linter du projet refuse (à raison).
   */
-  const [open, setOpen] = useState(enCours);
-  const basculer = useCallback(() => setOpen((valeur) => !valeur), []);
+  const [manuel, setManuel] = useState<boolean | null>(null);
+  const open = manuel ?? enCours;
+  const basculer = useCallback(() => setManuel((valeur) => !(valeur ?? enCours)), [enCours]);
 
   const lignes = regrouperCommandes(lignesDeTravail(item.messages));
   const cout = coutDuGroupe(item.messages);
