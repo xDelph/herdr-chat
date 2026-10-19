@@ -10,167 +10,323 @@
   "panes": 10,
   "piles": [
     {
-      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=53104 HERDR_REMOTE_BIND=127.0.0.1 target/{release,debug}/herdrchat",
-      "demandes_fixture": 4,
+      "agregats": {
+        "cold": {
+          "cpu_ms": 7690,
+          "p50_us": 612,
+          "p95_us": 1654,
+          "p99_us": 2909,
+          "requetes": 15377,
+          "rss_max_kio": 18320,
+          "runs": 1
+        },
+        "warm": {
+          "cpu_ms": 14670,
+          "p50_us": 611,
+          "p95_us": 1702,
+          "p99_us": 3816,
+          "requetes": 29711,
+          "rss_max_kio": 18640,
+          "runs": 2
+        }
+      },
+      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=56815 HERDR_REMOTE_BIND=127.0.0.1 target/{release,debug}/herdrchat",
+      "demandes_fixture": 6,
       "dossier": "",
       "journal_serveur": "",
       "pile": "rust",
-      "pret_ms": 316,
+      "pret_ms": 218,
       "routes": [
         "/api/overview",
-        "/api/conversations"
+        "/api/conversations",
+        "/api/agents/w0:p1/session?tail=65536"
       ],
       "runs": [
         {
-          "cpu_ms": 3020,
-          "echantillons": 10,
+          "cpu_ms": 7690,
+          "echantillons": 14,
           "froid": true,
-          "max_us": 15217,
+          "max_us": 18727,
+          "mode": "cold",
           "non_200": 0,
-          "octets": 30738318,
-          "p50_us": 1050,
-          "p95_us": 3157,
-          "p99_us": 5397,
+          "octets": 491984260,
+          "p50_us": 612,
+          "p95_us": 1654,
+          "p99_us": 2909,
           "par_route": {
+            "/api/agents/w0:p1/session?tail=65536": {
+              "max_us": 18727,
+              "n": 5125,
+              "p50_us": 1057,
+              "p95_us": 2009,
+              "p99_us": 3483
+            },
             "/api/conversations": {
-              "max_us": 15217,
-              "n": 3103,
-              "p50_us": 1679,
-              "p95_us": 3839,
-              "p99_us": 6079
+              "max_us": 10852,
+              "n": 5126,
+              "p50_us": 554,
+              "p95_us": 1484,
+              "p99_us": 2861
             },
             "/api/overview": {
-              "max_us": 8464,
-              "n": 3103,
-              "p50_us": 368,
-              "p95_us": 1711,
-              "p99_us": 3754
+              "max_us": 15721,
+              "n": 5126,
+              "p50_us": 262,
+              "p95_us": 861,
+              "p99_us": 1902
             }
           },
-          "requetes": 6206,
-          "rss_max_kio": 25984,
+          "requetes": 15377,
+          "rss_max_kio": 18320,
           "run": 0
         },
         {
-          "cpu_ms": 3630,
-          "echantillons": 10,
+          "cpu_ms": 7630,
+          "echantillons": 14,
           "froid": false,
-          "max_us": 14293,
+          "max_us": 31342,
+          "mode": "warm",
           "non_200": 0,
-          "octets": 38192653,
-          "p50_us": 850,
-          "p95_us": 2384,
-          "p99_us": 3961,
+          "octets": 498132963,
+          "p50_us": 580,
+          "p95_us": 1530,
+          "p99_us": 3008,
           "par_route": {
+            "/api/agents/w0:p1/session?tail=65536": {
+              "max_us": 31342,
+              "n": 5189,
+              "p50_us": 1013,
+              "p95_us": 1989,
+              "p99_us": 3772
+            },
             "/api/conversations": {
-              "max_us": 14293,
-              "n": 3855,
-              "p50_us": 1470,
-              "p95_us": 2881,
-              "p99_us": 4790
+              "max_us": 29215,
+              "n": 5190,
+              "p50_us": 536,
+              "p95_us": 1313,
+              "p99_us": 2876
             },
             "/api/overview": {
-              "max_us": 13633,
-              "n": 3856,
-              "p50_us": 297,
-              "p95_us": 1008,
-              "p99_us": 2085
+              "max_us": 8554,
+              "n": 5191,
+              "p50_us": 256,
+              "p95_us": 782,
+              "p99_us": 1809
             }
           },
-          "requetes": 7711,
-          "rss_max_kio": 26224,
+          "requetes": 15570,
+          "rss_max_kio": 18640,
           "run": 1
+        },
+        {
+          "cpu_ms": 7040,
+          "echantillons": 14,
+          "froid": false,
+          "max_us": 126060,
+          "mode": "warm",
+          "non_200": 0,
+          "octets": 452434481,
+          "p50_us": 611,
+          "p95_us": 1702,
+          "p99_us": 3816,
+          "par_route": {
+            "/api/agents/w0:p1/session?tail=65536": {
+              "max_us": 126060,
+              "n": 4713,
+              "p50_us": 1033,
+              "p95_us": 2227,
+              "p99_us": 5131
+            },
+            "/api/conversations": {
+              "max_us": 56569,
+              "n": 4713,
+              "p50_us": 551,
+              "p95_us": 1494,
+              "p99_us": 3596
+            },
+            "/api/overview": {
+              "max_us": 59852,
+              "n": 4715,
+              "p50_us": 263,
+              "p95_us": 872,
+              "p99_us": 2502
+            }
+          },
+          "requetes": 14141,
+          "rss_max_kio": 17792,
+          "run": 2
         }
       ],
       "sondes": [
         {
-          "corps": "{\"agents\":[{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p1\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-40446-1792429705344941000/sessions/banc-0.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p2\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-40446-1792429705344941000/sessions/banc-1.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 1 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p3\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-40446-1792429705344941000/sessions/banc-2.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 2 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p4\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-40446-1792429705344941000/sessions/banc-3.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 3 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w1:p1\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-40446-1792429705344941000/sessions/banc-4.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w1:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 4 — essai\",\"workspaceLabel\":\"banc-1\",\"workspaceId\":\"w1\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w1:p2\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-40446-1792429705344941000/sessions/banc-5.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w1:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 5 — essai\",\"workspaceLabel\":\"banc-1\",\"workspaceId\":\"w1\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w1:p3\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-40446-1792429705344941000/sessions/banc-6.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w1:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 6 — essai\",\"workspaceLabel\":\"banc-1\",\"workspaceId\"",
+          "corps": "{\"agents\":[{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p1\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-30234-1792433202712668000/sessions/banc-0.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p2\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-30234-1792433202712668000/sessions/banc-1.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 1 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p3\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-30234-1792433202712668000/sessions/banc-2.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 2 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p4\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-30234-1792433202712668000/sessions/banc-3.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 3 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w1:p1\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-30234-1792433202712668000/sessions/banc-4.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w1:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 4 — essai\",\"workspaceLabel\":\"banc-1\",\"workspaceId\":\"w1\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w1:p2\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-30234-1792433202712668000/sessions/banc-5.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w1:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 5 — essai\",\"workspaceLabel\":\"banc-1\",\"workspaceId\":\"w1\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w1:p3\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-30234-1792433202712668000/sessions/banc-6.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w1:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 6 — essai\",\"workspaceLabel\":\"banc-1\",\"workspaceId\"",
           "route": "/api/overview",
           "statut": 200
         },
         {
-          "corps": "{\"conversations\":[{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\nlecture repli repli focus catalogne opaque référence cause curseur état mesure rafraîchissement verdict verdict accessibilité rafraîchissement lecture rendu\",\"sessionState\":\"available\",\"timestamp\":1709715240000,\"title\":\"banc 0 — essai\",\"status\":\"idle\",\"workspaceId\":\"w0\",\"tabId\":\"w0:t1\",\"paneId\":\"w0:p1\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\nfeuille contrat résultat catalogne erreur p95 état erreur lecture lecture décodage fenêtre contrat lecture p95 résultat curseur session\",\"sessionState\":\"available\",\"timestamp\":1709713743000,\"title\":\"banc 1 — essai\",\"status\":\"idle\",\"workspaceId\":\"w0\",\"tabId\":\"w0:t1\",\"paneId\":\"w0:p2\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\ncurseur p95 lecture rafraîchissement cause cause accessibilité décodage opaque décodage fenêtre fenêtre opaque fenêtre erreur lecture lecture contrat\",\"sessionState\":\"available\",\"timestamp\":1709713743000,\"title\":\"banc 2 — essai\",\"status\":\"idle\",\"workspaceId\":\"w0\",\"tabId\":\"w0:t1\",\"paneId\":\"w0:p3\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"La coupure conserve le fil et le brouillon : c'est la règle, pas l'intention.\\n\\nrendu lecture verdict mesure référence rafraîchissement curseur décodage feuille opaque p95 résultat mesure lecture feuille p95 octets lecture\",\"sessionState\":\"available\",\"timestamp\":1709713803000,\"title\":\"banc 3 — essai\",\"status\":\"idle\",\"workspaceId\":\"w0\",\"tabId\":\"w0:t1\",\"paneId\":\"w0:p4\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\nrendu catalogne état focus référence accessibilité décodage résultat accessibilité repli lecture octets feuille erreur fenêtre état repli p95\",\"sessionState\":\"available\",\"timestamp\":1709713743000,\"title\":\"banc 4 — essai\",\"status\":\"idle\",\"workspaceId\":\"w1\",\"tabId\":\"w1:t1\",\"paneId\":\"w1:p1\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\ncontrat focus accessibilité curseur repli fenêtre mesure octets feuille rafraîchissement état décodage erreur p95 contrat rendu référence référence\",\"sessionState\":\"available\",\"timestamp\":1709713743000,\"title\":\"banc 5 — essai\",\"status\":\"idle\",\"workspaceId\":\"w1\",\"tabId\":\"w1:t1\",\"paneId\":\"w1:p2\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\ncatalogne octets référence vérification contrat session",
+          "corps": "{\"conversations\":[{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"La coupure conserve le fil et le brouillon : c'est la règle, pas l'intention.\\n\\nréférence repli fenêtre état repli décodage état erreur lecture octets octets cause référence mesure résultat feuille lecture repli\",\"sessionState\":\"available\",\"timestamp\":1709715243000,\"title\":\"banc 0 — essai\",\"status\":\"idle\",\"workspaceId\":\"w0\",\"tabId\":\"w0:t1\",\"paneId\":\"w0:p1\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\nfeuille contrat résultat catalogne erreur p95 état erreur lecture lecture décodage fenêtre contrat lecture p95 résultat curseur session\",\"sessionState\":\"available\",\"timestamp\":1709713743000,\"title\":\"banc 1 — essai\",\"status\":\"idle\",\"workspaceId\":\"w0\",\"tabId\":\"w0:t1\",\"paneId\":\"w0:p2\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\ncurseur p95 lecture rafraîchissement cause cause accessibilité décodage opaque décodage fenêtre fenêtre opaque fenêtre erreur lecture lecture contrat\",\"sessionState\":\"available\",\"timestamp\":1709713743000,\"title\":\"banc 2 — essai\",\"status\":\"idle\",\"workspaceId\":\"w0\",\"tabId\":\"w0:t1\",\"paneId\":\"w0:p3\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"La coupure conserve le fil et le brouillon : c'est la règle, pas l'intention.\\n\\nrendu lecture verdict mesure référence rafraîchissement curseur décodage feuille opaque p95 résultat mesure lecture feuille p95 octets lecture\",\"sessionState\":\"available\",\"timestamp\":1709713803000,\"title\":\"banc 3 — essai\",\"status\":\"idle\",\"workspaceId\":\"w0\",\"tabId\":\"w0:t1\",\"paneId\":\"w0:p4\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\nrendu catalogne état focus référence accessibilité décodage résultat accessibilité repli lecture octets feuille erreur fenêtre état repli p95\",\"sessionState\":\"available\",\"timestamp\":1709713743000,\"title\":\"banc 4 — essai\",\"status\":\"idle\",\"workspaceId\":\"w1\",\"tabId\":\"w1:t1\",\"paneId\":\"w1:p1\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\ncontrat focus accessibilité curseur repli fenêtre mesure octets feuille rafraîchissement état décodage erreur p95 contrat rendu référence référence\",\"sessionState\":\"available\",\"timestamp\":1709713743000,\"title\":\"banc 5 — essai\",\"status\":\"idle\",\"workspaceId\":\"w1\",\"tabId\":\"w1:t1\",\"paneId\":\"w1:p2\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\ncatalogne octets référence vérification contrat session fenêtre repli résultat ",
           "route": "/api/conversations",
           "statut": 200
+        },
+        {
+          "corps": "{\"cause\":\"vide\",\"entries\":[{\"type\":\"message\",\"id\":\"msg-1506-r\",\"parentId\":\"msg-1506-a\",\"raw\":\"{\\\"message\\\":{\\\"content\\\":[{\\\"output\\\":\\\"état lecture rendu accessibilité opaque résultat résultat curseur p95 état rafraîchissement cause cause contrat résultat lecture rafraîchissement feuille\\\",\\\"toolCallId\\\":\\\"call-1506\\\",\\\"toolName\\\":\\\"edit\\\"}],\\\"role\\\":\\\"toolResult\\\",\\\"toolName\\\":\\\"edit\\\"},\\\"id\\\":\\\"msg-1506-r\\\",\\\"parentId\\\":\\\"msg-1506-a\\\",\\\"timestamp\\\":\\\"2024-03-05T08:06:03.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:06:03.000Z\"},{\"type\":\"message\",\"id\":\"msg-1507-u\",\"raw\":\"{\\\"content\\\":[{\\\"text\\\":\\\"Un événement nommé prouve que le flux vit ; un `message` seul ne prouve rien. (1507)\\\",\\\"type\\\":\\\"text\\\"}],\\\"id\\\":\\\"msg-1507-u\\\",\\\"role\\\":\\\"user\\\",\\\"timestamp\\\":\\\"2024-03-05T08:07:00.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:07:00.000Z\"},{\"type\":\"message\",\"id\":\"msg-1507-a\",\"raw\":\"{\\\"message\\\":{\\\"content\\\":[{\\\"thinking\\\":\\\"accessibilité p95 opaque accessibilité verdict résultat lecture accessibilité repli verdict catalogne session résultat mesure catalogne mesure p95 vérification\\\",\\\"type\\\":\\\"thinking\\\"},{\\\"text\\\":\\\"Un événement nommé prouve que le flux vit ; un `message` seul ne prouve rien.\\\\n\\\\nfeuille état p95 contrat lecture état état décodage fenêtre focus lecture rendu contrat mesure vérification erreur session fenêtre\\\",\\\"type\\\":\\\"text\\\"},{\\\"arguments\\\":{\\\"path\\\":\\\"/dev/projets/pixel/src/fichier-7.ts\\\"},\\\"id\\\":\\\"call-1507\\\",\\\"name\\\":\\\"bash\\\",\\\"type\\\":\\\"toolCall\\\"}],\\\"model\\\":\\\"gpt-5\\\",\\\"role\\\":\\\"assistant\\\",\\\"stopReason\\\":\\\"toolUse\\\",\\\"usage\\\":{\\\"cost\\\":{\\\"total\\\":0.037},\\\"totalTokens\\\":1007}},\\\"id\\\":\\\"msg-1507-a\\\",\\\"timestamp\\\":\\\"2024-03-05T08:07:02.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:07:02.000Z\"},{\"type\":\"message\",\"id\":\"msg-1507-r\",\"parentId\":\"msg-1507-a\",\"raw\":\"{\\\"message\\\":{\\\"content\\\":[{\\\"output\\\":\\\"curseur rendu mesure référence erreur fenêtre rafraîchissement référence lecture contrat verdict référence état feuille résultat catalogne erreur verdict\\\",\\\"toolCallId\\\":\\\"call-1507\\\",\\\"toolName\\\":\\\"bash\\\"}],\\\"role\\\":\\\"toolResult\\\",\\\"toolName\\\":\\\"bash\\\"},\\\"id\\\":\\\"msg-1507-r\\\",\\\"parentId\\\":\\\"msg-1507-a\\\",\\\"timestamp\\\":\\\"2024-03-05T08:07:03.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:07:03.000Z\"},{\"type\":\"message\",\"id\":\"msg-1508-u\",\"raw\":\"{\\\"content\\\":[{\\\"text\\\":\\\"Le plafond existe pour que la liste reste lisible, pas pour gonfler le nombre. (1508)\\\",\\\"type\\\":\\\"text\\\"}],\\\"id\\\":\\\"msg-1508-u\\\",\\\"role\\\":\\\"user\\\",\\\"timestamp\\\":\\\"2024-03-05T08:08:00.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:08:00.000Z\"},{\"type\":\"message\",\"id\":\"msg-1508-a\",\"raw\":\"{\\\"message\\\":{\\\"content\\\":[{\\\"thinking\\\":\\\"fenêtre erreur décodage cause feuille focus fenêtre curseur octets octets catalogne erreur cause session lecture rafraîchissement rafraîchissement mesure\\\",\\\"type\\\":\\\"thinking\\\"},{\\\"text\\\":\\\"Le plafond existe pour que la liste reste lisible, pas pour gonfler le nombre.\\\\n\\\\ncause vérification op",
+          "route": "/api/agents/w0:p1/session?tail=65536",
+          "statut": 200
         }
-      ]
+      ],
+      "verrou_tenu": null
     },
     {
-      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=50840 HERDR_REMOTE_BIND=127.0.0.1 bun run apps/server/src/main.ts",
-      "demandes_fixture": 2169,
+      "agregats": {
+        "cold": {
+          "cpu_ms": 5430,
+          "p50_us": 4683,
+          "p95_us": 13608,
+          "p99_us": 22796,
+          "requetes": 1994,
+          "rss_max_kio": 142864,
+          "runs": 1
+        },
+        "warm": {
+          "cpu_ms": 11460,
+          "p50_us": 4266,
+          "p95_us": 11484,
+          "p99_us": 18507,
+          "requetes": 4594,
+          "rss_max_kio": 153296,
+          "runs": 2
+        }
+      },
+      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=53296 HERDR_REMOTE_BIND=127.0.0.1 bun run apps/server/src/main.ts",
+      "demandes_fixture": 6598,
       "dossier": "",
       "journal_serveur": "",
       "pile": "ts",
-      "pret_ms": 316,
+      "pret_ms": 323,
       "routes": [
         "/api/overview",
-        "/api/conversations"
+        "/api/conversations",
+        "/api/agents/w0:p1/session?tail=65536"
       ],
       "runs": [
         {
-          "cpu_ms": 3060,
-          "echantillons": 9,
+          "cpu_ms": 5430,
+          "echantillons": 14,
           "froid": true,
-          "max_us": 71228,
+          "max_us": 64161,
+          "mode": "cold",
           "non_200": 0,
-          "octets": 4617684,
-          "p50_us": 6935,
-          "p95_us": 19402,
-          "p99_us": 33194,
+          "octets": 64581488,
+          "p50_us": 4683,
+          "p95_us": 13608,
+          "p99_us": 22796,
           "par_route": {
+            "/api/agents/w0:p1/session?tail=65536": {
+              "max_us": 40897,
+              "n": 664,
+              "p50_us": 3372,
+              "p95_us": 9688,
+              "p99_us": 17711
+            },
             "/api/conversations": {
-              "max_us": 71228,
-              "n": 471,
-              "p50_us": 9535,
-              "p95_us": 23922,
-              "p99_us": 51537
+              "max_us": 64161,
+              "n": 664,
+              "p50_us": 8117,
+              "p95_us": 18304,
+              "p99_us": 33102
             },
             "/api/overview": {
-              "max_us": 26852,
-              "n": 471,
-              "p50_us": 4637,
-              "p95_us": 8463,
-              "p99_us": 21431
+              "max_us": 30192,
+              "n": 666,
+              "p50_us": 3750,
+              "p95_us": 6986,
+              "p99_us": 12363
             }
           },
-          "requetes": 942,
-          "rss_max_kio": 140768,
+          "requetes": 1994,
+          "rss_max_kio": 142864,
           "run": 0
         },
         {
-          "cpu_ms": 3890,
-          "echantillons": 10,
+          "cpu_ms": 5860,
+          "echantillons": 14,
           "froid": false,
-          "max_us": 36036,
+          "max_us": 97069,
+          "mode": "warm",
           "non_200": 0,
-          "octets": 5980440,
-          "p50_us": 5569,
-          "p95_us": 12502,
-          "p99_us": 19006,
+          "octets": 75677336,
+          "p50_us": 4058,
+          "p95_us": 10209,
+          "p99_us": 16706,
           "par_route": {
+            "/api/agents/w0:p1/session?tail=65536": {
+              "max_us": 96265,
+              "n": 778,
+              "p50_us": 2830,
+              "p95_us": 6577,
+              "p99_us": 13514
+            },
             "/api/conversations": {
-              "max_us": 36036,
-              "n": 610,
-              "p50_us": 8260,
-              "p95_us": 14224,
-              "p99_us": 24516
+              "max_us": 97069,
+              "n": 779,
+              "p50_us": 7152,
+              "p95_us": 12488,
+              "p99_us": 21134
             },
             "/api/overview": {
-              "max_us": 15564,
-              "n": 610,
-              "p50_us": 4105,
-              "p95_us": 6029,
-              "p99_us": 7771
+              "max_us": 30452,
+              "n": 781,
+              "p50_us": 3550,
+              "p95_us": 6384,
+              "p99_us": 12159
             }
           },
-          "requetes": 1220,
-          "rss_max_kio": 141712,
+          "requetes": 2338,
+          "rss_max_kio": 148928,
           "run": 1
+        },
+        {
+          "cpu_ms": 5600,
+          "echantillons": 15,
+          "froid": false,
+          "max_us": 34250,
+          "mode": "warm",
+          "non_200": 0,
+          "octets": 72964252,
+          "p50_us": 4266,
+          "p95_us": 11484,
+          "p99_us": 18507,
+          "par_route": {
+            "/api/agents/w0:p1/session?tail=65536": {
+              "max_us": 34250,
+              "n": 750,
+              "p50_us": 2987,
+              "p95_us": 8530,
+              "p99_us": 16778
+            },
+            "/api/conversations": {
+              "max_us": 26418,
+              "n": 752,
+              "p50_us": 7631,
+              "p95_us": 14605,
+              "p99_us": 20729
+            },
+            "/api/overview": {
+              "max_us": 21201,
+              "n": 754,
+              "p50_us": 3679,
+              "p95_us": 6145,
+              "p99_us": 12433
+            }
+          },
+          "requetes": 2256,
+          "rss_max_kio": 153296,
+          "run": 2
         }
       ],
       "sondes": [
         {
-          "corps": "{\"agents\":[{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p1\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-40446-1792429705344941000/sessions/banc-0.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p2\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-40446-1792429705344941000/sessions/banc-1.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 1 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p3\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-40446-1792429705344941000/sessions/banc-2.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 2 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p4\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-40446-1792429705344941000/sessions/banc-3.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 3 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w1:p1\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-40446-1792429705344941000/sessions/banc-4.jsonl\",\"status\":\"idle\",\"tabId\":\"w1:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 4 — essai\",\"workspaceId\":\"w1\",\"workspaceLabel\":\"banc-1\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w1:p2\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-40446-1792429705344941000/sessions/banc-5.jsonl\",\"status\":\"idle\",\"tabId\":\"w1:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 5 — essai\",\"workspaceId\":\"w1\",\"workspaceLabel\":\"banc-1\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w1:p3\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-40446-1792429705344941000/sessions/banc-6.jsonl\",\"status\":\"idle\",\"tabId\":\"w1:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 6 — essai\",\"wor",
+          "corps": "{\"agents\":[{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p1\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-30234-1792433202712668000/sessions/banc-0.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p2\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-30234-1792433202712668000/sessions/banc-1.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 1 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p3\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-30234-1792433202712668000/sessions/banc-2.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 2 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p4\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-30234-1792433202712668000/sessions/banc-3.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 3 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w1:p1\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-30234-1792433202712668000/sessions/banc-4.jsonl\",\"status\":\"idle\",\"tabId\":\"w1:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 4 — essai\",\"workspaceId\":\"w1\",\"workspaceLabel\":\"banc-1\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w1:p2\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-30234-1792433202712668000/sessions/banc-5.jsonl\",\"status\":\"idle\",\"tabId\":\"w1:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 5 — essai\",\"workspaceId\":\"w1\",\"workspaceLabel\":\"banc-1\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w1:p3\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-30234-1792433202712668000/sessions/banc-6.jsonl\",\"status\":\"idle\",\"tabId\":\"w1:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 6 — essai\",\"wor",
           "route": "/api/overview",
           "statut": 200
         },
@@ -178,12 +334,18 @@
           "corps": "{\"conversations\":[{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneId\":\"w0:p1\",\"paneRank\":null,\"preview\":\"La coupure conserve le fil et le brouillon : c'est la règle, pas l'intention.\\n\\nréférence repli fenêtre état repli décodage état erreur lecture octets octets cause référence mesure résultat feuille lecture repli\",\"sessionState\":\"available\",\"status\":\"idle\",\"tabId\":\"\",\"tabPaneCount\":1,\"timestamp\":1709628843000,\"title\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneId\":\"w0:p2\",\"paneRank\":null,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\nfeuille contrat résultat catalogne erreur p95 état erreur lecture lecture décodage fenêtre contrat lecture p95 résultat curseur session\",\"sessionState\":\"available\",\"status\":\"idle\",\"tabId\":\"\",\"tabPaneCount\":1,\"timestamp\":1709627343000,\"title\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneId\":\"w0:p3\",\"paneRank\":null,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\ncurseur p95 lecture rafraîchissement cause cause accessibilité décodage opaque décodage fenêtre fenêtre opaque fenêtre erreur lecture lecture contrat\",\"sessionState\":\"available\",\"status\":\"idle\",\"tabId\":\"\",\"tabPaneCount\":1,\"timestamp\":1709627343000,\"title\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneId\":\"w0:p4\",\"paneRank\":null,\"preview\":\"La coupure conserve le fil et le brouillon : c'est la règle, pas l'intention.\\n\\nrendu lecture verdict mesure référence rafraîchissement curseur décodage feuille opaque p95 résultat mesure lecture feuille p95 octets lecture\",\"sessionState\":\"available\",\"status\":\"idle\",\"tabId\":\"\",\"tabPaneCount\":1,\"timestamp\":1709627403000,\"title\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneId\":\"w1:p1\",\"paneRank\":null,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\nrendu catalogne état focus référence accessibilité décodage résultat accessibilité repli lecture octets feuille erreur fenêtre état repli p95\",\"sessionState\":\"available\",\"status\":\"idle\",\"tabId\":\"\",\"tabPaneCount\":1,\"timestamp\":1709627343000,\"title\":\"banc-1\",\"workspaceId\":\"w1\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneId\":\"w1:p2\",\"paneRank\":null,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\ncontrat focus accessibilité curseur repli fenêtre mesure octets feuille rafraîchissement état décodage erreur p95 contrat rendu référence référence\",\"sessionState\":\"available\",\"status\":\"idle\",\"tabId\":\"\",\"tabPaneCount\":1,\"timestamp\":1709627343000,\"title\":\"banc-1\",\"workspaceId\":\"w1\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneId\":\"w1:p3\",\"paneRank\":null,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\ncatalogne octets référence vérification contrat session fenêtre repli résultat feuille p95 décodage référence session mesure référence mesure vérification\",\"",
           "route": "/api/conversations",
           "statut": 200
+        },
+        {
+          "corps": "{\"cause\":\"vide\",\"cursor\":\"eyJkZXYiOjE2Nzc3MjI5LCJpbm8iOjk4MTIyMDg0LCJvZmZzZXQiOjIwOTg0NjZ9\",\"entries\":[{\"id\":\"msg-1506-r\",\"parentId\":\"msg-1506-a\",\"raw\":\"{\\\"message\\\":{\\\"content\\\":[{\\\"output\\\":\\\"état lecture rendu accessibilité opaque résultat résultat curseur p95 état rafraîchissement cause cause contrat résultat lecture rafraîchissement feuille\\\",\\\"toolCallId\\\":\\\"call-1506\\\",\\\"toolName\\\":\\\"edit\\\"}],\\\"role\\\":\\\"toolResult\\\",\\\"toolName\\\":\\\"edit\\\"},\\\"id\\\":\\\"msg-1506-r\\\",\\\"parentId\\\":\\\"msg-1506-a\\\",\\\"timestamp\\\":\\\"2024-03-05T08:06:03.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:06:03.000Z\",\"type\":\"message\"},{\"id\":\"msg-1507-u\",\"parentId\":null,\"raw\":\"{\\\"content\\\":[{\\\"text\\\":\\\"Un événement nommé prouve que le flux vit ; un `message` seul ne prouve rien. (1507)\\\",\\\"type\\\":\\\"text\\\"}],\\\"id\\\":\\\"msg-1507-u\\\",\\\"role\\\":\\\"user\\\",\\\"timestamp\\\":\\\"2024-03-05T08:07:00.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:07:00.000Z\",\"type\":\"message\"},{\"id\":\"msg-1507-a\",\"parentId\":null,\"raw\":\"{\\\"message\\\":{\\\"content\\\":[{\\\"thinking\\\":\\\"accessibilité p95 opaque accessibilité verdict résultat lecture accessibilité repli verdict catalogne session résultat mesure catalogne mesure p95 vérification\\\",\\\"type\\\":\\\"thinking\\\"},{\\\"text\\\":\\\"Un événement nommé prouve que le flux vit ; un `message` seul ne prouve rien.\\\\n\\\\nfeuille état p95 contrat lecture état état décodage fenêtre focus lecture rendu contrat mesure vérification erreur session fenêtre\\\",\\\"type\\\":\\\"text\\\"},{\\\"arguments\\\":{\\\"path\\\":\\\"/dev/projets/pixel/src/fichier-7.ts\\\"},\\\"id\\\":\\\"call-1507\\\",\\\"name\\\":\\\"bash\\\",\\\"type\\\":\\\"toolCall\\\"}],\\\"model\\\":\\\"gpt-5\\\",\\\"role\\\":\\\"assistant\\\",\\\"stopReason\\\":\\\"toolUse\\\",\\\"usage\\\":{\\\"cost\\\":{\\\"total\\\":0.037},\\\"totalTokens\\\":1007}},\\\"id\\\":\\\"msg-1507-a\\\",\\\"timestamp\\\":\\\"2024-03-05T08:07:02.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:07:02.000Z\",\"type\":\"message\"},{\"id\":\"msg-1507-r\",\"parentId\":\"msg-1507-a\",\"raw\":\"{\\\"message\\\":{\\\"content\\\":[{\\\"output\\\":\\\"curseur rendu mesure référence erreur fenêtre rafraîchissement référence lecture contrat verdict référence état feuille résultat catalogne erreur verdict\\\",\\\"toolCallId\\\":\\\"call-1507\\\",\\\"toolName\\\":\\\"bash\\\"}],\\\"role\\\":\\\"toolResult\\\",\\\"toolName\\\":\\\"bash\\\"},\\\"id\\\":\\\"msg-1507-r\\\",\\\"parentId\\\":\\\"msg-1507-a\\\",\\\"timestamp\\\":\\\"2024-03-05T08:07:03.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:07:03.000Z\",\"type\":\"message\"},{\"id\":\"msg-1508-u\",\"parentId\":null,\"raw\":\"{\\\"content\\\":[{\\\"text\\\":\\\"Le plafond existe pour que la liste reste lisible, pas pour gonfler le nombre. (1508)\\\",\\\"type\\\":\\\"text\\\"}],\\\"id\\\":\\\"msg-1508-u\\\",\\\"role\\\":\\\"user\\\",\\\"timestamp\\\":\\\"2024-03-05T08:08:00.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:08:00.000Z\",\"type\":\"message\"},{\"id\":\"msg-1508-a\",\"parentId\":null,\"raw\":\"{\\\"message\\\":{\\\"content\\\":[{\\\"thinking\\\":\\\"fenêtre erreur décodage cause feuille focus fenêtre curseur octets octets catalogne erreur cause session lecture rafraîchissement rafraîchissement mesure\\\",\\\"type\\\":\\\"thinki",
+          "route": "/api/agents/w0:p1/session?tail=65536",
+          "statut": 200
         }
-      ]
+      ],
+      "verrou_tenu": null
     }
   ],
-  "runs": 2,
+  "runs": 3,
   "scenario": "base",
   "schemaVersion": 1,
-  "secondes": 2
+  "secondes": 3
 }

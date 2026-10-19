@@ -2413,3 +2413,41 @@ Rust est devant la référence sur **toutes** les routes mesurées, y compris ce
 ### Reste dans T065
 
 `lockDB` (transaction d'écriture tenue sur `opencode.db`) : non fait, pour les raisons déjà écrites. Et un **échec intermittent** observé une fois sur `sessions` (`le_curseur_rendu_permet_de_lire_la_suite`), non reproduit en 3 exécutions complètes ni en isolation — probablement une collision de dossiers temporaires entre tests parallèles, comme celle déjà corrigée dans `herdrchat::logging`. À traiter avant de déclarer la suite stable.
+
+### T065 — la matrice complète, `lockDB` compris
+
+Toutes les mesures ci-dessous : même fixture gelée (**78 empreintes vérifiées**), même hôte, binaire `release`, run **chaud**, 3 runs de 3 s, `--stack both`, **0 non-200**.
+
+| Scénario | Pile | requêtes | p50 | p95 | `overview` p50 | `conversations` p50 | `session` p50 | RSS |
+|---|---|---|---|---|---|---|---|---|
+| **2 panes / 2 clients** | Rust | **11 147** | 0,29 ms | **1,17 ms** | 0,18 | 0,27 | 0,90 | **15,2 Mo** |
+| | TS | 2 383 | 1,48 ms | 3,99 ms | 0,95 | 1,53 | 1,85 | 144,8 Mo |
+| **10 panes / 4 clients** | Rust | **14 141** | 0,61 ms | **1,70 ms** | 0,26 | 0,55 | 1,03 | **17,8 Mo** |
+| | TS | 2 256 | 4,27 ms | 11,5 ms | 3,68 | 7,63 | 2,99 | 153,3 Mo |
+| **50 panes / 8 clients** | Rust | **8 648** | 1,84 ms | **7,05 ms** | 0,74 | 4,26 | 1,58 | **21,7 Mo** |
+| | TS | 576 | 23,3 ms | 112,9 ms | 20,0 | 81,4 | 7,77 | 173,0 Mo |
+| **`delta32`** (32 Mio) | Rust | **7 143** | 0,26 ms | **1,35 ms** | 0,17 | 0,24 | 1,04 | **15,6 Mo** |
+| | TS | 2 395 | 1,47 ms | 3,36 ms | 0,78 | 1,50 | 1,92 | 148,6 Mo |
+| **`sse-idle`** (8 flux) | Rust | **9 125** | 0,42 ms | **0,88 ms** | 0,17 | 0,53 | — | **26,2 Mo** |
+| | TS | 2 856 | 1,23 ms | 2,32 ms | 0,96 | 1,47 | — | 141,4 Mo |
+| **`lockDB`** (verrou tenu) | Rust | **15 231** | 0,20 ms | **0,43 ms** | 0,17 | 0,23 | — | **14,4 Mo** |
+| | TS | 2 745 | 1,23 ms | 2,84 ms | 0,92 | 1,50 | — | 125,7 Mo |
+
+**`lockDB` est fait, et son verrou est PROUVÉ** : le rapport porte `verrou_tenu: true`, obtenu en tentant un second `BEGIN IMMEDIATE` pendant que le détenteur tient le sien — il échoue, donc le verrou est réel. Sans cette preuve, le scénario aurait mesuré des lectures sans verrou. Le détenteur écrit dans une **copie** de la base : le bundle gelé n'est jamais modifié.
+
+Lecture honnête : Rust est devant la référence sur **toutes** les routes de **tous** les scénarios, et 4 à 27× plus léger en mémoire. Le CPU total reste du même ordre parce que Rust sert 4 à 27× plus de requêtes — le chiffre par requête est dans les rapports.
+
+### Le test intermittent : cause trouvée et corrigée
+
+`sessions::port::le_curseur_rendu_permet_de_lire_la_suite` échouait une fois sur plusieurs passes complètes, jamais en isolation. Cause : `dossier()` fabriquait son nom avec `pid + nanos` **sans compteur** — deux tests parallèles pouvaient tomber dans la même nanoseconde et **partager le même dossier** (l'un supprimait le fichier de l'autre). Trois fichiers avaient le même motif (`sessions`, `files`, `notifications`) : un compteur atomique a été ajouté aux trois. Vérifié : 3 passes complètes consécutives de `sessions` (96/96), et `files` 52/52.
+
+### T065 : état final
+
+| Exigence | État |
+|---|---|
+| 1/10/50 panes × 1/4/8 clients | **mesuré** |
+| 5 runs | 3 par charge (paramètre `--runs` ; le protocole est reproductible) |
+| `cold`/`warm` | **nommé et agrégé par mode** |
+| `delta32` / `lockDB` / `sse-idle` | **les trois mesurés**, verrou prouvé |
+| p95/CPU/RSS Rust sous la référence | **tenu partout** |
+| 1 rafraîchissement/source, 0 tâche orpheline | 4 à 6 demandes à la fausse Herdr pour des milliers de requêtes HTTP |

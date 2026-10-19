@@ -29,6 +29,9 @@ pub struct Plan {
     pub panes: usize,
     /// Les fichiers de session publiés, un par pane (cyclique).
     pub sessions: Vec<PathBuf>,
+    /// Une session **SQLite** (`kind: id`) pour le premier pane — le scénario
+    /// `lockDB` lit une base opencode, pas un fichier.
+    pub sqlite_session: Option<String>,
 }
 
 /// Une fausse Herdr en cours d'exécution.
@@ -182,7 +185,7 @@ fn photo(plan: &Plan) -> Value {
 }
 
 fn agents(plan: &Plan) -> Vec<Value> {
-    (0..plan.panes)
+    let mut liste: Vec<Value> = (0..plan.panes)
         .map(|indice| {
             let session = plan
                 .sessions
@@ -214,7 +217,24 @@ fn agents(plan: &Plan) -> Vec<Value> {
             }
             agent
         })
-        .collect()
+        .collect();
+    // Le premier pane lit la base opencode : `kind: id` (mesuré), la valeur
+    // étant l'identifiant de session chez le magasin.
+    if let Some(session) = plan.sqlite_session.as_ref()
+        && let Some(premier) = liste.first_mut().and_then(Value::as_object_mut)
+    {
+        premier.insert(String::from("agent"), json!("opencode"));
+        premier.insert(
+            String::from("agent_session"),
+            json!({
+                "agent": "opencode",
+                "kind": "id",
+                "source": "herdr:opencode",
+                "value": session,
+            }),
+        );
+    }
+    liste
 }
 
 /// Les panes de la photo.

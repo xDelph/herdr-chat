@@ -17,14 +17,19 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+/// Compteur de dossiers : deux tests lancés dans la même nanoseconde
+/// partageaient leur dossier temporaire — un échec intermittent observé une
+/// fois sur `sessions` (test vert en isolation, rouge en parallèle).
+static COMPTEUR_DOSSIERS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 fn dossier() -> PathBuf {
     let unique = format!(
-        "notif-port-{}-{}",
+        "notif-port-{}-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|duree| duree.as_nanos())
-            .unwrap_or(0)
+            .unwrap_or(0),
+        COMPTEUR_DOSSIERS.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
     );
     let chemin = std::env::temp_dir().join(unique);
     std::fs::create_dir_all(&chemin).unwrap_or_else(|cause| panic!("dossier : {cause}"));

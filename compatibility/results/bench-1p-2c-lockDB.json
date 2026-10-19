@@ -1,0 +1,235 @@
+{
+  "arch": "aarch64",
+  "clients": 2,
+  "fixture": {
+    "bundle": "compatibility/benchmark/fixtures",
+    "delta_verifie": false,
+    "fichiers_verifies": 78
+  },
+  "hote": "macos",
+  "panes": 1,
+  "piles": [
+    {
+      "agregats": {
+        "cold": {
+          "cpu_ms": 1870,
+          "p50_us": 201,
+          "p95_us": 384,
+          "p99_us": 784,
+          "requetes": 16190,
+          "rss_max_kio": 14320,
+          "runs": 1
+        },
+        "warm": {
+          "cpu_ms": 1690,
+          "p50_us": 200,
+          "p95_us": 428,
+          "p99_us": 1003,
+          "requetes": 15231,
+          "rss_max_kio": 14368,
+          "runs": 1
+        }
+      },
+      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=63166 HERDR_REMOTE_BIND=127.0.0.1 target/{release,debug}/herdrchat",
+      "demandes_fixture": 4,
+      "dossier": "",
+      "journal_serveur": "",
+      "pile": "rust",
+      "pret_ms": 0,
+      "routes": [
+        "/api/overview",
+        "/api/conversations"
+      ],
+      "runs": [
+        {
+          "cpu_ms": 1870,
+          "echantillons": 10,
+          "froid": true,
+          "max_us": 28225,
+          "mode": "cold",
+          "non_200": 0,
+          "octets": 10952535,
+          "p50_us": 201,
+          "p95_us": 384,
+          "p99_us": 784,
+          "par_route": {
+            "/api/conversations": {
+              "max_us": 25603,
+              "n": 8095,
+              "p50_us": 232,
+              "p95_us": 441,
+              "p99_us": 901
+            },
+            "/api/overview": {
+              "max_us": 28225,
+              "n": 8095,
+              "p50_us": 164,
+              "p95_us": 305,
+              "p99_us": 658
+            }
+          },
+          "requetes": 16190,
+          "rss_max_kio": 14320,
+          "run": 0
+        },
+        {
+          "cpu_ms": 1690,
+          "echantillons": 10,
+          "froid": false,
+          "max_us": 31789,
+          "mode": "warm",
+          "non_200": 0,
+          "octets": 10303888,
+          "p50_us": 200,
+          "p95_us": 428,
+          "p99_us": 1003,
+          "par_route": {
+            "/api/conversations": {
+              "max_us": 31789,
+              "n": 7615,
+              "p50_us": 232,
+              "p95_us": 494,
+              "p99_us": 1164
+            },
+            "/api/overview": {
+              "max_us": 31715,
+              "n": 7616,
+              "p50_us": 165,
+              "p95_us": 341,
+              "p99_us": 810
+            }
+          },
+          "requetes": 15231,
+          "rss_max_kio": 14368,
+          "run": 1
+        }
+      ],
+      "sondes": [
+        {
+          "corps": "{\"agents\":[{\"agent\":\"opencode\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p1\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"ses_1\",\"sessionKind\":\"id\",\"sessionPath\":\"/tmp/herdr-banc-98553-1792433163006639000/opencode.db\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"}],\"herdrProtocol\":22,\"herdrVersion\":\"0.9.3\",\"withoutSession\":0,\"workspaces\":[{\"agentPanes\":[\"w0:p1\"],\"agentStatus\":null,\"checkoutPath\":\"/tmp/banc\",\"focused\":false,\"label\":\"banc-0\",\"paneCount\":4,\"tabCount\":1,\"workspaceId\":\"w0\"}]}",
+          "route": "/api/overview",
+          "statut": 200
+        },
+        {
+          "corps": "{\"conversations\":[{\"agent\":\"opencode\",\"lastPrompt\":\"La coupure conserve le fil et le brouillon : c'est la règle, pas l'intention. (s1)\",\"model\":\"synth-1\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"provider\":\"synthetic\",\"preview\":\"réponse synthétique s1 r116\",\"thinking\":\"max\",\"sessionState\":\"available\",\"timestamp\":1760618606740,\"title\":\"banc 0 — essai\",\"status\":\"idle\",\"workspaceId\":\"w0\",\"tabId\":\"w0:t1\",\"paneId\":\"w0:p1\"}]}",
+          "route": "/api/conversations",
+          "statut": 200
+        }
+      ],
+      "verrou_tenu": true
+    },
+    {
+      "agregats": {
+        "cold": {
+          "cpu_ms": 1830,
+          "p50_us": 1476,
+          "p95_us": 4832,
+          "p99_us": 11881,
+          "requetes": 1983,
+          "rss_max_kio": 122336,
+          "runs": 1
+        },
+        "warm": {
+          "cpu_ms": 1940,
+          "p50_us": 1225,
+          "p95_us": 2841,
+          "p99_us": 6248,
+          "requetes": 2745,
+          "rss_max_kio": 125744,
+          "runs": 1
+        }
+      },
+      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=62162 HERDR_REMOTE_BIND=127.0.0.1 bun run apps/server/src/main.ts",
+      "demandes_fixture": 4735,
+      "dossier": "",
+      "journal_serveur": "",
+      "pile": "ts",
+      "pret_ms": 2,
+      "routes": [
+        "/api/overview",
+        "/api/conversations"
+      ],
+      "runs": [
+        {
+          "cpu_ms": 1830,
+          "echantillons": 10,
+          "froid": true,
+          "max_us": 33351,
+          "mode": "cold",
+          "non_200": 0,
+          "octets": 1359467,
+          "p50_us": 1476,
+          "p95_us": 4832,
+          "p99_us": 11881,
+          "par_route": {
+            "/api/conversations": {
+              "max_us": 33351,
+              "n": 991,
+              "p50_us": 1749,
+              "p95_us": 6052,
+              "p99_us": 14282
+            },
+            "/api/overview": {
+              "max_us": 32482,
+              "n": 992,
+              "p50_us": 1160,
+              "p95_us": 3934,
+              "p99_us": 8293
+            }
+          },
+          "requetes": 1983,
+          "rss_max_kio": 122336,
+          "run": 0
+        },
+        {
+          "cpu_ms": 1940,
+          "echantillons": 10,
+          "froid": false,
+          "max_us": 14023,
+          "mode": "warm",
+          "non_200": 0,
+          "octets": 1881818,
+          "p50_us": 1225,
+          "p95_us": 2841,
+          "p99_us": 6248,
+          "par_route": {
+            "/api/conversations": {
+              "max_us": 14023,
+              "n": 1372,
+              "p50_us": 1498,
+              "p95_us": 3405,
+              "p99_us": 7593
+            },
+            "/api/overview": {
+              "max_us": 8776,
+              "n": 1373,
+              "p50_us": 924,
+              "p95_us": 2291,
+              "p99_us": 4310
+            }
+          },
+          "requetes": 2745,
+          "rss_max_kio": 125744,
+          "run": 1
+        }
+      ],
+      "sondes": [
+        {
+          "corps": "{\"agents\":[{\"agent\":\"opencode\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p1\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"ses_1\",\"sessionKind\":\"id\",\"sessionPath\":\"/tmp/herdr-banc-98553-1792433163006639000/opencode.db\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"}],\"herdrProtocol\":22,\"herdrVersion\":\"0.9.3\",\"withoutSession\":0,\"workspaces\":[{\"agentPanes\":[\"w0:p1\"],\"agentStatus\":null,\"checkoutPath\":null,\"focused\":false,\"label\":\"banc-0\",\"paneCount\":4,\"tabCount\":1,\"workspaceId\":\"w0\"}]}",
+          "route": "/api/overview",
+          "statut": 200
+        },
+        {
+          "corps": "{\"conversations\":[{\"agent\":\"opencode\",\"lastPrompt\":\"La coupure conserve le fil et le brouillon : c'est la règle, pas l'intention. (s1)\",\"model\":\"synth-1\",\"name\":null,\"paneId\":\"w0:p1\",\"paneRank\":null,\"preview\":\"réponse synthétique s1 r116\",\"provider\":\"synthetic\",\"sessionState\":\"available\",\"status\":\"idle\",\"tabId\":\"\",\"tabPaneCount\":1,\"thinking\":\"max\",\"timestamp\":1760532206740,\"title\":\"banc-0\",\"workspaceId\":\"w0\"}]}",
+          "route": "/api/conversations",
+          "statut": 200
+        }
+      ],
+      "verrou_tenu": true
+    }
+  ],
+  "runs": 2,
+  "scenario": "lockDB",
+  "schemaVersion": 1,
+  "secondes": 2
+}

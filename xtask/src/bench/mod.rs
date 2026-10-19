@@ -18,7 +18,8 @@ pub mod mesure;
 use serde_json::{Value, json};
 use std::net::TcpListener;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::{Child, Command, Stdio};
+use std::thread;
 use std::time::{Duration, Instant};
 
 /// Ce que le banc reçoit en ligne de commande.
@@ -162,6 +163,10 @@ pub struct Atelier {
     pub delta_verifie: bool,
     /// Garde le dossier après l'exécution (diagnostic d'un résultat vide).
     pub garder: bool,
+    /// Une **copie** de la base opencode du bundle (`lockDB`) et l'identifiant
+    /// de session relevé dedans — le bundle gelé n'est jamais écrit.
+    pub opencode_db: Option<PathBuf>,
+    pub opencode_session: Option<String>,
 }
 
 /// Les sessions du bundle, triées : la fixture est déterministe, l'ordre aussi.
@@ -309,12 +314,27 @@ impl Atelier {
             }
             sessions.push(destination);
         }
+        // `lockDB` : la base du bundle est **copiée** (le détenteur de
+        // transaction écrit dedans) et l'identifiant de session est **relevé**
+        // dans la copie, jamais supposé.
+        let (opencode_db, opencode_session) = if options.scenario == "lockDB" {
+            let source = fixtures.join("opencode/opencode.db");
+            let copie = racine.join("opencode.db");
+            std::fs::copy(&source, &copie)
+                .map_err(|cause| format!("copie de {} : {cause}", source.display()))?;
+            let identifiant = premiere_session_sqlite(&copie)?;
+            (Some(copie), Some(identifiant))
+        } else {
+            (None, None)
+        };
         Ok(Self {
             racine,
             sessions,
             verifies,
             delta_verifie,
             garder: options.keep,
+            opencode_db,
+            opencode_session,
         })
     }
 }
@@ -351,6 +371,91 @@ fn dossier_court(prefixe: &str) -> PathBuf {
         .map(|duree| duree.as_nanos())
         .unwrap_or(0);
     base.join(format!("{prefixe}-{}-{unique}", std::process::id()))
+}
+
+/// Le premier identifiant de session d'une base opencode — lu, pas deviné.
+fn premiere_session_sqlite(chemin: &Path) -> Result<String, String> {
+    let sortie = Command::new("sqlite3")
+        .arg(chemin)
+        .arg("select id from session_v2 order by id limit 1;")
+        .output()
+        .map_err(|cause| format!("sqlite3 : {cause}"))?;
+    let identifiant = String::from_utf8_lossy(&sortie.stdout).trim().to_string();
+    if identifiant.is_empty() {
+        return Err(format!(
+            "aucune session dans {} : {}",
+            chemin.display(),
+            String::from_utf8_lossy(&sortie.stderr).trim()
+        ));
+    }
+    Ok(identifiant)
+}
+
+/// Le **détenteur de transaction** du scénario `lockDB` : une transaction
+/// d'écriture tenue ouverte pendant les lectures.
+///
+/// ⚠️ Il écrit dans la **copie** de la base, jamais dans le bundle. Le but est
+/// d'éprouver le chemin du `busy_timeout` : une lecture qui trouve la base
+/// verrouillée doit soit attendre puis réussir, soit échouer **nommément** —
+/// dans les deux cas, aucune réponse inventée.
+struct Detenteur {
+    enfant: Child,
+    /// Le tuyau reste **ouvert** tant que le détenteur vit : le fermer
+    /// enverrait `COMMIT` implicite et relâcherait le verrou.
+    _entree: std::process::ChildStdin,
+}
+
+impl Detenteur {
+    /// Vérifie que le verrou est **réellement** tenu : un second écrivain doit
+    /// échouer. Sans cette preuve, `lockDB` mesurerait des lectures sans verrou
+    /// et ne prouverait rien.
+    fn verrou_tenu(base: &Path) -> bool {
+        let sortie = Command::new("sqlite3")
+            .arg(base)
+            .arg("PRAGMA busy_timeout=0; BEGIN IMMEDIATE; ROLLBACK;")
+            .output();
+        match sortie {
+            Ok(sortie) => !sortie.status.success(),
+            Err(_) => false,
+        }
+    }
+
+    fn demarre(base: &Path) -> Result<Self, String> {
+        use std::io::Write as _;
+        let mut enfant = Command::new("sqlite3")
+            .arg(base)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .spawn()
+            .map_err(|cause| format!("sqlite3 (détenteur) : {cause}"))?;
+        let mut entree = enfant
+            .stdin
+            .take()
+            .ok_or_else(|| String::from("stdin du détenteur indisponible"))?;
+        // `IMMEDIATE` prend le verrou d'écriture tout de suite ; l'UPDATE le
+        // garde jusqu'à `COMMIT` — qu'on n'envoie pas.
+        let script =
+            "PRAGMA busy_timeout=0;\nBEGIN IMMEDIATE;\nUPDATE session_v2 SET title = title;\n";
+        entree
+            .write_all(script.as_bytes())
+            .map_err(|cause| format!("script du détenteur : {cause}"))?;
+        entree
+            .flush()
+            .map_err(|cause| format!("flush du détenteur : {cause}"))?;
+        thread::sleep(Duration::from_millis(300));
+        Ok(Self {
+            enfant,
+            _entree: entree,
+        })
+    }
+}
+
+impl Drop for Detenteur {
+    fn drop(&mut self) {
+        let _ = self.enfant.kill();
+        let _ = self.enfant.wait();
+    }
 }
 
 /// Un port libre sur le loopback — choisi par le système, jamais deviné.
@@ -403,6 +508,13 @@ fn commande(
         .env("HERDR_REMOTE_LOG_PATH", atelier.racine.join("banc.log"))
         .env("HERDR_REMOTE_PUSH_STORE", atelier.racine.join("push.json"))
         .env("PI_SESSIONS_ROOT", atelier.racine.join("sessions"))
+        .env(
+            "OPENCODE_DB",
+            atelier
+                .opencode_db
+                .clone()
+                .unwrap_or_else(|| atelier.racine.join("pas-de-base.db")),
+        )
         .env("CLAUDE_PROJECTS_ROOT", atelier.racine.join("sessions"))
         .stdout(Stdio::null())
         .stderr(if options.keep {
@@ -422,6 +534,7 @@ fn mesure_pile(options: &Options, pile: &str, atelier: &Atelier) -> Result<Value
         fixture::Plan {
             panes: options.panes,
             sessions: atelier.sessions.clone(),
+            sqlite_session: atelier.opencode_session.clone(),
         },
     )?;
     let port = port_libre()?;
@@ -432,6 +545,17 @@ fn mesure_pile(options: &Options, pile: &str, atelier: &Atelier) -> Result<Value
         })?;
     let pid = serveur.id();
     let racine_http = format!("127.0.0.1:{port}");
+    // Le verrou est posé APRÈS le démarrage : une pile qui ne peut pas ouvrir
+    // sa base au démarrage ne mesurerait pas le `busy_timeout`, elle mesurerait
+    // un échec de démarrage.
+    let (detenteur, verrou) = match atelier.opencode_db.as_ref() {
+        Some(base) => {
+            let detenteur = Detenteur::demarre(base)?;
+            let tenu = Detenteur::verrou_tenu(base);
+            (Some(detenteur), Some(tenu))
+        }
+        None => (None, None),
+    };
     let attente = mesure::attend_pret(&racine_http, "/api/health", Duration::from_secs(120))
         .map_err(|cause| format!("pile {pile} : {cause}"))?;
 
@@ -536,6 +660,7 @@ fn mesure_pile(options: &Options, pile: &str, atelier: &Atelier) -> Result<Value
     let agregats = agregats_par_mode(&runs);
     let demandes_fixture = fausse.servies();
     drop(flux);
+    drop(detenteur);
     let _ = serveur.kill();
     let _ = serveur.wait();
     Ok(json!({
@@ -547,6 +672,7 @@ fn mesure_pile(options: &Options, pile: &str, atelier: &Atelier) -> Result<Value
         "pret_ms": attente.as_millis(),
         "routes": routes,
         "sondes": sondes,
+        "verrou_tenu": verrou,
         "journal_serveur": if options.keep { atelier.journal() } else { String::new() },
         "dossier": if options.keep { atelier.racine.display().to_string() } else { String::new() },
         "demandes_fixture": demandes_fixture,
