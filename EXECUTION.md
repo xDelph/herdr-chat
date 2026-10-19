@@ -2687,3 +2687,19 @@ Le test a d'ailleurs corrigé une erreur de ma part : je comparais l'action à l
 **Point 5 — la vue « tour ».** Le socle existait (`calculeItems` groupe déjà chaque tour en un bloc replié avec durée, jetons, diff). Ce qui manquait : pendant le travail, le groupe est **ouvert** et déroulait les dix étapes alternées `Thinking` / `Ran commands`, poussant la réponse hors de l'écran. Désormais, **pendant** le travail, seules les **trois dernières** étapes sont montrées, précédées de « N earlier steps » ; une fois le travail fini, le groupe se replie et se déplie en entier sur demande.
 
 Capture iPhone 15 : `Working 4 min 41 s · 11,2 M` → `8 earlier steps` → `File read …` / `Thinking` / `Ran commands 4` → composeur. La réponse n'est plus repoussée à trois écrans.
+
+### La chaîne de service était fausse — l'utilisateur ne voyait pas les correctifs
+
+**Constat.** `https://…:8443` proxifiait vers **Vite en mode dev** (`/@react-refresh` dans le HTML), pas vers le binaire. Résultat : les correctifs testés et commités n'arrivaient pas dans l'application réellement utilisée, et « je ne vois pas le loading » était exact — ce n'était pas un bug de code, c'était une **erreur de déploiement de ma part**.
+
+Deuxième erreur derrière : `tailscale serve` pointait l'**adresse tailnet** alors que le démon écoute sur le **loopback** (défaut de configuration, T048) — d'où des 502/000 muets.
+
+**Correction** : `8443` sert désormais **le démon**, qui sert la PWA embarquée *et* l'API sur le même port (`http://127.0.0.1:8793`). Vérifié :
+
+```
+GET https://…:8443/                     → 200, assets/index-TRo7LkId.js
+GET https://…:8443/api/health           → 200
+GET https://…:8443/assets/index-TRo7LkId.js contient « Loading this conversation »
+```
+
+Le bundle servi est **celui du `dist` construit**, pas une compilation de développement. Le démon et l'API sont sur la même origine, ce qui supprime aussi la couche Vite du chemin critique.
