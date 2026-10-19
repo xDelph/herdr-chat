@@ -610,3 +610,51 @@ fn la_revision_est_stable_et_ne_transporte_aucun_chemin() {
         application::events::watcher::revision_de(&vue_a)
     );
 }
+
+#[test]
+fn la_revision_change_quand_le_fichier_grandit() {
+    // ⚠️ **Le défaut qui privait la PWA de direct.** La révision ne hachait que
+    // l'identité de la source : constante pour une session donnée, donc
+    // `session_changed` n'était publié qu'à l'apparition de la session — aucun
+    // message n'arrivait ensuite en direct.
+    let racine = std::env::temp_dir().join(format!("revision-{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&racine);
+    let chemin = racine.join("s.jsonl");
+    let _ = std::fs::write(&chemin, b"{\"n\":1}\n");
+    let mut vue = vue("w1:p1", AgentStatus::Idle, "titre", "/projet");
+    vue.session_path = Some(chemin.to_string_lossy().to_string());
+    let avant = application::events::watcher::revision_de(&vue);
+
+    let mut fichier = std::fs::OpenOptions::new()
+        .append(true)
+        .open(&chemin)
+        .unwrap_or_else(|cause| panic!("ouverture : {cause}"));
+    use std::io::Write as _;
+    fichier
+        .write_all(b"{\"n\":2}\n")
+        .unwrap_or_else(|cause| panic!("ecriture : {cause}"));
+    drop(fichier);
+
+    let apres = application::events::watcher::revision_de(&vue);
+    assert_ne!(avant, apres, "la révision doit suivre le CONTENU");
+    assert_eq!(apres.len(), 16, "16 hexadécimaux, opaque");
+    assert!(!apres.contains("s.jsonl"), "aucun chemin dans la révision");
+    let _ = std::fs::remove_dir_all(&racine);
+}
+
+#[test]
+fn la_revision_ne_bouge_pas_sans_ecriture() {
+    // Deux observations du même fichier stable donnent la même révision : sinon
+    // on publierait un événement à chaque tour de veille.
+    let racine = std::env::temp_dir().join(format!("revision-stable-{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&racine);
+    let chemin = racine.join("s.jsonl");
+    let _ = std::fs::write(&chemin, b"{\"n\":1}\n");
+    let mut vue = vue("w1:p1", AgentStatus::Idle, "titre", "/projet");
+    vue.session_path = Some(chemin.to_string_lossy().to_string());
+    assert_eq!(
+        application::events::watcher::revision_de(&vue),
+        application::events::watcher::revision_de(&vue)
+    );
+    let _ = std::fs::remove_dir_all(&racine);
+}

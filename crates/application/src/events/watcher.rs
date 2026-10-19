@@ -78,12 +78,54 @@ pub fn signature_de(agent: &AgentView) -> String {
 /// stable, distincte de toute source réelle.
 #[must_use]
 pub fn revision_de(vue: &AgentView) -> String {
-    let identite = match (&vue.session_kind, &vue.session_path, &vue.session_id) {
-        (_, Some(chemin), _) if !chemin.is_empty() => format!("path{}{chemin}", '\u{0}'),
-        (_, _, Some(id)) if !id.as_str().is_empty() => format!("id{}{}", '\u{0}', id.as_str()),
-        _ => String::from("absent"),
+    /*
+      ⚠️ **La révision doit changer quand le CONTENU change, sinon
+      `session_changed` ne se déclenche jamais.**
+
+      Elle ne hachait que l'identité de la source (chemin ou identifiant) : pour
+      une session donnée, la valeur était donc **constante**, et le serveur ne
+      publiait l'événement qu'une fois — à l'apparition de la session. D'où le
+      symptôme rapporté : aucune arrivée de message en direct sur la PWA, et une
+      latence bornée par le filet de relecture (15 s).
+
+      On ajoute donc la **taille et la date de modification** du fichier (ou de la
+      base). L'empreinte reste un condensé de 16 hexadécimaux : ni chemin, ni
+      texte ne sortent de l'événement — le contrat TECH §7 est tenu.
+    */
+    let (identite, chemin) = match (&vue.session_kind, &vue.session_path, &vue.session_id) {
+        (_, Some(chemin), _) if !chemin.is_empty() => {
+            (format!("path{}{chemin}", '\u{0}'), Some(chemin.clone()))
+        }
+        (_, _, Some(id)) if !id.as_str().is_empty() => (
+            format!("id{}{}", '\u{0}', id.as_str()),
+            vue.session_path.clone(),
+        ),
+        _ => (String::from("absent"), None),
     };
-    empreinte_de_source(&identite)
+    // Une source introuvable garde une révision stable : l'absence est un état,
+    // pas un changement.
+    let croissance = chemin
+        .as_deref()
+        .and_then(observation_de_fichier)
+        .map_or_else(
+            || String::from("-"),
+            |(taille, mtime)| format!("{taille}:{mtime}"),
+        );
+    empreinte_de_source(&format!("{identite}\u{0}{croissance}"))
+}
+
+/// Taille et date de modification d'un fichier, en nanosecondes.
+///
+/// Une erreur (fichier absent, droits) donne `None` : la révision reste alors
+/// celle de l'identité seule, et rien n'est inventé.
+fn observation_de_fichier(chemin: &str) -> Option<(u64, u128)> {
+    let metadonnees = std::fs::metadata(chemin).ok()?;
+    let mtime = metadonnees
+        .modified()
+        .ok()
+        .and_then(|instant| instant.duration_since(std::time::UNIX_EPOCH).ok())
+        .map_or(0, |duree| duree.as_nanos());
+    Some((metadonnees.len(), mtime))
 }
 
 /// La révision de l'absence de source — une identité stable, distincte de
