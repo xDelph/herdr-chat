@@ -57,6 +57,16 @@ export default defineConfig({
   ],
   server: {
     port: 5173,
+    /*
+      ⚠️ **L'hôte autorisé est EXPLICITE, et vient de l'environnement.** Vite
+      refuse par défaut un `Host` qu'il ne connaît pas (403 « Blocked request »),
+      ce qui rendait le serveur de développement inaccessible derrière
+      `tailscale serve` (constaté : 403, donc un proxy muet). On n'ouvre pas un
+      motif large — un seul nom, fourni par l'appelant.
+    */
+    allowedHosts: process.env["HERDR_DEV_ALLOWED_HOST"]
+      ? [process.env["HERDR_DEV_ALLOWED_HOST"]]
+      : undefined,
     proxy: {
       // En développement, l'API est servie par le backend Bun. `changeOrigin`
       // n'est pas nécessaire : tout est local.

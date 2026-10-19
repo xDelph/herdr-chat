@@ -2098,3 +2098,33 @@ Les 16 sessions lisibles portent de vrais aperçus et modèles (`deepseek-v4.1-f
 - **Ces bugs étaient invisibles aux tests** parce que les faux imposaient la forme du client (id entier, connexion réutilisée, snapshot sans enveloppe). C'est la démonstration, sur ce projet, de la règle « le schéma n'est pas la source de vérité » — et la raison pour laquelle il fallait lancer.
 - Les faux ont été corrigés pour **reproduire la mesure** (chaîne, une connexion par demande), pas pour faire passer le client.
 - Un test de transport a été **assoupli** (≤ 1 écriture au lieu de == 1) : le faux peut ne pas avoir lu avant l'expiration du délai. Ce qui reste prouvé — jamais deux écritures — est la propriété qui compte.
+
+### La cohabitation demandée : les deux piles servies en parallèle
+
+Rien n'a été remplacé. Le démon Rust et la pile TS vivent côte à côte, et l'ancien accès reste joignable.
+
+| Élément | Port | Rôle |
+|---|---|---|
+| `apps/server` (TS, existant) | 8791 (tailnet) | **inchangé**, servi par `tailscale serve` sur **8790** |
+| `herdrchat` (Rust, nouveau) | 8793 (loopback) | le démon de ce chantier |
+| `apps/web` (Vite, dev) | 8794 (loopback) | proxy `/api` → **8793** (la pile Rust) |
+| `tailscale serve` | **8443** (nouveau) | `https://…ts.net:8443` → 8794 → Rust |
+
+Mesures par le nom Tailscale, pas par IP locale :
+
+```
+PWA   https://<hôte>:8443/            → 200  1 303 o (index)
+API   https://<hôte>:8443/api/health  → 200    182 o  reachable: true, 0.9.3
+      …/api/overview                  → 200 12 381 o   agents: 20, workspaces: 11
+      …/api/conversations             → 200 40 598 o   16 available, 4 absent
+      …/api/agents/w5:p1/session      → 200 811 595 o  218 entrées
+ANCIEN https://<hôte>:8790/api/health → 200  (le service de l'utilisateur, intact)
+```
+
+**Un défaut trouvé en exposant** : Vite refusait le `Host` du tailnet (403 « Blocked request »), donc `tailscale serve` ne rendait rien du tout (000 côté client). `allowedHosts` est désormais alimenté par `HERDR_DEV_ALLOWED_HOST` — **un seul nom, fourni par l'appelant**, pas un motif `*.ts.net`.
+
+**Retour arrière** (une commande, réversible, sans toucher à l'existant) :
+
+```
+tailscale serve --https=8443 off
+```

@@ -6,15 +6,21 @@ use herdrchat::logging::{Journal, MAX_OCTETS};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+/// Compteur de dossiers : deux tests lancés dans la même nanoseconde
+/// partageaient leur `j.log` en parallèle — un échec transitoire observé une
+/// fois sur une exécution complète. Un compteur rend la collision impossible.
+static COMPTEUR: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
 /// Un dossier de test isolé — jamais le journal de l'utilisateur (A03).
 fn dossier() -> std::path::PathBuf {
     let unique = format!(
-        "herdr-journal-{}-{}",
+        "herdr-journal-{}-{}-{}",
         std::process::id(),
         std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_nanos())
-            .unwrap_or(0)
+            .unwrap_or(0),
+        COMPTEUR.fetch_add(1, Ordering::SeqCst)
     );
     let chemin = std::env::temp_dir().join(unique);
     std::fs::create_dir_all(&chemin).unwrap_or_else(|cause| panic!("dossier : {cause}"));
