@@ -104,7 +104,15 @@ describe("U09 — ouvrir une feuille ne perd ni le fil ni le brouillon", () => {
   test("un envoi optimiste garde le texte visible dans l'historique", () => {
     // Le composeur est vidé après création du message local; son contenu reste
     // visible et annulable dans le fil pendant la confirmation.
-    expect(chat).toContain('state: "queued", text');
+    //
+    // ⚠️ L'ENTRÉE elle-même vit désormais dans le magasin d'envois (T058 : la
+    // cible est capturée, la minuterie survit à la navigation). L'écran garde
+    // l'affichage et l'annulation ; le magasin garde l'état `queued` et le
+    // texte. Les deux moitiés sont vérifiées ici pour que le déplacement ne
+    // fasse pas perdre la règle.
+    const magasin = readFileSync(join(import.meta.dir, "..", "src", "envois.ts"), "utf8");
+    expect(magasin).toContain('state: "queued"');
+    expect(magasin).toContain("text,");
     expect(chat).toContain("message.text");
     expect(chat).toContain("annulerEnvoi(message)");
   });

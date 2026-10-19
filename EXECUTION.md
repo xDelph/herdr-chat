@@ -1848,3 +1848,32 @@ Périmètre : `apps/web/src/rafraichissement.ts` (nouveau), `apps/web/src/App.ts
 - **La cadence cachée est plus lente, pas « suspendue »** : un onglet en arrière-plan doit encore voir arriver un agent bloqué ; il le voit avec au plus 60 s de retard, et immédiatement au retour.
 
 Commit préfixé `T059:`.
+
+## T058 — le store d'envois par pane (C19, C20)
+
+Périmètre : `apps/web/src/envois.ts` (nouveau), `apps/web/src/ChatScreen.tsx` (les envois quittent l'état du composant), tests `apps/web/tests/envois-store.test.ts` (nouveau) + deux assertions de source déplacées (`composeur`, `feuilles`).
+
+### Les trois défauts mesurés
+
+| Défaut | Conséquence | Correction |
+|---|---|---|
+| la cible était **celle du rendu** (`agent.paneId` lu au moment de l'appel) | échec sur A → ouvrir B → « réessayer » envoyait le texte à **B** | la cible est **capturée** à la création de l'envoi : `reessaye` vise A, toujours |
+| la minuterie de 900 ms était un `setTimeout` **du composant**, annulé au démontage | changer de conversation dans les 900 ms **annulait l'envoi sans le dire** | la minuterie appartient au **magasin** : elle survit à la navigation |
+| les états vivaient dans l'état **du composant affiché** | une réponse tardive de A pouvait se poser sur B | chaque envoi est rangé **sous son pane** : une réponse ne traverse pas |
+
+### Preuve
+
+| Commande | Résultat |
+|---|---|
+| `bun test apps/web/tests/envois-store.test.ts` | PASS — **10 tests** : cible capturée (A→B→retry n'appelle que A), pas de réessai d'un envoi délivré, minuterie qui survit à l'ouverture d'une autre conversation (les deux partent, chacun sur sa cible), annulation avant départ (zéro appel), réponse tardive de A invisible dans B, `uncertain` quand la confirmation manque, `suppressed` = succès assumé, lanceur qui lève ⇒ `failed/inconnu`, `oublie` d'un délivré, abonnés. |
+| `bun test` | PASS — **1137 tests**. |
+| `bun run verify` + `cargo xtask verify` | verts. |
+
+### Décisions et honnêteté
+
+0. **Le lanceur et le planificateur sont INJECTÉS** : le magasin ne connaît ni `fetch` ni `setTimeout`. Les tests n'attendent jamais 900 ms (planificateur manuel) et ne touchent aucun réseau.
+1. **Deux tests de source ont dû suivre le déplacement** (`composeur.test.ts`, `feuilles.test.ts`) : ils vérifiaient que l'affichage optimiste porte `queued` + le texte et que la restitution du brouillon passe par `ecrireAuChamp`. Le déplacement ne change pas la règle, mais l'assertion devait viser le nouveau propriétaire — c'est fait, avec la raison écrite dans le test.
+2. **Le store ne persiste rien** : un envoi non confirmé meurt avec l'onglet. Le produit n'écrit pas de texte non envoyé sur le disque (même règle que les brouillons).
+3. **Ce qui reste de T058** : les **feuilles et questions** gardent leur état local dans `ChatScreen` (elles ne traversent pas la navigation, et les séparer demanderait de déplacer aussi leur rendu). Le store livré couvre les trois défauts nommés par C19/C20 ; la séparation complète feuilles/questions est notée comme reste, pas comme faite.
+
+Commit préfixé `T058:`.

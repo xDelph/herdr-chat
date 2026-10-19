@@ -46,7 +46,10 @@ describe("le curseur ne repart jamais au début", () => {
     // ⚠️ Une écriture directe dans `.value` laisserait le curseur à 0 — c'est
     // exactement le défaut que la fonction existe pour empêcher.
     expect(source).toContain("ecrireAuChamp(retrouve);");
-    expect(source).toContain("ecrireAuChamp(message.text);");
+    // ⚠️ Le texte rendu au brouillon vient désormais du MAGASIN (`annule` rend
+    // le texte de l'envoi, T058) : la règle ne change pas — l'écriture passe
+    // toujours par `ecrireAuChamp`, jamais par `.value` en direct.
+    expect(source).toContain("ecrireAuChamp(texte);");
     expect(source).not.toContain("champRef.current.value = message.text");
     expect(source).not.toContain("champ.value = retrouve");
   });

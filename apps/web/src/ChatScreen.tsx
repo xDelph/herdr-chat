@@ -26,6 +26,7 @@ import { ecrireBrouillon, lireBrouillon } from "./brouillons.ts";
 import type { RenderedMessage } from "./blocks.ts";
 import { avecTravailEnCours, toItems, toMessages, touchedFilesOf } from "./blocks.ts";
 import { marqueEnvoisEnCours } from "./envois-en-cours.ts";
+import { creeMagasinEnvois, planificateurReel, type Envoi as EnvoiMagasin } from "./envois.ts";
 import { fusionnerEntrees } from "./messages.ts";
 import { agentName, headerContext, headerReglages, statusClass } from "./labels.tsx";
 import { TabPanes } from "./TabPanes.tsx";
@@ -83,14 +84,6 @@ export const ChatScreen = ({
    */
   waiting?: string | undefined;
 }) => {
-  type EnvoiLocal = {
-    readonly baseline: number;
-    readonly detail: string | null;
-    readonly failureState: "attente" | "erreur" | "inconnu" | null;
-    readonly id: string;
-    readonly state: "queued" | "sending" | "delivered" | "uncertain" | "failed";
-    readonly text: string;
-  };
   const [entries, setEntries] = useState<readonly SessionEntry[]>([]);
   /**
    * Messages déjà analysés.
@@ -115,7 +108,22 @@ export const ChatScreen = ({
   /** Champ de saisie, pour lui rendre sa taille après un envoi. */
   const champRef = useRef<HTMLTextAreaElement | null>(null);
   const [sending, setSending] = useState(false);
-  const [envoisLocaux, setEnvoisLocaux] = useState<readonly EnvoiLocal[]>([]);
+  /**
+   * ⚠️ **Les envois vivent dans un magasin PAR PANE (T058).** Ils étaient dans
+   * l'état de ce composant : un changement de conversation les perdait, la
+   * minuterie de 900 ms mourait au démontage, et « réessayer » visait l'agent
+   * affiché au lieu de celui de l'envoi. Le magasin capture la cible.
+   */
+  const magasinEnvois = useMemo(
+    () => creeMagasinEnvois((pane, text) => sendPrompt(pane, text), planificateurReel),
+    [],
+  );
+  const [, forceRenduEnvois] = useState(0);
+  useEffect(
+    () => magasinEnvois.souscrire(() => forceRenduEnvois((valeur) => valeur + 1)),
+    [magasinEnvois],
+  );
+  const envoisLocaux: ReadonlyArray<EnvoiMagasin> = magasinEnvois.liste(agent.paneId);
 
   /*
     ⚠️ La mise à jour de la PWA a besoin de savoir qu'un envoi n'est pas
@@ -135,7 +143,6 @@ export const ChatScreen = ({
   const [stopFeedback, setStopFeedback] = useState<string | null>(null);
   /** Le retour du geste « focus sur le Mac » — jamais un succès supposé. */
   const [focusFeedback, setFocusFeedback] = useState<string | null>(null);
-  const sendTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /**
    * Plafond de pages vides remontées d'affilée avant d'abandonner.
    *
@@ -145,7 +152,6 @@ export const ChatScreen = ({
    */
   const PAGES_VIDES_MAX = 8;
 
-  const nextLocalId = useRef(0);
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
   /**
@@ -721,72 +727,6 @@ export const ChatScreen = ({
     ecrireAuChamp(retrouve);
   }, [agent.paneId, ecrireAuChamp]);
 
-  const transmettre = useCallback(
-    async (id: string, text: string) => {
-      setEnvoisLocaux((current) =>
-        current.map((message) =>
-          message.id === id
-            ? { ...message, detail: null, failureState: null, state: "sending" }
-            : message,
-        ),
-      );
-      try {
-        const result = await sendPrompt(agent.paneId, text);
-        setEnvoisLocaux((current) =>
-          current.map((message) => {
-            if (message.id !== id) return message;
-            if (result.kind === "suppressed") {
-              return {
-                ...message,
-                detail: `Herdr avait déjà confirmé un envoi identique : ${result.reason}`,
-                state: "delivered",
-              };
-            }
-            if (result.kind === "sent") {
-              return {
-                ...message,
-                detail:
-                  result.confirmation === "confirmed"
-                    ? "Herdr confirmed that it received the message."
-                    : "Herdr did not confirm whether it received the message.",
-                state: result.confirmation === "confirmed" ? "delivered" : "uncertain",
-              };
-            }
-            return {
-              ...message,
-              detail: result.message,
-              failureState: result.state,
-              state: "failed",
-            };
-          }),
-        );
-        if (result.kind === "failed") {
-          reportError("échec de l'envoi du message", {
-            message: result.message,
-            paneId: agent.paneId,
-            state: result.state,
-          });
-        }
-      } catch (cause) {
-        const detail = cause instanceof Error ? cause.message : String(cause);
-        setEnvoisLocaux((current) =>
-          current.map((message) =>
-            message.id === id
-              ? { ...message, detail, failureState: "inconnu", state: "failed" }
-              : message,
-          ),
-        );
-        reportError("échec de l'envoi du message", {
-          detail,
-          paneId: agent.paneId,
-        });
-      } finally {
-        setSending(false);
-      }
-    },
-    [agent.paneId],
-  );
-
   /** État de la dernière réponse à une question, pour ne jamais mentir dessus. */
   const [reponse, setReponse] = useState<AnswerResult | null>(null);
   const [envoiReponse, setEnvoiReponse] = useState(false);
@@ -832,14 +772,12 @@ export const ChatScreen = ({
       }
       return;
     }
-    const id = `local-${String(Date.now())}-${String(++nextLocalId.current)}`;
     const baseline = messages.filter(
       (message) => message.role === "user" && message.text === text,
     ).length;
-    setEnvoisLocaux((current) => [
-      ...current,
-      { baseline, detail: null, failureState: null, id, state: "queued", text },
-    ]);
+    // ⚠️ La cible et la minuterie sont au MAGASIN : changer de conversation
+    // n'annule plus l'envoi, et « réessayer » visera ce pane-ci.
+    magasinEnvois.ajoute({ baseline, pane: agent.paneId, text });
     setSending(true);
     setMessageOuvert(null);
     setDraft("");
@@ -849,74 +787,57 @@ export const ChatScreen = ({
       champRef.current.value = "";
       ajusterHauteur(champRef.current);
     }
-    // La bulle apparaît immédiatement et reste annulable avant tout appel réseau.
-    sendTimer.current = setTimeout(() => {
-      sendTimer.current = null;
-      void transmettre(id, text);
-    }, 900);
+    // La bulle apparaît immédiatement ; le magasin l'envoie dans 900 ms, et
+    // elle reste annulable jusque-là.
   }, [
     agent.paneId,
     ajusterHauteur,
     draft,
     ecrireAuChamp,
     envoiReponse,
+    magasinEnvois,
     messages,
     saisieLibre,
     sending,
-    transmettre,
   ]);
 
-  useEffect(
-    () => () => {
-      if (sendTimer.current !== null) clearTimeout(sendTimer.current);
-    },
-    [],
-  );
-
   useEffect(() => {
+    // Le message apparaît enfin dans la session : la bulle optimiste s'efface.
     const messagesUtilisateur = messages.filter((message) => message.role === "user");
-    setEnvoisLocaux((current) => {
-      const restants = new Map<string, number>();
-      for (const message of messagesUtilisateur) {
-        restants.set(message.text, (restants.get(message.text) ?? 0) + 1);
+    const restants = new Map<string, number>();
+    for (const message of messagesUtilisateur) {
+      restants.set(message.text, (restants.get(message.text) ?? 0) + 1);
+    }
+    for (const local of magasinEnvois.liste(agent.paneId)) {
+      const compte = restants.get(local.text) ?? 0;
+      if (compte > local.baseline) {
+        restants.set(local.text, compte - 1);
+        magasinEnvois.oublie(local.id);
       }
-      const next: EnvoiLocal[] = [];
-      for (const local of current) {
-        const count = restants.get(local.text) ?? 0;
-        if (count > local.baseline) {
-          restants.set(local.text, count - 1);
-          continue;
-        }
-        next.push(local);
-      }
-      return next;
-    });
-  }, [messages]);
+    }
+  }, [agent.paneId, magasinEnvois, messages]);
 
   const annulerEnvoi = useCallback(
-    (message: EnvoiLocal) => {
+    (message: EnvoiMagasin) => {
       if (message.state !== "queued") return;
-      if (sendTimer.current !== null) clearTimeout(sendTimer.current);
-      sendTimer.current = null;
-      setEnvoisLocaux((current) => current.filter((candidate) => candidate.id !== message.id));
+      const texte = magasinEnvois.annule(message.id);
+      if (texte === null) return;
       setMessageOuvert(null);
-      setDraft(message.text);
+      setDraft(texte);
       setSending(false);
       requestAnimationFrame(() => {
-        ecrireAuChamp(message.text);
+        ecrireAuChamp(texte);
       });
     },
-    [ecrireAuChamp],
+    [ecrireAuChamp, magasinEnvois],
   );
 
   const reessayerEnvoi = useCallback(
-    (message: EnvoiLocal) => {
-      if (message.state !== "failed" && message.state !== "uncertain") return;
+    (message: EnvoiMagasin) => {
       setMessageOuvert(null);
-      setSending(true);
-      void transmettre(message.id, message.text);
+      setSending(magasinEnvois.reessaye(message.id));
     },
-    [transmettre],
+    [magasinEnvois],
   );
 
   const interrompreAgent = useCallback(async () => {
