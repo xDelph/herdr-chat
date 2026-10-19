@@ -1046,15 +1046,17 @@ export const ChatScreen = ({
                 avant d'arriver au statut — qui est la seule information encore
                 utile quand le reste a disparu.
               */}
-              <div className="muted small">{headerContext(agent)}</div>
               {/*
-                Troisième ligne : le modèle et le raisonnement en vigueur.
-                Voir `headerReglages` — l'absence est **nommée**, jamais
-                laissée vide, sinon l'en-tête change de hauteur d'une
-                conversation à l'autre et le titre saute d'un écran à l'autre.
+                ⚠️ **Une seule ligne de contexte, modèle compris.** Il y en
+                avait deux — `working · onglet 1 · pi`, puis le modèle — et
+                elles coûtaient ~25 px de fil sur un écran de 852 px, pour une
+                information qu'on ne lit qu'une fois. Le modèle est **tronqué à
+                l'ellipse** : la ligne entière est déjà coupée sur un iPhone, et
+                le modèle complet reste lisible dans la feuille « Model », où on
+                va de toute façon pour le changer.
               */}
               <div className="muted small screen__reglages">
-                {headerReglages(currentModel, currentThinking)}
+                {`${headerContext(agent)} · ${headerReglages(currentModel, currentThinking)}`}
               </div>
             </div>
             {/*

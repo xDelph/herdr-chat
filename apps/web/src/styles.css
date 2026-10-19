@@ -3515,3 +3515,15 @@ button:disabled {
   border-color: var(--accent);
   outline: none;
 }
+
+/*
+  Le contexte de l'en-tête tient sur **une** ligne, modèle compris.
+  `nowrap` + ellipse : le modèle est long (`deepseek/deepseek-v4.1-flash-1017`),
+  et le laisser passer à la ligne coûtait une ligne entière de fil. Le statut
+  est en tête de cette ligne, donc c'est le modèle qui se coupe — jamais l'état.
+*/
+.screen__reglages {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
