@@ -852,7 +852,7 @@ const CommandGroup = ({
       onToggle={(event) => setOpen(event.currentTarget.open)}
     >
       <summary>
-        Ran commands <span className="muted small">{ligne.commands.length}</span>
+        {ligne.libelle} <span className="muted small">{ligne.commands.length}</span>
       </summary>
       <div className="command-group__items">
         {ligne.commands.map((command) => (
@@ -875,6 +875,14 @@ const CommandGroup = ({
  * `false` referme. Un groupe qu'on a ouvert à la main sur un travail terminé le
  * reste, lui, parce que c'est un choix.
  */
+/**
+ * Le nombre d'étapes montrées pendant que l'agent travaille.
+ *
+ * Trois : assez pour voir ce qu'il fait maintenant, assez peu pour que la
+ * dernière étape et l'en-tête restent dans le même écran de téléphone.
+ */
+const ETAPES_VISIBLES = 3;
+
 const ToolGroup = ({
   item,
   enCours,
@@ -962,7 +970,24 @@ const ToolGroup = ({
       */}
       {open && lignes.length > 0 ? (
         <div className="group__body">
-          {lignes.map((ligne) =>
+          {/*
+            ⚠️ **Pendant le travail, on ne montre que la fin du journal.**
+            Un tour d'agent alterne `Thinking` / `Ran commands` une dizaine de
+            fois ; dérouler les dix pousse la réponse hors de l'écran et noie
+            l'activité *courante*, qui est la seule chose qu'on regarde pendant
+            qu'il travaille. On garde les trois dernières étapes et on annonce
+            le reste — le journal complet reste lisible une fois le travail fini
+            (le groupe se déplie alors en entier).
+          */}
+          {enCours && lignes.length > ETAPES_VISIBLES ? (
+            <p className="group__reste muted small">
+              {lignes.length - ETAPES_VISIBLES} earlier steps
+            </p>
+          ) : null}
+          {(enCours && lignes.length > ETAPES_VISIBLES
+            ? lignes.slice(-ETAPES_VISIBLES)
+            : lignes
+          ).map((ligne) =>
             ligne.kind === "commands" ? (
               <CommandGroup key={ligne.cle} ligne={ligne} cwd={cwd} />
             ) : (

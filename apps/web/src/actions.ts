@@ -288,6 +288,15 @@ export type LigneAffichee =
       readonly kind: "commands";
       readonly cle: string;
       readonly commands: ReadonlyArray<LigneCommande>;
+      /**
+       * Le libellé du groupe — « Ran commands », « Thinking ».
+       *
+       * ⚠️ **Sans lui, deux familles différentes porteraient le même titre.**
+       * La fusion a été généralisée aux actions consécutives de même famille,
+       * et un groupe de pensées affiché « Ran commands » serait un mensonge sur
+       * ce que l'agent a fait.
+       */
+      readonly libelle: string;
     };
 
 const estCommande = (ligne: LigneTravail): ligne is LigneCommande => {
@@ -300,6 +309,26 @@ const estCommande = (ligne: LigneTravail): ligne is LigneCommande => {
   );
 };
 
+/**
+ * Les lignes qui se regroupent, et sous quel titre.
+ *
+ * ⚠️ **Deux familles, deux titres.** Les commandes shell disent « Ran
+ * commands » ; les pensées consécutives disent « Thinking ». Sans ce retour
+ * explicite, la fusion généralisée aurait affiché « Ran commands 4 » sur quatre
+ * raisonnements — un contresens sur ce que l'agent a fait.
+ */
+const titreDeGroupe = (ligne: LigneCommande): string | undefined => {
+  /*
+    ⚠️ **Le libellé d'abord, l'outil ensuite.** On compare le libellé d'action
+    (pas l'identité de l'objet constant) : une ligne construite ailleurs porte
+    la même réflexion sans être le même objet, et une comparaison par référence
+    la laisserait hors du groupe.
+  */
+  if (ligne.action.pluriel === ACTION_REFLEXION.pluriel) return "Thinking";
+  if (estCommande(ligne)) return "Ran commands";
+  return undefined;
+};
+
 export const regrouperCommandes = (
   lignes: ReadonlyArray<LigneTravail>,
 ): ReadonlyArray<LigneAffichee> => {
@@ -307,7 +336,13 @@ export const regrouperCommandes = (
   for (let index = 0; index < lignes.length;) {
     const ligne = lignes[index];
     if (ligne === undefined) break;
-    if (!estCommande(ligne)) {
+    if (ligne.kind !== "action") {
+      result.push(ligne);
+      index += 1;
+      continue;
+    }
+    const titre = titreDeGroupe(ligne);
+    if (titre === undefined) {
       result.push(ligne);
       index += 1;
       continue;
@@ -316,12 +351,18 @@ export const regrouperCommandes = (
     let next = index + 1;
     while (next < lignes.length) {
       const candidate = lignes[next];
-      if (candidate === undefined || !estCommande(candidate)) break;
+      if (candidate === undefined || candidate.kind !== "action") break;
+      if (titreDeGroupe(candidate) !== titre) break;
       commands.push(candidate);
       next += 1;
     }
     if (commands.length > 1)
-      result.push({ kind: "commands", cle: commands[0]?.cle ?? ligne.cle, commands });
+      result.push({
+        commands,
+        kind: "commands",
+        libelle: titre,
+        cle: commands[0]?.cle ?? ligne.cle,
+      });
     else result.push(ligne);
     index = next;
   }

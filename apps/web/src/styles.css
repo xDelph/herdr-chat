@@ -3527,3 +3527,8 @@ button:disabled {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* L'annonce des étapes masquées pendant le travail : discrète, alignée au corps. */
+.group__reste {
+  margin: 0 0 4px 8px;
+}

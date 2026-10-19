@@ -2677,3 +2677,13 @@ Le mécanisme existe **déjà**, et c'est la bonne nouvelle comme la mauvaise :
 Ce qui reste, précisément : la fusion ne couvre que les **commandes**. Les `Thinking` consécutifs restent des lignes séparées parce que `regrouperCommandes` ne reconnaît que `bash/shell/exec/js`. La correction tient en une généralisation — regrouper deux `action` consécutives de **même famille** (pensée comprise) — mais elle touche `regrouperCommandes`, son rendu (`ToolGroup`) et ses tests, et un demi-changement laisserait soit des groupes sans compteur, soit des commandes mélangées à des pensées.
 
 Je préfère le dire que le faire à moitié : **point 2b et point 5 restent ouverts**, avec le chemin exact ci-dessus. Les points 1, 3 et 4 sont livrés et capturés.
+
+### Points 2b et 5 — livrés
+
+**Point 2b — la fusion couvre les pensées.** `regrouperCommandes` ne reconnaissait que `bash/shell/exec/js` ; elle regroupe maintenant **toute action consécutive de même titre** — `Thinking` avec `Thinking`, `Ran commands` avec `Ran commands` — et le groupe **porte son libellé** (`libelle`). Sans ce libellé, la fusion généralisée aurait affiché « Ran commands 4 » sur quatre raisonnements : un contresens sur ce que l'agent a fait.
+
+Le test a d'ailleurs corrigé une erreur de ma part : je comparais l'action à la **constante** `ACTION_REFLEXION` par identité. Une ligne construite ailleurs (test, futur profil d'agent) porte la même réflexion sans être le même objet — la comparaison se fait désormais sur le **libellé d'action**.
+
+**Point 5 — la vue « tour ».** Le socle existait (`calculeItems` groupe déjà chaque tour en un bloc replié avec durée, jetons, diff). Ce qui manquait : pendant le travail, le groupe est **ouvert** et déroulait les dix étapes alternées `Thinking` / `Ran commands`, poussant la réponse hors de l'écran. Désormais, **pendant** le travail, seules les **trois dernières** étapes sont montrées, précédées de « N earlier steps » ; une fois le travail fini, le groupe se replie et se déplie en entier sur demande.
+
+Capture iPhone 15 : `Working 4 min 41 s · 11,2 M` → `8 earlier steps` → `File read …` / `Thinking` / `Ran commands 4` → composeur. La réponse n'est plus repoussée à trois écrans.

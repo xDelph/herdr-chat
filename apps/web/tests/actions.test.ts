@@ -339,3 +339,57 @@ describe("U22 — l'appel lui-même est son détail", () => {
     expect(visible[0]?.kind === "commands" ? visible[0].commands : []).toHaveLength(2);
   });
 });
+
+/** Une ligne de réflexion, telle que `lignesDeTravail` la produit. */
+const pensee = (cle: string): LigneTravail => ({
+  action: {
+    cible: null,
+    delta: null,
+    estFichier: false,
+    icone: "✻",
+    pluriel: "Thinking",
+    singulier: "Thinking",
+  },
+  cle,
+  details: [],
+  enEchec: false,
+  kind: "action",
+});
+const texte = (cle: string): LigneTravail => ({
+  cle,
+  kind: "texte",
+  texte: { kind: "text", text: cle },
+});
+
+describe("points 2b — la fusion couvre aussi les pensées", () => {
+  test("quatre pensées consécutives font UN groupe intitulé « Thinking »", () => {
+    // ⚠️ Avant, seules les commandes se regroupaient : quatre « Thinking »
+    // restaient quatre lignes, et le fil perdait la place de la réponse.
+    const lignes = regrouperCommandes([pensee("a"), pensee("b"), pensee("c"), pensee("d")]);
+    expect(lignes).toHaveLength(1);
+    expect(lignes[0]?.kind).toBe("commands");
+    if (lignes[0]?.kind !== "commands") return;
+    expect(lignes[0].libelle).toBe("Thinking");
+    expect(lignes[0].commands).toHaveLength(4);
+  });
+
+  test("une pensée isolée n'est PAS mise en groupe", () => {
+    // Un groupe d'un seul élément ajouterait un tiroir à ouvrir pour rien.
+    const lignes = regrouperCommandes([pensee("a")]);
+    expect(lignes).toHaveLength(1);
+    expect(lignes[0]?.kind).toBe("action");
+  });
+
+  test("pensée puis texte puis pensée : deux groupes, jamais un", () => {
+    // ⚠️ La prose sépare : fusionner par-dessus elle mélangerait un
+    // raisonnement et la réponse qui le suit.
+    const lignes = regrouperCommandes([
+      pensee("a"),
+      pensee("b"),
+      texte("t"),
+      pensee("c"),
+      pensee("d"),
+    ]);
+    expect(lignes.map((ligne) => ligne.kind)).toEqual(["commands", "texte", "commands"]);
+  });
+});
