@@ -1819,3 +1819,32 @@ Ce qui existait déjà et reste : capture de l'élément focalisé **avant** l'o
 - La garde « aucun focus automatique » lit la source : c'est une **garde anti-régression**, pas une preuve de comportement. Elle est écrite comme telle.
 
 Commit préfixé `T062:`.
+
+## T059 — le client de données partagé (C23, C26)
+
+Périmètre : `apps/web/src/rafraichissement.ts` (nouveau), `apps/web/src/App.tsx` (lecture et cadence), `apps/web/tests/rafraichissement.test.ts` (nouveau).
+
+### Les trois défauts mesurés, et ce qui les ferme
+
+| Avant | Après |
+|---|---|
+| `Promise.all` **tout-ou-rien** : un `health` en panne jetait l'overview et la liste pourtant lus, et l'écran affichait une erreur *globale* | chaque lecture a **son issue** (`Issue`), appliquée pour elle-même : une panne partielle n'efface plus les données saines |
+| **aucun vol unique** : minuteur + SSE + retour au premier plan + resync = huit lectures simultanées | **un seul vol** sert tous les appelants ; `vols()` compte les vols RÉELS |
+| **aucune génération** : une réponse lente écrasait une plus récente (la liste revenait en arrière) | chaque vol porte une génération ; `doitAppliquer` ignore un résultat plus ancien |
+| une seule cadence (4 s, y compris onglet caché) | **deux cadences** : 4 s visible, **60 s cachée**, et **relecture immédiate au retour** |
+
+### Preuve
+
+| Commande | Résultat |
+|---|---|
+| `bun test apps/web/tests/rafraichissement.test.ts` | PASS — **7 tests** : 8 appels simultanés ⇒ **1** lecture par endpoint (compteurs) ; health en panne ⇒ overview + conversations **lisibles** ; trois pannes ⇒ « au moins une réussie » faux ; générations strictement croissantes et règle d'application ; cadences. |
+| `bun test` | PASS — **1127 tests**. |
+| `bun run verify` + `cargo xtask verify` | verts. |
+
+### Notes d'honnêteté
+
+- **Les types sont génériques** (`Resultat<O, H, C>`, `Lectures<O, H, C>`) : l'écran reçoit ses vraies données. La première version imposait des `as Overview` / `as Health` — refusés par le lint du dépôt, et c'était justifié : une assertion aurait masqué une divergence de contrat.
+- **Le « drain `caughtUp` » et l'invalidation `session_changed`** restent au chat (T058 côté store) : ce tour livre le client de lecture partagé, pas le store de conversation.
+- **La cadence cachée est plus lente, pas « suspendue »** : un onglet en arrière-plan doit encore voir arriver un agent bloqué ; il le voit avec au plus 60 s de retard, et immédiatement au retour.
+
+Commit préfixé `T059:`.

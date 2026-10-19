@@ -1,0 +1,145 @@
+/**
+ * Le client de données partagé (C23, C26, T059).
+ *
+ * ⚠️ **Trois défauts mesurés, trois corrections.**
+ *
+ * 1. **Un `Promise.all` tout-ou-rien.** Le health échouait → l'overview et la
+ *    liste, pourtant réussis, étaient jetés, et l'écran affichait une erreur
+ *    *globale* alors qu'une panne partielle n'empêche pas de lire l'essentiel.
+ *    Ici chaque lecture a **son** issue, et un échec ne détruit pas les autres.
+ *
+ * 2. **Aucun vol unique.** Le minuteur, le flux SSE, le retour au premier plan
+ *    et la reprise après resync appelaient tous `refresh` : huit signaux
+ *    simultanés lançaient huit lectures. Ici **un seul vol** sert tous les
+ *    appelants — le second signal rejoint la requête en cours.
+ *
+ * 3. **Aucune génération.** Une réponse lente pouvait écraser une plus récente
+ *    (l'utilisateur voyait la liste revenir en arrière). Chaque vol porte un
+ *    **numéro de génération**, et le client ne rend que le plus récent.
+ *
+ * ⚠️ **Ce que ce module ne fait pas** : il ne connaît ni React, ni `fetch`. Les
+ * trois lectures sont injectées — les tests n'ont donc besoin d'aucun réseau.
+ */
+
+/** L'issue d'une lecture : la valeur, ou la cause réelle. */
+export type Issue<T> =
+  | { readonly ok: true; readonly valeur: T }
+  | { readonly ok: false; readonly cause: string };
+
+/**
+ * Le résultat d'un vol — les trois issues, **indépendantes**.
+ *
+ * ⚠️ Les trois types sont des paramètres : le consommateur reçoit ses vraies
+ * données, pas des `unknown` à réaffirmer. Une assertion `as Overview` dans
+ * l'écran serait exactement le genre de mensonge que ce fichier évite.
+ */
+export interface Resultat<O = unknown, H = unknown, C = unknown> {
+  readonly overview: Issue<O>;
+  readonly health: Issue<H>;
+  readonly conversations: Issue<C>;
+  /** Le numéro du vol : le consommateur n'applique que le plus récent. */
+  readonly generation: number;
+}
+
+/** Les trois lectures du démon, injectées. */
+export interface Lectures<O = unknown, H = unknown, C = unknown> {
+  readonly overview: () => Promise<O>;
+  readonly health: () => Promise<H>;
+  readonly conversations: () => Promise<C>;
+}
+
+/** Le client : un vol à la fois, des issues séparées, une génération. */
+export interface ClientDeDonnees<O = unknown, H = unknown, C = unknown> {
+  /** Lit (ou rejoint le vol en cours) et rend le résultat du vol le plus récent. */
+  readonly lit: () => Promise<Resultat<O, H, C>>;
+  /** Y a-t-il un vol en cours ? */
+  readonly enVol: () => boolean;
+  /** Le nombre de vols réellement lancés (la mesure du vol unique). */
+  readonly vols: () => number;
+}
+
+/**
+ * Une lecture, avec son échec attrapé.
+ *
+ * La cause RÉELLE part telle quelle : c'est elle qui permet de distinguer
+ * « Herdr muet » de « réponse hors contrat ».
+ */
+const uneLecture = async <T>(lecture: () => Promise<T>): Promise<Issue<T>> => {
+  try {
+    return { ok: true, valeur: await lecture() };
+  } catch (cause) {
+    return { ok: false, cause: cause instanceof Error ? cause.message : String(cause) };
+  }
+};
+
+/** `true` si au moins une des trois lectures a réussi. */
+export const auMoinsUneReussie = (resultat: Resultat): boolean =>
+  resultat.overview.ok || resultat.health.ok || resultat.conversations.ok;
+
+/**
+ * Le client — `vols()` compte les vols RÉELS, pas les appels : c'est ce qui
+ * rend « huit signaux = un vol » vérifiable.
+ */
+export const creeClient = <O, H, C>(lectures: Lectures<O, H, C>): ClientDeDonnees<O, H, C> => {
+  let enCours: Promise<Resultat<O, H, C>> | null = null;
+  let generation = 0;
+  let lancements = 0;
+
+  const lit = async (): Promise<Resultat<O, H, C>> => {
+    // Le vol en cours sert tous les appelants : c'est le « un seul vol » de C23.
+    if (enCours !== null) return enCours;
+    lancements += 1;
+    generation += 1;
+    const mienne = generation;
+    // ⚠️ Les trois lectures partent ENSEMBLE (elles sont indépendantes), mais
+    // chacune attrape son échec : aucune n'annule les autres — c'est le
+    // contraire du `Promise.all` tout-ou-rien d'origine.
+    const vol = (async (): Promise<Resultat<O, H, C>> => {
+      const [overview, health, conversations] = await Promise.all([
+        uneLecture(lectures.overview),
+        uneLecture(lectures.health),
+        uneLecture(lectures.conversations),
+      ]);
+      return { conversations, generation: mienne, health, overview };
+    })();
+    enCours = vol;
+    try {
+      return await vol;
+    } finally {
+      // ⚠️ Le vol n'est « en cours » que tant qu'il l'est : le prochain signal
+      // en relancera un, avec une génération PLUS GRANDE.
+      enCours = null;
+    }
+  };
+
+  return {
+    enVol: () => enCours !== null,
+    lit,
+    vols: () => lancements,
+  };
+};
+
+/**
+ * La cadence de rafraîchissement, selon que l'onglet est visible ou non.
+ *
+ * ⚠️ **Deux cadences, pas une.** Un onglet en arrière-plan n'a personne devant
+ * lui : rafraîchir toutes les 4 s y consomme batterie et réseau pour un écran
+ * que personne ne regarde. Au retour, on relit **immédiatement** — c'est le
+ * « retour foreground » du contrat, et il ne peut pas attendre la cadence.
+ */
+export const CADENCE_VISIBLE_MS = 4_000;
+export const CADENCE_CACHEE_MS = 60_000;
+
+/** La période à appliquer pour un état de visibilité donné. */
+export const cadence = (visible: boolean): number =>
+  visible ? CADENCE_VISIBLE_MS : CADENCE_CACHEE_MS;
+
+/**
+ * Faut-il appliquer un résultat arrivé maintenant ?
+ *
+ * ⚠️ Le consommateur garde la génération qu'il a déjà appliquée : un résultat
+ * plus ANCIEN est ignoré. Sans cela, une réponse lente faisait revenir la liste
+ * en arrière, et l'utilisateur voyait un agent disparaître puis réapparaître.
+ */
+export const doitAppliquer = (resultat: Resultat, dejaAppliquee: number): boolean =>
+  resultat.generation > dejaAppliquee;

@@ -23,11 +23,11 @@ import {
   fetchOverview,
   openEventStream,
 } from "./api.ts";
-import type { AgentView, InstalledKind, Health, Overview, TrustRequired } from "./api.ts";
+import type { ConversationSummary } from "@herdr-remote/shared";
+import type { AgentView, Health, InstalledKind, Overview, TrustRequired } from "./api.ts";
 import { ChatScreen } from "./ChatScreen.tsx";
 import { BandeauEtat } from "./EtatLecture.tsx";
 import { SettingsSheet } from "./SettingsSheet.tsx";
-import type { ConversationSummary } from "@herdr-remote/shared";
 import { etatLecture } from "./etats.ts";
 import { ProjectAgentsOf } from "./ProjectDetail.tsx";
 import type { LaunchChoice } from "./launch.ts";
@@ -41,6 +41,7 @@ import { SectionTitle } from "./SectionTitle.tsx";
 import { ProjectPicker } from "./ProjectPicker.tsx";
 import type { Route } from "./routing.ts";
 import { Notice } from "./Notice.tsx";
+import { cadence, creeClient, doitAppliquer, type Resultat } from "./rafraichissement.ts";
 import { miseAJourEnAttente } from "./mise-a-jour.ts";
 import { BandeauMiseAJour } from "./BandeauMiseAJour.tsx";
 /**
@@ -210,49 +211,104 @@ export const App = () => {
   const [memoire, setMemoire] = useState<ReadonlyMap<string, AgentView>>(() => new Map());
 
   /**
-   * Lectures en vol.
+   * Le client de données partagé (C23, T059).
    *
-   * Un compteur, pas un booléen : la lecture automatique démarre une nouvelle
-   * requête toutes les 4 s, et une réponse lente arrivait après la suivante. Le
-   * « chargement » se levait trop tôt, et l'écran clignotait.
+   * ⚠️ **Un seul vol pour tous les signaux** : le minuteur, le flux SSE, le
+   * retour au premier plan et le resync appellent tous `refresh`, et sans ce
+   * client huit signaux simultanés lançaient huit lectures. Il porte aussi la
+   * **génération**, qui empêche une réponse lente d'écraser une plus récente,
+   * et des **issues séparées** : un health en panne ne jette plus la liste.
    */
-  const enCours = useRef(0);
-  const refresh = useCallback(async () => {
-    enCours.current += 1;
-    setChargement(true);
-    try {
-      const [nextOverview, nextHealth, nextConversations] = await Promise.all([
-        fetchOverview(),
-        fetchHealth(),
-        fetchConversations(),
-      ]);
-      setOverview(nextOverview);
-      setHealth(nextHealth);
-      setConversations(nextConversations.conversations);
-      setError(null);
-      // Horodatage de la **dernière** lecture réussie : c'est ce qui permet de
-      // dire l'âge de ce qui est affiché au lieu de supposer qu'il est frais.
+  const client = useMemo(
+    () =>
+      creeClient({
+        conversations: fetchConversations,
+        health: fetchHealth,
+        overview: fetchOverview,
+      }),
+    [],
+  );
+
+  /** La génération déjà appliquée — pour ignorer un résultat plus ancien. */
+  const generationAppliquee = useRef(0);
+
+  /** Les trois charges du client, typées par les lectures elles-mêmes. */
+  type Charge = Resultat<Overview, Health, { conversations: ReadonlyArray<ConversationSummary> }>;
+
+  const applique = useCallback((resultat: Charge): void => {
+    if (!doitAppliquer(resultat, generationAppliquee.current)) return;
+    generationAppliquee.current = resultat.generation;
+    // ⚠️ **Chaque partie est appliquée pour elle-même** : une lecture qui a
+    // échoué n'efface pas les données déjà affichées, et n'empêche pas les
+    // deux autres de se mettre à jour. La cause part au journal, pas à l'écran
+    // sous forme d'erreur globale.
+    if (resultat.overview.ok) {
+      setOverview(resultat.overview.valeur);
+    } else {
+      reportError("échec du chargement de la vue d'ensemble", resultat.overview.cause);
+    }
+    if (resultat.health.ok) {
+      setHealth(resultat.health.valeur);
+    }
+    if (resultat.conversations.ok) {
+      setConversations(resultat.conversations.valeur.conversations);
+    } else if (!resultat.overview.ok) {
+      // Les DEUX lectures de contenu ont échoué : là seulement, l'écran n'a
+      // rien de frais à montrer — le bandeau hors-ligne prend le relais.
+      setError(resultat.conversations.cause);
+    }
+    if (resultat.overview.ok || resultat.conversations.ok || resultat.health.ok) {
       setDernierSucces(Date.now());
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : String(cause);
-      setError(message);
-      // Journalisé : un bandeau disparaît au rechargement, pas le journal.
-      reportError("échec du chargement de la vue d'ensemble", message);
-    } finally {
-      enCours.current -= 1;
-      if (enCours.current === 0) setChargement(false);
+      setError(null);
     }
   }, []);
 
+  const refresh = useCallback(async () => {
+    setChargement(true);
+    try {
+      applique(await client.lit());
+    } finally {
+      setChargement(false);
+    }
+  }, [applique, client]);
+
   useEffect(() => {
     void refresh();
-    const timer = setInterval(() => {
-      void refresh();
-      // L'horloge de la liste suit la veille : sans elle, « il y a 2 min »
-      // resterait figé pendant toute la session.
-      setMaintenant(Date.now());
-    }, 4000);
-    return () => clearInterval(timer);
+    let timer: number | null = null;
+
+    /*
+      ⚠️ **Deux cadences (C26)** : 4 s quand la fenêtre est visible, 60 s sinon.
+      Et au RETOUR, on relit immédiatement — un onglet qu'on rouvre ne doit pas
+      attendre la cadence pour se remettre à jour.
+    */
+    const programme = (): void => {
+      if (timer !== null) window.clearInterval(timer);
+      timer = window.setInterval(
+        () => {
+          void refresh();
+          // L'horloge de la liste suit la veille : sans elle, « il y a 2 min »
+          // resterait figé pendant toute la session.
+          setMaintenant(Date.now());
+        },
+        cadence(document.visibilityState === "visible"),
+      );
+    };
+
+    const surVisibilite = (): void => {
+      programme();
+      if (document.visibilityState === "visible") {
+        // `refresh` joint le vol en cours s'il y en a un : aucun doublon.
+        void refresh();
+        setMaintenant(Date.now());
+      }
+    };
+
+    programme();
+    document.addEventListener("visibilitychange", surVisibilite);
+    return () => {
+      if (timer !== null) window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", surVisibilite);
+    };
   }, [refresh]);
 
   // Une seule lecture : les intégrations installées ne changent pas en cours de
