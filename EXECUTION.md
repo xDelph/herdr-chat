@@ -2377,3 +2377,39 @@ Ce qui **reste** : `agent.get` **n'a jamais été mesuré sur le vrai socket** �
 ### `lockDB` — non fait, et pourquoi ce n'est pas un oubli silencieux
 
 Le scénario demande une transaction d'écriture tenue sur `opencode.db` pendant les lectures (chemin du `busy_timeout` de 3 s). Il exige trois pièces qui n'existent pas encore dans le banc : une pane **SQLite** dans la fausse Herdr (`kind: id`, famille opencode), une **copie** de la base du bundle dans le dossier temporaire (le bundle gelé ne s'écrit jamais), et un **détenteur de transaction** (`sqlite3` alimenté par `BEGIN IMMEDIATE`). Rien de tout cela n'est fait ici : le scénario est déclaré **non mesuré**, pas « sans écart ».
+
+### ✅ Le 404 est résolu — et la leçon est sur la fixture, pas sur la référence
+
+**Mesure** (sonde en lecture seule sur le socket réel, `agent.get` avec `{target}`) :
+
+```json
+{"type": "agent_info", "agent": {"terminal_id": "…", "agent": "pi", "agent_status": "idle",
+ "agent_session": {"source": "herdr:pi", "agent": "pi", "kind": "path", "value": "…"}}}
+```
+
+`agent.get` rend une enveloppe **typée** `{type: "agent_info", agent: {…}}` et sa `source` vaut `herdr:<kind>`. Ma fixture rendait `{agent: …}` **sans `type`** : la référence décodait un `ResultPayload` étiqueté, échouait, et la route répondait 404 « no usable session path ». Trois formes devinées, trois 404 ; **une sonde de 10 lignes a tranché**. La leçon est celle du projet entier : le schéma n'est pas la source de vérité, **la mesure l'est** — et une fixture qui devine le fil accuse à tort la pile mesurée.
+
+Après correction : **TS rend 200** sur la route de session, dans **tous** les scénarios.
+
+### Second défaut trouvé par le banc : la première page partait de l'origine
+
+Avec la comparaison enfin valide, Rust était **10× plus lent** que TS sur la route de session d'un fichier de 32 Mio (p50 17,97 ms contre 1,67 ms). Cause : sans curseur, le port lisait **depuis l'octet 0** et parcourait toute la fenêtre depuis le début de l'historique, alors qu'un `?tail=` demande la **fin** du fichier.
+
+Correction (`sessions::port::page_fichier`) : quand il n'y a pas de curseur et que le fichier dépasse la fenêtre demandée, la lecture démarre à `taille - limite`, alignée sur le premier saut de ligne (`debut_de_queue`) — jamais une ligne coupée. Un fichier plus petit que la fenêtre garde le comportement d'origine (début), donc rien ne change pour les sessions courtes.
+
+**`delta32`, 32 Mio, 2 clients, 3 runs de 2 s, run chaud :**
+
+| Mesure | Rust avant | Rust après | TS |
+|---|---|---|---|
+| `session` p50 / p95 | 17,97 / 21,8 ms | **1,04 / 1,68 ms** | 1,92 / 4,25 ms |
+| `conversations` p50 | 0,57 ms | **0,24 ms** | 1,50 ms |
+| `overview` p50 | 0,28 ms | **0,17 ms** | 0,78 ms |
+| requêtes en 2 s | 609 | **7 143** | 2 395 |
+| RSS max | 54 Mo | **15,6 Mo** | 148,6 Mo |
+| non-200 | 0 | 0 | 0 |
+
+Rust est devant la référence sur **toutes** les routes mesurées, y compris celle qui l'écrasait.
+
+### Reste dans T065
+
+`lockDB` (transaction d'écriture tenue sur `opencode.db`) : non fait, pour les raisons déjà écrites. Et un **échec intermittent** observé une fois sur `sessions` (`le_curseur_rendu_permet_de_lire_la_suite`), non reproduit en 3 exécutions complètes ni en isolation — probablement une collision de dossiers temporaires entre tests parallèles, comme celle déjà corrigée dans `herdrchat::logging`. À traiter avant de déclarer la suite stable.

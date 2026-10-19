@@ -12,30 +12,30 @@
     {
       "agregats": {
         "cold": {
-          "cpu_ms": 3320,
-          "p50_us": 767,
-          "p95_us": 22042,
-          "p99_us": 27812,
-          "requetes": 528,
-          "rss_max_kio": 55648,
+          "cpu_ms": 2580,
+          "p50_us": 275,
+          "p95_us": 1468,
+          "p99_us": 2428,
+          "requetes": 6660,
+          "rss_max_kio": 15456,
           "runs": 1
         },
         "warm": {
-          "cpu_ms": 3430,
-          "p50_us": 640,
-          "p95_us": 20053,
-          "p99_us": 29991,
-          "requetes": 585,
-          "rss_max_kio": 56080,
-          "runs": 1
+          "cpu_ms": 5240,
+          "p50_us": 281,
+          "p95_us": 1488,
+          "p99_us": 2428,
+          "requetes": 13812,
+          "rss_max_kio": 15648,
+          "runs": 2
         }
       },
-      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=54777 HERDR_REMOTE_BIND=127.0.0.1 target/{release,debug}/herdrchat",
-      "demandes_fixture": 4,
+      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=61063 HERDR_REMOTE_BIND=127.0.0.1 target/{release,debug}/herdrchat",
+      "demandes_fixture": 5,
       "dossier": "",
       "journal_serveur": "",
       "pile": "rust",
-      "pret_ms": 321,
+      "pret_ms": 631,
       "routes": [
         "/api/overview",
         "/api/conversations",
@@ -43,95 +43,133 @@
       ],
       "runs": [
         {
-          "cpu_ms": 3320,
+          "cpu_ms": 2580,
           "echantillons": 10,
           "froid": true,
-          "max_us": 124322,
+          "max_us": 9305,
           "mode": "cold",
           "non_200": 0,
-          "octets": 481956992,
-          "p50_us": 767,
-          "p95_us": 22042,
-          "p99_us": 27812,
+          "octets": 194014680,
+          "p50_us": 275,
+          "p95_us": 1468,
+          "p99_us": 2428,
           "par_route": {
             "/api/agents/w0:p1/session?tail=65536": {
-              "max_us": 124322,
-              "n": 176,
-              "p50_us": 19705,
-              "p95_us": 25941,
-              "p99_us": 105333
+              "max_us": 9305,
+              "n": 2220,
+              "p50_us": 1056,
+              "p95_us": 1938,
+              "p99_us": 3196
             },
             "/api/conversations": {
-              "max_us": 14648,
-              "n": 176,
-              "p50_us": 672,
-              "p95_us": 2580,
-              "p99_us": 6922
+              "max_us": 3812,
+              "n": 2220,
+              "p50_us": 241,
+              "p95_us": 780,
+              "p99_us": 1606
             },
             "/api/overview": {
-              "max_us": 6645,
-              "n": 176,
-              "p50_us": 311,
-              "p95_us": 1920,
-              "p99_us": 6431
+              "max_us": 3643,
+              "n": 2220,
+              "p50_us": 175,
+              "p95_us": 652,
+              "p99_us": 1247
             }
           },
-          "requetes": 528,
-          "rss_max_kio": 55648,
+          "requetes": 6660,
+          "rss_max_kio": 15456,
           "run": 0
         },
         {
-          "cpu_ms": 3430,
+          "cpu_ms": 2550,
           "echantillons": 10,
           "froid": false,
-          "max_us": 69177,
+          "max_us": 12611,
           "mode": "warm",
           "non_200": 0,
-          "octets": 533986440,
-          "p50_us": 640,
-          "p95_us": 20053,
-          "p99_us": 29991,
+          "octets": 194276862,
+          "p50_us": 281,
+          "p95_us": 1488,
+          "p99_us": 2428,
           "par_route": {
             "/api/agents/w0:p1/session?tail=65536": {
-              "max_us": 69177,
-              "n": 195,
-              "p50_us": 17551,
-              "p95_us": 24318,
-              "p99_us": 61302
+              "max_us": 12611,
+              "n": 2223,
+              "p50_us": 1014,
+              "p95_us": 1898,
+              "p99_us": 3350
             },
             "/api/conversations": {
-              "max_us": 6379,
-              "n": 195,
-              "p50_us": 588,
-              "p95_us": 2040,
-              "p99_us": 6248
+              "max_us": 6906,
+              "n": 2223,
+              "p50_us": 243,
+              "p95_us": 802,
+              "p99_us": 1635
             },
             "/api/overview": {
-              "max_us": 4531,
-              "n": 195,
-              "p50_us": 278,
-              "p95_us": 1245,
-              "p99_us": 4479
+              "max_us": 8399,
+              "n": 2223,
+              "p50_us": 177,
+              "p95_us": 610,
+              "p99_us": 1328
             }
           },
-          "requetes": 585,
-          "rss_max_kio": 56080,
+          "requetes": 6669,
+          "rss_max_kio": 15632,
           "run": 1
+        },
+        {
+          "cpu_ms": 2690,
+          "echantillons": 10,
+          "froid": false,
+          "max_us": 10508,
+          "mode": "warm",
+          "non_200": 0,
+          "octets": 208085114,
+          "p50_us": 264,
+          "p95_us": 1345,
+          "p99_us": 1926,
+          "par_route": {
+            "/api/agents/w0:p1/session?tail=65536": {
+              "max_us": 10508,
+              "n": 2381,
+              "p50_us": 1043,
+              "p95_us": 1683,
+              "p99_us": 2396
+            },
+            "/api/conversations": {
+              "max_us": 9940,
+              "n": 2381,
+              "p50_us": 235,
+              "p95_us": 627,
+              "p99_us": 1310
+            },
+            "/api/overview": {
+              "max_us": 2358,
+              "n": 2381,
+              "p50_us": 172,
+              "p95_us": 470,
+              "p99_us": 985
+            }
+          },
+          "requetes": 7143,
+          "rss_max_kio": 15648,
+          "run": 2
         }
       ],
       "sondes": [
         {
-          "corps": "{\"agents\":[{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p1\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-60406-1792431488313875000/sessions/banc-0.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"}],\"herdrProtocol\":22,\"herdrVersion\":\"0.9.3\",\"withoutSession\":0,\"workspaces\":[{\"agentPanes\":[\"w0:p1\"],\"agentStatus\":null,\"checkoutPath\":\"/tmp/banc\",\"focused\":false,\"label\":\"banc-0\",\"paneCount\":4,\"tabCount\":1,\"workspaceId\":\"w0\"}]}",
+          "corps": "{\"agents\":[{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p1\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-71460-1792432720641969000/sessions/banc-0.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"}],\"herdrProtocol\":22,\"herdrVersion\":\"0.9.3\",\"withoutSession\":0,\"workspaces\":[{\"agentPanes\":[\"w0:p1\"],\"agentStatus\":null,\"checkoutPath\":\"/tmp/banc\",\"focused\":false,\"label\":\"banc-0\",\"paneCount\":4,\"tabCount\":1,\"workspaceId\":\"w0\"}]}",
           "route": "/api/overview",
           "statut": 200
         },
         {
-          "corps": "{\"conversations\":[{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\nlecture repli repli focus catalogne opaque référence cause curseur état mesure rafraîchissement verdict verdict accessibilité rafraîchissement lecture rendu\",\"sessionState\":\"available\",\"timestamp\":1709715240000,\"title\":\"banc 0 — essai\",\"status\":\"idle\",\"workspaceId\":\"w0\",\"tabId\":\"w0:t1\",\"paneId\":\"w0:p1\"}]}",
+          "corps": "{\"conversations\":[{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Le chemin critique passe par le serveur, jamais par le contenu de la session.\\n\\noctets opaque fenêtre cause lecture session mesure p95 résultat décodage décodage fenêtre cause fenêtre opaque p95 résultat rendu\",\"sessionState\":\"available\",\"timestamp\":1709712003000,\"title\":\"banc 0 — essai\",\"status\":\"idle\",\"workspaceId\":\"w0\",\"tabId\":\"w0:t1\",\"paneId\":\"w0:p1\"}]}",
           "route": "/api/conversations",
           "statut": 200
         },
         {
-          "corps": "{\"cause\":\"vide\",\"entries\":[{\"type\":\"message\",\"id\":\"msg-0-u\",\"raw\":\"{\\\"content\\\":[{\\\"text\\\":\\\"Le chemin critique passe par le serveur, jamais par le contenu de la session. (0)\\\",\\\"type\\\":\\\"text\\\"}],\\\"id\\\":\\\"msg-0-u\\\",\\\"role\\\":\\\"user\\\",\\\"timestamp\\\":\\\"2024-03-05T08:00:00.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:00:00.000Z\"},{\"type\":\"message\",\"id\":\"msg-0-a\",\"raw\":\"{\\\"message\\\":{\\\"content\\\":[{\\\"thinking\\\":\\\"opaque vérification décodage vérification contrat octets erreur verdict octets repli feuille fenêtre session repli verdict cause erreur décodage\\\",\\\"type\\\":\\\"thinking\\\"},{\\\"text\\\":\\\"Le chemin critique passe par le serveur, jamais par le contenu de la session.\\\\n\\\\nrendu état vérification mesure opaque décodage décodage fenêtre octets fenêtre cause fenêtre décodage fenêtre catalogne lecture rendu fenêtre\\\",\\\"type\\\":\\\"text\\\"},{\\\"arguments\\\":{\\\"path\\\":\\\"/dev/projets/pixel/src/fichier-0.ts\\\"},\\\"id\\\":\\\"call-0\\\",\\\"name\\\":\\\"read\\\",\\\"type\\\":\\\"toolCall\\\"}],\\\"model\\\":\\\"gpt-5\\\",\\\"role\\\":\\\"assistant\\\",\\\"stopReason\\\":\\\"toolUse\\\",\\\"usage\\\":{\\\"cost\\\":{\\\"total\\\":0.01},\\\"totalTokens\\\":400}},\\\"id\\\":\\\"msg-0-a\\\",\\\"timestamp\\\":\\\"2024-03-05T08:00:02.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:00:02.000Z\"},{\"type\":\"message\",\"id\":\"msg-0-r\",\"parentId\":\"msg-0-a\",\"raw\":\"{\\\"message\\\":{\\\"content\\\":[{\\\"output\\\":\\\"lecture rendu rendu repli décodage fenêtre résultat référence fenêtre contrat octets contrat résultat erreur curseur focus feuille mesure\\\",\\\"toolCallId\\\":\\\"call-0\\\",\\\"toolName\\\":\\\"read\\\"}],\\\"role\\\":\\\"toolResult\\\",\\\"toolName\\\":\\\"read\\\"},\\\"id\\\":\\\"msg-0-r\\\",\\\"parentId\\\":\\\"msg-0-a\\\",\\\"timestamp\\\":\\\"2024-03-05T08:00:03.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:00:03.000Z\"},{\"type\":\"message\",\"id\":\"msg-1-u\",\"raw\":\"{\\\"content\\\":[{\\\"text\\\":\\\"Une mesure sans méthode n'est pas une mesure, c'est une impression. (1)\\\",\\\"type\\\":\\\"text\\\"}],\\\"id\\\":\\\"msg-1-u\\\",\\\"role\\\":\\\"user\\\",\\\"timestamp\\\":\\\"2024-03-05T08:01:00.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:01:00.000Z\"},{\"type\":\"message\",\"id\":\"msg-1-a\",\"raw\":\"{\\\"message\\\":{\\\"content\\\":[{\\\"thinking\\\":\\\"état octets vérification focus lecture focus octets accessibilité vérification résultat opaque rafraîchissement décodage état opaque mesure accessibilité feuille\\\",\\\"type\\\":\\\"thinking\\\"},{\\\"text\\\":\\\"Une mesure sans méthode n'est pas une mesure, c'est une impression.\\\\n\\\\nfeuille accessibilité rafraîchissement opaque rafraîchissement curseur accessibilité décodage repli accessibilité vérification erreur fenêtre verdict décodage accessibilité référence opaque\\\",\\\"type\\\":\\\"text\\\"},{\\\"arguments\\\":{\\\"path\\\":\\\"/dev/projets/pixel/src/fichier-1.ts\\\"},\\\"id\\\":\\\"call-1\\\",\\\"name\\\":\\\"edit\\\",\\\"type\\\":\\\"toolCall\\\"}],\\\"model\\\":\\\"gpt-5\\\",\\\"role\\\":\\\"assistant\\\",\\\"stopReason\\\":\\\"toolUse\\\",\\\"usage\\\":{\\\"cost\\\":{\\\"total\\\":0.011},\\\"totalTokens\\\":401}},\\\"id\\\":\\\"msg-1-a\\\",\\\"timestamp\\\":\\\"2024-03-05T08:01:02.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:01:02.000Z\"},{\"type\":\"message\",\"id\":\"msg-1-",
+          "corps": "{\"cause\":\"vide\",\"entries\":[{\"type\":\"message\",\"id\":\"msg-24673-u\",\"raw\":\"{\\\"content\\\":[{\\\"text\\\":\\\"Une mesure sans méthode n'est pas une mesure, c'est une impression. (24673)\\\",\\\"type\\\":\\\"text\\\"}],\\\"id\\\":\\\"msg-24673-u\\\",\\\"role\\\":\\\"user\\\",\\\"timestamp\\\":\\\"2024-03-05T08:13:00.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:13:00.000Z\"},{\"type\":\"message\",\"id\":\"msg-24673-a\",\"raw\":\"{\\\"message\\\":{\\\"content\\\":[{\\\"thinking\\\":\\\"résultat contrat session état lecture curseur octets cause résultat contrat p95 accessibilité octets erreur repli vérification fenêtre accessibilité\\\",\\\"type\\\":\\\"thinking\\\"},{\\\"text\\\":\\\"Une mesure sans méthode n'est pas une mesure, c'est une impression.\\\\n\\\\nrepli feuille cause p95 catalogne rafraîchissement catalogne référence rafraîchissement référence session catalogne référence fenêtre rafraîchissement contrat p95 curseur\\\",\\\"type\\\":\\\"text\\\"},{\\\"arguments\\\":{\\\"path\\\":\\\"/dev/projets/pixel/src/fichier-1.ts\\\"},\\\"id\\\":\\\"call-24673\\\",\\\"name\\\":\\\"grep\\\",\\\"type\\\":\\\"toolCall\\\"}],\\\"model\\\":\\\"gpt-5\\\",\\\"role\\\":\\\"assistant\\\",\\\"stopReason\\\":\\\"toolUse\\\",\\\"usage\\\":{\\\"cost\\\":{\\\"total\\\":0.043000000000000003},\\\"totalTokens\\\":773}},\\\"id\\\":\\\"msg-24673-a\\\",\\\"timestamp\\\":\\\"2024-03-05T08:13:02.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:13:02.000Z\"},{\"type\":\"message\",\"id\":\"msg-24673-r\",\"parentId\":\"msg-24673-a\",\"raw\":\"{\\\"message\\\":{\\\"content\\\":[{\\\"output\\\":\\\"opaque focus catalogne lecture p95 verdict session octets session accessibilité fenêtre feuille décodage cause repli état session contrat\\\",\\\"toolCallId\\\":\\\"call-24673\\\",\\\"toolName\\\":\\\"grep\\\"}],\\\"role\\\":\\\"toolResult\\\",\\\"toolName\\\":\\\"grep\\\"},\\\"id\\\":\\\"msg-24673-r\\\",\\\"parentId\\\":\\\"msg-24673-a\\\",\\\"timestamp\\\":\\\"2024-03-05T08:13:03.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:13:03.000Z\"},{\"type\":\"message\",\"id\":\"msg-24674-u\",\"raw\":\"{\\\"content\\\":[{\\\"text\\\":\\\"Le filtre réduit la liste ; il ne choisit rien. (24674)\\\",\\\"type\\\":\\\"text\\\"}],\\\"id\\\":\\\"msg-24674-u\\\",\\\"role\\\":\\\"user\\\",\\\"timestamp\\\":\\\"2024-03-05T08:14:00.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:14:00.000Z\"},{\"type\":\"message\",\"id\":\"msg-24674-a\",\"raw\":\"{\\\"message\\\":{\\\"content\\\":[{\\\"thinking\\\":\\\"feuille référence rafraîchissement erreur accessibilité repli opaque curseur décodage mesure p95 mesure octets curseur cause rendu curseur référence\\\",\\\"type\\\":\\\"thinking\\\"},{\\\"text\\\":\\\"Le filtre réduit la liste ; il ne choisit rien.\\\\n\\\\nrésultat verdict focus rafraîchissement rafraîchissement fenêtre vérification lecture catalogne feuille vérification référence accessibilité session catalogne session référence mesure\\\",\\\"type\\\":\\\"text\\\"},{\\\"arguments\\\":{\\\"path\\\":\\\"/dev/projets/pixel/src/fichier-2.ts\\\"},\\\"id\\\":\\\"call-24674\\\",\\\"name\\\":\\\"webfetch\\\",\\\"type\\\":\\\"toolCall\\\"}],\\\"model\\\":\\\"gpt-5\\\",\\\"role\\\":\\\"assistant\\\",\\\"stopReason\\\":\\\"toolUse\\\",\\\"usage\\\":{\\\"cost\\\":{\\\"total\\\":0.044000000000000004},\\\"totalTokens\\\":774}},\\\"id\\\":\\\"msg-24674-a\\\",\\\"timestamp\\\":\\\"2024-03-05T08:14:02.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"",
           "route": "/api/agents/w0:p1/session?tail=65536",
           "statut": 200
         }
@@ -140,30 +178,30 @@
     {
       "agregats": {
         "cold": {
-          "cpu_ms": 2550,
-          "p50_us": 818,
-          "p95_us": 2031,
-          "p99_us": 3491,
-          "requetes": 3953,
-          "rss_max_kio": 139552,
+          "cpu_ms": 2760,
+          "p50_us": 1446,
+          "p95_us": 3310,
+          "p99_us": 5399,
+          "requetes": 2483,
+          "rss_max_kio": 141968,
           "runs": 1
         },
         "warm": {
-          "cpu_ms": 2390,
-          "p50_us": 746,
-          "p95_us": 1874,
-          "p99_us": 3631,
-          "requetes": 4180,
-          "rss_max_kio": 149568,
-          "runs": 1
+          "cpu_ms": 5160,
+          "p50_us": 1471,
+          "p95_us": 3962,
+          "p99_us": 6738,
+          "requetes": 4630,
+          "rss_max_kio": 155296,
+          "runs": 2
         }
       },
-      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=55919 HERDR_REMOTE_BIND=127.0.0.1 bun run apps/server/src/main.ts",
-      "demandes_fixture": 8141,
+      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=65424 HERDR_REMOTE_BIND=127.0.0.1 bun run apps/server/src/main.ts",
+      "demandes_fixture": 7122,
       "dossier": "",
       "journal_serveur": "",
       "pile": "ts",
-      "pret_ms": 332,
+      "pret_ms": 325,
       "routes": [
         "/api/overview",
         "/api/conversations",
@@ -171,85 +209,123 @@
       ],
       "runs": [
         {
-          "cpu_ms": 2550,
+          "cpu_ms": 2760,
           "echantillons": 10,
           "froid": true,
-          "max_us": 16901,
+          "max_us": 11112,
           "mode": "cold",
-          "non_200": 1317,
-          "octets": 2138911,
-          "p50_us": 818,
-          "p95_us": 2031,
-          "p99_us": 3491,
+          "non_200": 0,
+          "octets": 73400151,
+          "p50_us": 1446,
+          "p95_us": 3310,
+          "p99_us": 5399,
           "par_route": {
             "/api/agents/w0:p1/session?tail=65536": {
-              "max_us": 5871,
-              "n": 1317,
-              "p50_us": 589,
-              "p95_us": 1441,
-              "p99_us": 2441
+              "max_us": 11112,
+              "n": 827,
+              "p50_us": 1828,
+              "p95_us": 4245,
+              "p99_us": 6461
             },
             "/api/conversations": {
-              "max_us": 16901,
-              "n": 1318,
-              "p50_us": 1181,
-              "p95_us": 2745,
-              "p99_us": 4808
+              "max_us": 9824,
+              "n": 828,
+              "p50_us": 1464,
+              "p95_us": 3341,
+              "p99_us": 5051
             },
             "/api/overview": {
-              "max_us": 9162,
-              "n": 1318,
-              "p50_us": 735,
-              "p95_us": 1543,
-              "p99_us": 2455
+              "max_us": 5386,
+              "n": 828,
+              "p50_us": 763,
+              "p95_us": 1618,
+              "p99_us": 2639
             }
           },
-          "requetes": 3953,
-          "rss_max_kio": 139552,
+          "requetes": 2483,
+          "rss_max_kio": 141968,
           "run": 0
         },
         {
-          "cpu_ms": 2390,
+          "cpu_ms": 2510,
           "echantillons": 10,
           "froid": false,
-          "max_us": 27682,
+          "max_us": 26663,
           "mode": "warm",
-          "non_200": 1392,
-          "octets": 2262056,
-          "p50_us": 746,
-          "p95_us": 1874,
-          "p99_us": 3631,
+          "non_200": 0,
+          "octets": 66120985,
+          "p50_us": 1462,
+          "p95_us": 3962,
+          "p99_us": 6738,
           "par_route": {
             "/api/agents/w0:p1/session?tail=65536": {
-              "max_us": 18215,
-              "n": 1392,
-              "p50_us": 536,
-              "p95_us": 1195,
-              "p99_us": 2522
+              "max_us": 26663,
+              "n": 745,
+              "p50_us": 2023,
+              "p95_us": 4917,
+              "p99_us": 10564
             },
             "/api/conversations": {
-              "max_us": 27682,
-              "n": 1394,
-              "p50_us": 1083,
-              "p95_us": 2519,
-              "p99_us": 5553
+              "max_us": 18986,
+              "n": 745,
+              "p50_us": 1453,
+              "p95_us": 3962,
+              "p99_us": 6641
             },
             "/api/overview": {
-              "max_us": 11689,
-              "n": 1394,
-              "p50_us": 680,
-              "p95_us": 1393,
-              "p99_us": 2402
+              "max_us": 5659,
+              "n": 745,
+              "p50_us": 796,
+              "p95_us": 1877,
+              "p99_us": 3283
             }
           },
-          "requetes": 4180,
-          "rss_max_kio": 149568,
+          "requetes": 2235,
+          "rss_max_kio": 155296,
           "run": 1
+        },
+        {
+          "cpu_ms": 2650,
+          "echantillons": 10,
+          "froid": false,
+          "max_us": 10342,
+          "mode": "warm",
+          "non_200": 0,
+          "octets": 70738981,
+          "p50_us": 1471,
+          "p95_us": 3358,
+          "p99_us": 6077,
+          "par_route": {
+            "/api/agents/w0:p1/session?tail=65536": {
+              "max_us": 10342,
+              "n": 797,
+              "p50_us": 1920,
+              "p95_us": 4252,
+              "p99_us": 7567
+            },
+            "/api/conversations": {
+              "max_us": 9249,
+              "n": 799,
+              "p50_us": 1503,
+              "p95_us": 3466,
+              "p99_us": 6296
+            },
+            "/api/overview": {
+              "max_us": 7523,
+              "n": 799,
+              "p50_us": 775,
+              "p95_us": 1850,
+              "p99_us": 3380
+            }
+          },
+          "requetes": 2395,
+          "rss_max_kio": 148560,
+          "run": 2
         }
       ],
       "sondes": [
         {
-          "corps": "{\"agents\":[{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p1\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-60406-1792431488313875000/sessions/banc-0.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"}],\"herdrProtocol\":22,\"herdrVersion\":\"0.9.3\",\"withoutSession\":0,\"workspaces\":[{\"agentPanes\":[\"w0:p1\"],\"agentStatus\":null,\"checkoutPath\":null,\"focused\":false,\"label\":\"banc-0\",\"paneCount\":4,\"tabCount\":1,\"workspaceId\":\"w0\"}]}",
+          "corps": "{\"agents\":[{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p1\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-71460-1792432720641969000/sessions/banc-0.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"}],\"herdrProtocol\":22,\"herdrVersion\":\"0.9.3\",\"withoutSession\":0,\"workspaces\":[{\"agentPanes\":[\"w0:p1\"],\"agentStatus\":null,\"checkoutPath\":null,\"focused\":false,\"label\":\"banc-0\",\"paneCount\":4,\"tabCount\":1,\"workspaceId\":\"w0\"}]}",
           "route": "/api/overview",
           "statut": 200
         },
@@ -259,14 +335,14 @@
           "statut": 200
         },
         {
-          "corps": "{\"error\":\"no usable session path for this agent\"}",
+          "corps": "{\"cause\":\"vide\",\"cursor\":\"eyJkZXYiOjE2Nzc3MjI5LCJpbm8iOjk4MDk5Mzg5LCJvZmZzZXQiOjM1NjUzNDI5fQ==\",\"entries\":[{\"id\":\"msg-24673-u\",\"parentId\":null,\"raw\":\"{\\\"content\\\":[{\\\"text\\\":\\\"Une mesure sans méthode n'est pas une mesure, c'est une impression. (24673)\\\",\\\"type\\\":\\\"text\\\"}],\\\"id\\\":\\\"msg-24673-u\\\",\\\"role\\\":\\\"user\\\",\\\"timestamp\\\":\\\"2024-03-05T08:13:00.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:13:00.000Z\",\"type\":\"message\"},{\"id\":\"msg-24673-a\",\"parentId\":null,\"raw\":\"{\\\"message\\\":{\\\"content\\\":[{\\\"thinking\\\":\\\"résultat contrat session état lecture curseur octets cause résultat contrat p95 accessibilité octets erreur repli vérification fenêtre accessibilité\\\",\\\"type\\\":\\\"thinking\\\"},{\\\"text\\\":\\\"Une mesure sans méthode n'est pas une mesure, c'est une impression.\\\\n\\\\nrepli feuille cause p95 catalogne rafraîchissement catalogne référence rafraîchissement référence session catalogne référence fenêtre rafraîchissement contrat p95 curseur\\\",\\\"type\\\":\\\"text\\\"},{\\\"arguments\\\":{\\\"path\\\":\\\"/dev/projets/pixel/src/fichier-1.ts\\\"},\\\"id\\\":\\\"call-24673\\\",\\\"name\\\":\\\"grep\\\",\\\"type\\\":\\\"toolCall\\\"}],\\\"model\\\":\\\"gpt-5\\\",\\\"role\\\":\\\"assistant\\\",\\\"stopReason\\\":\\\"toolUse\\\",\\\"usage\\\":{\\\"cost\\\":{\\\"total\\\":0.043000000000000003},\\\"totalTokens\\\":773}},\\\"id\\\":\\\"msg-24673-a\\\",\\\"timestamp\\\":\\\"2024-03-05T08:13:02.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:13:02.000Z\",\"type\":\"message\"},{\"id\":\"msg-24673-r\",\"parentId\":\"msg-24673-a\",\"raw\":\"{\\\"message\\\":{\\\"content\\\":[{\\\"output\\\":\\\"opaque focus catalogne lecture p95 verdict session octets session accessibilité fenêtre feuille décodage cause repli état session contrat\\\",\\\"toolCallId\\\":\\\"call-24673\\\",\\\"toolName\\\":\\\"grep\\\"}],\\\"role\\\":\\\"toolResult\\\",\\\"toolName\\\":\\\"grep\\\"},\\\"id\\\":\\\"msg-24673-r\\\",\\\"parentId\\\":\\\"msg-24673-a\\\",\\\"timestamp\\\":\\\"2024-03-05T08:13:03.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:13:03.000Z\",\"type\":\"message\"},{\"id\":\"msg-24674-u\",\"parentId\":null,\"raw\":\"{\\\"content\\\":[{\\\"text\\\":\\\"Le filtre réduit la liste ; il ne choisit rien. (24674)\\\",\\\"type\\\":\\\"text\\\"}],\\\"id\\\":\\\"msg-24674-u\\\",\\\"role\\\":\\\"user\\\",\\\"timestamp\\\":\\\"2024-03-05T08:14:00.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:14:00.000Z\",\"type\":\"message\"},{\"id\":\"msg-24674-a\",\"parentId\":null,\"raw\":\"{\\\"message\\\":{\\\"content\\\":[{\\\"thinking\\\":\\\"feuille référence rafraîchissement erreur accessibilité repli opaque curseur décodage mesure p95 mesure octets curseur cause rendu curseur référence\\\",\\\"type\\\":\\\"thinking\\\"},{\\\"text\\\":\\\"Le filtre réduit la liste ; il ne choisit rien.\\\\n\\\\nrésultat verdict focus rafraîchissement rafraîchissement fenêtre vérification lecture catalogne feuille vérification référence accessibilité session catalogne session référence mesure\\\",\\\"type\\\":\\\"text\\\"},{\\\"arguments\\\":{\\\"path\\\":\\\"/dev/projets/pixel/src/fichier-2.ts\\\"},\\\"id\\\":\\\"call-24674\\\",\\\"name\\\":\\\"webfetch\\\",\\\"type\\\":\\\"toolCall\\\"}],\\\"model\\\":\\\"gpt-5\\\",\\\"role\\\":\\\"assistant\\\",\\\"stopReason\\\":\\\"toolUse\\\",\\\"usage\\\":{\\\"cost\\\":{\\\"total\\\":0.04400000000000000",
           "route": "/api/agents/w0:p1/session?tail=65536",
-          "statut": 404
+          "statut": 200
         }
       ]
     }
   ],
-  "runs": 2,
+  "runs": 3,
   "scenario": "delta32",
   "schemaVersion": 1,
   "secondes": 2

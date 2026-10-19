@@ -117,27 +117,6 @@ fn page_fichier(source: &ResolvedSource, request: &SessionPageRequest) -> Sessio
     // ⚠️ Le forward est borné par la CIBLE de T025 (2 MiB) dans `page_bornee` ;
     // `request.limit` (la fenêtre demandée) sert à l'historique, où le client
     // choisit combien il remonte.
-    // 1) Le curseur : absent = première page (depuis le début) ; présent =
-    //    décode `hc2:` et **lie** le curseur à cette source.
-    let position: u64 = match request.cursor.as_deref() {
-        None => 0,
-        Some(brut) => {
-            // ⚠️ `lie_a` fait les deux choses : il **valide** que le curseur
-            // appartient à cette source et à cette session, et il recolle un
-            // curseur LEGACY (qui n'en portait pas) — c'est le reset legacy.
-            let lie =
-                cursor::decode(brut).and_then(|curseur| curseur.lie_a(&empreinte, &source.base));
-            match lie {
-                Ok(lie) => u64::try_from(lie.position).unwrap_or(0),
-                Err(cause) => {
-                    return SessionPageOutcome::Invalide {
-                        detail: format!("curseur refusé : {cause}"),
-                    };
-                }
-            }
-        }
-    };
-
     // ⚠️ **L'identité du fichier est MESURÉE, pas portée par le curseur** : le
     // format `hc2:` ne transporte que source/session/génération/position.
     // Le seul reset qu'on puisse PROUVER sans dev/ino dans le jeton est une
@@ -151,6 +130,35 @@ fn page_fichier(source: &ResolvedSource, request: &SessionPageRequest) -> Sessio
             return SessionPageOutcome::Io {
                 detail: cause.to_string(),
             };
+        }
+    };
+    // 1) Le curseur : absent = première page ; présent = décodé et **lié**.
+    //
+    // ⚠️ **Première page d'un GROS fichier = la QUEUE, pas l'origine.** Le banc
+    // T065 a mesuré 18 ms pour une fenêtre de 64 Kio demandée sur un fichier de
+    // 32 Mio : la lecture partait de l'octet 0 et parcourait toute la fenêtre
+    // depuis le début de l'historique. On démarre donc à `taille - limite`,
+    // aligné sur le premier saut de ligne (jamais une ligne coupée).
+    let position: u64 = match request.cursor.as_deref() {
+        None => {
+            let cible = u64::from(request.limit);
+            if identite.taille > cible {
+                debut_de_queue(chemin, identite.taille - cible).unwrap_or(0)
+            } else {
+                0
+            }
+        }
+        Some(brut) => {
+            let lie =
+                cursor::decode(brut).and_then(|curseur| curseur.lie_a(&empreinte, &source.base));
+            match lie {
+                Ok(lie) => u64::try_from(lie.position).unwrap_or(0),
+                Err(cause) => {
+                    return SessionPageOutcome::Invalide {
+                        detail: format!("curseur refusé : {cause}"),
+                    };
+                }
+            }
         }
     };
     let tronque = position > identite.taille;
@@ -209,6 +217,24 @@ fn page_fichier(source: &ResolvedSource, request: &SessionPageRequest) -> Sessio
         return SessionPageOutcome::Vide(page);
     }
     SessionPageOutcome::Page(page)
+}
+
+/// Le premier offset **après** un saut de ligne, à partir de `depart` — pour
+/// commencer la queue d'un fichier sur une ligne entière.
+fn debut_de_queue(chemin: &Path, depart: u64) -> Option<u64> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut fichier = std::fs::File::open(chemin).ok()?;
+    fichier.seek(SeekFrom::Start(depart)).ok()?;
+    let mut octet = [0_u8; 1];
+    let mut position = depart;
+    loop {
+        match fichier.read(&mut octet) {
+            Ok(0) => return Some(position),
+            Ok(_) if octet[0] == b'\n' => return Some(position + 1),
+            Ok(_) => position += 1,
+            Err(_) => return None,
+        }
+    }
 }
 
 /// La page vide d'une source absente — le contexte de réponse (incrémental,

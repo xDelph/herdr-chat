@@ -113,6 +113,11 @@ fn sert(flux: UnixStream, plan: &Plan, compteur: &AtomicU64) -> std::io::Result<
         .get("method")
         .and_then(Value::as_str)
         .unwrap_or_default();
+    let cible = demande
+        .get("params")
+        .and_then(|params| params.get("target"))
+        .and_then(Value::as_str)
+        .unwrap_or_default();
     let resultat = match methode {
         "ping" => Ok(json!({ "protocol": 22, "version": "0.9.3" })),
         "session.snapshot" => Ok(json!({
@@ -121,20 +126,20 @@ fn sert(flux: UnixStream, plan: &Plan, compteur: &AtomicU64) -> std::io::Result<
         })),
         "agent.list" => Ok(json!({ "agents": agents(plan) })),
         "integration.list" => Ok(json!({ "integrations": integrations() })),
-        // ⚠️ `agent.get` : la référence l'appelle sur la route de session (sans
-        // lui : erreur de méthode inconnue → 502, un faux incomplet accusait la
-        // pile mesurée). On rend l'**enveloppe** `{agent: …}`, la forme que la
-        // route lit (`payload["agent"]`).
-        //
-        // ⚠️ **Sa forme réelle n'a jamais été mesurée** — le client Rust traite
-        // `agent.get` comme opaque. Trois formes essayées (agent nu, enveloppe,
-        // enveloppe avec `agent_session` réduit à `{kind, value}`) : la route
-        // répond 404 « no usable session path » dans les trois cas. Prochain
-        // pas : relever la forme réelle sur le socket, puis corriger la fixture
-        // — pas l'inverse.
+        // ⚠️ **Forme MESURÉE sur le vrai socket** (sonde du 2026-10-19) :
+        // `agent.get` reçoit `{target: <pane_id>}` et rend une enveloppe
+        // **typée** `{"type": "agent_info", "agent": {...}}`. La fixture rendait
+        // `{agent: …}` sans `type` : la référence décodait un `ResultPayload`
+        // étiqueté, échouait, et la route de session répondait 404 « no usable
+        // session path ». Deviner ce contrat a coûté trois hypothèses fausses ;
+        // le mesurer a pris une sonde en lecture seule.
         "agent.get" => {
-            let agent = agents(plan).first().cloned().unwrap_or_else(|| json!({}));
-            Ok(json!({ "agent": agent }))
+            let agent = agents(plan)
+                .into_iter()
+                .find(|agent| agent.get("pane_id").and_then(Value::as_str) == Some(cible))
+                .or_else(|| agents(plan).first().cloned())
+                .unwrap_or_else(|| json!({}));
+            Ok(json!({ "type": "agent_info", "agent": agent }))
         }
         "pane.read" | "agent.read" => Ok(json!({
             "read": { "text": "écran de banc d'essai\n", "truncated": false }
@@ -201,7 +206,8 @@ fn agents(plan: &Plan) -> Vec<Value> {
                     json!({
                         "agent": "pi",
                         "kind": "path",
-                        "source": "published",
+                        // Mesuré : `herdr:<kind>`.
+                        "source": "herdr:pi",
                         "value": chemin
                     }),
                 );
