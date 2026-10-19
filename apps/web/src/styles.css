@@ -3477,3 +3477,22 @@ button:disabled {
   position: sticky;
   z-index: 1;
 }
+
+/*
+  ⚠️ **La mesure de lecture, et c'est un défaut vu en capture.** À 1440 px de
+  large, le fil occupait **toute la largeur** : des lignes de ~200 caractères,
+  que l'œil perd en revenant à la ligne suivante. Aucune messagerie ne fait ça,
+  et ce n'est pas une question de goût : au-delà de ~90 caractères, la lecture
+  ralentit mesurablement.
+
+  On borne donc le fil et le composeur à une colonne de lecture, centrée. Les
+  téléphones (≤ 900 px) ne sont pas touchés : ils sont déjà sous la borne.
+*/
+@media (min-width: 900px) {
+  .messages__content,
+  .composer {
+    margin-inline: auto;
+    max-width: 760px;
+    width: 100%;
+  }
+}

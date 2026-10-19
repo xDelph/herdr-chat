@@ -2614,3 +2614,19 @@ L'attente est maintenant **sur le contenu** (`attendreQue`), jamais sur une dur�
 **Cinq captures obtenues** (`apps/web/captures/`, 390×844, démon Rust, lecture seule) : liste, chat, settings, model, files. Aucun clic sur Stop/Focus/Answer/Trust.
 
 **Défaut réel constaté sur les captures** : la **langue de l'interface est mixte**. Les titres sont en anglais (`Settings`, `Appearance`, `Agent logos`, `Conversation list`, `Notifications`) et le corps de texte est **en français** (« Recolours the interface. Status colours — finished, waiting, failed — keep their meaning in every theme. » est anglais, mais « Herdr reachable / Readable conversations » voisinent « Apparence » et des phrases françaises). C'est visible sur `03-settings.png`. À trancher : une seule langue.
+
+### T072 — trois tailles, un vrai défaut de mise en page, et trois fausses alertes
+
+`scripts/captures-ui.ts` capture maintenant **320×568, 390×844 et 1440×900** (12 images), et attend le **contenu** avant de photographier.
+
+**Défaut réel trouvé, corrigé, revérifié en capture** : à 1440 px, le fil occupait **toute la largeur** — des lignes de ~200 caractères, que l'œil perd en revenant à la ligne. Correctif : colonne de lecture bornée à **760 px**, centrée, avec `margin-inline: auto` sur `.messages__content` et `.composer` (media query ≥ 900 px, les téléphones sont déjà dessous). Capture refaite : la mesure est lisible.
+
+**Trois fausses alertes, toutes de mon harnais** — et elles disent quelque chose du travail :
+
+| Ce que j'ai cru voir | La cause |
+|---|---|
+| « l'écran reste sur Loading… » | attente fixe de 2,5 s ; le premier vol + le flux prennent ~4 s en headless |
+| « liste vide » | le script cherchait `a[href*="#/agent/"]` ; les lignes sont des `<button class="conv">` |
+| « le texte déborde à 320 px » | `setDeviceMetricsOverride` **sans `reload`** : la page gardait la mise en page de la taille précédente |
+
+Les deux dernières ont été prises pour des défauts d'interface. C'est exactement le piège que le dépôt nomme ailleurs : **une mesure dont on ne peut pas prouver qu'elle échoue ne prouve rien** — et un harnais qui mesure mal fabrique des défauts qui n'existent pas.

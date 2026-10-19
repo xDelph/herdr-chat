@@ -141,18 +141,40 @@ const capture = async (cdp: Cdp, nom: string): Promise<void> => {
 };
 
 const principal = async (): Promise<void> => {
+  let tailleCourante = "390x844";
   const chrome = lancer();
   try {
     const cdp = await Cdp.ouvre(await point());
     await cdp.envoie("Page.enable");
     await cdp.envoie("Runtime.enable");
-    // 390×844 : la taille d'un iPhone, celle qui casse les mises en page larges.
+    /*
+      ⚠️ **Trois tailles, pas une.** 320×568 est le pire cas (iPhone SE, barre
+      d'URL comprise) : c'est là que les libellés débordent et que le composeur
+      recouvre le fil. 1440 large est l'autre extrême : le chat occupe-t-il la
+      largeur entière, avec des lignes de 200 caractères illisibles ?
+    */
+    const tailles: { etiquette: string; height: number; width: number }[] = [
+      { etiquette: "320x568", height: 568, width: 320 },
+      { etiquette: "390x844", height: 844, width: 390 },
+      { etiquette: "desktop", height: 900, width: 1440 },
+    ];
+    for (const taille of tailles) {
+    tailleCourante = taille.etiquette;
     await cdp.envoie("Emulation.setDeviceMetricsOverride", {
-      deviceScaleFactor: 2,
-      height: 844,
-      width: 390,
+      deviceScaleFactor: taille.etiquette === "desktop" ? 1 : 2,
+      height: taille.height,
+      mobile: taille.etiquette !== "desktop",
+      width: taille.width,
     });
 
+    /*
+      ⚠️ **Recharger après avoir changé les métriques.** Sans ce `reload`, la
+      page garde la mise en page de la taille PRÉCÉDENTE et la capture montre un
+      contenu plus large que l'écran — coupé aux deux bords. Je l'ai pris pour
+      un défaut de mise en page à 320 px ; c'en était encore un du harnais.
+    */
+    await cdp.envoie("Page.reload", { ignoreCache: true });
+    await dort(400);
     await cdp.envoie("Page.navigate", { url: `${RACINE}/#/` });
     // On attend le CONTENU, jamais un nombre de millisecondes.
     const listePrete = await attendreQue(
@@ -161,7 +183,7 @@ const principal = async (): Promise<void> => {
     );
     if (!listePrete) console.log("avertissement : la liste n'est pas remplie après 15 s");
     await dort(300);
-    await capture(cdp, "01-liste");
+    await capture(cdp, `${tailleCourante}-01-liste`);
 
     // La première conversation disponible : on lit son paneId depuis la liste.
     /*
@@ -185,7 +207,7 @@ const principal = async (): Promise<void> => {
     }
     await attendreQue(cdp, `document.querySelector('.bubble, .messages__empty')`);
     await dort(600);
-    await capture(cdp, "02-chat");
+    await capture(cdp, `${tailleCourante}-02-chat`);
 
     // Les feuilles : on ouvre par le bouton, jamais par un état forcé.
     const ouvrir = async (selecteur: string, nom: string): Promise<void> => {
@@ -214,6 +236,7 @@ const principal = async (): Promise<void> => {
     await dort(400);
     await ouvrir('button[aria-label*="model" i], button[title*="model" i]', "04-model");
     await ouvrir('button[aria-label*="files" i], button[title*="files" i]', "05-files");
+    }
   } finally {
     try {
       process.kill(chrome.pid);
