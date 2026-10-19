@@ -2504,3 +2504,61 @@ Autrement dit : **aucune dépendance à Bun/Node**, et Herdr absent n'empêche p
 | Formule Homebrew + service systemd | **préparés** dans `packaging/`, non publiés |
 | Matrice CI native 4 cibles | **écrite**, non exécutée (pas de runner ici) |
 | Publication (formule, service, release note) | **non faite** — T066 le prévoit, T068/T069 la portent |
+
+## T071 — le front exploite enfin le backend Rust
+
+Le banc T065 a montré que le serveur n'était plus le goulot (p95 1,70 ms, 14 141 req en 3 s) pendant que le front pollait toutes les 4 s. Quatre corrections, mesurées sur le démon réel.
+
+### 1. Le SSE devient la source de fraîcheur, le poll un filet
+
+| Avant | Après |
+|---|---|
+| `agent_status` seul écouté, poll 4 s / 60 s | **les cinq événements** du serveur (`agent_status`, `prompt`, `prompt-suppressed`, `agent-launched`, `session_changed`) + `resync` |
+| une vol par événement | **regroupement de 150 ms** : une rafale = **une** vol (`creeRegroupement`, horloge injectée) |
+| cadence fixe | cadence **selon l'état du flux** : 30 s / 120 s quand le direct parle, 4 s / 60 s quand il se tait |
+
+⚠️ Le filet est conservé et **c'est le point** : un flux muet (proxy, redémarrage) ne doit pas figer l'écran. Le client « un vol à la fois » ne suffisait pas — il sérialisait les rafales au lieu de les fondre.
+
+### 2. Compression
+
+`tower-http` (`CompressionLayer`), mesuré sur le démon de release :
+
+| route | brut | gzip | ratio |
+|---|---|---|---|
+| `/api/overview` | 12 381 o | **1 783 o** | **6,9×** |
+| `/api/conversations` | 54 027 o | **20 755 o** | **2,6×** |
+| `/assets/index-*.js` | 458 949 o | **142 418 o** | **3,2×** |
+
+Le SSE n'est pas compressé (`text/event-stream` n'a pas de fin) : vérifié, il rend `event: ready` en clair.
+
+### 3. Assets hachés immuables
+
+`cache-control: public, max-age=31536000, immutable` sur les noms portant une empreinte Vite (`nom-XXXXXXXX.ext`) ; `no-store` conservé sur `index.html`, `sw.js`, `push-sw.js`, `manifest.webmanifest`. La règle est stricte (`est_immuable`) et testée : un fichier sans empreinte n'est **pas** déclaré immuable — se tromper figerait un asset pour un an.
+
+### 4. Le fil : chargement paresseux au défilement + position du scroll
+
+- **Chargement paresseux** : un repère en haut du fil, observé (`IntersectionObserver`, marge 240 px) déclenche `chargerPrecedents`. Le bouton reste (clavier, réessai après échec). L'ancien chargement « une seule fois puis bouton » obligeait à appuyer jusqu'à dix fois sur une session codex.
+- **La vue ne saute plus** : la hauteur est mesurée avant le préfixe, et `scrollTop` est compensé du delta après peinture (`positionApresPrepend`).
+- **Position du scroll selon la lecture** — la règle demandée, maintenant explicite et testée :
+
+| Situation | Ancrage |
+|---|---|
+| l'agent **finissait** de travailler et s'arrête (réponse pas vue) | la **demande** de l'utilisateur en haut |
+| on **arrive** sur un agent `done` (réponse pas vue) | la **demande** |
+| on arrive sur un agent `idle` (déjà lu) | le **bas** |
+| l'agent **pose une question** (`blocked`) | le **bas** — la question *est* le dernier contenu |
+| on lisait plus haut | **rien** : on ne tire jamais quelqu'un de sa lecture |
+
+⚠️ Cette règle vivait dans la condition d'un effet de `ChatScreen`, donc **hors de portée d'un test**. Elle est maintenant dans `apps/web/src/defilement.ts` (fonctions pures) avec **15 tests** (`defilement.test.ts`), et un test de structure vérifie que l'écran **délègue** au lieu de réécrire sa propre version.
+
+### Mesures et preuves
+
+```
+/api/overview        gzip 1 783 o   (content-encoding: gzip)
+/api/conversations   gzip 20 755 o
+/assets/index-*.js   gzip 142 418 o + cache-control: …immutable
+/                     cache-control: no-store, content-encoding: gzip
+/api/events           event: ready (non compressé)
+bun run verify       format + lint + typecheck + 1148 tests (67 fichiers)
+cargo xtask verify   5 portes vertes
+```

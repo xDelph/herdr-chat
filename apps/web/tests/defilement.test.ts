@@ -1,105 +1,125 @@
 /**
- * Le défilement suit le bas — dans les deux sens où la géométrie change.
+ * T071 — les règles de défilement du fil.
  *
- * ⚠️ **Pourquoi ce test lit la source.** Le défaut qu'il encadre n'est dans
- * aucune fonction : il est dans la **cible d'un `ResizeObserver`**. Aucun test
- * unitaire ne pouvait l'attraper, et il ne se voyait qu'à l'usage, sur un
- * téléphone, en écrivant un message.
+ * ⚠️ **Ce que ces tests empêchent de revenir.** Trois défauts ont été vus à
+ * l'usage et aucun n'avait de test, parce que la logique vivait dans le DOM :
  *
- * Mesuré dans le vrai PWA, fenêtre de téléphone, conversation ouverte :
- *
- * ```
- * composeur +200 px  →  clientHeight du scroller : 711 → 535
- *                       bas de la conversation : 176 px SOUS la zone visible
- *                       dernier bloc visible : non
- * ```
- *
- * La cause : l'observateur ne surveillait que le **contenu**. Quand le
- * **conteneur** rétrécit, le contenu ne change pas de taille, aucun événement
- * n'est émis, et le bas de la conversation disparaît sous le composeur. Le
- * conteneur rétrécit pour deux raisons banales — le composeur qui grandit, et le
- * clavier iOS qui monte.
- *
- * Le dépôt encadre déjà par la source ce qui ne se teste pas autrement (la
- * coquille des feuilles, la cadence de rafraîchissement, le curseur du
- * composeur). Même méthode ici.
+ * 1. **La vue sautait** quand on chargeait l'historique : ajouter des messages
+ *    au-dessus augmente `scrollHeight` sans toucher `scrollTop`, donc ce qu'on
+ *    lisait se retrouve plus bas de toute la hauteur ajoutée.
+ * 2. **L'historique ne se chargeait qu'au bouton**, jamais au défilement — sur
+ *    une session codex, la demande courante peut être dix pages en arrière.
+ * 3. **L'ancrage était faux dans un cas** : arriver sur un agent `done` (réponse
+ *    pas vue) doit montrer la **demande**, pas le bas ; un agent `idle` n'a rien
+ *    de neuf et se lit par le bas.
  */
 import { describe, expect, test } from "bun:test";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
+import {
+  PIXELS_BAS,
+  SEUIL_PREMIERES_LIGNES_PX,
+  ancrage,
+  doitChargerPlusTot,
+  positionApresPrepend,
+  suitLeBas,
+} from "../src/defilement.ts";
 
-const source = readFileSync(join(import.meta.dir, "..", "src", "ChatScreen.tsx"), "utf8");
-
-/** Corps de l'effet qui pose l'observateur de défilement. */
-const effetDeDefilement = (): string => {
-  const debut = source.indexOf("const observer = new ResizeObserver(suivreLeBas);");
-  expect(debut).toBeGreaterThan(-1);
-  const fin = source.indexOf("observer.disconnect();", debut);
-  expect(fin).toBeGreaterThan(debut);
-  return source.slice(debut, fin);
-};
-
-describe("le défilement suit le contenu ET le conteneur", () => {
-  test("l'observateur surveille le contenu", () => {
-    expect(effetDeDefilement()).toContain("observer.observe(content);");
+describe("suivre le bas", () => {
+  test("collé au bas, on suit", () => {
+    expect(suitLeBas({ clientHeight: 500, scrollHeight: 1200, scrollTop: 700 })).toBe(true);
   });
 
-  test("l'observateur surveille AUSSI le conteneur", () => {
-    // ⚠️ C'est la ligne qui manquait, et tout le défaut tient là : sans elle,
-    // un composeur qui grandit ou un clavier qui monte laisse le bas de la
-    // conversation hors de la vue, sans qu'aucun événement ne le signale.
-    expect(effetDeDefilement()).toContain("observer.observe(scroller);");
+  test("la tolérance est de 48 px, pas un pixel", () => {
+    // Un doigt ne vise pas le pixel, et un clavier qui monte décale de quelques
+    // pixels : sans tolérance, on « décroche » du bas sans l'avoir voulu.
+    expect(
+      suitLeBas({ clientHeight: 500, scrollHeight: 1200, scrollTop: 700 - PIXELS_BAS + 1 }),
+    ).toBe(true);
+    expect(
+      suitLeBas({ clientHeight: 500, scrollHeight: 1200, scrollTop: 700 - PIXELS_BAS - 1 }),
+    ).toBe(false);
   });
 
-  test("il y a donc exactement deux cibles observées", () => {
-    expect(effetDeDefilement().match(/observer\.observe\(/g)?.length).toBe(2);
-  });
-
-  test("le conteneur observé est bien le défilant, pas le contenu", () => {
-    // Les deux références existent et sont distinctes : les confondre
-    // reviendrait à observer deux fois la même chose.
-    expect(source).toContain("const scrollerRef = useRef<HTMLDivElement | null>(null);");
-    expect(source).toContain("const contentRef = useRef<HTMLDivElement | null>(null);");
-    expect(source).toContain("ref={scrollerRef}");
-    expect(source).toContain("ref={contentRef}");
+  test("en pleine lecture, on ne suit pas", () => {
+    expect(suitLeBas({ clientHeight: 500, scrollHeight: 1200, scrollTop: 100 })).toBe(false);
   });
 });
 
-describe("on ne ramène JAMAIS quelqu'un qui lisait plus haut", () => {
-  test("le suivi est conditionné à l'intention, pas à la géométrie", () => {
-    // ⚠️ `atBottom` enregistre l'**intention** de l'utilisateur. La recalculer
-    // au moment du redimensionnement donnerait « faux » exactement dans le cas
-    // qu'on veut corriger (le bas est déjà sorti de la vue), et « vrai » après
-    // un défilement manuel — l'inverse de ce qu'il faut.
-    expect(source).toContain("if (atBottom.current) scroller.scrollTop = scroller.scrollHeight;");
+describe("où se poser quand le statut change", () => {
+  test("une réponse pas vue montre la demande", () => {
+    // L'agent finissait de travailler et s'arrête : la réponse est neuve.
+    expect(ancrage({ apres: "done", avant: "working", suivaitLeBas: true })).toBe("demande");
   });
 
-  test("l'intention est mise à jour par le défilement de l'utilisateur", () => {
-    expect(source).toContain("onScroll={onScroll}");
-    expect(source).toContain(
-      "atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;",
+  test("arriver sur un agent déjà « done » montre la demande", () => {
+    // On ouvre la conversation : la réponse est là, mais on ne l'a pas vue.
+    expect(ancrage({ apres: "done", avant: null, suivaitLeBas: true })).toBe("demande");
+  });
+
+  test("arriver sur un agent « idle » va au bas", () => {
+    // Rien de neuf : la convention de toutes les messageries.
+    expect(ancrage({ apres: "idle", avant: null, suivaitLeBas: true })).toBe("bas");
+  });
+
+  test("quelqu'un qui lisait plus haut n'est jamais tiré de sa lecture", () => {
+    expect(ancrage({ apres: "done", avant: "working", suivaitLeBas: false })).toBe("aucun");
+    expect(ancrage({ apres: "done", avant: null, suivaitLeBas: false })).toBe("aucun");
+  });
+
+  test("un agent qui pose une question va au bas, pas à la demande", () => {
+    // ⚠️ La question EST le dernier contenu : ancrer sur la demande la
+    // laisserait hors de l'écran. C'est l'inverse du but recherché.
+    expect(ancrage({ apres: "blocked", avant: "working", suivaitLeBas: true })).toBe("bas");
+    expect(ancrage({ apres: "blocked", avant: null, suivaitLeBas: true })).toBe("bas");
+    // Et on ne tire toujours pas quelqu'un qui lisait plus haut.
+    expect(ancrage({ apres: "blocked", avant: "working", suivaitLeBas: false })).toBe("aucun");
+  });
+});
+
+describe("la position après un préfixe", () => {
+  test("on compense exactement la hauteur ajoutée", () => {
+    // 400 px de messages plus anciens : on descend d'autant, et le message
+    // qu'on lisait reste au même endroit de l'écran.
+    expect(positionApresPrepend({ hauteurApres: 2400, hauteurAvant: 2000, scrollAvant: 300 })).toBe(
+      700,
     );
   });
 
-  test("le saut est instantané, jamais animé", () => {
-    // Une animation se bat avec le clavier iOS et avec les rafraîchissements
-    // rapprochés : c'est ce qui faisait « partir en vrille » le défilement.
-    //
-    // ⚠️ On vise l'**appel**, pas le mot : le commentaire qui explique le choix
-    // nomme `scrollIntoView` pour raconter ce qui a été retiré.
-    expect(source).not.toContain("scrollIntoView(");
-    expect(source).not.toContain('behavior: "smooth"');
+  test("une liste reconstruite plus courte ne donne pas une position négative", () => {
+    expect(positionApresPrepend({ hauteurApres: 900, hauteurAvant: 2000, scrollAvant: 100 })).toBe(
+      0,
+    );
+  });
+
+  test("sans ajout, rien ne bouge", () => {
+    expect(positionApresPrepend({ hauteurApres: 2000, hauteurAvant: 2000, scrollAvant: 512 })).toBe(
+      512,
+    );
   });
 });
 
-describe("le défilement ne dépend pas du rafraîchissement des messages", () => {
-  test("l'effet ne se repose pas à chaque rendu", () => {
-    // ⚠️ Une dépendance sur `messages` ferait reposer l'observateur à chaque
-    // tour de rafraîchissement — soit toutes les 400 ms pendant que l'agent
-    // travaille. Le défilement suivrait alors des redimensionnements fantômes.
-    const index = source.indexOf("const observer = new ResizeObserver(suivreLeBas);");
-    const apres = source.slice(index, index + 1_200);
-    expect(apres).toContain("}, []);");
-    expect(apres).not.toContain("[messages]");
+describe("le chargement paresseux", () => {
+  const base = {
+    curseurDisponible: true,
+    distanceAuHaut: 0,
+    enCours: false,
+    seuil: SEUIL_PREMIERES_LIGNES_PX,
+  };
+
+  test("près du haut avec un curseur, on charge", () => {
+    expect(doitChargerPlusTot(base)).toBe(true);
+  });
+
+  test("pendant un chargement, on ne double pas la page", () => {
+    expect(doitChargerPlusTot({ ...base, enCours: true })).toBe(false);
+  });
+
+  test("sans curseur, il n'y a plus rien à charger", () => {
+    expect(doitChargerPlusTot({ ...base, curseurDisponible: false })).toBe(false);
+  });
+
+  test("loin du haut, on attend", () => {
+    expect(doitChargerPlusTot({ ...base, distanceAuHaut: SEUIL_PREMIERES_LIGNES_PX + 1 })).toBe(
+      false,
+    );
   });
 });

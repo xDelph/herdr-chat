@@ -10,7 +10,8 @@
 use crate::unit::support::{FauxAssets, services_retouches};
 use axum::http::StatusCode;
 use http_api::assets::{
-    FichierAsset, FournisseurAssets, content_type_asset, est_volatil, normalise, reponse_asset,
+    FichierAsset, FournisseurAssets, content_type_asset, est_immuable, est_volatil, normalise,
+    reponse_asset,
 };
 use http_api::router::routeur;
 use std::sync::Arc;
@@ -246,4 +247,55 @@ fn le_faux_n_expose_aucun_chemin_disque() {
 fn un_fichier_asset_porte_ses_octets() {
     let fichier = FichierAsset::nouveau(vec![1u8, 2, 3]);
     assert_eq!(fichier.octets, vec![1, 2, 3]);
+}
+
+#[test]
+fn les_assets_haches_sont_immuables_et_les_volatils_non() {
+    // ⚠️ Le nom haché de Vite est la PREUVE d'immuabilité : `index-BDwQxbtC.js`
+    // peut être gardé un an, `index.html` jamais. Se tromper ici figerait la
+    // version de l'application, ou revaliderait 459 Ko à chaque chargement.
+    assert!(est_immuable("/assets/index-BDwQxbtC.js"));
+    assert!(est_immuable("assets/vendor-a1b2c3d4.js"));
+    assert!(
+        !est_immuable("/index.html"),
+        "l'index est volatil, même sans empreinte"
+    );
+    assert!(!est_immuable("/sw.js"));
+    assert!(
+        !est_immuable("/assets/app.js"),
+        "sans empreinte, on ne promet rien"
+    );
+    assert!(
+        !est_immuable("/assets/mon-fichier.js"),
+        "un suffixe de 8 caractères seulement compte"
+    );
+    assert!(
+        !est_immuable("/assets/icone.png"),
+        "une icône sans empreinte n'est pas immuable"
+    );
+}
+
+#[test]
+fn la_reponse_d_un_asset_hache_porte_le_cache_immuable() {
+    // ⚠️ Le fournisseur par défaut ne contient PAS de fichier haché : sans
+    // celui-ci, la requête retombait sur l'index (no-store) et le test
+    // comparait deux fois l'index.
+    let fournisseur = FauxAssets::avec_fichier_hache();
+    let reponse = reponse_asset(&fournisseur, "/assets/index-BDwQxbtC.js");
+    let cache = reponse
+        .headers()
+        .get("cache-control")
+        .and_then(|valeur| valeur.to_str().ok())
+        .unwrap_or_default()
+        .to_string();
+    assert!(cache.contains("immutable"), "{cache}");
+    // L'index garde son no-store : c'est lui qui porte la version.
+    let index = reponse_asset(&fournisseur, "/");
+    let cache_index = index
+        .headers()
+        .get("cache-control")
+        .and_then(|valeur| valeur.to_str().ok())
+        .unwrap_or_default()
+        .to_string();
+    assert!(cache_index.contains("no-store"), "{cache_index}");
 }

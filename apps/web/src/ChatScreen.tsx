@@ -11,6 +11,13 @@
  * (D016.2).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  SEUIL_PREMIERES_LIGNES_PX,
+  ancrage,
+  doitChargerPlusTot,
+  positionApresPrepend,
+  suitLeBas,
+} from "./defilement.ts";
 import type { AgentView, AnswerResult, SessionEntry } from "./api.ts";
 import { estOptionSaisieLibre } from "@herdr-remote/shared";
 import {
@@ -154,6 +161,8 @@ export const ChatScreen = ({
 
   const scrollerRef = useRef<HTMLDivElement | null>(null);
   const contentRef = useRef<HTMLDivElement | null>(null);
+  /** Le repère du haut du fil : sa visibilité déclenche le chargement. */
+  const sentinelleRef = useRef<HTMLSpanElement | null>(null);
   /**
    * Dernier statut **vu** pour cet agent, pour distinguer une arrivee d'une fin
    * de travail. Remis a `null` au changement d'agent.
@@ -240,7 +249,6 @@ export const ChatScreen = ({
    */
   const cursor = useRef<{ cursor: string | undefined; path: string } | null>(null);
   const loading = useRef(false);
-  const autoLoadedPrevious = useRef(false);
 
   const load = useCallback(
     async (mode: "initial" | "incremental") => {
@@ -337,7 +345,6 @@ export const ChatScreen = ({
 
   useEffect(() => {
     cursor.current = null;
-    autoLoadedPrevious.current = false;
     // ⚠️ Le statut vu appartient à **cet** agent : le garder ferait croire à une
     // transition qui n'a pas eu lieu chez le suivant.
     statutVu.current = null;
@@ -423,6 +430,15 @@ export const ChatScreen = ({
     }
   }, [agent.paneId]);
 
+  /**
+   * La hauteur du fil **avant** un préfixe — pour compenser après.
+   *
+   * ⚠️ Elle est mesurée au début du chargement, pas au moment du `setState` :
+   * entre les deux, une réponse peut arriver et changer la hauteur, et on
+   * compenserait alors un delta faux (la vue sauterait d'autant).
+   */
+  const hauteurAvantPrepend = useRef<{ hauteur: number; scroll: number } | null>(null);
+
   const chargerPrecedents = useCallback(async () => {
     const before = previousCursor;
     if (before === null || loadingPrevious || loading.current) return;
@@ -483,6 +499,13 @@ export const ChatScreen = ({
       }
       const entriesAnterieures = pagesAnterieures.toReversed().flat();
       if (entriesAnterieures.length > 0) {
+        const scroller = scrollerRef.current;
+        if (scroller !== null) {
+          hauteurAvantPrepend.current = {
+            hauteur: scroller.scrollHeight,
+            scroll: scroller.scrollTop,
+          };
+        }
         const precedents = toMessages(entriesAnterieures);
         setEntries((current) => [...entriesAnterieures, ...current]);
         setMessages((current) => [...precedents, ...current]);
@@ -499,6 +522,21 @@ export const ChatScreen = ({
         l'interface écoute, et c'est exactement ce qu'il signifie ici.
       */
       setPreviousCursor(entriesAnterieures.length > 0 ? pageCursor : null);
+      // ⚠️ La compensation se fait **après** que React a peint les nouveaux
+      // messages : mesurer la hauteur dans le même tour lirait l'ancienne.
+      const mesure = hauteurAvantPrepend.current;
+      hauteurAvantPrepend.current = null;
+      if (mesure !== null) {
+        requestAnimationFrame(() => {
+          const actuel = scrollerRef.current;
+          if (actuel === null) return;
+          actuel.scrollTop = positionApresPrepend({
+            hauteurApres: actuel.scrollHeight,
+            hauteurAvant: mesure.hauteur,
+            scrollAvant: mesure.scroll,
+          });
+        });
+      }
     } catch (cause) {
       setPreviousError(cause instanceof Error ? cause.message : String(cause));
     } finally {
@@ -507,22 +545,48 @@ export const ChatScreen = ({
     }
   }, [agent.paneId, loadingPrevious, previousCursor]);
 
+  /**
+   * **Le chargement paresseux de l'historique, au défilement vers le haut.**
+   *
+   * ⚠️ **Ce que ça remplace, et pourquoi.** Avant, une seule page était chargée
+   * automatiquement après l'arrivée de la première — puis plus rien sans un
+   * appui sur un bouton. Sur une session codex réelle, la demande courante peut
+   * se trouver **dix pages** en arrière : l'utilisateur devait donc appuyer
+   * plusieurs fois, en attendant chaque aller-retour.
+   *
+   * Ici, approcher du haut **déclenche** le chargement, avec
+   * `SEUIL_PREMIERES_LIGNES_PX` de marge : on charge avant d'atteindre le bord,
+   * donc on ne voit jamais de trou. Le bouton reste, pour le clavier et pour
+   * réessayer après un échec.
+   *
+   * ⚠️ `doitChargerPlusTot` porte les deux gardes qui évitent les défauts
+   * classiques : pas de second chargement pendant qu'un est en cours (double
+   * page), et rien à charger quand le curseur est épuisé (boucle pour rien).
+   */
   useEffect(() => {
-    if (previousCursor === null || autoLoadedPrevious.current) return undefined;
-    let timer = 0;
-    const loadWhenIdle = () => {
-      // A poll can begin between the initial page arriving and this effect
-      // running. Keep waiting instead of consuming the one automatic attempt.
-      if (loading.current) {
-        timer = window.setTimeout(loadWhenIdle, 100);
-        return;
-      }
-      autoLoadedPrevious.current = true;
-      void chargerPrecedents();
-    };
-    timer = window.setTimeout(loadWhenIdle, 0);
-    return () => window.clearTimeout(timer);
-  }, [chargerPrecedents, previousCursor]);
+    const scroller = scrollerRef.current;
+    const sentinelle = sentinelleRef.current;
+    if (scroller === null || sentinelle === null) return undefined;
+    const observateur = new IntersectionObserver(
+      (entrees) => {
+        const visible = entrees.some((entree) => entree.isIntersecting);
+        if (!visible) return;
+        if (
+          doitChargerPlusTot({
+            curseurDisponible: previousCursor !== null,
+            distanceAuHaut: 0,
+            enCours: loadingPrevious || loading.current,
+            seuil: SEUIL_PREMIERES_LIGNES_PX,
+          })
+        ) {
+          void chargerPrecedents();
+        }
+      },
+      { root: scroller, rootMargin: `${String(SEUIL_PREMIERES_LIGNES_PX)}px 0px 0px 0px` },
+    );
+    observateur.observe(sentinelle);
+    return () => observateur.disconnect();
+  }, [chargerPrecedents, loadingPrevious, previousCursor]);
 
   /**
    * Défilement automatique — **conditionnel**.
@@ -535,9 +599,7 @@ export const ChatScreen = ({
   const atBottom = useRef(true);
 
   const onScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
-    const el = event.currentTarget;
-    // 48 px de tolérance : un doigt sur un écran ne vise pas le pixel.
-    atBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+    atBottom.current = suitLeBas(event.currentTarget);
   }, []);
 
   /**
@@ -619,11 +681,13 @@ export const ChatScreen = ({
     if (phase !== "ready") return;
     const avant = statutVu.current;
     statutVu.current = agent.status;
-    const finitDeTravailler = avant === "working" && agent.status !== "working";
-    const arriveSurUneReponse = avant === null && agent.status === "done";
-    if (!finitDeTravailler && !arriveSurUneReponse) return;
-    // On ne ramène jamais quelqu'un qui lisait plus haut.
-    if (!atBottom.current) return;
+    const ou = ancrage({ apres: agent.status, avant, suivaitLeBas: atBottom.current });
+    if (ou === "aucun") return;
+    if (ou === "bas") {
+      const scroller = scrollerRef.current;
+      if (scroller !== null) scroller.scrollTop = scroller.scrollHeight;
+      return;
+    }
     derniereDemandeEnHaut();
   }, [phase, agent.paneId, agent.status, derniereDemandeEnHaut]);
 
@@ -1058,6 +1122,18 @@ export const ChatScreen = ({
 
           <div className="messages" ref={scrollerRef} onScroll={onScroll}>
             <div className="messages__content" ref={contentRef}>
+              {/*
+                Le repère du **chargement paresseux** : invisible, il n'existe
+                que pour l'observateur. Il précède le bouton, donc il est atteint
+                en premier quand on remonte.
+
+                ⚠️ Un `span`, pas un élément de bloc : la profondeur du fil est
+                vérifiée par un test de structure qui compte les balises de
+                bloc — une balise auto-fermante y décalerait toutes les
+                profondeurs, et « composeur et fil sont frères » échouerait pour
+                une raison sans rapport avec le composeur.
+              */}
+              <span className="messages__sentinel" ref={sentinelleRef} aria-hidden="true" />
               {previousCursor === null ? null : (
                 <div className="history__older">
                   <button

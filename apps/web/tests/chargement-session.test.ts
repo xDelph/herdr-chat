@@ -102,11 +102,18 @@ describe("le chargement d'une session ne dépend pas du statut", () => {
    * jusqu'à la demande en cours. Il ne doit pas se rejouer à chaque changement
    * d'état, sinon chaque action de l'utilisateur remet de vieux messages en haut.
    */
-  test("le chargement automatique des pages précédentes reste à usage unique", () => {
-    expect(source).toContain("autoLoadedPrevious.current");
-    expect(source).toContain(
-      "if (previousCursor === null || autoLoadedPrevious.current) return undefined;",
-    );
+  test("les pages précédentes se chargent au DÉFILEMENT, pas une fois pour toutes", () => {
+    // ⚠️ Ce test gardait un chargement automatique unique. Il a été remplacé :
+    // sur une session codex réelle, la demande courante peut être dix pages en
+    // arrière, et un seul chargement laissait l'utilisateur appuyer dix fois.
+    // Le déclencheur est maintenant le repère de haut de fil, et la garde
+    // (`doitChargerPlusTot`) vit dans `defilement.ts` où elle est testée.
+    expect(source).not.toContain("autoLoadedPrevious");
+    expect(source).toContain("IntersectionObserver");
+    expect(source).toContain("doitChargerPlusTot({");
+    // Le bouton reste : le clavier n'a pas de geste de défilement, et un échec
+    // doit pouvoir être réessayé.
+    expect(source).toContain("Load earlier messages");
   });
 });
 

@@ -8,6 +8,13 @@ publish.workspace = true
 license.workspace = true
 
 [dependencies]
+# ⚠️ **La compression n'est pas un ornement de perf.** Le banc T065 a mesuré
+# `/api/conversations` à 54 027 octets ; en gzip il en fait 22 079 (2,4×), et
+# `/api/overview` passe de 12 381 à 1 793 (6,9×). Sur un iPhone en tailnet,
+# c'est du transfert ET du parse JSON en moins à chaque vol.
+# `gzip` seulement : le brotli ajouterait une dépendance dont ce projet n'a pas
+# besoin, et le gain de brotli sur du JSON déjà dense est marginal.
+tower-http = { version = "0.6", features = ["compression-gzip"] }
 axum = { workspace = true }
 futures-util = { version = "0.3.31" }
 serde = { workspace = true }

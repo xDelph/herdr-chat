@@ -11,25 +11,18 @@
  * déjà été lu : on se pose en bas, comme dans toute messagerie. Un agent `done`
  * attend une réponse qu'on n'a pas vue — là, la demande en haut est meilleure.
  *
- * ⚠️ Pourquoi lire la source : la règle vit dans la **condition d'un effet** et
- * dans un choix de sélecteur DOM. Aucun test unitaire ne l'attrape, et une
- * relecture ne la retiendrait pas deux fois. Même méthode que pour la cadence de
- * rafraîchissement et le curseur du composeur.
+ * ⚠️ **La règle a maintenant son test unitaire** (`defilement.test.ts`) : elle a
+ * quitté la condition d'un effet pour `defilement.ts`, où elle est une fonction
+ * pure. Ce fichier garde ce qu'un test unitaire ne peut pas voir : le **repère
+ * DOM** (la dernière bulle de l'utilisateur, jamais un envoi optimiste) et le
+ * fait que l'écran **délègue** au lieu de réimplémenter sa propre règle — une
+ * seconde définition divergerait.
  */
 import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const source = readFileSync(join(import.meta.dir, "..", "src", "ChatScreen.tsx"), "utf8");
-
-/** Corps de l'effet qui décide de la position à la fin d'un travail. */
-const effetDeFin = (): string => {
-  const debut = source.indexOf("const finitDeTravailler");
-  expect(debut).toBeGreaterThan(-1);
-  const fin = source.indexOf("derniereDemandeEnHaut();", debut);
-  expect(fin).toBeGreaterThan(debut);
-  return source.slice(debut, fin);
-};
 
 describe("la demande passe en haut quand un travail se termine", () => {
   test("c'est le dernier message de l'utilisateur qui sert de repère", () => {
@@ -47,25 +40,21 @@ describe("la demande passe en haut quand un travail se termine", () => {
   });
 });
 
-describe("la règle dépend de l'état, et de rien d'autre", () => {
-  test("une fin de travail ramène à la demande", () => {
-    expect(effetDeFin()).toContain('avant === "working" && agent.status !== "working"');
+describe("la règle est CENTRALISÉE, pas réécrite dans l'écran", () => {
+  test("l'écran appelle `ancrage(...)`", () => {
+    expect(source).toContain("ancrage({");
   });
 
-  test("à l'ouverture, un agent `done` ramène à la demande", () => {
-    // `avant === null` = première fois qu'on voit cet agent.
-    expect(effetDeFin()).toContain('avant === null && agent.status === "done"');
+  test("l'écran ne réimplémente pas la comparaison de statuts", () => {
+    // ⚠️ C'est le point : deux définitions de la règle divergent. Si l'écran
+    // recommence à comparer `"working"`/`"done"` lui-même, le test unitaire de
+    // `defilement.ts` continuera de passer alors que l'écran fera autre chose.
+    expect(source).not.toContain('avant === "working"');
+    expect(source).not.toContain('agent.status === "done"');
   });
 
-  test("à l'ouverture, un agent `idle` n'y ramène PAS", () => {
-    // ⚠️ La distinction qui compte : `idle` veut dire « déjà lu ». Y ramener la
-    // demande contredirait la convention du bas, et ferait sauter la vue à chaque
-    // ouverture de conversation.
-    expect(effetDeFin()).not.toContain('"idle"');
-  });
-
-  test("on ne ramène JAMAIS quelqu'un qui lisait plus haut", () => {
-    expect(effetDeFin()).toContain("if (!atBottom.current) return;");
+  test("l'intention de lecture est PASSÉE à la règle, pas recalculée", () => {
+    expect(source).toContain("suivaitLeBas: atBottom.current");
   });
 
   test("le statut vu est remis à zéro en changeant d'agent", () => {
@@ -76,9 +65,18 @@ describe("la règle dépend de l'état, et de rien d'autre", () => {
   test("l'effet ne dépend pas des messages", () => {
     // Sinon il se rejouerait à chaque tour de rafraîchissement — toutes les
     // 400 ms pendant que l'agent travaille.
-    const index = source.indexOf("const finitDeTravailler");
-    const bloc = source.slice(index, index + 700);
+    const index = source.indexOf("const ou = ancrage(");
+    const bloc = source.slice(index, index + 400);
     expect(bloc).not.toContain("messages");
+  });
+
+  test("la règle elle-même est prouvée par un test unitaire", () => {
+    // Le pendant de la centralisation : sans test unitaire, « centralisé » ne
+    // veut dire que « déplacé ».
+    const regles = readFileSync(join(import.meta.dir, "defilement.test.ts"), "utf8");
+    expect(regles).toContain("ancrage({");
+    expect(regles).toContain('"demande"');
+    expect(regles).toContain('"bas"');
   });
 });
 

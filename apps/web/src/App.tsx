@@ -41,7 +41,14 @@ import { SectionTitle } from "./SectionTitle.tsx";
 import { ProjectPicker } from "./ProjectPicker.tsx";
 import type { Route } from "./routing.ts";
 import { Notice } from "./Notice.tsx";
-import { cadence, creeClient, doitAppliquer, type Resultat } from "./rafraichissement.ts";
+import {
+  EVENEMENTS_RAFRAICHISSANTS,
+  cadence,
+  creeClient,
+  creeRegroupement,
+  doitAppliquer,
+  type Resultat,
+} from "./rafraichissement.ts";
 import { miseAJourEnAttente } from "./mise-a-jour.ts";
 import { BandeauMiseAJour } from "./BandeauMiseAJour.tsx";
 /**
@@ -263,6 +270,9 @@ export const App = () => {
     }
   }, []);
 
+  /** Le flux parle-t-il ? C'est ce qui décide du régime de rafraîchissement. */
+  const direct = live === "live";
+
   const refresh = useCallback(async () => {
     setChargement(true);
     try {
@@ -280,6 +290,11 @@ export const App = () => {
       ⚠️ **Deux cadences (C26)** : 4 s quand la fenêtre est visible, 60 s sinon.
       Et au RETOUR, on relit immédiatement — un onglet qu'on rouvre ne doit pas
       attendre la cadence pour se remettre à jour.
+
+      ⚠️ **Et deux RÉGIMES.** Quand le flux d'événements est vivant, la cadence
+      passe au filet (30 s / 120 s) : ce sont les événements qui amènent la
+      fraîcheur. Le minuteur reste pour le cas où le flux se tairait sans le
+      dire — un écran figé est pire qu'un peu de trafic.
     */
     const programme = (): void => {
       if (timer !== null) window.clearInterval(timer);
@@ -290,7 +305,7 @@ export const App = () => {
           // resterait figé pendant toute la session.
           setMaintenant(Date.now());
         },
-        cadence(document.visibilityState === "visible"),
+        cadence(document.visibilityState === "visible", direct),
       );
     };
 
@@ -309,7 +324,7 @@ export const App = () => {
       if (timer !== null) window.clearInterval(timer);
       document.removeEventListener("visibilitychange", surVisibilite);
     };
-  }, [refresh]);
+  }, [direct, refresh]);
 
   // Une seule lecture : les intégrations installées ne changent pas en cours de
   // session. Un échec laisse la liste vide et désactive le lancement, plutôt que
@@ -324,23 +339,42 @@ export const App = () => {
     })();
   }, []);
 
-  useEffect(
-    () =>
-      openEventStream({
-        // Un changement d'état d'agent est le signal du **direct** : on
-        // rafraîchit la liste, servie depuis le cache du veilleur.
-        onEvent: (kind: string) => {
-          if (kind === "agent_status") void refresh();
-        },
-        // Continuité rompue côté serveur : on recharge au lieu de croire à un
-        // flux continu.
-        onResync: () => {
-          void refresh();
-        },
-        onStatus: setLive,
-      }),
-    [refresh],
-  );
+  useEffect(() => {
+    /*
+      ⚠️ **Un lot, pas un vol par événement.** Le serveur publie par rafales
+      (`agent_status` d'un agent, puis `prompt`, puis `session_changed` dans la
+      même seconde). Sans regroupement, chaque événement lançait sa lecture ;
+      avec, une rafale vaut **une** vol — le client « un vol à la fois » ne
+      suffisait pas, il sérialisait les rafales au lieu de les fondre.
+
+      Le délai est court (150 ms) : il ne retarde rien de perceptible, il
+      supprime la répétition.
+    */
+    const regroupement = creeRegroupement(() => {
+      void refresh();
+    });
+
+    const fermer = openEventStream({
+      // Tous les événements du serveur changent la liste ou ses aperçus ;
+      // `resync` a son propre chemin (relecture immédiate, jamais différée).
+      onEvent: (kind: string) => {
+        if ((EVENEMENTS_RAFRAICHISSANTS as readonly string[]).includes(kind)) {
+          regroupement.signale();
+        }
+      },
+      // Continuité rompue côté serveur : on recharge au lieu de croire à un
+      // flux continu.
+      onResync: () => {
+        void refresh();
+      },
+      onStatus: setLive,
+    });
+
+    return () => {
+      regroupement.annule();
+      fermer();
+    };
+  }, [refresh]);
 
   /**
    * Agents du parc, **stables tant que l'overview ne change pas**.

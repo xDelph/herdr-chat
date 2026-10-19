@@ -479,7 +479,13 @@ export const openEventStream = (handlers: {
     handlers.onEvent(kind, data);
   };
 
-  const EVENEMENTS_SUIVIS = ["agent_status", "prompt", "prompt-suppressed"];
+  const EVENEMENTS_SUIVIS = [
+    "agent_status",
+    "prompt",
+    "prompt-suppressed",
+    "agent-launched",
+    "session_changed",
+  ];
   /** `EventSource.CLOSED`, sans dépendre de la classe (absente d'un double de test). */
   const CLOSED = 2;
 

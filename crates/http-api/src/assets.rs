@@ -31,6 +31,39 @@ const CACHE_VOLATIL: &str = "no-cache, no-store, must-revalidate";
 /// Les noms volatils, exactement ceux du fil.
 const VOLATILS: [&str; 4] = ["index.html", "sw.js", "push-sw.js", "manifest.webmanifest"];
 
+/// Le cache des assets **hachés** : Vite pose une empreinte dans le nom
+/// (`index-BDwQxbtC.js`), donc le contenu d'un nom donné ne change jamais —
+/// il peut être gardé indéfiniment.
+///
+/// ⚠️ **Sans cet en-tête, le navigateur revalidait 459 Ko de JS** à chaque
+/// rechargement (mesuré : `content-length: 458949`, aucun `cache-control`).
+/// Le nom haché est la preuve d'immuabilité ; les noms volatils, eux, restent
+/// en `no-store` (O07) — un `immutable` sur `index.html` figerait la version.
+const CACHE_IMMUABLE: &str = "public, max-age=31536000, immutable";
+
+/// `true` quand le nom porte une empreinte de build (Vite : `nom-XXXXXXXX.ext`).
+///
+/// La règle est **stricte** : un suffixe de 8 caractères base64/url-safe juste
+/// avant l'extension. Un fichier qui ne la porte pas n'est pas déclaré
+/// immuable — se tromper ici figerait un asset pour un an.
+#[must_use]
+pub fn est_immuable(chemin: &str) -> bool {
+    let nom = chemin.rsplit('/').next().unwrap_or(chemin);
+    if VOLATILS.contains(&nom) {
+        return false;
+    }
+    let Some((base, _)) = nom.rsplit_once('.') else {
+        return false;
+    };
+    let Some((_, empreinte)) = base.rsplit_once('-') else {
+        return false;
+    };
+    empreinte.len() == 8
+        && empreinte
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+}
+
 /// Un fichier d'asset : son contenu, tel qu'il sera servi.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct FichierAsset {
@@ -194,6 +227,11 @@ fn fichier_servi(chemin: &str, fichier: FichierAsset) -> Response {
         reponse.headers_mut().insert(
             CACHE_CONTROL,
             axum::http::HeaderValue::from_static(CACHE_VOLATIL),
+        );
+    } else if est_immuable(chemin) {
+        reponse.headers_mut().insert(
+            CACHE_CONTROL,
+            axum::http::HeaderValue::from_static(CACHE_IMMUABLE),
         );
     }
     reponse

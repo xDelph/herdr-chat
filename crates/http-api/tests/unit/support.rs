@@ -765,6 +765,16 @@ impl FauxAssets {
         }
     }
 
+    /// Un fournisseur qui contient un fichier haché, comme un vrai build Vite.
+    pub(crate) fn avec_fichier_hache() -> Self {
+        let mut base = Self::defaut();
+        base.fichiers.insert(
+            String::from("/assets/index-BDwQxbtC.js"),
+            b"console.log('hache')".to_vec(),
+        );
+        base
+    }
+
     /// Un binaire de développement : aucun build, donc aucun index.
     pub(crate) fn sans_index() -> Self {
         Self {

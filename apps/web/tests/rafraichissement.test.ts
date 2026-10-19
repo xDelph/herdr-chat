@@ -18,7 +18,11 @@ import {
   creeClient,
   doitAppliquer,
   CADENCE_CACHEE_MS,
+  CADENCE_SECOURS_CACHEE_MS,
+  CADENCE_SECOURS_VISIBLE_MS,
   CADENCE_VISIBLE_MS,
+  EVENEMENTS_RAFRAICHISSANTS,
+  creeRegroupement,
   type Lectures,
   type Resultat,
 } from "../src/rafraichissement.ts";
@@ -127,8 +131,113 @@ describe("C26 — deux cadences, et un retour immédiat", () => {
   test("visible = 4 s, caché = 60 s", () => {
     expect(cadence(true)).toBe(CADENCE_VISIBLE_MS);
     expect(cadence(false)).toBe(CADENCE_CACHEE_MS);
+    // ⚠️ Quand le flux parle, le minuteur n'est plus la source de fraîcheur :
+    // il devient un filet, et sa cadence s'espace (30 s / 120 s).
+    expect(cadence(true, true)).toBe(CADENCE_SECOURS_VISIBLE_MS);
+    expect(cadence(false, true)).toBe(CADENCE_SECOURS_CACHEE_MS);
+    expect(cadence(true, true)).toBeGreaterThan(CADENCE_VISIBLE_MS);
+    // Un flux muet ramène la cadence serrée : un écran figé serait pire.
+    expect(cadence(true, false)).toBe(CADENCE_VISIBLE_MS);
     // La cadence cachée est PLUS LENTE : un onglet sans personne devant lui
     // ne consomme pas la batterie pour un écran que personne ne regarde.
     expect(CADENCE_CACHEE_MS).toBeGreaterThan(CADENCE_VISIBLE_MS);
+  });
+});
+
+/** Un planificateur qui n'exécute rien : les actions sont déclenchées à la main. */
+const planificateur = (): {
+  readonly programmees: Array<() => void>;
+  readonly planifier: (action: () => void, delai: number) => number;
+  readonly annuler: (jeton: number) => void;
+  readonly annules: number[];
+} => {
+  const programmees: Array<() => void> = [];
+  const annules: number[] = [];
+  return {
+    // `clearTimeout` annule VRAIMENT l'action : le faux doit faire pareil,
+    // sinon le test prouverait seulement que l'annulation est appelée.
+    annuler: (jeton: number) => {
+      annules.push(jeton);
+      programmees[jeton - 1] = () => {};
+    },
+    annules,
+    planifier: (action: () => void) => {
+      programmees.push(action);
+      return programmees.length;
+    },
+    programmees,
+  };
+};
+
+describe("le regroupement des rafales", () => {
+  test("cinq événements rapprochés ne font QU'UNE lecture", () => {
+    // ⚠️ Le client « un vol à la fois » fond deux appels simultanés, pas deux
+    // appels consécutifs : une rafale de cinq événements lançait cinq vols à la
+    // queue leu leu. Le regroupement est donc en amont du client.
+    const horloge = planificateur();
+    let lectures = 0;
+    const regroupement = creeRegroupement(
+      () => {
+        lectures += 1;
+      },
+      150,
+      horloge.planifier,
+      horloge.annuler,
+    );
+    for (let indice = 0; indice < 5; indice += 1) regroupement.signale();
+    expect(horloge.programmees).toHaveLength(1);
+    expect(lectures).toBe(0);
+    horloge.programmees[0]?.();
+    expect(lectures).toBe(1);
+    expect(regroupement.lectures()).toBe(1);
+  });
+
+  test("un événement APRÈS le lot en ouvre un nouveau", () => {
+    const horloge = planificateur();
+    let lectures = 0;
+    const regroupement = creeRegroupement(
+      () => {
+        lectures += 1;
+      },
+      150,
+      horloge.planifier,
+      horloge.annuler,
+    );
+    regroupement.signale();
+    horloge.programmees[0]?.();
+    regroupement.signale();
+    expect(horloge.programmees).toHaveLength(2);
+    horloge.programmees[1]?.();
+    expect(lectures).toBe(2);
+  });
+
+  test("annuler empêche la lecture en attente", () => {
+    const horloge = planificateur();
+    let lectures = 0;
+    const regroupement = creeRegroupement(
+      () => {
+        lectures += 1;
+      },
+      150,
+      horloge.planifier,
+      horloge.annuler,
+    );
+    regroupement.signale();
+    regroupement.annule();
+    expect(horloge.annules).toHaveLength(1);
+    horloge.programmees[0]?.();
+    expect(lectures).toBe(0);
+  });
+
+  test("la liste des événements est celle du serveur", () => {
+    // Les cinq noms publiés par `EvenementSse` (hors `ready`/`resync`, qui ont
+    // leurs chemins propres). Un nom oublié = un écran qui ne bouge pas.
+    expect([...EVENEMENTS_RAFRAICHISSANTS].toSorted()).toEqual([
+      "agent-launched",
+      "agent_status",
+      "prompt",
+      "prompt-suppressed",
+      "session_changed",
+    ]);
   });
 });

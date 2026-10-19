@@ -130,9 +130,51 @@ export const creeClient = <O, H, C>(lectures: Lectures<O, H, C>): ClientDeDonnee
 export const CADENCE_VISIBLE_MS = 4_000;
 export const CADENCE_CACHEE_MS = 60_000;
 
-/** La période à appliquer pour un état de visibilité donné. */
-export const cadence = (visible: boolean): number =>
-  visible ? CADENCE_VISIBLE_MS : CADENCE_CACHEE_MS;
+/**
+ * Les cadences de **secours**, quand le flux d'événements est vivant.
+ *
+ * ⚠️ **Le poll n'est plus la source de fraîcheur, il en est le filet.** Le banc
+ * T065 a mesuré le serveur à p95 1,70 ms pour 14 141 requêtes en 3 s ; une vol
+ * toutes les 4 s bridait donc l'interface à la cadence d'un minuteur, alors que
+ * le démon publie déjà `agent_status`, `prompt`, `prompt-suppressed`,
+ * `agent-launched` et `session_changed` sur `/api/events`.
+ *
+ * Le filet reste : un flux muet (proxy qui coupe, serveur redémarré sans que le
+ * client le sache) ne doit pas laisser un écran figé. 30 s est le compromis
+ * assumé entre « jamais figé » et « pas de trafic inutile ».
+ */
+export const CADENCE_SECOURS_VISIBLE_MS = 30_000;
+export const CADENCE_SECOURS_CACHEE_MS = 120_000;
+
+/**
+ * La période à appliquer, selon la visibilité **et** l'état du direct.
+ *
+ * `direct` = le flux d'événements a parlé récemment. Il n'est pas deviné : il
+ * vient de `openEventStream` (statut `live`/`down`).
+ */
+export const cadence = (visible: boolean, direct = false): number =>
+  direct
+    ? visible
+      ? CADENCE_SECOURS_VISIBLE_MS
+      : CADENCE_SECOURS_CACHEE_MS
+    : visible
+      ? CADENCE_VISIBLE_MS
+      : CADENCE_CACHEE_MS;
+
+/**
+ * Les événements qui rendent une relecture nécessaire.
+ *
+ * ⚠️ La liste est **celle du serveur** (`EvenementSse`), à une exception près :
+ * `resync` n'est pas ici, il a son propre chemin (`onResync`) parce qu'il
+ * demande une relecture immédiate, jamais espacée par un lot.
+ */
+export const EVENEMENTS_RAFRAICHISSANTS = [
+  "agent_status",
+  "prompt",
+  "prompt-suppressed",
+  "agent-launched",
+  "session_changed",
+] as const;
 
 /**
  * Faut-il appliquer un résultat arrivé maintenant ?
@@ -143,3 +185,54 @@ export const cadence = (visible: boolean): number =>
  */
 export const doitAppliquer = (resultat: Resultat, dejaAppliquee: number): boolean =>
   resultat.generation > dejaAppliquee;
+
+/**
+ * Le **regroupement des rafales** : N événements rapprochés valent UNE lecture.
+ *
+ * ⚠️ **Pourquoi ce n'est pas dans `creeClient`.** Le client « un vol à la fois »
+ * fond deux appels *simultanés*, pas deux appels *consécutifs* : une rafale de
+ * trois événements lançait trois vols à la queue leu leu. Le regroupement est
+ * donc en amont, et il est pur — l'horloge est injectée, donc vérifiable sans
+ * attendre.
+ */
+export interface Regroupement {
+  /** Signale un événement : la lecture partira au plus tard dans `delai`. */
+  readonly signale: () => void;
+  /** Annule ce qui est en attente (démontage du composant). */
+  readonly annule: () => void;
+  /** Le nombre de lectures réellement déclenchées — la mesure du regroupement. */
+  readonly lectures: () => number;
+}
+
+export const DELAI_REGROUPEMENT_MS = 150;
+
+export const creeRegroupement = (
+  lire: () => void,
+  delai: number = DELAI_REGROUPEMENT_MS,
+  planifier: (action: () => void, attente: number) => number = (action, attente) =>
+    window.setTimeout(action, attente),
+  annuler: (jeton: number) => void = (jeton) => {
+    window.clearTimeout(jeton);
+  },
+): Regroupement => {
+  let jeton: number | undefined;
+  let lancees = 0;
+  return {
+    annule: () => {
+      if (jeton !== undefined) {
+        annuler(jeton);
+        jeton = undefined;
+      }
+    },
+    lectures: () => lancees,
+    signale: () => {
+      // Déjà programmé : l'événement rejoint le lot, il n'en crée pas un autre.
+      if (jeton !== undefined) return;
+      jeton = planifier(() => {
+        jeton = undefined;
+        lancees += 1;
+        lire();
+      }, delai);
+    },
+  };
+};

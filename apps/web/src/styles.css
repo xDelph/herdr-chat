@@ -588,6 +588,21 @@ button:disabled {
   margin: 2px 0 8px;
 }
 
+/*
+  Le repère du chargement paresseux : il ne se voit pas, il ne prend pas de
+  place, et c'est exactement ce qu'on veut — sa seule fonction est d'être
+  observé quand on approche du haut du fil.
+  ⚠️ `height: 1px` et non `0` : un élément de hauteur nulle n'intersecte pas
+  toujours de façon fiable selon les navigateurs, et l'observateur resterait
+  muet — le chargement ne se déclencherait jamais.
+*/
+.messages__sentinel {
+  display: block;
+  height: 1px;
+  width: 100%;
+  pointer-events: none;
+}
+
 .history__older button {
   background: transparent;
   border: 1px solid var(--border);

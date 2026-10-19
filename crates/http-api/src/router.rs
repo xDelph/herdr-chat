@@ -119,6 +119,17 @@ pub fn routeur(services: Arc<Services>, origines: Vec<String>) -> Router<()> {
         // va aux assets de la PWA (T054) — jamais du HTML sur `/api`.
         .fallback(handlers::assets_router::statique)
         .with_state(services)
+        // ⚠️ **La compression s'applique à la fin de la chaîne** (donc aux
+        // assets ET au JSON) et se décide sur `Accept-Encoding` : un client qui
+        // n'envoie rien reçoit du brut, jamais un corps qu'il ne sait pas lire.
+        // Mesuré : `/api/overview` 12 381 → 1 793 o, `/api/conversations`
+        // 54 027 → 22 079 o.
+        //
+        // ⚠️ **Le SSE n'est pas compressé par cette couche** : `text/event-stream`
+        // n'a pas de fin, et un compresseur bufferise — la couche ne compresse
+        // que si le corps est complet et d'un type qu'elle connaît. Le flux
+        // garde donc son battement en clair, ce qui est le comportement voulu.
+        .layer(tower_http::compression::CompressionLayer::new())
 }
 
 /// Enveloppe un `fn(Request) -> Response` (405, fallback) en handler axum.
