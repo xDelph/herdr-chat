@@ -4,6 +4,7 @@
 
 pub mod allowlist;
 pub mod contracts;
+pub mod coverage;
 pub mod graph;
 pub mod layout;
 pub mod run;

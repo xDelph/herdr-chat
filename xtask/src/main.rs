@@ -9,6 +9,16 @@
 
 const USAGE: &str = "usage: cargo xtask [--root <dir>] <verify|verify-layout|graph>";
 
+/// Lit `compatibility/coverage.json` et vérifie les preuves (T064).
+fn coverage_report(root: &std::path::Path) -> Result<xtask::coverage::Rapport, String> {
+    let chemin = root.join("compatibility/coverage.json");
+    let texte = std::fs::read_to_string(&chemin)
+        .map_err(|cause| format!("lecture de {} : {cause}", chemin.display()))?;
+    let document: serde_json::Value = serde_json::from_str(&texte)
+        .map_err(|cause| format!("{} n'est pas du JSON : {cause}", chemin.display()))?;
+    xtask::coverage::verifie_document(root, &document)
+}
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     let mut positional: Vec<String> = Vec::new();
@@ -59,6 +69,23 @@ fn main() {
                     Ok(())
                 } else {
                     Err("verify-layout en échec".to_string())
+                }
+            }
+            Err(e) => Err(e),
+        },
+        "coverage" => match coverage_report(&root) {
+            Ok(rapport) => {
+                println!("{}", rapport.resume());
+                for defaut in &rapport.defauts {
+                    eprintln!("  défaut : {defaut}");
+                }
+                for (id, taches) in &rapport.restantes {
+                    println!("  en attente : {id} (tâches {})", taches.join(", "));
+                }
+                if rapport.est_coherent() {
+                    Ok(())
+                } else {
+                    Err(String::from("couverture : preuves incohérentes"))
                 }
             }
             Err(e) => Err(e),

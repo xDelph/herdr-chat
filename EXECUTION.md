@@ -1877,3 +1877,43 @@ Périmètre : `apps/web/src/envois.ts` (nouveau), `apps/web/src/ChatScreen.tsx` 
 3. **Ce qui reste de T058** : les **feuilles et questions** gardent leur état local dans `ChatScreen` (elles ne traversent pas la navigation, et les séparer demanderait de déplacer aussi leur rendu). Le store livré couvre les trois défauts nommés par C19/C20 ; la séparation complète feuilles/questions est notée comme reste, pas comme faite.
 
 Commit préfixé `T058:`.
+
+## T064 (tranche A) — la porte de couverture (89 capacités, C01–C27)
+
+Périmètre : `xtask/src/coverage.rs` (nouveau), `xtask/src/{lib,main}.rs` (commande `coverage`), `compatibility/coverage.json` (candidats), `xtask/tests/unit_tests.rs` (8 tests).
+
+### Ce que la porte vérifie
+
+| Règle | Pourquoi |
+|---|---|
+| une preuve nommée doit **exister** sur le disque | un test renommé laissait une couverture « verte » dans un document et fausse dans la réalité |
+| une preuve ne doit **jamais** être sous `src/` | du code de production ne prouve pas un comportement |
+| `status: "proven"` **sans** fichier = défaut | c'est le pire cas : un document qui se déclare couvert sans rien nommer |
+| un identifiant en double est refusé | deux entrées pour la même capacité rendraient le compte faux |
+| un `status` absent = **en attente** | on ne suppose jamais qu'une preuve existe |
+
+### Le scoreboard, aujourd'hui
+
+```
+couverture : 0 prouvée(s), 116 en attente (89 avec un candidat à examiner), 0 défaut(s)
+```
+
+**Pourquoi 0 « prouvée » alors que 89 entrées ont un candidat** : le premier passage a produit ces candidats par **grep** de l'identifiant dans les fichiers de test. Un grep n'est **pas** une preuve — un test peut nommer `H05` sans en vérifier le comportement. Les candidats sont donc inscrits dans `coverage.json` (`candidateTests`) et le statut reste `pending` jusqu'à examen. Marquer 89 capacités « prouvées » sur un grep aurait été exactement le mensonge que ce projet refuse.
+
+### Preuve que la porte peut échouer
+
+`xtask/tests/unit_tests.rs` — **8 tests** : preuve existante acceptée ; preuve sous `src/` refusée ; preuve introuvable ; `proven` sans fichier ; statut absent = en attente ; doublon refusé ; liste absente refusée ; **un candidat n'est pas une preuve** (le compteur `avec_candidats` le dit sans changer `prouvees`).
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p xtask` | PASS — **21 tests** (dont 8 nouveaux). |
+| `cargo run --locked -p xtask -- coverage` | `0 prouvée(s), 116 en attente (89 avec un candidat), 0 défaut(s)` — **exit 0** (matrice cohérente, pas complète). |
+| `cargo xtask verify` + `bun run verify` | verts. |
+
+### Ce qui reste de T064 (et pourquoi je ne le déclare pas fait)
+
+- **Examiner les 89 candidats** un par un : pour chacun, lire le test et confirmer qu'il vérifie le comportement de la capacité, puis passer `status` à `proven` avec ses `tests`. C'est un audit, pas une génération.
+- **Prouver les 27 entrées sans candidat** : ce sont des capacités dont la preuve n'existe pas encore sous forme de test nommé — notamment `O01`/`O02`/`O03` (cycle de vie, config), `O06`/`O07` (assets, cache), `O08`–`O10` (release, packaging), `D06`–`D10`/`D16` (lecteurs), `A02`/`A09`–`A15` (interactions/catalogues), `E10`, `S01`/`S10`/`S12`/`S14`.
+- Le texte de T064 demande aussi les tests négatifs **sécurité/concurrence/propriétés** et les cinq profils : les suites existent pour une large part (files/scan, journal/concurrence, sessions/profils), mais les **nommer** dans la matrice fait partie du même audit.
+
+La porte est donc en place, honnête et capable d'échouer ; la matrice reste à remplir.

@@ -306,3 +306,160 @@ fn the_scanner_must_stay_silent_on_its_own_source() {
         assert!(violations.is_empty(), "le scanner se drape: {violations:?}");
     }
 }
+
+// ─────────────── la porte de couverture (T064) ───────────────
+//
+// ⚠️ Une porte qu'on n'a jamais vue échouer ne prouve rien : ces cas
+// construisent des matrices fautives et exigent le défaut nommé.
+
+/// Un répertoire temporaire unique.
+fn répertoire_temporaire() -> std::path::PathBuf {
+    let base = std::env::temp_dir();
+    for nonce in 0..4096_u32 {
+        let chemin = base.join(format!("xtask-couverture-{}-{nonce}", std::process::id()));
+        if std::fs::create_dir(&chemin).is_ok() {
+            return chemin;
+        }
+    }
+    panic!("aucun répertoire temporaire libre");
+}
+
+fn entree(id: &str, statut: xtask::coverage::Statut, preuves: &[&str]) -> xtask::coverage::Entree {
+    xtask::coverage::Entree {
+        candidats: Vec::new(),
+        id: String::from(id),
+        preuves: preuves.iter().map(|p| String::from(*p)).collect(),
+        statut,
+        taches: Vec::new(),
+    }
+}
+
+#[test]
+fn couverture_une_preuve_existante_est_acceptee() {
+    let racine = répertoire_temporaire();
+    std::fs::create_dir_all(racine.join("crates/x/tests"))
+        .unwrap_or_else(|cause| panic!("{cause}"));
+    std::fs::write(racine.join("crates/x/tests/a.rs"), "")
+        .unwrap_or_else(|cause| panic!("{cause}"));
+    let rapport = xtask::coverage::verifie(
+        &racine,
+        &[entree(
+            "H01",
+            xtask::coverage::Statut::Proven,
+            &["crates/x/tests/a.rs"],
+        )],
+    );
+    assert!(rapport.est_complete(), "{rapport:?}");
+    assert_eq!(rapport.prouvees, 1);
+    let _ = std::fs::remove_dir_all(&racine);
+}
+
+#[test]
+fn couverture_une_preuve_sous_src_est_refusee() {
+    let racine = répertoire_temporaire();
+    std::fs::write(racine.join("a.rs"), "").unwrap_or_else(|cause| panic!("{cause}"));
+    std::fs::create_dir_all(racine.join("crates/x/src")).unwrap_or_else(|cause| panic!("{cause}"));
+    std::fs::write(racine.join("crates/x/src/a.rs"), "").unwrap_or_else(|cause| panic!("{cause}"));
+    let rapport = xtask::coverage::verifie(
+        &racine,
+        &[entree(
+            "H01",
+            xtask::coverage::Statut::Proven,
+            &["crates/x/src/a.rs"],
+        )],
+    );
+    assert!(!rapport.est_coherent());
+    assert!(rapport.defauts[0].contains("src/"), "{:?}", rapport.defauts);
+    let _ = std::fs::remove_dir_all(&racine);
+}
+
+#[test]
+fn couverture_une_preuve_introuvable_est_un_defaut() {
+    let racine = répertoire_temporaire();
+    let rapport = xtask::coverage::verifie(
+        &racine,
+        &[entree(
+            "H01",
+            xtask::coverage::Statut::Proven,
+            &["crates/x/tests/inexistant.rs"],
+        )],
+    );
+    assert!(!rapport.est_coherent());
+    assert!(rapport.defauts[0].contains("introuvable"));
+    let _ = std::fs::remove_dir_all(&racine);
+}
+
+#[test]
+fn couverture_une_preuve_annoncee_sans_fichier_est_un_defaut() {
+    let racine = répertoire_temporaire();
+    let rapport = xtask::coverage::verifie(
+        &racine,
+        &[entree("H01", xtask::coverage::Statut::Proven, &[])],
+    );
+    // Le pire cas : un document qui se déclare couvert sans rien nommer.
+    assert!(!rapport.est_coherent());
+    assert!(rapport.defauts[0].contains("sans fichier"));
+    let _ = std::fs::remove_dir_all(&racine);
+}
+
+#[test]
+fn couverture_un_statut_absent_compte_comme_en_attente() {
+    let racine = répertoire_temporaire();
+    let document = serde_json::json!({
+        "capabilities": [{ "id": "H01", "deliverTasks": ["T050"] }],
+        "corrections": []
+    });
+    let rapport = xtask::coverage::verifie_document(&racine, &document)
+        .unwrap_or_else(|cause| panic!("document : {cause}"));
+    assert_eq!(rapport.en_attente, 1);
+    assert_eq!(rapport.prouvees, 0);
+    assert!(
+        rapport.est_coherent(),
+        "l'absence de statut n'est pas un défaut"
+    );
+    let _ = std::fs::remove_dir_all(&racine);
+}
+
+#[test]
+fn couverture_un_identifiant_en_double_est_refuse() {
+    let racine = répertoire_temporaire();
+    let document = serde_json::json!({
+        "capabilities": [{ "id": "H01" }, { "id": "H01" }],
+        "corrections": []
+    });
+    let erreur = xtask::coverage::verifie_document(&racine, &document)
+        .err()
+        .unwrap_or_else(|| panic!("un doublon doit être refusé"));
+    assert!(erreur.contains("double"), "{erreur}");
+    let _ = std::fs::remove_dir_all(&racine);
+}
+
+#[test]
+fn couverture_une_liste_absente_est_refusee() {
+    let racine = répertoire_temporaire();
+    let document = serde_json::json!({ "capabilities": [] });
+    let erreur = xtask::coverage::verifie_document(&racine, &document)
+        .err()
+        .unwrap_or_else(|| panic!("une liste absente doit être refusée"));
+    assert!(erreur.contains("corrections"), "{erreur}");
+    let _ = std::fs::remove_dir_all(&racine);
+}
+
+#[test]
+fn couverture_les_candidats_ne_sont_pas_des_preuves() {
+    let racine = répertoire_temporaire();
+    let document = serde_json::json!({
+        "capabilities": [
+            { "id": "H01", "candidateTests": ["crates/x/tests/a.rs"] },
+            { "id": "H02" }
+        ],
+        "corrections": []
+    });
+    let rapport = xtask::coverage::verifie_document(&racine, &document)
+        .unwrap_or_else(|cause| panic!("document : {cause}"));
+    // Un candidat n'est PAS une preuve : la capacité reste en attente.
+    assert_eq!(rapport.en_attente, 2);
+    assert_eq!(rapport.prouvees, 0);
+    assert_eq!(rapport.avec_candidats, 1);
+    let _ = std::fs::remove_dir_all(&racine);
+}
