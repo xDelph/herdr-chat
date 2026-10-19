@@ -54,6 +54,17 @@ import { ModelSheet } from "./ModelSheet.tsx";
 import { FileViewer } from "./Viewer.tsx";
 import { Notice } from "./Notice.tsx";
 
+/**
+ * La fenêtre demandée au **premier affichage**.
+ *
+ * ⚠️ **Petit d'abord.** On demandait 512 Kio : sur une session longue, cela fait
+ * lire, transférer et analyser des dizaines de messages avant d'afficher quoi
+ * que ce soit. 96 Kio suffisent largement pour le dernier tour (demande +
+ * réponse) — l'historique se charge ensuite **au défilement** (`before`), ce qui
+ * est déjà en place. L'écran apparaît plus tôt, le reste arrive quand on remonte.
+ */
+const FENETRE_INITIALE_OCTETS = 96 * 1024;
+
 export const ChatScreen = ({
   agent,
   currentModel,
@@ -309,7 +320,7 @@ export const ChatScreen = ({
         const session =
           mode === "incremental" && known !== null && known.cursor !== undefined
             ? await fetchSession(agent.paneId, { cursor: known.cursor })
-            : await fetchSession(agent.paneId, { tail: 524_288 });
+            : await fetchSession(agent.paneId, { tail: FENETRE_INITIALE_OCTETS });
 
         cursor.current = { cursor: session.cursor, path: session.sessionPath };
         if (!session.incremental || session.reset) {

@@ -760,6 +760,24 @@ export const App = () => {
    * perte, et l'utilisateur ne comprenait pas ce qui s'était passé.
    */
   if (route.kind === "agent") {
+    /*
+      ⚠️ **« N'existe plus » ne se dit qu'après avoir REGARDÉ.** Au rechargement
+      sur une route d'agent, l'overview n'est pas encore arrivé : l'écran
+      annonçait donc la disparition d'un agent parfaitement vivant, pendant toute
+      la première lecture. Même règle que le bandeau d'erreur au démarrage : tant
+      qu'aucune lecture n'a réussi, on ne sait rien — on attend.
+    */
+    const saitDeja = dernierSucces !== null || error !== null;
+    if (!saitDeja) {
+      return (
+        <div className="app">
+          <header className="topbar">
+            <h1>Herdr Chat</h1>
+          </header>
+          <output className="muted small">Loading this conversation…</output>
+        </div>
+      );
+    }
     return (
       <div className="app">
         <header className="topbar">

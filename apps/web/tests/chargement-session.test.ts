@@ -150,3 +150,13 @@ describe("U20 — sans chemin de session, aucun appel", () => {
     expect(ecran).toContain("[agent.paneId, agent.sessionPath],");
   });
 });
+
+describe("le premier affichage demande une PETITE fenêtre", () => {
+  test("96 Kio, pas 512 : le dernier tour d'abord, l'historique au défilement", () => {
+    // ⚠️ 512 Kio faisaient lire, transférer et analyser des dizaines de messages
+    // avant la première peinture. Le reste arrive quand on remonte (`before`).
+    expect(source).toContain("const FENETRE_INITIALE_OCTETS = 96 * 1024;");
+    expect(source).toContain("tail: FENETRE_INITIALE_OCTETS");
+    expect(source).not.toContain("tail: 524_288");
+  });
+});
