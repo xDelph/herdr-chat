@@ -105,6 +105,39 @@ async fn session_200_absente_cause_absente() {
     assert_eq!(corps["entries"], serde_json::json!([]));
 }
 
+/// Une session qui **disparaît** alors que le client en a déjà lu une page.
+///
+/// ⚠️ **Le cas qui rendait le chat inutilisable côté client.** Un agent qui passe
+/// en `blocked` ou subit un incident cesse parfois d'exposer sa session : le
+/// serveur doit alors répondre **200 + `absente` + `entries: []`**, et surtout
+/// **pas** une erreur. Un 4xx/5xx forçait l'écran à choisir entre afficher une
+/// erreur et perdre le fil ; un 200 vide laisse le client garder ce qu'il a lu
+/// et le dire (règle `decideAffichage`, côté web).
+#[tokio::test(flavor = "multi_thread")]
+async fn une_session_qui_disparait_reste_un_succes_vide_meme_avec_curseur() {
+    let faux = herdr_avec_agent("w1:p1");
+    let mut page = page_vide();
+    page.rattrape = false;
+    let port = Arc::new(
+        FauxSessionPort::nouveau()
+            .avec_source(Some(source()))
+            .avec_page(Ok(SessionPageOutcome::Absente(page))),
+    );
+    let (services, _) = services(faux, Default::default(), port);
+    let (statut, corps) = requete_get(
+        routeur(services, vec![]),
+        "/api/agents/w1:p1/session?cursor=hc2%3AeyJ2IjoyfQ",
+    )
+    .await;
+    assert_eq!(
+        statut,
+        StatusCode::OK,
+        "une session absente est un succès vide, jamais une panne"
+    );
+    assert_eq!(corps["cause"], "absente");
+    assert_eq!(corps["entries"], serde_json::json!([]));
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn session_200_vide_cause_vide() {
     let faux = herdr_avec_agent("w1:p1");

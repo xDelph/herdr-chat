@@ -2562,3 +2562,37 @@ Le SSE n'est pas compressé (`text/event-stream` n'a pas de fin) : vérifié, il
 bun run verify       format + lint + typecheck + 1148 tests (67 fichiers)
 cargo xtask verify   5 portes vertes
 ```
+
+### Le fil qui disparaît quand un agent se bloque ou bugue — corrigé
+
+**Symptôme rapporté** : quand un agent a un incident ou passe en `blocked`, la session disparaît → plus de données, plus de défilement, chat inutilisable.
+
+**Cause, trouvée dans le code** (`ChatScreen.load`) : toute lecture était traitée comme une **nouvelle vérité**.
+
+```ts
+// avant
+} else {
+  setEntries(session.entries);          // une page vide ⇒ fil vidé
+  setMessages(toMessages(session.entries));
+}
+if (session.reset) { setEntries(session.entries); … }   // reset sans entrée ⇒ fil vidé aussi
+```
+
+Or une session qui devient illisible ne répond **pas** une erreur : le serveur rend `200`, `cause: "absente"`, `entries: []` — et c'est correct (un agent bloqué n'est pas une panne). C'est donc l'écran qui transformait une lecture vide en **perte du contenu déjà lu**.
+
+**Correction** : la décision d'affichage est devenue une règle explicite et testée, `apps/web/src/session-vue.ts` :
+
+| Lecture | Décision |
+|---|---|
+| première page (rien d'affiché) | remplace (même vide : rien à perdre) |
+| `reset` **avec** entrées | remplace (la session a réellement changé) |
+| incrémental avec entrées | ajoute (fusion) |
+| page vide **avec** `reset` | **garde** + avertissement (« last known messages… ») |
+| page vide sans reset | garde, **sans** avertissement (un agent qui n'écrit plus n'est pas une panne) |
+| erreur de transport | **garde le fil** si quelque chose est affiché, et dit la cause réelle |
+
+Le compteur « ce qui est affiché » passe par des refs : mettre `entries` en dépendance de `load` aurait recréé le chargeur à chaque message.
+
+**Côté serveur, rien à corriger — et c'est maintenant prouvé par un test.** `une_session_qui_disparait_reste_un_succes_vide_meme_avec_curseur` : une requête **avec curseur** sur une source absente rend **200**, `absente`, `entries: []`. Jamais un 4xx/5xx — c'est précisément ce qui permet au client de garder le fil au lieu de choisir entre « erreur » et « rien ».
+
+**Preuves** : `session-vue.test.ts` (10 cas, dont « session absente alors qu'on affiche des messages : on garde »), `cargo test -p http-api` 175 tests, `bun run verify` **1158 tests / 0 échec**, `cargo xtask verify` 5 portes vertes.

@@ -11,6 +11,7 @@
  * (D016.2).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { decideAffichage, gardeLeFilMalgréErreur, mentionLecturePartielle } from "./session-vue.ts";
 import {
   SEUIL_PREMIERES_LIGNES_PX,
   ancrage,
@@ -103,6 +104,11 @@ export const ChatScreen = ({
   const [previousCursor, setPreviousCursor] = useState<string | null>(null);
   const [loadingPrevious, setLoadingPrevious] = useState(false);
   const [previousError, setPreviousError] = useState<string | null>(null);
+  /**
+   * Le fil affiché est **incomplet** : une lecture a échoué ou n'a rien rendu
+   * alors qu'on avait des messages. Distinct d'une erreur : le fil reste lisible.
+   */
+  const [lecturePartielle, setLecturePartielle] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   /**
    * Phase du chargement — nécessaire pour distinguer « vide » de « pas encore
@@ -249,6 +255,25 @@ export const ChatScreen = ({
    */
   const cursor = useRef<{ cursor: string | undefined; path: string } | null>(null);
   const loading = useRef(false);
+  /**
+   * Le nombre d'entrées et d'envois **affichés**, lisibles depuis `load` sans
+   * l'ajouter à ses dépendances.
+   *
+   * ⚠️ La règle d'affichage en a besoin : « cette page vide doit-elle vider le
+   * fil ? » dépend de ce qui est déjà à l'écran. Lire l'état directement
+   * obligerait à mettre `entries` en dépendance de `load`, donc à recréer le
+   * chargeur à chaque message — et à relancer des lectures en boucle.
+   */
+  const entriesRef = useRef(0);
+  const envoisRef = useRef(0);
+
+  // Les compteurs suivent l'état après chaque rendu (voir la note des refs).
+  useEffect(() => {
+    entriesRef.current = entries.length;
+  }, [entries]);
+  useEffect(() => {
+    envoisRef.current = envoisLocaux.length;
+  }, [envoisLocaux]);
 
   const load = useCallback(
     async (mode: "initial" | "incremental") => {
@@ -283,34 +308,54 @@ export const ChatScreen = ({
           setPreviousCursor(session.previousCursor ?? null);
         }
 
-        if (session.incremental) {
-          if (session.entries.length > 0) {
-            // ⚠️ Fusion, pas empilement : une entrée peut être **remplacée**
-            // (opencode réécrit la ligne d'un message pendant qu'il le compose).
-            const ajoutees = toMessages(session.entries);
-            setEntries((current) => fusionnerEntrees(current, session.entries));
-            setMessages((current) => fusionnerEntrees(current, ajoutees));
-          }
-        } else {
+        /*
+          ⚠️ **La décision d'affichage est une règle, pas un `if` au fil de
+          l'eau.** Elle vivait ici, et elle vidait le fil dès qu'une page
+          arrivait vide (`setEntries([])` sur un `reset` ou une session
+          disparue) : plus de messages, plus de repère de défilement, écran
+          inutilisable — observé quand un agent passe en `blocked` ou subit un
+          incident. La règle est maintenant dans `session-vue.ts`, testée.
+        */
+        const decision = decideAffichage({
+          affiches: entriesRef.current + envoisRef.current,
+          page: {
+            cause: session.cause,
+            entries: session.entries,
+            incremental: session.incremental,
+            reset: session.reset,
+          },
+        });
+        if (decision.genre === "remplace") {
           setEntries(session.entries);
           setMessages(toMessages(session.entries));
+        } else if (decision.genre === "ajoute") {
+          // ⚠️ Fusion, pas empilement : une entrée peut être **remplacée**
+          // (opencode réécrit la ligne d'un message pendant qu'il le compose).
+          const ajoutees = toMessages(session.entries);
+          setEntries((current) => fusionnerEntrees(current, session.entries));
+          setMessages((current) => fusionnerEntrees(current, ajoutees));
+        } else if (decision.genre === "garde-et-previens") {
+          // Le fil reste : on ne détruit pas ce qui est lu, on le dit.
+          setLecturePartielle(mentionLecturePartielle(decision.raison));
         }
-        // `reset` signifie que le curseur ne décrivait plus ce fichier :
-        // rotation, troncature, ou session relue depuis la fin. Les entrées
-        // reçues **remplacent** la vue, sans quoi l'écran montrerait des
-        // messages qui ne sont plus dans le fichier.
-        if (session.reset) {
-          setEntries(session.entries);
-          setMessages(toMessages(session.entries));
-          setPhase("ready");
-        }
+        if (decision.genre !== "garde-et-previens") setLecturePartielle(null);
         setError(null);
         setPhase("ready");
       } catch (cause) {
         // La cause réelle est affichée : pas de message générique qui masque.
         const message = cause instanceof Error ? cause.message : String(cause);
+        /*
+          ⚠️ **On ne vide pas le fil sur une erreur de lecture.** Un 502 passager
+          ne dit rien du contenu : il dit qu'on n'a pas pu le lire maintenant.
+          L'écran basculait en `error` **et** laissait le fil en place, mais
+          l'état d'erreur masquait tout le reste de l'écran dans les versions
+          antérieures ; ici la règle est explicite et testée.
+        */
+        if (!gardeLeFilMalgréErreur(entriesRef.current + envoisRef.current)) {
+          setPhase("error");
+        }
+        setLecturePartielle(mentionLecturePartielle(message));
         setError(message);
-        setPhase("error");
         reportError("échec du chargement de session", {
           message,
           paneId: agent.paneId,
@@ -1076,6 +1121,15 @@ export const ChatScreen = ({
           <TabPanes agents={voisins} courant={agent.paneId} onOpen={onOuvrirVoisin} />
 
           {error !== null ? <Notice ton="erreur">{error}</Notice> : null}
+          {/*
+            ⚠️ **Un fil incomplet se dit, sans effacer ce qui est lisible.** Une
+            session momentanément illisible (agent `blocked`, incident, 502)
+            laissait autrefois un écran vide ; ici les derniers messages connus
+            restent à l'écran et cette mention explique pourquoi ils ne bougent
+            plus. C'est une information, pas une erreur : la conversation est
+            toujours consultable.
+          */}
+          {lecturePartielle === null ? null : <Notice ton="neutre">{lecturePartielle}</Notice>}
           {focusFeedback === null ? null : <Notice ton="neutre">{focusFeedback}</Notice>}
 
           {/*
