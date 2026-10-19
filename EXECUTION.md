@@ -2604,4 +2604,13 @@ Le compteur « ce qui est affiché » passe par des refs : mettre `entries` en d
 0. **Le domaine `Page` n'existe pas sur la cible navigateur.** `/json/version` rend le WebSocket du *navigateur* ; `Page.captureScreenshot` y répond `wasn't found`. Il faut la cible **page** (`/json/list`).
 0. **Une adresse IP littérale dans un fichier de ce dépôt se fait réécrire** par l'outillage d'affichage : le script interrogeait un hôte inexistant. L'hôte est désormais **composé** (`["127","0","0","1"].join(".")`).
 
-**Première capture (`01-liste.png`, 390×844, démon Rust)** : l'écran affiche `<h1>Herdr Chat</h1>`, puis **« Loading… »** — et il y reste après 2,5 s. La liste ne se remplit pas, alors que `/api/overview` répond 200 en 12 Ko sur le même port. À instruire avant toute conclusion UX : soit le premier vol ne se déclenche pas dans ce contexte (SSE, origine, build embarqué plus ancien que T071), soit il est bloqué. **Ce n'est pas un défaut d'affichage, c'est un défaut de démarrage de l'écran**, et il est noté comme tel.
+**Correction de mon propre diagnostic.** La première capture montrait « Loading… » et je l'ai noté comme un défaut de démarrage. **C'était faux** : c'est **mon harnais** qui attendait un nombre fixe de millisecondes (2,5 s) alors que le premier vol et l'ouverture du flux prennent ~4 s en headless. Deux erreurs de plus, du même genre :
+
+- le script cherchait `a[href*="#/agent/"]` — or les lignes sont des `<button class="conv">` : il concluait « liste vide » sur une liste pleine ;
+- il cherchait le bouton Settings **dans le chat**, alors qu'il vit sur la liste.
+
+L'attente est maintenant **sur le contenu** (`attendreQue`), jamais sur une durée.
+
+**Cinq captures obtenues** (`apps/web/captures/`, 390×844, démon Rust, lecture seule) : liste, chat, settings, model, files. Aucun clic sur Stop/Focus/Answer/Trust.
+
+**Défaut réel constaté sur les captures** : la **langue de l'interface est mixte**. Les titres sont en anglais (`Settings`, `Appearance`, `Agent logos`, `Conversation list`, `Notifications`) et le corps de texte est **en français** (« Recolours the interface. Status colours — finished, waiting, failed — keep their meaning in every theme. » est anglais, mais « Herdr reachable / Readable conversations » voisinent « Apparence » et des phrases françaises). C'est visible sur `03-settings.png`. À trancher : une seule langue.

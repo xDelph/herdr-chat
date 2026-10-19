@@ -41,3 +41,5 @@ target/
 **/*.rs.bk
 /dist/
 compatibility/benchmark/fixtures/delta/
+# Captures d'écran locales (T072) — reproductibles, jamais livrées
+apps/web/captures/

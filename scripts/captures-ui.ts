@@ -110,6 +110,24 @@ const point = async (): Promise<string> => {
   throw new Error("Chrome n'a jamais ouvert son port de débogage");
 };
 
+/**
+ * Attend qu'une condition soit vraie dans la page, ou rend la main au délai.
+ *
+ * ⚠️ **Une attente fixe ne suffit pas, et c'est mesuré** : avec 2,5 s, la
+ * capture montrait « Loading… » ; à 4 s, la liste était remplie. Un chiffre en
+ * dur aurait fait conclure à un défaut de démarrage qui n'existait pas — le
+ * premier vol et l'ouverture du flux prennent quelques secondes en headless.
+ */
+const attendreQue = async (cdp: Cdp, expression: string, delaiMs = 15_000): Promise<boolean> => {
+  const debut = Date.now();
+  while (Date.now() - debut < delaiMs) {
+    const pret = await cdp.evalue<boolean>(`(() => { try { return Boolean(${expression}); } catch { return false; } })()`);
+    if (pret) return true;
+    await dort(150);
+  }
+  return false;
+};
+
 const capture = async (cdp: Cdp, nom: string): Promise<void> => {
   const reponse = (await cdp.envoie("Page.captureScreenshot", { format: "png" })) as {
     result?: { data?: string };
@@ -136,19 +154,37 @@ const principal = async (): Promise<void> => {
     });
 
     await cdp.envoie("Page.navigate", { url: `${RACINE}/#/` });
-    await dort(2500);
+    // On attend le CONTENU, jamais un nombre de millisecondes.
+    const listePrete = await attendreQue(
+      cdp,
+      `document.querySelector('a[href*="#/agent/"]') || /\b(Empty|No agents)\b/.test(document.body.innerText)`,
+    );
+    if (!listePrete) console.log("avertissement : la liste n'est pas remplie après 15 s");
+    await dort(300);
     await capture(cdp, "01-liste");
 
     // La première conversation disponible : on lit son paneId depuis la liste.
-    const pane = await cdp.evalue<string | null>(
-      `(() => { const a = document.querySelector('a[href*="#/agent/"]'); return a ? a.getAttribute('href') : null; })()`,
+    /*
+      ⚠️ **Les lignes sont des `<button class="conv">`, pas des liens.** La
+      première version du script cherchait un `a[href*="#/agent/"]` : il n'en
+      existe aucun, et le script concluait « liste vide » sur une liste pleine.
+      On clique donc la première ligne et on lit le fragment obtenu.
+    */
+    const clic = await cdp.evalue<boolean>(
+      `(() => { const b = document.querySelector('button.conv'); if (!b) return false; b.click(); return true; })()`,
     );
-    if (pane === null) {
+    if (!clic) {
       console.log("aucune conversation : la liste est vide, captures suivantes sautées");
       return;
     }
-    await cdp.envoie("Page.navigate", { url: `${RACINE}/${String(pane)}` });
-    await dort(3000);
+    await attendreQue(cdp, `location.hash.startsWith('#/agent/')`, 4000);
+    const pane = await cdp.evalue<string>(`location.hash`);
+    if (pane === "") {
+      console.log("aucune route d'agent : captures suivantes sautées");
+      return;
+    }
+    await attendreQue(cdp, `document.querySelector('.bubble, .messages__empty')`);
+    await dort(600);
     await capture(cdp, "02-chat");
 
     // Les feuilles : on ouvre par le bouton, jamais par un état forcé.
@@ -160,13 +196,22 @@ const principal = async (): Promise<void> => {
         console.log(`bouton absent : ${nom}`);
         return;
       }
-      await dort(700);
+      await attendreQue(cdp, `document.querySelector('dialog[open]')`, 4000);
+      await dort(400);
       await capture(cdp, nom);
       await cdp.evalue(`(() => { const d = document.querySelector('dialog[open]'); if (d) d.close(); return true; })()`);
       await dort(300);
     };
 
-    await ouvrir('button[aria-label*="ettings" i], button[title*="ettings" i]', "03-settings");
+    // ⚠️ Le bouton Settings vit sur la **liste**, pas dans le chat : on y
+    // retourne pour l'ouvrir, puis on revient sur l'agent pour les feuilles.
+    await cdp.envoie("Page.navigate", { url: `${RACINE}/#/` });
+    await attendreQue(cdp, `document.querySelector('button.conv')`);
+    await ouvrir('button[aria-label="Settings"]', "03-settings");
+
+    await cdp.envoie("Page.navigate", { url: `${RACINE}/${pane}` });
+    await attendreQue(cdp, `document.querySelector('.bubble, .messages__empty')`);
+    await dort(400);
     await ouvrir('button[aria-label*="model" i], button[title*="model" i]', "04-model");
     await ouvrir('button[aria-label*="files" i], button[title*="files" i]', "05-files");
   } finally {
