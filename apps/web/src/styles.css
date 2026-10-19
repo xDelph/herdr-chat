@@ -3610,3 +3610,30 @@ button:disabled {
 .group__reste {
   margin: 0 0 4px 8px;
 }
+
+/*
+  ⚠️ **Le titre ne passe pas à la ligne.** Avec la recherche dans l'en-tête,
+  « Herdr Chat » se coupait sur deux lignes à 393 px — un titre sur deux lignes
+  décale tout le contenu et fait sauter la hauteur de l'en-tête d'un écran à
+  l'autre. Il cède la place à la recherche : `ellipsis` plutôt qu'un retour.
+*/
+.topbar h1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/*
+  ⚠️ **Sur téléphone, le titre cède la place à la recherche.** « Herdr C… » est
+  pire que pas de titre : un nom tronqué ne s'identifie pas. Sous 420 px
+  — c'est-à-dire sur tous les téléphones — l'en-tête porte donc la recherche et
+  les icônes, et le nom de l'application revient dès qu'il y a la place.
+*/
+@media (max-width: 420px) {
+  .topbar h1 {
+    display: none;
+  }
+  .topbar__recherche {
+    max-width: none;
+  }
+}
