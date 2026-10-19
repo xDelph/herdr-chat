@@ -1,0 +1,189 @@
+{
+  "arch": "aarch64",
+  "clients": 8,
+  "fixture": {
+    "bundle": "compatibility/benchmark/fixtures",
+    "delta_verifie": false,
+    "fichiers_verifies": 78
+  },
+  "hote": "macos",
+  "panes": 50,
+  "piles": [
+    {
+      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=53041 HERDR_REMOTE_BIND=127.0.0.1 target/{release,debug}/herdrchat",
+      "demandes_fixture": 4,
+      "dossier": "",
+      "journal_serveur": "",
+      "pile": "rust",
+      "pret_ms": 319,
+      "routes": [
+        "/api/overview",
+        "/api/conversations"
+      ],
+      "runs": [
+        {
+          "cpu_ms": 3930,
+          "echantillons": 10,
+          "froid": true,
+          "max_us": 62975,
+          "non_200": 0,
+          "octets": 87145663,
+          "p50_us": 3814,
+          "p95_us": 11249,
+          "p99_us": 18624,
+          "par_route": {
+            "/api/conversations": {
+              "max_us": 62975,
+              "n": 1821,
+              "p50_us": 6491,
+              "p95_us": 13407,
+              "p99_us": 21936
+            },
+            "/api/overview": {
+              "max_us": 27652,
+              "n": 1825,
+              "p50_us": 686,
+              "p95_us": 3853,
+              "p99_us": 9393
+            }
+          },
+          "requetes": 3646,
+          "rss_max_kio": 29744,
+          "run": 0
+        },
+        {
+          "cpu_ms": 4571,
+          "echantillons": 10,
+          "froid": false,
+          "max_us": 24106,
+          "non_200": 0,
+          "octets": 100482303,
+          "p50_us": 3307,
+          "p95_us": 9714,
+          "p99_us": 14137,
+          "par_route": {
+            "/api/conversations": {
+              "max_us": 24106,
+              "n": 2101,
+              "p50_us": 6148,
+              "p95_us": 11377,
+              "p99_us": 15563
+            },
+            "/api/overview": {
+              "max_us": 11533,
+              "n": 2103,
+              "p50_us": 551,
+              "p95_us": 2351,
+              "p99_us": 6049
+            }
+          },
+          "requetes": 4204,
+          "rss_max_kio": 29952,
+          "run": 1
+        }
+      ],
+      "sondes": [
+        {
+          "corps": "{\"agents\":[{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p1\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-53491-1792429721808524000/sessions/banc-0.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p2\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-53491-1792429721808524000/sessions/banc-1.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 1 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p3\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-53491-1792429721808524000/sessions/banc-2.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 2 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p4\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-53491-1792429721808524000/sessions/banc-3.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 3 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w1:p1\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-53491-1792429721808524000/sessions/banc-4.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w1:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 4 — essai\",\"workspaceLabel\":\"banc-1\",\"workspaceId\":\"w1\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w1:p2\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-53491-1792429721808524000/sessions/banc-5.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w1:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 5 — essai\",\"workspaceLabel\":\"banc-1\",\"workspaceId\":\"w1\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w1:p3\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-53491-1792429721808524000/sessions/banc-6.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w1:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 6 — essai\",\"workspaceLabel\":\"banc-1\",\"workspaceId\"",
+          "route": "/api/overview",
+          "statut": 200
+        },
+        {
+          "corps": "{\"conversations\":[{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\nlecture repli repli focus catalogne opaque référence cause curseur état mesure rafraîchissement verdict verdict accessibilité rafraîchissement lecture rendu\",\"sessionState\":\"available\",\"timestamp\":1709715240000,\"title\":\"banc 0 — essai\",\"status\":\"idle\",\"workspaceId\":\"w0\",\"tabId\":\"w0:t1\",\"paneId\":\"w0:p1\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\nfeuille contrat résultat catalogne erreur p95 état erreur lecture lecture décodage fenêtre contrat lecture p95 résultat curseur session\",\"sessionState\":\"available\",\"timestamp\":1709713743000,\"title\":\"banc 1 — essai\",\"status\":\"idle\",\"workspaceId\":\"w0\",\"tabId\":\"w0:t1\",\"paneId\":\"w0:p2\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\ncurseur p95 lecture rafraîchissement cause cause accessibilité décodage opaque décodage fenêtre fenêtre opaque fenêtre erreur lecture lecture contrat\",\"sessionState\":\"available\",\"timestamp\":1709713743000,\"title\":\"banc 2 — essai\",\"status\":\"idle\",\"workspaceId\":\"w0\",\"tabId\":\"w0:t1\",\"paneId\":\"w0:p3\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"La coupure conserve le fil et le brouillon : c'est la règle, pas l'intention.\\n\\nrendu lecture verdict mesure référence rafraîchissement curseur décodage feuille opaque p95 résultat mesure lecture feuille p95 octets lecture\",\"sessionState\":\"available\",\"timestamp\":1709713803000,\"title\":\"banc 3 — essai\",\"status\":\"idle\",\"workspaceId\":\"w0\",\"tabId\":\"w0:t1\",\"paneId\":\"w0:p4\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\nrendu catalogne état focus référence accessibilité décodage résultat accessibilité repli lecture octets feuille erreur fenêtre état repli p95\",\"sessionState\":\"available\",\"timestamp\":1709713743000,\"title\":\"banc 4 — essai\",\"status\":\"idle\",\"workspaceId\":\"w1\",\"tabId\":\"w1:t1\",\"paneId\":\"w1:p1\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\ncontrat focus accessibilité curseur repli fenêtre mesure octets feuille rafraîchissement état décodage erreur p95 contrat rendu référence référence\",\"sessionState\":\"available\",\"timestamp\":1709713743000,\"title\":\"banc 5 — essai\",\"status\":\"idle\",\"workspaceId\":\"w1\",\"tabId\":\"w1:t1\",\"paneId\":\"w1:p2\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\ncatalogne octets référence vérification contrat session",
+          "route": "/api/conversations",
+          "statut": 200
+        }
+      ]
+    },
+    {
+      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=61025 HERDR_REMOTE_BIND=127.0.0.1 bun run apps/server/src/main.ts",
+      "demandes_fixture": 507,
+      "dossier": "",
+      "journal_serveur": "",
+      "pile": "ts",
+      "pret_ms": 333,
+      "routes": [
+        "/api/overview",
+        "/api/conversations"
+      ],
+      "runs": [
+        {
+          "cpu_ms": 3020,
+          "echantillons": 10,
+          "froid": true,
+          "max_us": 219904,
+          "non_200": 0,
+          "octets": 5715579,
+          "p50_us": 55041,
+          "p95_us": 140944,
+          "p99_us": 197591,
+          "par_route": {
+            "/api/conversations": {
+              "max_us": 219904,
+              "n": 117,
+              "p50_us": 95455,
+              "p95_us": 191983,
+              "p99_us": 199527
+            },
+            "/api/overview": {
+              "max_us": 67505,
+              "n": 125,
+              "p50_us": 36301,
+              "p95_us": 59267,
+              "p99_us": 66289
+            }
+          },
+          "requetes": 242,
+          "rss_max_kio": 181808,
+          "run": 0
+        },
+        {
+          "cpu_ms": 3160,
+          "echantillons": 9,
+          "froid": false,
+          "max_us": 133776,
+          "non_200": 0,
+          "octets": 6087639,
+          "p50_us": 62870,
+          "p95_us": 102546,
+          "p99_us": 120326,
+          "par_route": {
+            "/api/conversations": {
+              "max_us": 133776,
+              "n": 129,
+              "p50_us": 85181,
+              "p95_us": 109887,
+              "p99_us": 121304
+            },
+            "/api/overview": {
+              "max_us": 81554,
+              "n": 129,
+              "p50_us": 43372,
+              "p95_us": 74639,
+              "p99_us": 81064
+            }
+          },
+          "requetes": 258,
+          "rss_max_kio": 183664,
+          "run": 1
+        }
+      ],
+      "sondes": [
+        {
+          "corps": "{\"agents\":[{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p1\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-53491-1792429721808524000/sessions/banc-0.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p2\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-53491-1792429721808524000/sessions/banc-1.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 1 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p3\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-53491-1792429721808524000/sessions/banc-2.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 2 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p4\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-53491-1792429721808524000/sessions/banc-3.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 3 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w1:p1\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-53491-1792429721808524000/sessions/banc-4.jsonl\",\"status\":\"idle\",\"tabId\":\"w1:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 4 — essai\",\"workspaceId\":\"w1\",\"workspaceLabel\":\"banc-1\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w1:p2\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-53491-1792429721808524000/sessions/banc-5.jsonl\",\"status\":\"idle\",\"tabId\":\"w1:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 5 — essai\",\"workspaceId\":\"w1\",\"workspaceLabel\":\"banc-1\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w1:p3\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-53491-1792429721808524000/sessions/banc-6.jsonl\",\"status\":\"idle\",\"tabId\":\"w1:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 6 — essai\",\"wor",
+          "route": "/api/overview",
+          "statut": 200
+        },
+        {
+          "corps": "{\"conversations\":[{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneId\":\"w0:p1\",\"paneRank\":null,\"preview\":\"La coupure conserve le fil et le brouillon : c'est la règle, pas l'intention.\\n\\nréférence repli fenêtre état repli décodage état erreur lecture octets octets cause référence mesure résultat feuille lecture repli\",\"sessionState\":\"available\",\"status\":\"idle\",\"tabId\":\"\",\"tabPaneCount\":1,\"timestamp\":1709628843000,\"title\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneId\":\"w0:p2\",\"paneRank\":null,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\nfeuille contrat résultat catalogne erreur p95 état erreur lecture lecture décodage fenêtre contrat lecture p95 résultat curseur session\",\"sessionState\":\"available\",\"status\":\"idle\",\"tabId\":\"\",\"tabPaneCount\":1,\"timestamp\":1709627343000,\"title\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneId\":\"w0:p3\",\"paneRank\":null,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\ncurseur p95 lecture rafraîchissement cause cause accessibilité décodage opaque décodage fenêtre fenêtre opaque fenêtre erreur lecture lecture contrat\",\"sessionState\":\"available\",\"status\":\"idle\",\"tabId\":\"\",\"tabPaneCount\":1,\"timestamp\":1709627343000,\"title\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneId\":\"w0:p4\",\"paneRank\":null,\"preview\":\"La coupure conserve le fil et le brouillon : c'est la règle, pas l'intention.\\n\\nrendu lecture verdict mesure référence rafraîchissement curseur décodage feuille opaque p95 résultat mesure lecture feuille p95 octets lecture\",\"sessionState\":\"available\",\"status\":\"idle\",\"tabId\":\"\",\"tabPaneCount\":1,\"timestamp\":1709627403000,\"title\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneId\":\"w1:p1\",\"paneRank\":null,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\nrendu catalogne état focus référence accessibilité décodage résultat accessibilité repli lecture octets feuille erreur fenêtre état repli p95\",\"sessionState\":\"available\",\"status\":\"idle\",\"tabId\":\"\",\"tabPaneCount\":1,\"timestamp\":1709627343000,\"title\":\"banc-1\",\"workspaceId\":\"w1\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneId\":\"w1:p2\",\"paneRank\":null,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\ncontrat focus accessibilité curseur repli fenêtre mesure octets feuille rafraîchissement état décodage erreur p95 contrat rendu référence référence\",\"sessionState\":\"available\",\"status\":\"idle\",\"tabId\":\"\",\"tabPaneCount\":1,\"timestamp\":1709627343000,\"title\":\"banc-1\",\"workspaceId\":\"w1\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneId\":\"w1:p3\",\"paneRank\":null,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\ncatalogne octets référence vérification contrat session fenêtre repli résultat feuille p95 décodage référence session mesure référence mesure vérification\",\"",
+          "route": "/api/conversations",
+          "statut": 200
+        }
+      ]
+    }
+  ],
+  "runs": 2,
+  "scenario": "base",
+  "schemaVersion": 1,
+  "secondes": 2
+}

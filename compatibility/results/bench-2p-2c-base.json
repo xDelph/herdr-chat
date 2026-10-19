@@ -10,81 +10,81 @@
   "panes": 2,
   "piles": [
     {
-      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=65498 HERDR_REMOTE_BIND=127.0.0.1 target/{release,debug}/herdrchat",
+      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=58000 HERDR_REMOTE_BIND=127.0.0.1 target/{release,debug}/herdrchat",
       "demandes_fixture": 5,
       "dossier": "",
       "journal_serveur": "",
       "pile": "rust",
-      "pret_ms": 208,
+      "pret_ms": 621,
       "routes": [
         "/api/overview",
         "/api/conversations"
       ],
       "runs": [
         {
-          "cpu_ms": 4880,
-          "echantillons": 14,
+          "cpu_ms": 3330,
+          "echantillons": 15,
           "froid": true,
-          "max_us": 82759,
+          "max_us": 13401,
           "non_200": 0,
-          "octets": 466320,
-          "p50_us": 19982,
-          "p95_us": 35111,
-          "p99_us": 50442,
+          "octets": 13324995,
+          "p50_us": 425,
+          "p95_us": 1227,
+          "p99_us": 3048,
           "par_route": {
             "/api/conversations": {
-              "max_us": 82759,
-              "n": 201,
-              "p50_us": 27487,
-              "p95_us": 40074,
-              "p99_us": 57344
+              "max_us": 13401,
+              "n": 5743,
+              "p50_us": 556,
+              "p95_us": 1477,
+              "p99_us": 3514
             },
             "/api/overview": {
-              "max_us": 22560,
-              "n": 201,
-              "p50_us": 442,
-              "p95_us": 4229,
-              "p99_us": 9373
+              "max_us": 9774,
+              "n": 5744,
+              "p50_us": 181,
+              "p95_us": 720,
+              "p99_us": 2308
             }
           },
-          "requetes": 402,
-          "rss_max_kio": 31296,
+          "requetes": 11487,
+          "rss_max_kio": 25648,
           "run": 0
         },
         {
-          "cpu_ms": 4010,
-          "echantillons": 13,
+          "cpu_ms": 2770,
+          "echantillons": 14,
           "froid": false,
-          "max_us": 152101,
+          "max_us": 42886,
           "non_200": 0,
-          "octets": 371200,
-          "p50_us": 20426,
-          "p95_us": 58480,
-          "p99_us": 86819,
+          "octets": 10711440,
+          "p50_us": 451,
+          "p95_us": 1739,
+          "p99_us": 4798,
           "par_route": {
             "/api/conversations": {
-              "max_us": 152101,
-              "n": 160,
-              "p50_us": 29418,
-              "p95_us": 72380,
-              "p99_us": 90711
+              "max_us": 42886,
+              "n": 4617,
+              "p50_us": 598,
+              "p95_us": 2195,
+              "p99_us": 5966
             },
             "/api/overview": {
-              "max_us": 21037,
-              "n": 160,
-              "p50_us": 419,
-              "p95_us": 6919,
-              "p99_us": 10638
+              "max_us": 24352,
+              "n": 4617,
+              "p50_us": 201,
+              "p95_us": 1077,
+              "p99_us": 3232
             }
           },
-          "requetes": 320,
-          "rss_max_kio": 31280,
+          "requetes": 9234,
+          "rss_max_kio": 19184,
           "run": 1
         }
       ],
       "sondes": [
         {
-          "corps": "{\"agents\":[{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p1\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-81969-1792429074444729000/sessions/banc-0.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p2\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-81969-1792429074444729000/sessions/banc-1.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 1 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"}],\"herdrProtocol\":22,\"herdrVersion\":\"0.9.3\",\"withoutSession\":0,\"workspaces\":[{\"agentPanes\":[\"w0:p1\",\"w0:p2\"],\"agentStatus\":null,\"checkoutPath\":\"/tmp/banc\",\"focused\":false,\"label\":\"banc-0\",\"paneCount\":4,\"tabCount\":1,\"workspaceId\":\"w0\"}]}",
+          "corps": "{\"agents\":[{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p1\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-24300-1792429685466430000/sessions/banc-0.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p2\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-24300-1792429685466430000/sessions/banc-1.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 1 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"}],\"herdrProtocol\":22,\"herdrVersion\":\"0.9.3\",\"withoutSession\":0,\"workspaces\":[{\"agentPanes\":[\"w0:p1\",\"w0:p2\"],\"agentStatus\":null,\"checkoutPath\":\"/tmp/banc\",\"focused\":false,\"label\":\"banc-0\",\"paneCount\":4,\"tabCount\":1,\"workspaceId\":\"w0\"}]}",
           "route": "/api/overview",
           "statut": 200
         },
@@ -96,81 +96,81 @@
       ]
     },
     {
-      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=49877 HERDR_REMOTE_BIND=127.0.0.1 bun run apps/server/src/main.ts",
-      "demandes_fixture": 6772,
+      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=62621 HERDR_REMOTE_BIND=127.0.0.1 bun run apps/server/src/main.ts",
+      "demandes_fixture": 6786,
       "dossier": "",
       "journal_serveur": "",
       "pile": "ts",
-      "pret_ms": 417,
+      "pret_ms": 314,
       "routes": [
         "/api/overview",
         "/api/conversations"
       ],
       "runs": [
         {
-          "cpu_ms": 3970,
+          "cpu_ms": 3540,
           "echantillons": 15,
           "froid": true,
-          "max_us": 14999,
+          "max_us": 38792,
           "non_200": 0,
-          "octets": 4025192,
-          "p50_us": 1456,
-          "p95_us": 3359,
-          "p99_us": 5605,
+          "octets": 3539672,
+          "p50_us": 1439,
+          "p95_us": 4326,
+          "p99_us": 13408,
           "par_route": {
             "/api/conversations": {
-              "max_us": 14999,
-              "n": 1741,
-              "p50_us": 1772,
-              "p95_us": 4082,
-              "p99_us": 7258
+              "max_us": 38792,
+              "n": 1531,
+              "p50_us": 1733,
+              "p95_us": 5394,
+              "p99_us": 18010
             },
             "/api/overview": {
-              "max_us": 5357,
-              "n": 1741,
-              "p50_us": 1115,
-              "p95_us": 2205,
-              "p99_us": 3415
+              "max_us": 14309,
+              "n": 1531,
+              "p50_us": 1084,
+              "p95_us": 2891,
+              "p99_us": 7001
             }
           },
-          "requetes": 3482,
-          "rss_max_kio": 134336,
+          "requetes": 3062,
+          "rss_max_kio": 133616,
           "run": 0
         },
         {
-          "cpu_ms": 3520,
+          "cpu_ms": 3850,
           "echantillons": 15,
           "froid": false,
-          "max_us": 18838,
+          "max_us": 19015,
           "non_200": 0,
-          "octets": 3793992,
-          "p50_us": 1438,
-          "p95_us": 3948,
-          "p99_us": 9242,
+          "octets": 4295696,
+          "p50_us": 1287,
+          "p95_us": 3392,
+          "p99_us": 7314,
           "par_route": {
             "/api/conversations": {
-              "max_us": 18838,
-              "n": 1641,
-              "p50_us": 1754,
-              "p95_us": 4953,
-              "p99_us": 11514
+              "max_us": 19015,
+              "n": 1858,
+              "p50_us": 1558,
+              "p95_us": 4417,
+              "p99_us": 9366
             },
             "/api/overview": {
-              "max_us": 12059,
-              "n": 1641,
-              "p50_us": 1101,
-              "p95_us": 2670,
-              "p99_us": 4248
+              "max_us": 10915,
+              "n": 1858,
+              "p50_us": 980,
+              "p95_us": 2173,
+              "p99_us": 4202
             }
           },
-          "requetes": 3282,
-          "rss_max_kio": 134720,
+          "requetes": 3716,
+          "rss_max_kio": 137680,
           "run": 1
         }
       ],
       "sondes": [
         {
-          "corps": "{\"agents\":[{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p1\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-81969-1792429074444729000/sessions/banc-0.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p2\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-81969-1792429074444729000/sessions/banc-1.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 1 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"}],\"herdrProtocol\":22,\"herdrVersion\":\"0.9.3\",\"withoutSession\":0,\"workspaces\":[{\"agentPanes\":[\"w0:p1\",\"w0:p2\"],\"agentStatus\":null,\"checkoutPath\":null,\"focused\":false,\"label\":\"banc-0\",\"paneCount\":4,\"tabCount\":1,\"workspaceId\":\"w0\"}]}",
+          "corps": "{\"agents\":[{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p1\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-24300-1792429685466430000/sessions/banc-0.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p2\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-24300-1792429685466430000/sessions/banc-1.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 1 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"}],\"herdrProtocol\":22,\"herdrVersion\":\"0.9.3\",\"withoutSession\":0,\"workspaces\":[{\"agentPanes\":[\"w0:p1\",\"w0:p2\"],\"agentStatus\":null,\"checkoutPath\":null,\"focused\":false,\"label\":\"banc-0\",\"paneCount\":4,\"tabCount\":1,\"workspaceId\":\"w0\"}]}",
           "route": "/api/overview",
           "statut": 200
         },

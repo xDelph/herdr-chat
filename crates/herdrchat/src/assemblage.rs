@@ -69,6 +69,17 @@ impl ResoutSessions for ResoutSessionsViaPort {
 /// Le pont lecture : une fenêtre bornée, convertie en entrées de résumé.
 pub struct LitSessionsViaPort {
     pub port: Arc<dyn SessionPort>,
+    /// ⚠️ **Le cache de fenêtres, et pourquoi il est ici.**
+    ///
+    /// Le banc T065 a mesuré `GET /api/conversations` à p95 72 ms contre 5 ms
+    /// pour la référence : le chemin Rust relisait et ré-analysait chaque
+    /// session **à chaque requête**, pour chaque client. Le cache de résumés de
+    /// D19 existait mais n'était pas branché sur la lecture.
+    ///
+    /// La clé est l'**identité mesurée** de la source (chemin, taille, mtime) :
+    /// un fichier qui grandit change de signature, donc la fenêtre est relue —
+    /// jamais de résumé périmé présenté comme frais.
+    pub fenetres: Arc<Mutex<CacheFenetres>>,
     /// ⚠️ La **famille** de la source résolue, gardée sous la base :
     /// `SourceDeSession` du résumé ne la porte pas, et la lecture SQLite en a
     /// besoin (opencode ≠ devin). Sans elle, toutes les sessions SQLite
@@ -78,6 +89,73 @@ pub struct LitSessionsViaPort {
 
 /// La fenêtre lue pour un résumé — bornée (le résumé n'a pas besoin de tout).
 pub const FENETRE_RESUME_OCTETS: u32 = 64 * 1024;
+
+/// La capacité du cache de fenêtres : la même borne que le cache de résumés
+/// (D19), pour qu'un démon qui suit 256 sessions ne garde pas 257 fenêtres.
+pub const CAPACITE_FENETRES: usize = 256;
+
+/// La signature d'une source — ce qui rend une fenêtre encore valable.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct Signature {
+    pub octets: u64,
+    pub mtime_ns: u128,
+}
+
+/// Lit la signature d'un chemin ; une erreur n'est pas une panne (le fichier
+/// peut disparaître entre deux requêtes) : l'absence de signature = pas de
+/// cache, donc une lecture fraîche.
+#[must_use]
+pub fn signature_de(chemin: &str) -> Option<Signature> {
+    let metadonnees = std::fs::metadata(chemin).ok()?;
+    let mtime_ns = metadonnees
+        .modified()
+        .ok()
+        .and_then(|instant| instant.duration_since(std::time::UNIX_EPOCH).ok())
+        .map(|duree| duree.as_nanos())
+        .unwrap_or(0);
+    Some(Signature {
+        octets: metadonnees.len(),
+        mtime_ns,
+    })
+}
+
+/// Le cache des fenêtres lues — borné, à éviction de la plus ancienne.
+#[derive(Default)]
+pub struct CacheFenetres {
+    ordre: std::collections::VecDeque<String>,
+    entrees: HashMap<String, (Signature, Vec<EntreeLu>)>,
+}
+
+impl CacheFenetres {
+    /// La fenêtre en cache **si la signature est la même**.
+    pub fn lit(&mut self, cle: &str, signature: Signature) -> Option<Vec<EntreeLu>> {
+        let (connue, entrees) = self.entrees.get(cle)?;
+        (*connue == signature).then(|| entrees.clone())
+    }
+
+    /// Pose une fenêtre ; la plus ancienne sort au-delà de la capacité.
+    pub fn pose(&mut self, cle: &str, signature: Signature, entrees: Vec<EntreeLu>) {
+        if !self.entrees.contains_key(cle) {
+            self.ordre.push_back(cle.to_string());
+            while self.ordre.len() > CAPACITE_FENETRES {
+                if let Some(ancienne) = self.ordre.pop_front() {
+                    self.entrees.remove(&ancienne);
+                }
+            }
+        }
+        self.entrees.insert(cle.to_string(), (signature, entrees));
+    }
+
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.entrees.len()
+    }
+
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.entrees.is_empty()
+    }
+}
 
 impl ResoutSessions for LitSessionsViaPort {
     fn source_de(&self, agent: &AgentObservation) -> Option<SourceDeSession> {
@@ -123,6 +201,25 @@ impl LitSessions for LitSessionsViaPort {
             previous_cursor: None,
             limit: FENETRE_RESUME_OCTETS,
         };
+        // 1) Le cache : même chemin, même taille, même mtime ⇒ même fenêtre.
+        let signature = signature_de(base);
+        let cle = format!(
+            "{base}|{}",
+            source
+                .session_id
+                .as_ref()
+                .map(application::noyau::SessionId::as_str)
+                .unwrap_or("")
+        );
+        if let Some(signature) = signature
+            && let Some(entrees) = self
+                .fenetres
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .lit(&cle, signature)
+        {
+            return Ok(entrees);
+        }
         let mut futur = self.port.page(demande);
         let issue = attend_session(&mut futur).map_err(|cause| ErreurDeLecture {
             benin: false,
@@ -130,7 +227,14 @@ impl LitSessions for LitSessionsViaPort {
         })?;
         match issue {
             SessionPageOutcome::Page(page) | SessionPageOutcome::Vide(page) => {
-                Ok(page.entries.iter().map(entree_lue).collect())
+                let entrees: Vec<EntreeLu> = page.entries.iter().map(entree_lue).collect();
+                if let Some(signature) = signature {
+                    self.fenetres
+                        .lock()
+                        .unwrap_or_else(std::sync::PoisonError::into_inner)
+                        .pose(&cle, signature, entrees.clone());
+                }
+                Ok(entrees)
             }
             SessionPageOutcome::Absente(_) => Err(ErreurDeLecture {
                 benin: true,

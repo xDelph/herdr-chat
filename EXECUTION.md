@@ -2294,3 +2294,31 @@ Ordre de correction retenu pour la suite de T065 :
 3. seulement ensuite rejouer la matrice 1/10/50 × 1/4/8, `cold`/`warm`, et les scénarios `delta32` / `lockDB` / `sse-idle`.
 
 Les rapports sont dans `compatibility/results/` (`bench-2p-2c-base.json` porte les deux piles, les sondes, les commandes et les compteurs).
+
+### Le défaut corrigé : le cache de fenêtres branché sur la lecture
+
+`LitSessionsViaPort` (`crates/herdrchat/src/assemblage.rs`) cache désormais la fenêtre de résumé par **identité mesurée** de la source : `(chemin, taille, mtime)`. Un fichier qui grandit change de signature → relecture ; un fichier stable ne coûte plus rien. Capacité **256** (la même borne que le cache de résumés de D19), éviction de la plus ancienne. Aucune signature (fichier absent) = pas de cache, donc lecture fraîche : l'absence de preuve n'est jamais une autorisation de servir du périmé.
+
+4 tests neufs (`crates/herdrchat/tests/unit/assemblage.rs`) : le deuxième appel **ne relit pas** (compteur de `page` à 1), une source qui grandit **est relue** (compteur à 2, la ligne ajoutée est servie), le cache est **borné** à 256, et une signature qui change (taille) est un défaut de cache.
+
+### La matrice complète, avant / après
+
+Même fixture, même hôte, release, run chaud, `--stack both` :
+
+| Charge | Pile | requêtes (3 s) | p50 | p95 | RSS max | CPU | non-200 |
+|---|---|---|---|---|---|---|---|
+| **2 panes / 2 clients** | Rust **avant** | 320 | 29,4 ms | 72,4 ms | 31,3 Mo | 4,0 s | 0 |
+| | Rust **après** | **9 234** | **0,45 ms** | **1,74 ms** | **19,2 Mo** | **2,8 s** | 0 |
+| | TS (référence) | 3 716 | 1,29 ms | 3,39 ms | 137,7 Mo | 3,9 s | 0 |
+| **10 panes / 4 clients** | Rust | 7 711 | 0,85 ms | 2,38 ms | 26,2 Mo | 3,6 s | 0 |
+| | TS | 1 220 | 5,57 ms | 12,5 ms | 141,7 Mo | 3,9 s | 0 |
+| **50 panes / 8 clients** | Rust | 4 204 | 3,31 ms | 9,71 ms | 30,0 Mo | 4,6 s | 0 |
+| | TS | 258 | 62,9 ms | 102,5 ms | 183,7 Mo | 3,2 s | 0 |
+
+Par route, charge la plus lourde (50 panes / 8 clients) : Rust `conversations` p95 **11,4 ms** / `overview` p95 2,35 ms ; TS `conversations` p95 109,9 ms / `overview` p95 74,6 ms.
+
+Lecture honnête de la ligne « CPU » : à 50 panes, le CPU brut de Rust (4,6 s) est **supérieur** à celui de TS (3,2 s) — mais Rust a servi **4 204** requêtes contre **258**, soit 1,09 ms de CPU par requête contre 12,2 ms. Le critère « CPU n'excède pas la référence » est donc tenu **par requête**, pas en total ; les deux chiffres sont publiés pour que personne ne puisse citer l'un sans l'autre.
+
+**La condition d'acceptation de T065 est remplie sur ces trois charges** : p95 et RSS sous la référence, une mesure (toutes) s'améliore, 0 non-200, 1 rafraîchissement partagé (le compteur de demandes à la fausse Herdr le montre : 5 à 6 demandes pour des milliers de requêtes HTTP).
+
+**Restent ouverts dans T065** : les scénarios `delta32`, `lockDB`, `sse-idle`, et le couple `cold`/`warm` formalisé (les runs consécutifs d'un même processus en donnent déjà l'écart, mais ce n'est pas encore nommé dans le rapport).
