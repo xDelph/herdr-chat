@@ -2648,3 +2648,9 @@ Traductions appliquées (31 chaînes visibles + `‹ Files`) :
 Le balayage est **mécanique** : extraction des chaînes et du texte JSX hors commentaires, puis contrôle final (**0 chaîne accentuée restante**). Quatre tests qui affirmaient les libellés français ont suivi (`launch`, `etats-envoi`, `envois-store`) — une traduction qui laisse les tests en français ne prouve rien.
 
 ⚠️ **Ce qui n'est pas traduit, volontairement** : les messages de `reportError(...)` destinés au **journal serveur** restent en français (ce sont des lignes de diagnostic, pas de l'interface), et tous les commentaires.
+
+### T072 — le mobile d'abord
+
+Priorité produit clarifiée : **iPhone 15 (393×852) et Galaxy S25 (360×780)** sont les formats de référence ; 320×568 reste le pire cas ; **le desktop est secondaire** et n'est capturé que sur demande (`HERDR_CAPTURES_DESKTOP=1`) — il ne doit pas dicter les décisions de mise en page.
+
+Les marges de sécurité iOS/Android sont déjà en place (`env(safe-area-inset-*)` sur l'en-tête, le bas de liste et le composeur) : la capture à 393×852 montre le fil replié correctement, les blocs d'outils fermés et le composeur au bas sans recouvrement.

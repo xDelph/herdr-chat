@@ -148,16 +148,21 @@ const principal = async (): Promise<void> => {
     await cdp.envoie("Page.enable");
     await cdp.envoie("Runtime.enable");
     /*
-      ⚠️ **Trois tailles, pas une.** 320×568 est le pire cas (iPhone SE, barre
-      d'URL comprise) : c'est là que les libellés débordent et que le composeur
-      recouvre le fil. 1440 large est l'autre extrême : le chat occupe-t-il la
-      largeur entière, avec des lignes de 200 caractères illisibles ?
+      ⚠️ **Le mobile d'abord, et c'est une priorité produit, pas un goût.**
+      L'application se consulte au téléphone : iPhone 15 (393×852) et Galaxy S25
+      (360×780) sont les formats de référence ; 320×568 reste le pire cas. Le
+      desktop est **secondaire** et n'est capturé que sur demande
+      (`HERDR_CAPTURES_DESKTOP=1`), pour ne pas laisser une taille non
+      prioritaire dicter les décisions de mise en page.
     */
     const tailles: { etiquette: string; height: number; width: number }[] = [
       { etiquette: "320x568", height: 568, width: 320 },
-      { etiquette: "390x844", height: 844, width: 390 },
-      { etiquette: "desktop", height: 900, width: 1440 },
+      { etiquette: "galaxy-s25", height: 780, width: 360 },
+      { etiquette: "iphone-15", height: 852, width: 393 },
     ];
+    if (process.env["HERDR_CAPTURES_DESKTOP"] === "1") {
+      tailles.push({ etiquette: "desktop", height: 900, width: 1440 });
+    }
     for (const taille of tailles) {
     tailleCourante = taille.etiquette;
     await cdp.envoie("Emulation.setDeviceMetricsOverride", {
