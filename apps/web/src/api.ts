@@ -361,12 +361,42 @@ export const reportError = (message: string, detail?: unknown): void => {
   })();
 };
 
+/**
+ * Le délai d'un envoi.
+ *
+ * ⚠️ 15 s : très au-delà d'un aller-retour normal (mesuré ~1 ms côté serveur),
+ * donc un dépassement signale un vrai blocage — et non une lenteur passagère.
+ */
+const DELAI_ENVOI_MS = 15_000;
+
 export const sendPrompt = async (paneId: string, text: string): Promise<SendResult> => {
-  const response = await fetch(`/api/agents/${encodeURIComponent(paneId)}/prompt`, {
-    body: JSON.stringify({ text }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
+  /*
+    ⚠️ **Un envoi DOIT finir, même si le serveur ne répond pas.** Sans délai, une
+    requête bloquée laissait l'envoi en `sending` pour toujours : le composeur se
+    verrouillait (« impossible d'envoyer »), et aucune action n'était possible.
+    Un envoi expiré n'est pas un échec : le message est **peut-être parti**
+    (`attente`) — le présenter comme perdu ferait renvoyer un doublon.
+  */
+  let response: Response;
+  try {
+    response = await fetch(`/api/agents/${encodeURIComponent(paneId)}/prompt`, {
+      body: JSON.stringify({ text }),
+      headers: { "content-type": "application/json" },
+      method: "POST",
+      signal: AbortSignal.timeout(DELAI_ENVOI_MS),
+    });
+  } catch (cause) {
+    const expire = cause instanceof DOMException && cause.name === "TimeoutError";
+    return {
+      kind: "failed",
+      message: expire
+        ? "Herdr did not answer in time — the message may have been delivered."
+        : cause instanceof Error
+          ? cause.message
+          : String(cause),
+      state: "attente",
+    };
+  }
 
   let payload: unknown;
   try {
