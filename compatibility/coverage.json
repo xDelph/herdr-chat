@@ -48,8 +48,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/herdrchat/tests + crates/http-api/tests",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/herdrchat/tests/unit/assets.rs"
+      ],
+      "tests": [
         "crates/herdrchat/tests/unit/assets.rs"
       ]
     },
@@ -110,9 +113,13 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests/contract_tests.rs",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/herdrchat/tests/unit/composition.rs",
+        "crates/http-api/tests/unit/router.rs",
+        "crates/http-api/tests/unit/sante.rs"
+      ],
+      "tests": [
         "crates/http-api/tests/unit/router.rs",
         "crates/http-api/tests/unit/sante.rs"
       ]
@@ -125,8 +132,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests/contract_tests.rs",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/http-api/tests/unit/overview.rs"
+      ],
+      "tests": [
         "crates/http-api/tests/unit/overview.rs"
       ]
     },
@@ -138,8 +148,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests/contract_tests.rs",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/http-api/tests/unit/conversations.rs"
+      ],
+      "tests": [
         "crates/http-api/tests/unit/conversations.rs"
       ]
     },
@@ -151,8 +164,12 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests/contract_tests.rs (session matrix)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/http-api/tests/unit/router.rs",
+        "crates/http-api/tests/unit/session.rs"
+      ],
+      "tests": [
         "crates/http-api/tests/unit/router.rs",
         "crates/http-api/tests/unit/session.rs"
       ]
@@ -164,11 +181,14 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests/contract_tests.rs (commands)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/http-api/tests/unit/errors.rs",
         "crates/http-api/tests/unit/prompt.rs",
         "crates/http-api/tests/unit/router.rs"
+      ],
+      "tests": [
+        "crates/http-api/tests/unit/prompt.rs"
       ]
     },
     {
@@ -178,8 +198,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests/contract_tests.rs (commands)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/http-api/tests/unit/arret.rs"
+      ],
+      "tests": [
         "crates/http-api/tests/unit/arret.rs"
       ]
     },
@@ -190,10 +213,13 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests/contract_tests.rs (launch)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/http-api/tests/unit/lancement.rs",
         "crates/http-api/tests/unit/router.rs"
+      ],
+      "tests": [
+        "crates/http-api/tests/unit/lancement.rs"
       ]
     },
     {
@@ -203,10 +229,13 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests/contract_tests.rs",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/http-api/tests/unit/catalogues.rs",
         "crates/http-api/tests/unit/router.rs"
+      ],
+      "tests": [
+        "crates/http-api/tests/unit/catalogues.rs"
       ]
     },
     {
@@ -216,11 +245,14 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests/contract_tests.rs",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/http-api/tests/unit/catalogues.rs",
         "crates/http-api/tests/unit/errors.rs",
         "crates/http-api/tests/unit/router.rs"
+      ],
+      "tests": [
+        "crates/http-api/tests/unit/catalogues.rs"
       ]
     },
     {
@@ -230,10 +262,13 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests/contract_tests.rs (interactive)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/http-api/tests/unit/reponse.rs",
         "crates/http-api/tests/unit/router.rs"
+      ],
+      "tests": [
+        "crates/http-api/tests/unit/reponse.rs"
       ]
     },
     {
@@ -243,9 +278,12 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests/contract_tests.rs (commands)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/http-api/tests/unit/errors.rs",
+        "crates/http-api/tests/unit/focus.rs"
+      ],
+      "tests": [
         "crates/http-api/tests/unit/focus.rs"
       ]
     },
@@ -256,10 +294,13 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests/contract_tests.rs (interactive)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/http-api/tests/unit/confiance.rs",
         "crates/http-api/tests/unit/router.rs"
+      ],
+      "tests": [
+        "crates/http-api/tests/unit/confiance.rs"
       ]
     },
     {
@@ -269,10 +310,13 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests/contract_tests.rs",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/herdrchat/tests/unit/logging.rs",
         "crates/http-api/tests/unit/errors.rs",
+        "crates/http-api/tests/unit/journal_client.rs"
+      ],
+      "tests": [
         "crates/http-api/tests/unit/journal_client.rs"
       ]
     },
@@ -283,8 +327,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests/contract_tests.rs (SSE)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/http-api/tests/unit/events.rs"
+      ],
+      "tests": [
         "crates/http-api/tests/unit/events.rs"
       ]
     },
@@ -295,9 +342,12 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests/contract_tests.rs",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/http-api/tests/unit/errors.rs",
+        "crates/http-api/tests/unit/push.rs"
+      ],
+      "tests": [
         "crates/http-api/tests/unit/push.rs"
       ]
     },
@@ -308,8 +358,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests/contract_tests.rs",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/http-api/tests/unit/push.rs"
+      ],
+      "tests": [
         "crates/http-api/tests/unit/push.rs"
       ]
     },
@@ -320,10 +373,13 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests/contract_tests.rs (files)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/http-api/tests/unit/fichiers.rs",
         "crates/http-api/tests/unit/router.rs"
+      ],
+      "tests": [
+        "crates/http-api/tests/unit/fichiers.rs"
       ]
     },
     {
@@ -333,10 +389,13 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests/contract_tests.rs",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/http-api/tests/unit/fichiers.rs",
         "crates/http-api/tests/unit/router.rs"
+      ],
+      "tests": [
+        "crates/http-api/tests/unit/fichiers.rs"
       ]
     },
     {
@@ -349,8 +408,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/application/tests + crates/domene→domain/tests",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/application/tests/unit/overview.rs"
+      ],
+      "tests": [
         "crates/application/tests/unit/overview.rs"
       ]
     },
@@ -377,9 +439,12 @@
       ],
       "proofTask": "T064",
       "target": "crates/application/tests (overview)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/application/tests/unit/overview.rs",
+        "crates/domain/tests/unit/observation.rs"
+      ],
+      "tests": [
         "crates/domain/tests/unit/observation.rs"
       ]
     },
@@ -390,8 +455,13 @@
       ],
       "proofTask": "T064",
       "target": "crates/domain/tests (naming) + application tests",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/application/tests/unit/overview.rs",
+        "crates/domain/tests/unit/naming.rs",
+        "crates/domain/tests/unit/notifications.rs"
+      ],
+      "tests": [
         "crates/application/tests/unit/overview.rs",
         "crates/domain/tests/unit/naming.rs",
         "crates/domain/tests/unit/notifications.rs"
@@ -404,9 +474,12 @@
       ],
       "proofTask": "T064",
       "target": "crates/application/tests (conversations/overview)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/application/tests/unit/overview.rs",
+        "crates/application/tests/unit/visibilite.rs"
+      ],
+      "tests": [
         "crates/application/tests/unit/visibilite.rs"
       ]
     },
@@ -468,8 +541,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/sessions/tests/contracts (agent_matrix: pi)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/sessions/tests/unit/agents_pi.rs"
+      ],
+      "tests": [
         "crates/sessions/tests/unit/agents_pi.rs"
       ]
     },
@@ -480,8 +556,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/sessions/tests/contracts (agent_matrix: codex)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/sessions/tests/unit/agents_codex.rs"
+      ],
+      "tests": [
         "crates/sessions/tests/unit/agents_codex.rs"
       ]
     },
@@ -492,8 +571,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/sessions/tests/contracts (agent_matrix: codex)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/sessions/tests/unit/agents_codex.rs"
+      ],
+      "tests": [
         "crates/sessions/tests/unit/agents_codex.rs"
       ]
     },
@@ -504,8 +586,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/sessions/tests/contracts (agent_matrix: claude)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/sessions/tests/unit/agents_claude.rs"
+      ],
+      "tests": [
         "crates/sessions/tests/unit/agents_claude.rs"
       ]
     },
@@ -516,8 +601,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/sessions/tests/contracts (agent_matrix: opencode)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/sessions/tests/unit/agents_opencode.rs"
+      ],
+      "tests": [
         "crates/sessions/tests/unit/agents_opencode.rs"
       ]
     },
@@ -539,8 +627,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/sessions/tests/unit (sqlite)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/sessions/tests/unit/agents_opencode.rs"
+      ],
+      "tests": [
         "crates/sessions/tests/unit/agents_opencode.rs"
       ]
     },
@@ -553,10 +644,14 @@
       ],
       "proofTask": "T064",
       "target": "crates/application/tests + sessions metadata",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/application/tests/unit/conversations.rs",
         "crates/domain/tests/unit/session.rs",
+        "crates/sessions/tests/unit/metadata.rs"
+      ],
+      "tests": [
+        "crates/application/tests/unit/conversations.rs",
         "crates/sessions/tests/unit/metadata.rs"
       ]
     },
@@ -580,10 +675,13 @@
       ],
       "proofTask": "T064",
       "target": "crates/application/tests",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/application/tests/unit/conversations.rs",
         "crates/sessions/tests/unit/metadata.rs"
+      ],
+      "tests": [
+        "crates/application/tests/unit/conversations.rs"
       ]
     },
     {
@@ -593,8 +691,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/application/tests (git)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/application/tests/unit/git.rs"
+      ],
+      "tests": [
         "crates/application/tests/unit/git.rs"
       ]
     },
@@ -605,9 +706,12 @@
       ],
       "proofTask": "T064",
       "target": "crates/sessions/tests/contracts (normalization) ",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/application/tests/unit/conversations.rs",
+        "crates/sessions/tests/unit/metadata.rs"
+      ],
+      "tests": [
         "crates/sessions/tests/unit/metadata.rs"
       ]
     },
@@ -641,9 +745,12 @@
       ],
       "proofTask": "T064",
       "target": "crates/herdr-client/tests + application tests",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "apps/server/tests/http/Api.test.ts",
+        "crates/herdrchat/tests/unit/logging.rs"
+      ],
+      "tests": [
         "crates/herdrchat/tests/unit/logging.rs"
       ]
     },
@@ -654,8 +761,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/application/tests (stop)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/application/tests/unit/stop.rs"
+      ],
+      "tests": [
         "crates/application/tests/unit/stop.rs"
       ]
     },
@@ -666,8 +776,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/application/tests (focus)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/application/tests/unit/focus.rs"
+      ],
+      "tests": [
         "crates/application/tests/unit/focus.rs"
       ]
     },
@@ -679,8 +792,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/herdr-client/tests + application",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/application/tests/unit/launch.rs"
+      ],
+      "tests": [
         "crates/application/tests/unit/launch.rs"
       ]
     },
@@ -704,8 +820,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/application/tests (launch)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/application/tests/unit/launch.rs"
+      ],
+      "tests": [
         "crates/application/tests/unit/launch.rs"
       ]
     },
@@ -783,8 +902,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/application/tests (watcher, fake clock)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/application/tests/unit/events/watcher.rs"
+      ],
+      "tests": [
         "crates/application/tests/unit/events/watcher.rs"
       ]
     },
@@ -807,8 +929,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/application/tests (watcher)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/application/tests/unit/events/watcher.rs"
+      ],
+      "tests": [
         "crates/application/tests/unit/events/watcher.rs"
       ]
     },
@@ -819,8 +944,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/application/tests (journal)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/application/tests/unit/events/journal.rs"
+      ],
+      "tests": [
         "crates/application/tests/unit/events/journal.rs"
       ]
     },
@@ -832,9 +960,12 @@
       ],
       "proofTask": "T064",
       "target": "crates/application/tests + http-api SSE tests",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/application/tests/unit/events/journal.rs",
+        "crates/application/tests/unit/events/subscription.rs"
+      ],
+      "tests": [
         "crates/application/tests/unit/events/subscription.rs"
       ]
     },
@@ -845,8 +976,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/application/tests (watcher)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/application/tests/unit/events/watcher.rs"
+      ],
+      "tests": [
         "crates/application/tests/unit/events/watcher.rs"
       ]
     },
@@ -857,8 +991,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/notifications/tests (payload)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/notifications/tests/unit/payload.rs"
+      ],
+      "tests": [
         "crates/notifications/tests/unit/payload.rs"
       ]
     },
@@ -869,8 +1006,12 @@
       ],
       "proofTask": "T064",
       "target": "crates/notifications/tests (store/vapid)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/notifications/tests/unit/store.rs",
+        "crates/notifications/tests/unit/vapid.rs"
+      ],
+      "tests": [
         "crates/notifications/tests/unit/store.rs",
         "crates/notifications/tests/unit/vapid.rs"
       ]
@@ -882,8 +1023,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/notifications/tests (delivery)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/notifications/tests/unit/delivery.rs"
+      ],
+      "tests": [
         "crates/notifications/tests/unit/delivery.rs"
       ]
     },
@@ -913,9 +1057,13 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests (origin matrix)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "apps/server/tests/http/Api.test.ts",
+        "apps/server/tests/http/AvecMethode.test.ts",
+        "crates/http-api/tests/unit/origin.rs"
+      ],
+      "tests": [
         "apps/server/tests/http/AvecMethode.test.ts",
         "crates/http-api/tests/unit/origin.rs"
       ]
@@ -927,11 +1075,15 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests (body limits)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "apps/server/tests/sessions/PathGuard.test.ts",
         "apps/server/tests/sessions/ReadCause.test.ts",
         "crates/domain/tests/unit/errors.rs"
+      ],
+      "tests": [
+        "apps/server/tests/sessions/PathGuard.test.ts",
+        "crates/sessions/tests/unit/path_policy.rs"
       ]
     },
     {
@@ -955,8 +1107,12 @@
       ],
       "proofTask": "T064",
       "target": "crates/files/tests + application authorization",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "apps/server/tests/http/AssetGuard.test.ts",
+        "crates/files/tests/unit/authorized_file.rs"
+      ],
+      "tests": [
         "apps/server/tests/http/AssetGuard.test.ts",
         "crates/files/tests/unit/authorized_file.rs"
       ]
@@ -968,8 +1124,13 @@
       ],
       "proofTask": "T064",
       "target": "crates/files/tests (authorized_file)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "apps/server/tests/http/limits.test.ts",
+        "apps/server/tests/send/PromptSender.test.ts",
+        "crates/application/tests/unit/events/subscription.rs"
+      ],
+      "tests": [
         "apps/server/tests/http/limits.test.ts",
         "apps/server/tests/send/PromptSender.test.ts",
         "crates/application/tests/unit/events/subscription.rs"
@@ -982,8 +1143,13 @@
       ],
       "proofTask": "T064",
       "target": "crates/files/tests (mime)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/files/tests/unit/authorized_file.rs",
+        "crates/files/tests/unit/mime.rs",
+        "crates/http-api/tests/unit/fichiers.rs"
+      ],
+      "tests": [
         "crates/files/tests/unit/authorized_file.rs",
         "crates/files/tests/unit/mime.rs",
         "crates/http-api/tests/unit/fichiers.rs"
@@ -996,8 +1162,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/files/tests (scan)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/files/tests/unit/scan.rs"
+      ],
+      "tests": [
         "crates/files/tests/unit/scan.rs"
       ]
     },
@@ -1008,8 +1177,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/files/tests (scan)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/files/tests/unit/scan.rs"
+      ],
+      "tests": [
         "crates/files/tests/unit/scan.rs"
       ]
     },
@@ -1030,8 +1202,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/herdrchat/tests (logging)",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/application/tests/unit/diagnostics.rs"
+      ],
+      "tests": [
         "crates/application/tests/unit/diagnostics.rs"
       ]
     },
@@ -1051,8 +1226,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/domain/tests (errors) + http-api",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/application/tests/unit/diagnostics.rs"
+      ],
+      "tests": [
         "crates/application/tests/unit/diagnostics.rs"
       ]
     },
@@ -1094,8 +1272,11 @@
         "T027"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/sessions/tests/unit/jsonl.rs"
+      ],
+      "tests": [
         "crates/sessions/tests/unit/jsonl.rs"
       ]
     },
@@ -1106,11 +1287,15 @@
         "T051"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/http-api/tests/unit/confiance.rs",
         "crates/interactions/tests/unit/engine.rs",
         "packages/shared/tests/contrat-genere.test.ts"
+      ],
+      "tests": [
+        "crates/http-api/tests/unit/confiance.rs",
+        "crates/interactions/tests/unit/engine.rs"
       ]
     },
     {
@@ -1134,8 +1319,12 @@
         "T051"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/application/tests/unit/prompt.rs",
+        "crates/herdr-client/tests/unit/client.rs"
+      ],
+      "tests": [
         "crates/application/tests/unit/prompt.rs",
         "crates/herdr-client/tests/unit/client.rs"
       ]
@@ -1147,8 +1336,11 @@
         "T035"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/application/tests/unit/prompt.rs"
+      ],
+      "tests": [
         "crates/application/tests/unit/prompt.rs"
       ]
     },
@@ -1160,11 +1352,14 @@
         "T051"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/application/tests/unit/launch.rs",
         "crates/domain/tests/unit/catalog.rs",
         "crates/domain/tests/unit/naming.rs"
+      ],
+      "tests": [
+        "crates/application/tests/unit/launch.rs"
       ]
     },
     {
@@ -1198,8 +1393,11 @@
         "T048"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/herdrchat/tests/unit/config.rs"
+      ],
+      "tests": [
         "crates/herdrchat/tests/unit/config.rs"
       ]
     },
@@ -1211,11 +1409,15 @@
         "T053"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/application/tests/unit/events/journal.rs",
         "crates/application/tests/unit/events/subscription.rs",
         "crates/http-api/tests/unit/events.rs"
+      ],
+      "tests": [
+        "crates/application/tests/unit/events/journal.rs",
+        "crates/application/tests/unit/events/subscription.rs"
       ]
     },
     {
@@ -1226,9 +1428,12 @@
         "T050"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/domain/tests/unit/ids.rs",
+        "crates/sessions/tests/unit/cursor.rs"
+      ],
+      "tests": [
         "crates/sessions/tests/unit/cursor.rs"
       ]
     },
@@ -1240,10 +1445,14 @@
         "T047"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/files/tests/unit/confined.rs",
         "crates/files/tests/unit/scan.rs",
+        "crates/sessions/tests/unit/path_policy.rs"
+      ],
+      "tests": [
+        "crates/files/tests/unit/confined.rs",
         "crates/sessions/tests/unit/path_policy.rs"
       ]
     },
@@ -1254,8 +1463,13 @@
         "T045"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/files/tests/unit/atomic.rs",
+        "crates/notifications/tests/unit/delivery.rs",
+        "crates/notifications/tests/unit/store.rs"
+      ],
+      "tests": [
         "crates/files/tests/unit/atomic.rs",
         "crates/notifications/tests/unit/delivery.rs",
         "crates/notifications/tests/unit/store.rs"
@@ -1267,8 +1481,11 @@
         "T023"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/sessions/tests/unit/resolver.rs"
+      ],
+      "tests": [
         "crates/sessions/tests/unit/resolver.rs"
       ]
     },
@@ -1279,8 +1496,12 @@
         "T037"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/catalog/tests/unit/cache.rs",
+        "crates/http-api/tests/unit/catalogues.rs"
+      ],
+      "tests": [
         "crates/catalog/tests/unit/cache.rs",
         "crates/http-api/tests/unit/catalogues.rs"
       ]
@@ -1293,8 +1514,11 @@
         "T034"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "crates/interactions/tests/unit/engine.rs"
+      ],
+      "tests": [
         "crates/interactions/tests/unit/engine.rs"
       ]
     },
@@ -1307,11 +1531,14 @@
         "T059"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "crates/http-api/tests/unit/session.rs",
         "crates/sessions/tests/unit/borne.rs",
         "packages/shared/tests/contrat-genere.test.ts"
+      ],
+      "tests": [
+        "crates/sessions/tests/unit/borne.rs"
       ]
     },
     {
@@ -1320,8 +1547,11 @@
         "T058"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "apps/web/tests/envois-store.test.ts"
+      ],
+      "tests": [
         "apps/web/tests/envois-store.test.ts"
       ]
     },
@@ -1332,10 +1562,13 @@
         "T059"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "apps/web/tests/envois-store.test.ts",
         "crates/domain/tests/unit/ids.rs"
+      ],
+      "tests": [
+        "apps/web/tests/envois-store.test.ts"
       ]
     },
     {
@@ -1344,8 +1577,11 @@
         "T060"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "apps/web/tests/mise-a-jour.test.ts"
+      ],
+      "tests": [
         "apps/web/tests/mise-a-jour.test.ts"
       ]
     },
@@ -1355,8 +1591,11 @@
         "T061"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "apps/web/tests/mot-etat.test.ts"
+      ],
+      "tests": [
         "apps/web/tests/mot-etat.test.ts"
       ]
     },
@@ -1368,10 +1607,14 @@
         "T059"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
         "apps/web/tests/rafraichissement.test.ts",
         "crates/application/tests/unit/conversations.rs",
+        "crates/application/tests/unit/refresh.rs"
+      ],
+      "tests": [
+        "apps/web/tests/rafraichissement.test.ts",
         "crates/application/tests/unit/refresh.rs"
       ]
     },
@@ -1382,8 +1625,12 @@
         "T062"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "apps/web/tests/focus-explicite.test.ts",
+        "crates/application/tests/unit/focus.rs"
+      ],
+      "tests": [
         "apps/web/tests/focus-explicite.test.ts",
         "crates/application/tests/unit/focus.rs"
       ]
@@ -1395,8 +1642,11 @@
         "T067"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "apps/web/tests/dialogue-modal.test.ts"
+      ],
+      "tests": [
         "apps/web/tests/dialogue-modal.test.ts"
       ]
     },
@@ -1423,8 +1673,11 @@
         "T065"
       ],
       "proofTask": "T064",
-      "status": "pending",
+      "status": "proven",
       "candidateTests": [
+        "apps/web/tests/calcul-historique.test.ts"
+      ],
+      "tests": [
         "apps/web/tests/calcul-historique.test.ts"
       ]
     }

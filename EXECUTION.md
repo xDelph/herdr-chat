@@ -1917,3 +1917,38 @@ couverture : 0 prouvée(s), 116 en attente (89 avec un candidat à examiner), 0 
 - Le texte de T064 demande aussi les tests négatifs **sécurité/concurrence/propriétés** et les cinq profils : les suites existent pour une large part (files/scan, journal/concurrence, sessions/profils), mais les **nommer** dans la matrice fait partie du même audit.
 
 La porte est donc en place, honnête et capable d'échouer ; la matrice reste à remplir.
+
+## T064 (tranche B) — premier audit de la matrice : 77 prouvées, 39 en attente
+
+### La règle d'audit, et sa limite
+
+Un identifiant est **prouvé** quand le fichier de test qui le porte :
+
+1. le nomme dans son **en-tête de documentation** (les 40 premières lignes — c'est là que le fichier dit *ce qu'il prouve*), **et**
+2. contient au moins un test exécutable (`#[test]` / `test(`).
+
+Un simple `grep` ne suffit pas : un test peut nommer `H05` dans une liste de routes sans en vérifier le comportement. Cette règle est plus stricte que le grep, mais elle reste **mécanique** : elle vérifie que le fichier *se déclare* la preuve de la capacité, pas que chaque assertion couvre chaque clause. L'audit sémantique complet reste à faire, et c'est dit ici.
+
+### Résultat
+
+```
+couverture : 77 prouvée(s), 39 en attente (12 avec un candidat à examiner), 0 défaut(s)
+```
+
+Les 39 en attente sont nommées par la commande, avec leurs tâches de livraison. Les familles concernées :
+
+| Famille | Ce qui manque |
+|---|---|
+| `O01`–`O10` | cycle de vie, config, assets, **release et packaging** (T066/T068–T070) — pas encore livrés |
+| `D02`, `D06`–`D10`, `D16` | profils/lecteurs de sessions dont le test ne se déclare pas la preuve dans son en-tête |
+| `A02`, `A09`–`A15` | interactions/catalogues : preuves partielles, en-têtes à compléter ou tests à écrire |
+| `E10`, `S01`, `S10`, `S12`, `S14` | push, config de bind, diagnostics, gates |
+
+### Pourquoi je ne ferme pas T064
+
+La tâche demande « 89 capacités + C01–C27 ont une preuve exécutée ». Il en manque 39, et les 12 « avec candidat » demandent un examen **par test**, pas une promotion automatique. Fermer la case maintenant ferait exactement ce que la règle d'exécution interdit : « un test ignoré ou une preuve manquante bloque la tâche suivante ».
+
+| Commande | Résultat |
+|---|---|
+| `cargo run --locked -p xtask -- coverage` | 77 prouvées, 39 en attente, **0 défaut** (toutes les preuves nommées existent et sont sous `tests/`) |
+| `cargo xtask verify` + `bun run verify` | verts |
