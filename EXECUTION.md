@@ -2486,3 +2486,21 @@ Autrement dit : **aucune dépendance à Bun/Node**, et Herdr absent n'empêche p
 - **Les quatre cibles.** Seule `aarch64-apple-darwin` est assemblée ici, et elle est marquée **« assemblée ET exécutée sur cette machine »**. Les trois autres ne sont ni compilées ni publiées : le rapport ne dira jamais « validée sur Linux » sans qu'un runner Linux l'ait lancée. Le `xtask release --all` existe pour la CI, pas pour prétendre.
 - La **publication** de la formule et du service : préparés, pas publiés (le workflow de release reste à brancher, T066 le prévoit).
 - La **matrice CI native** (runners macOS/Linux) : non écrite.
+
+### T066 — la matrice CI native
+
+`.github/workflows/release-rust.yml` : une entrée de matrice par cible, chacune sur un runner de **son** architecture (`macos-14`, `macos-13`, `ubuntu-22.04`, `ubuntu-22.04-arm`). Chaque job construit la PWA, appelle `cargo xtask release --target <triple>`, puis **exécute** le binaire produit sans Bun ni Node (`env -i PATH=/usr/bin:/bin`), vérifie qu'il sert HTTP quand Herdr est absent (503 ou 200, jamais 0), et refuse tout `libssl`/`libcrypto` système dans les liens.
+
+**Pas de compilation croisée** : elle dirait « compile », pas « tourne ». Une cible dont le runner n'existe pas n'est pas dans la matrice, et le rapport ne la comptera pas comme validée.
+
+### Où en est T066
+
+| Élément | État |
+|---|---|
+| `xtask release` (build + archive + sha256 + manifeste) | **fait**, exécuté sur this machine |
+| Blocage OpenSSL système | **trouvé et corrigé** (vendored), prouvé par `otool -L` |
+| Binaire sans Bun/Node | **prouvé** sur le binaire empaqueté |
+| `--version` | ajouté (vérifier un binaire sans port) |
+| Formule Homebrew + service systemd | **préparés** dans `packaging/`, non publiés |
+| Matrice CI native 4 cibles | **écrite**, non exécutée (pas de runner ici) |
+| Publication (formule, service, release note) | **non faite** — T066 le prévoit, T068/T069 la portent |
