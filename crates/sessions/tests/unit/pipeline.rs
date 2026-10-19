@@ -1,5 +1,6 @@
 //! Le pipeline et le registre (T017) : le socle ne connaît AUCUN agent
 //! concret, l'inconnu ne bascule pas, les profils sont indépendants.
+//! Prouve : D06.
 
 use domain::session::LignePi;
 use serde_json::{Value, json};

@@ -1,6 +1,7 @@
 //! La lecture d'une question à l'écran (T032) : le filet d'opencode, les
 //! détails sur la même ligne ou la suivante, la numérotation contiguë, les
 //! lignes de contexte/invite, la saisie libre.
+//! Prouve : A11.
 
 use interactions::ecran::{Choix, est_option_saisie_libre, question_de_l_ecran};
 

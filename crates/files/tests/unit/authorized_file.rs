@@ -1,6 +1,7 @@
 //! Le service de fichiers autorisés (T046, S05–S07) : racines réévaluées,
 //! plafond 12 MiB, MIME exact, longueur réellement servie, lien échappant,
 //! projet révoqué, erreur détaillée — rien d'inventé.
+//! Prouve : S04.
 
 use files::authorized_file::{
     ErreurFichier, FichierServi, MAX_FILE_BYTES, describe_erreur_fichier, lit_fichier_autorise,

@@ -1,6 +1,7 @@
 //! Le manifeste des 18 routes — Correspondance exacte avec H01–H18 (CURRENT.md §2),
 //! variantes incluses, et le négatif : une route ou une réponse absente
 //! se **voit**, jamais tolérée.
+//! Prouve : C01.
 
 use contracts::registry::{
     Corps, Forme, Methode, Politique, ROUTES, RouteId, cherche, entree_de, variantes_totales,

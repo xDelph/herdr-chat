@@ -1,6 +1,7 @@
 //! Le répondant (T032) : rien n'est envoyé hors des choix offerts, la
 //! séquence saisie libre (numéro, enter, texte, enter), la RELECTURE après
 //! la frappe — un faux port local de quelques lignes suffit.
+//! Prouve : A12.
 
 use domain::ids::PaneId;
 use domain::observation::{AgentListObservation, ScreenObservation, Snapshot, UpstreamPing};

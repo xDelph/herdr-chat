@@ -3,6 +3,7 @@
 //! ⚠️ Aucune session de l'utilisateur n'est lue : les fixtures sont des
 //! fichiers JSONL temporaires, créés par le test. Herdr n'est pas contacté —
 //! il ne fournit que l'emplacement, et ce test le passe à la main.
+//! Prouve : D09.
 
 use domain::observation::{AgentSessionRef, SessionRefKind};
 use domain::ports::SessionPort;
@@ -279,5 +280,19 @@ fn les_metadonnees_ne_supposent_aucun_modele() {
         .unwrap_or_else(|cause| panic!("métadonnées : {cause:?}"));
     assert!(metadonnees.model.is_none(), "aucun modèle supposé");
     assert!(metadonnees.provider.is_none());
+    let _ = std::fs::remove_dir_all(&racine);
+}
+
+#[test]
+fn un_entete_illisible_ne_fait_pas_echouer_lenrichissement() {
+    // ⚠️ D09 : une lecture d'en-tête qui échoue est **ignorée** — le résumé
+    // n'est pas perdu, il reste absent. Une erreur d'enrichissement ne doit
+    // jamais faire échouer une page lisible.
+    let racine = dossier();
+    let absent = racine.join("sessions/jamais-ecrit.jsonl");
+    let port = PortSessions::nouveau(racines(&racine));
+    let metadonnees = attend(port.metadata(source_fichier(&absent)))
+        .unwrap_or_else(|cause| panic!("métadonnées : {cause:?}"));
+    assert!(metadonnees.model.is_none());
     let _ = std::fs::remove_dir_all(&racine);
 }

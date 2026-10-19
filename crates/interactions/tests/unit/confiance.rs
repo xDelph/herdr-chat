@@ -1,5 +1,6 @@
 //! L'invite de confiance (T037) : la phrase mesurée se reconnaît, un autre
 //! dialogue non — et la détection ne répond jamais.
+//! Prouve : A09, A10.
 
 use interactions::confiance::est_invite_confiance;
 

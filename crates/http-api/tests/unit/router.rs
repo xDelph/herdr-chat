@@ -2,6 +2,7 @@
 //! partagée des mutations (l'ordre du fil : méthode → origine → Content-Type
 //! → taille), le repli JSON 404, et la preuve que la garde ne laisse JAMAIS
 //! une mutation ratée toucher son handler — T051+ installe les vrais.
+//! Prouve : C08.
 
 use crate::unit::support::services;
 use axum::body::Body;

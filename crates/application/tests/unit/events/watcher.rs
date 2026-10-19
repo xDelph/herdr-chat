@@ -1,6 +1,7 @@
 //! Le veilleur d'agents (T041, E01–E03, E06) : pas de rafale initiale,
 //! diff par signature, identité conservée à la disparition, panne ≠
 //! disparition, transitions de notification — le tout sur horloge fake.
+//! Prouve : E02.
 
 use application::events::watcher::{
     BoucleDeVeille, CibleDeChangement, GenreDeChangement, PublicateurDeChangements, SourceDeVues,

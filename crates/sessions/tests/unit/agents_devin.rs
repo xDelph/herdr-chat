@@ -1,6 +1,7 @@
 //! Le profil Devin (T022) : le curseur par `row_id` (jamais `node_id`), le
 //! `system` majoritaire écarté, la réflexion en clair, le garde-fou
 //! `tool_calls` (forme non mesurée → rien d'inventé).
+//! Prouve : D16.
 
 use serde_json::json;
 use sessions::agents::devin::{

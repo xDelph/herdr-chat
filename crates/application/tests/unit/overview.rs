@@ -1,6 +1,7 @@
 //! La composition de l'accueil (T039, D01–D04) : vues workspace/agent sur
 //! UNE génération, worktree gagne sur cwd, workspace vide gardé, tri-état du
 //! cwd, libellé numérique supprimé, rang depuis la disposition.
+//! Prouve : D02.
 
 use application::conversations::{EntreeLu, LitSessions};
 use application::overview::{ComposeurOverview, ResoutSessions, SourceDeSession};

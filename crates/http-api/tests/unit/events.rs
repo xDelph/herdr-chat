@@ -7,6 +7,7 @@
 //! ⚠️ La coupure de la réponse doit **rendre le permis** : c'est le RAII de
 //! l'abonnement (T043) que le handler doit laisser faire, sans le retenir
 //! ailleurs.
+//! Prouve : C26.
 
 use crate::unit::support::{services, services_retouches};
 use application::events::journal::Journal;

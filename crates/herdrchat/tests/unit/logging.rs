@@ -1,5 +1,6 @@
 //! T055 — le journal réel : rotation à 4 MiB, anti-répétition annoncée,
 //! échec d'écriture sur stderr, chemin injecté (jamais celui de l'utilisateur).
+//! Prouve : S12.
 
 use application::diagnostics::{EntreeDiagnostic, FENETRE_REPETITION_MS, Niveau, SinkDiagnostic};
 use herdrchat::logging::{Journal, MAX_OCTETS};

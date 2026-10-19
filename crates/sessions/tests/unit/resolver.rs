@@ -2,6 +2,7 @@
 //! DEUX lectures du titre (l'index tranche), le cache négatif invalidable
 //! (une session ajoutée devient visible), la source unique pour
 //! overview/liste/session.
+//! Prouve : D07, D08.
 
 use serde_json::json;
 use sessions::resolver::{

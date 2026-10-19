@@ -1,5 +1,6 @@
 //! Le service prompt (T035/C05–C06) : le doublon supprimé après preuve,
 //! A→B→A autorisé, le retry débloqué, le discriminateur exigé.
+//! Prouve : A01, A02.
 
 use application::commands::prompt::{
     Confirmation, EnvoieurPrompt, FENETRE, RefusEnvoi, empreinte_de,

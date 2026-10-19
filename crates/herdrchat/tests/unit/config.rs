@@ -5,6 +5,7 @@
 //! ⚠️ La référence (config.ts) écoute sur le loopback par défaut
 //! (`127.0.0.1`) ; les docs écrivent « [IP_ADDRESS] » par convention. Ici,
 //! les valeurs sont celles du CODE.
+//! Prouve : O02, S01.
 
 use herdrchat::config::{
     Config, ErreurConfig, LanceStatutServe, PORT_DEFAUT, config_depuis_avec, est_range_tailnet,

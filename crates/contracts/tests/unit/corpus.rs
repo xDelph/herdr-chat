@@ -1,5 +1,6 @@
 //! Le coureur de corpus — la preuve C01 : accepté/refusé **identiquement**
 //! au schéma TS autoritaire, sans champ perdu ni champ inventé.
+//! Prouve : S10.
 
 use serde::Serialize;
 use serde::de::DeserializeOwned;

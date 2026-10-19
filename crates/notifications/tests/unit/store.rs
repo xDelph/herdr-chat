@@ -1,6 +1,7 @@
 //! Le store push (T044, E08, C14) : forme legacy exacte, écrivain
 //! sérialisé, écriture atomique, fichier corrompu visible, migration
 //! entière — clés et abonnements existants inchangés.
+//! Prouve : E10.
 
 use notifications::store::{
     AbonnementPush, ClefsAbonnement, ClefsVapid, ErreurStore, GardienDeStore, StorePush,

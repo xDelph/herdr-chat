@@ -1,6 +1,7 @@
 //! Le cache/single-flight des catalogues (T031/C16) : deux requêtes
 //! concurrentes = UN processus, l'échec réessayable, la même politique pour
 //! liste et lancement.
+//! Prouve : A13.
 
 use catalog::cache::CacheCatalogues;
 use std::fs;

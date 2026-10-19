@@ -1,5 +1,8 @@
-//! Le lecteur JSONL (T014/C02) : sans perte ni duplication sur toutes les
-//! coupures, offset ≤ octets consommés, troncature/rotation détectées.
+//! Le lecteur JSONL (T014/C02/D09/D10) : sans perte ni duplication sur toutes
+//! les coupures, offset ≤ octets consommés, troncature/rotation détectées ;
+//! en-tête **borné à 64 KiB** avec ses champs déclarés et la version par
+//! défaut (D09), lectures avant/queue/fenêtre et jamais d'écriture source
+//! (D10).
 
 use sessions::storage::jsonl::identity::CurseurFichier;
 use sessions::storage::jsonl::reader::{page_arriere, page_avant};
@@ -384,4 +387,80 @@ fn len_tete_de_session_se_lit_une_fois() {
         "l'en-tête est une ligne comme les autres : {:?}",
         page.cadres.len()
     );
+}
+
+#[test]
+fn l_entete_est_borne_et_porte_ses_champs() {
+    let atelier = ouvre_atelier(
+        "soutien-jsonl-entete-champs",
+        r#"{"type":"session","id":"sess-1","cwd":"/p","parentSession":"sess-0","version":3}"#,
+    );
+    match history::en_tete(&atelier.fichier) {
+        Ok(Some(entete)) => {
+            assert_eq!(entete.id.as_deref(), Some("sess-1"));
+            assert_eq!(entete.cwd.as_deref(), Some("/p"));
+            assert_eq!(entete.parent_session.as_deref(), Some("sess-0"));
+            assert_eq!(entete.version, 3);
+        }
+        autre => panic!("en-tête attendu : {autre:?}"),
+    }
+}
+
+#[test]
+fn une_version_absente_vaut_un_et_rien_d_autre() {
+    let atelier = ouvre_atelier(
+        "soutien-jsonl-entete-version",
+        r#"{"type":"session","id":"sess-2"}"#,
+    );
+    match history::en_tete(&atelier.fichier) {
+        Ok(Some(entete)) => {
+            assert_eq!(
+                entete.version,
+                history::VERSION_DEFAUT,
+                "la version par défaut est déclarée, pas devinée"
+            );
+            assert_eq!(entete.cwd, None);
+        }
+        autre => panic!("en-tête attendu : {autre:?}"),
+    }
+}
+
+#[test]
+fn une_premiere_ligne_geante_n_est_pas_un_entete() {
+    // ⚠️ La borne D09 : au-delà de 64 KiB sans saut de ligne, on ne lit pas
+    // la suite du fichier — absence d'en-tête, jamais une lecture totale.
+    let atelier = ouvre_atelier("soutien-jsonl-entete-borne", "{\"type\":\"session\"");
+    let geant = "x".repeat(history::ENTETE_MAX_OCTETS);
+    match std::fs::write(&atelier.fichier, &geant) {
+        Ok(()) => (),
+        Err(cause) => panic!("écriture : {cause}"),
+    }
+    match history::en_tete(&atelier.fichier) {
+        Ok(None) => (),
+        autre => panic!("absence d'en-tête attendue : {autre:?}"),
+    }
+}
+
+#[test]
+fn un_octet_invalide_ne_casse_pas_la_lecture_de_l_entete() {
+    // Un agent peut être coupé au milieu d'un caractère : la ligne reste
+    // lisible en UTF-8 tolérant (aucune erreur de lecture).
+    let atelier = ouvre_atelier("soutien-jsonl-entete-utf8", r#"{"type":"session"}"#);
+    let mut octets = std::fs::read(&atelier.fichier).unwrap_or_else(|cause| panic!("{cause}"));
+    // L'octet invalide est posé **après** le marqueur : un agent coupé au
+    // milieu d'un caractère ne doit pas rendre l'en-tête illisible.
+    let fin = octets
+        .iter()
+        .position(|octet| *octet == b'\n')
+        .unwrap_or(octets.len());
+    octets.insert(fin, 0xFF);
+    match std::fs::write(&atelier.fichier, &octets) {
+        Ok(()) => (),
+        Err(cause) => panic!("écriture : {cause}"),
+    }
+    match history::en_tete(&atelier.fichier) {
+        Ok(Some(entete)) => assert!(entete.brut.contains("session"), "{}", entete.brut),
+        Ok(None) => panic!("l'en-tête se lit malgré l'octet invalide"),
+        Err(cause) => panic!("lecture refusée : {cause}"),
+    }
 }

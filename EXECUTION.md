@@ -2146,3 +2146,68 @@ pi       0,87 s  39 modèles
 Les trois commandes sont des **listes en lecture seule** (`--list-models`, `debug models`) : aucune session d'agent n'est créée.
 
 Autres routes vérifiées sur le vrai Herdr : `/api/agents/kinds` 200 (5 kinds), `/api/notifications/vapid-key` 200 (clé `BIW…`, `text/plain`), `/api/events` → `event: ready` puis keep-alive, `/api/file` dans un dossier autorisé 200 `text/plain`, hors racine **403** (`path rejected: outside the project folders`), `/api/workspaces/w5/agents` en GET **405** (c'est un POST de lancement — le refus est correct).
+
+## T064 — l'audit de couverture (113 / 116, et le défaut D09 qu'il a trouvé)
+
+### La méthode : une preuve n'est pas une mention
+
+La règle mécanique déjà en place (T064b) est conservée et **durcie** : une entrée n'est `proven` que si le fichier nommé
+
+1. existe et **vit sous `tests/`** (la porte `xtask::coverage` le refuse sous `src/`) ;
+2. **contient au moins un test** (une simple mention ne prouve rien) ;
+3. **nomme l'identifiant dans son bloc de documentation de tête** (40 premières lignes).
+
+Le troisième point est le mien, pas celui de la porte : sans lui, on peut pointer un fichier qui parle d'autre chose et le tableau reste vert. L'audit est rejouable :
+
+```
+python3 /tmp/maj_couverture.py   # pose les en-têtes + la matrice
+cargo run -q -p xtask -- coverage
+```
+
+### Le résultat
+
+```
+couverture : 113 prouvée(s), 3 en attente (0 avec un candidat à examiner), 0 défaut(s)
+```
+
+| Avant | Après | Δ |
+|---|---|---|
+| 77 prouvées | **113 prouvées** | +36 |
+| 39 en attente (12 avec candidat) | **3 en attente** | −36 |
+| 0 défaut | 0 défaut | — |
+
+Les 36 entrées fermées ont été **vérifiées une par une** : pour chacune, le test nommé exerce réellement le comportement décrit par CURRENT.md (pas seulement son identifiant). Exemples de vérifications qui ont échoué à l'inspection et ont donc produit du code, pas une case cochée :
+
+| Entrée | Ce que l'audit a trouvé |
+|---|---|
+| **D09** | `history::en_tete` faisait `fs::read_to_string` — le fichier **entier** pour lire sa première ligne. Corrigé : borne de 64 KiB, UTF-8 tolérant, champs déclarés (`id`, `cwd`, `parentSession`, `version` avec repli **1**), JSON illisible → ligne brute servie, champs absents. 4 tests neufs. |
+| **D09** (enrichissement) | une lecture d'en-tête en échec doit être **ignorée** : test neuf `un_entete_illisible_ne_fait_pas_echouer_lenrichissement`. |
+| **C08** | la liste des mutations « en attente de handler » est **vide** : le test qui la parcourt ne prouve plus rien par construction. Constaté, laissé tel quel (il documente l'absence), et la 405/405-Allow réelle est prouvée ailleurs. |
+
+### Les trois qui restent, et pourquoi elles ne se ferment pas ici
+
+| Entrée | Ce qu'elle exige | Bloquée par |
+|---|---|---|
+| **O08** | le lanceur `herdrchat` et l'archive de release (PWA construite + sources) | T066 — l'artefact n'existe pas encore |
+| **O09** | le service Homebrew comme déploiement documenté, `tailscale serve` pour l'accès distant | T069/T070 — la documentation de livraison |
+| **O10** | `verify` (format/lint/typecheck/tests), hook de pré-commit et release qui l'invoque, archive + SHA256 publiés | T066 (publication) et T069 |
+
+**Elles ne sont pas cochées.** `bin/herdrchat` existe bien (lanceur TS, remplacé à T068) et `.github/workflows/{verify,release}.yml` aussi, mais « ça existe » n'est pas « c'est prouvé » : la preuve d'O10 inclut l'archive publiée, qui n'existe qu'à T066. Les marquer prouvées aurait été exactement le défaut que ce chantier traque — un état affiché qu'on ne peut pas vérifier.
+
+### Les suites nommées (sécurité, concurrence, propriétés)
+
+| Famille | Fichiers | Ce qui est prouvé |
+|---|---|---|
+| **Sécurité (négatifs)** | `files/tests/unit/authorized_file.rs`, `http-api/tests/unit/{origin,assets,corps}.rs`, `sessions/tests/unit/path_policy.rs` | hors-racine, `..`, symlink échappant, FIFO/répertoire refusés, origine étrangère 403, `%2e%2e%2f` et `%` isolé, corps chunked > 64 KiB **réellement** compté (413), méthode 405 + `Allow` |
+| **Concurrence** | `sessions/tests/unit/index.rs` (8 clients = 1 lecture), `catalog/tests/unit/cache.rs` (single-flight), `notifications/tests/unit/store.rs` (écrivain sérialisé), `http-api/tests/unit/events.rs` (journal relu après un battement muet, 9ᵉ flux → 503) | une seule lecture/processus par source, pas de double envoi, pas de flux orphelin |
+| **Propriétés** | **`crates/sessions/tests/property_tests.rs`** (neuf) | ① sur 20 fichiers écrits par tranches aléatoires et relus par pages de tailles aléatoires, les lignes lues sont **à tout instant un préfixe exact** de l'écrit — ni perte, ni doublon, ni invention ; ② l'offset ne dépasse jamais les octets consommés (C02) ; ③ une queue incomplète attend puis est relue entière ; ④ 200 curseurs aléatoires : `decode(encode(…))` fidèle, autre source/session refusée, curseur forgé jamais « réparé » |
+
+Le générateur est un LCG explicite à graine fixe : chaque échec nomme la graine. Un test pseudo-aléatoire qu'on ne peut pas rejouer ne serait pas une preuve.
+
+### Les cinq profils
+
+`pi`, `codex`, `claude`, `opencode`, `devin` — un fichier par profil (`crates/sessions/tests/unit/agents_*.rs`) plus la preuve de non-contamination (`pipeline.rs` : le socle ne connaît aucun agent concret, les profils sont indépendants ; `cursor.rs` : un genre de **catalogue** n'implique pas un lecteur de **session**, D06).
+
+### Les 18 routes
+
+`crates/contracts/tests/unit/registry.rs` : `le_manifeste_compte_18_routes_distinctes` + chemins/méthodes du fil + politique mutante mesurée + formes non-JSON nommées.

@@ -2,6 +2,7 @@
 //! limitations (claude) sont dites, aucun niveau n'est déduit pour
 //! cursor/devin, l'absence est explicite — et le chemin passe par
 //! l'exécuteur borné avec des CLIs factices.
+//! Prouve : A13.
 
 use catalog::adapters::{
     Adaptateur, Parseur, adaptateur_de, catalogue_d_adaptateur, catalogue_de, commande_par_defaut,

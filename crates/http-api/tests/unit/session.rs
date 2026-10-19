@@ -2,6 +2,7 @@
 //! des clauses du port de session. Le handler ne décide RIEN de lecture ;
 //! chaque statut du manifeste (400/403/404/409/422/502/503) est prouvé, et
 //! `tail`/`cursor`/`before` voyage tel quel jusqu'au port.
+//! Prouve : C04.
 
 use crate::unit::support::{
     FauxSessionPort, agent, borne, page_vide, requete, requete_get, services,

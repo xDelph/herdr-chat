@@ -1,6 +1,6 @@
 # Migration Rust — tâches d'exécution
 
-État : **T001–T063 terminées** et **T056 fermée par l'exécution** — le démon `herdrchat` sert de vraies données depuis le vrai socket Herdr (voir `EXECUTION.md` §T056 suite 4–6) ; la suite : **T064–T070** (validation globale, benchmark, release). Branche `plan/rust-backend`, worktree `.worktrees/rust-backend`, base d’exécution `d19f98d23b02cacf7d6d9d97facf8d6360b0546b` (inventaire historique `576bbf4902a00d3ef9702b4df315c943c7ac5680`). Les chemins ci-dessous sont relatifs à ce worktree.
+État : **T001–T063 terminées**, **T056 fermée par l'exécution**, **T064 auditée à 113/116** (le reste : O08/O09/O10, bloquées par les artefacts de T066/T069) — le démon `herdrchat` sert de vraies données depuis le vrai socket Herdr (voir `EXECUTION.md` §T056 suite 4–6) ; la suite : **T064–T070** (validation globale, benchmark, release). Branche `plan/rust-backend`, worktree `.worktrees/rust-backend`, base d’exécution `d19f98d23b02cacf7d6d9d97facf8d6360b0546b` (inventaire historique `576bbf4902a00d3ef9702b4df315c943c7ac5680`). Les chemins ci-dessous sont relatifs à ce worktree.
 
 Références : [inventaire](CURRENT.md), [architecture](TECH.md), [composition des adaptateurs](ADAPTERS.md), [contrats](CONTRACTS.md), [couverture des sources](SOURCE-MAP.md), [complément de baseline](BASELINE-DELTA.md). H/D/A/E/S/O désignent les capacités de CURRENT ; C désigne les corrections de TECH §10.
 

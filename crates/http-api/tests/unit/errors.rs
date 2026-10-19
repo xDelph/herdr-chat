@@ -1,5 +1,6 @@
 //! La cartographie erreurs → fil HTTP (T010) : chaque erreur injectée
 //! obtient code/cause/corps prévus ; les formes atypiques restent atypiques.
+//! Prouve : S10.
 
 use contracts::http::commands::SendState;
 use contracts::http::errors::ReadCause;

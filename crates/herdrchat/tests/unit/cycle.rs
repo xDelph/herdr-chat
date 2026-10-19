@@ -5,6 +5,7 @@
 //! loopback (port 0 = choisi par le système), un routeur minimal, des
 //! diagnostics en mémoire. Aucun agent n'est lancé, aucun service réel n'est
 //! contacté.
+//! Prouve : O01, O03, O04.
 
 use application::diagnostics::{EntreeDiagnostic, SinkDiagnostic};
 use herdrchat::cycle::{

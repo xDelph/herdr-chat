@@ -4,6 +4,7 @@
 //! catalogue lancé. Ce qui est vérifié ici est le CÂBLAGE — socket publié,
 //! chemins de la configuration, ports effectivement utilisés — pas le
 //! comportement des adaptateurs (chacun a ses tests).
+//! Prouve : O01.
 
 use application::commands::launch::ConstructeurArgs;
 use application::conversations::{ErreurDeLecture, LitSessions};

@@ -1,4 +1,5 @@
 //! Tests de la garde d'origine (T049, S02) — pure, sans routeur.
+//! Prouve : S01.
 
 use http_api::origin::{RaisonGarde, describe_refus, est_autorisee, est_loopback, verifie_garde};
 

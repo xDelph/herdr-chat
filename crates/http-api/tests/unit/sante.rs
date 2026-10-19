@@ -1,6 +1,7 @@
 //! H01 — GET `/api/health` (T050) : le ping porté tel quel, jamais un
 //! substitut ; 200 et 503 portent le MÊME schéma `ok:false` ; ce que le fil
 //! ne sait pas lire (500) reste nommé.
+//! Prouve : O03.
 
 use crate::unit::support::{requete, requete_get, services};
 use axum::http::StatusCode;

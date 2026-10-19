@@ -1,5 +1,6 @@
 //! Le réducteur de métadonnées (T026/D18–D22) : cohérent pour les cinq
 //! profils, la fusion préserve, les placeholders exclus, l'isolement.
+//! Prouve : D19.
 
 use serde_json::{Value, json};
 use sessions::agents::opencode::moteur::EntreeBrute;

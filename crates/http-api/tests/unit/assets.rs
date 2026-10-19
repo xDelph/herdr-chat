@@ -5,6 +5,7 @@
 //! ⚠️ Le confinement est **structurel** ici (les assets sont embarqués) : les
 //! tests le prouvent quand même, parce qu'un chemin d'URL reste une entrée
 //! hostile (`..`, encodages, segments vides).
+//! Prouve : O06, O07.
 
 use crate::unit::support::{FauxAssets, services_retouches};
 use axum::http::StatusCode;

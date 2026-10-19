@@ -2,6 +2,7 @@
 //! la réservation concurrente du nom, le retry coquille borné, le nettoyage
 //! possédé, la confiance renvoyée sans y répondre, le timeout ambigu sans
 //! doublon.
+//! Prouve : A07.
 
 use application::commands::launch::{
     BUDGET_TOTAL, DELAI_DEMARRAGE, DemandeLancement, ErreurLancement, HorlogeMoteur,

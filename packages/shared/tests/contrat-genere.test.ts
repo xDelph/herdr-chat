@@ -2,6 +2,8 @@
  * Parité entre la façade **générée** (Rust) et les schemas **écrits à la main**
  * (T057).
  *
+ * Prouve : C01.
+ *
  * ⚠️ **Pourquoi ce test existe.** Le contrat vivait en deux définitions : le
  * bundle Rust et `api.ts`. On ne remplace pas l'une par l'autre d'un coup sans
  * preuve : ce test décode les MÊMES charges avec les deux et exige le même

@@ -1,6 +1,7 @@
 //! Les args de lancement (T030) : la matrice complète kind × model ×
 //! thinking, le fournisseur explicitement non appliqué, la vérification du
 //! niveau contre le catalogue.
+//! Prouve : A14, A15.
 
 use catalog::adapters::ModeleCatalogue;
 use catalog::args::{construit_args, niveau_supporte};
