@@ -73,9 +73,23 @@ describe("C24 — le geste existe dans l'en-tête", () => {
 describe("C24 — la garde anti-régression : pas de focus automatique", () => {
   const source = readFileSync(join(import.meta.dir, "..", "src", "ChatScreen.tsx"), "utf8");
 
-  test("`focusAgent` est appelé à UN seul endroit", () => {
+  test("`focusAgent` n'est appelé QUE par le bouton et par l'acquittement", () => {
+    /*
+      ⚠️ **Décision produit du 2026-10-20.** L'acquittement automatique sur
+      interaction (défiler, écrire) a été demandé explicitement : une réponse
+      `done` devient lue quand on agit, sans bouton. Deux appels sont donc
+      légitimes — le geste explicite (`focusDesktop`) et l'acquittement — et
+      aucun autre.
+    */
     const appels = source.match(/focusAgent\(/g) ?? [];
-    expect(appels).toHaveLength(1);
+    expect(appels).toHaveLength(2);
+  });
+
+  test("l'acquittement passe par la règle, jamais par le seul affichage", () => {
+    // ⚠️ C'est ce qui empêche le retour du défaut d'origine : un focus envoyé
+    // à l'ouverture ou à chaque changement de statut.
+    expect(source).toContain("doitAcquitter({");
+    expect(source).toContain("statut: statutRef.current");
   });
 
   test("l'appel vit dans `focusDesktop`, pas dans un effet", () => {

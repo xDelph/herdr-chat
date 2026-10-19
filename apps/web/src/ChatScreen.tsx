@@ -26,6 +26,7 @@ import {
   positionApresPrepend,
   suitLeBas,
 } from "./defilement.ts";
+import { DELAI_ACQUITTEMENT_MS, doitAcquitter } from "./accuse-reception.ts";
 import { openEventStream } from "./api.ts";
 import type { AgentView, AnswerResult, SessionEntry } from "./api.ts";
 import { estOptionSaisieLibre } from "@herdr-remote/shared";
@@ -756,11 +757,50 @@ export const ChatScreen = ({
     mémorisé. La position est écrite avec un délai : un défilement en produit
     des dizaines par seconde.
   */
+  /**
+   * L'utilisateur a-t-il **agi** dans cette conversation (défilé, écrit) ?
+   *
+   * ⚠️ C'est ce qui vaut « lu » — pas l'affichage. Voir `accuse-reception.ts`.
+   */
+  const aInteragi = useRef(false);
+  const acquitte = useRef(false);
+  useEffect(() => {
+    acquitte.current = false;
+    aInteragi.current = false;
+  }, [agent.paneId]);
+  /**
+   * ⚠️ **On acquitte par le focus du pane**, seul canal connu (`agent.view.set`
+   * ne change pas le statut, mesuré deux fois). Effet réel : le pane prend le
+   * focus sur le Mac. C'est le prix, et il est assumé.
+   *
+   * Appelé par les **interactions** : défiler dans le fil, écrire. Jamais par
+   * l'affichage seul (C24), jamais pour un `blocked` (une question n'est pas une
+   * réponse à lire).
+   */
+  const planifieAcquittement = useCallback(() => {
+    aInteragi.current = true;
+    if (
+      !doitAcquitter({
+        aInteragi: true,
+        dejaAcquitte: acquitte.current,
+        statut: statutRef.current,
+      })
+    ) {
+      return;
+    }
+    window.setTimeout(() => {
+      if (acquitte.current) return;
+      acquitte.current = true;
+      void focusAgent(agent.paneId);
+    }, DELAI_ACQUITTEMENT_MS);
+  }, [agent.paneId]);
+
   const memoireEnAttente = useRef<number | undefined>(undefined);
   const onScroll = useCallback(
     (event: React.UIEvent<HTMLDivElement>) => {
       const el = event.currentTarget;
       atBottom.current = suitLeBas(el);
+      planifieAcquittement();
       const position = positionAffichee({
         clientHeight: el.clientHeight,
         scrollHeight: el.scrollHeight,
@@ -773,7 +813,7 @@ export const ChatScreen = ({
         ecritPosition(stockageNavigateur(), agent.paneId, position);
       }, 400);
     },
-    [agent.paneId],
+    [agent.paneId, planifieAcquittement],
   );
 
   /*
