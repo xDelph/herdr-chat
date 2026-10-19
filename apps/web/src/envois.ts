@@ -72,6 +72,16 @@ export interface MagasinEnvois {
   /** Annule un envoi encore en file (avant tout appel réseau). */
   readonly annule: (id: string) => string | null;
   /**
+   * Résout les envois **incertains** d'un pane à partir d'un **événement**.
+   *
+   * ⚠️ **Le SSE est une meilleure preuve qu'un délai.** Un envoi resté
+   * `sending` ou `uncertain` (réponse perdue, délai dépassé) est **confirmé**
+   * quand le serveur publie `prompt` pour ce pane : la preuve est observée, pas
+   * déduite d'une absence de réponse. On ne touche jamais à un envoi
+   * réellement `failed` (un refus nommé reste un refus).
+   */
+  readonly resoutParEvenement: (pane: string) => number;
+  /**
    * Oublie un envoi DÉLIVRÉ : il est désormais dans la session, sa bulle
    * optimiste n'a plus lieu d'être.
    */
@@ -148,6 +158,22 @@ export const creeMagasinEnvois = (lance: Lanceur, planifie: Planificateur): Maga
     }
   };
 
+  const resoutParEvenement: MagasinEnvois["resoutParEvenement"] = (pane) => {
+    let resolus = 0;
+    for (const [id, envoi] of envois) {
+      if (envoi.pane !== pane) continue;
+      // ⚠️ `sending` et `uncertain` seulement : un `failed` nommé par le serveur
+      // ne devient pas un succès parce qu'un autre prompt est passé.
+      if (envoi.state !== "sending" && envoi.state !== "uncertain") continue;
+      remplace(id, {
+        detail: "Herdr published the prompt for this pane.",
+        state: "delivered",
+      });
+      resolus += 1;
+    }
+    return resolus;
+  };
+
   const ajoute: MagasinEnvois["ajoute"] = ({ pane, text, baseline }) => {
     compteur += 1;
     const id = `local-${String(Date.now())}-${String(compteur)}`;
@@ -176,6 +202,7 @@ export const creeMagasinEnvois = (lance: Lanceur, planifie: Planificateur): Maga
 
   return {
     ajoute,
+    resoutParEvenement,
     annule: (id) => {
       const envoi = envois.get(id);
       if (envoi === undefined || envoi.state !== "queued") return null;

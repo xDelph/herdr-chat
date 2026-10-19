@@ -24,6 +24,12 @@ import {
   type Planificateur,
 } from "../src/envois.ts";
 
+/** Un planificateur qui exécute tout de suite — le départ part sans `avance()`. */
+const planificateurImmediat = (): Planificateur => (action) => {
+  action();
+  return () => undefined;
+};
+
 /** Un planificateur manuel : rien ne part tant que `avance()` n'est pas appelé. */
 const planificateurManuel = (): {
   avance: (delai: number) => void;
@@ -231,5 +237,46 @@ describe("T058 — les états du fil, sans mensonge", () => {
     avance(DELAI_ENVOI_MS);
     await souffle();
     expect(notifications).toBe(avant);
+  });
+});
+
+describe("le SSE résout un envoi incertain — sans délai", () => {
+  test("un envoi `uncertain` devient délivré quand l'événement arrive", async () => {
+    // ⚠️ Un délai n'est pas une preuve : l'événement `prompt` en est une. Le
+    // message est confirmé par ce que le serveur PUBLIE, pas par une absence de
+    // réponse interprétée.
+    const magasin = creeMagasinEnvois(
+      async () => ({ confirmation: "unknown", fingerprint: "f", kind: "sent" }),
+      planificateurImmediat(),
+    );
+    const id = magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "salut" });
+    await new Promise((resoudre) => setTimeout(resoudre, 0));
+    const envoi = () => magasin.liste("w1:p1").find((candidat) => candidat.id === id);
+    expect(envoi()?.state).toBe("uncertain");
+    expect(magasin.resoutParEvenement("w1:p1")).toBe(1);
+    expect(envoi()?.state).toBe("delivered");
+  });
+
+  test("un envoi réellement `failed` n'est PAS ressuscité par un événement", async () => {
+    // Un refus nommé reste un refus ; un autre prompt qui passe ne le blanchit pas.
+    const magasin = creeMagasinEnvois(
+      async () => ({ kind: "failed", message: "refusé", state: "erreur" }),
+      planificateurImmediat(),
+    );
+    const id = magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "salut" });
+    await new Promise((resoudre) => setTimeout(resoudre, 0));
+    expect(magasin.resoutParEvenement("w1:p1")).toBe(0);
+    expect(magasin.liste("w1:p1").find((candidat) => candidat.id === id)?.state).toBe("failed");
+  });
+
+  test("un événement d'un AUTRE pane ne touche pas cet envoi", async () => {
+    const magasin = creeMagasinEnvois(
+      async () => ({ confirmation: "unknown", fingerprint: "f", kind: "sent" }),
+      planificateurImmediat(),
+    );
+    const id = magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "salut" });
+    await new Promise((resoudre) => setTimeout(resoudre, 0));
+    expect(magasin.resoutParEvenement("w2:p2")).toBe(0);
+    expect(magasin.liste("w1:p1").find((candidat) => candidat.id === id)?.state).toBe("uncertain");
   });
 });

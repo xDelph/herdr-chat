@@ -488,6 +488,17 @@ export const ChatScreen = ({
     };
     const fermer = openEventStream({
       onEvent: (kind: string, donnees: unknown) => {
+        if (kind === "prompt") {
+          /*
+            ⚠️ **La confirmation vient de l'ÉVÉNEMENT, pas d'un délai.** Un envoi
+            resté `sending` ou `uncertain` (réponse perdue) est prouvé délivré
+            quand le serveur publie `prompt` pour ce pane : c'est une preuve
+            observée, pas une absence de réponse interprétée.
+          */
+          magasinEnvois.resoutParEvenement(agent.paneId);
+          relire();
+          return;
+        }
         if (kind === "agent_status") {
           relire();
           return;
@@ -518,7 +529,7 @@ export const ChatScreen = ({
       if (lot !== undefined) window.clearTimeout(lot);
       fermer();
     };
-  }, [agent.paneId, load]);
+  }, [agent.paneId, load, magasinEnvois]);
 
   /*
     ⚠️ **AUCUN focus automatique (C24).** Il y avait ici un effet qui POSTait
