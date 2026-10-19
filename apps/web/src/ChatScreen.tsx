@@ -59,11 +59,12 @@ import { Notice } from "./Notice.tsx";
  *
  * ⚠️ **Petit d'abord.** On demandait 512 Kio : sur une session longue, cela fait
  * lire, transférer et analyser des dizaines de messages avant d'afficher quoi
- * que ce soit. 96 Kio suffisent largement pour le dernier tour (demande +
- * réponse) — l'historique se charge ensuite **au défilement** (`before`), ce qui
- * est déjà en place. L'écran apparaît plus tôt, le reste arrive quand on remonte.
+ * que ce soit. **256 Kio** : un tour d'agent (réflexion + outils + réponse) peut
+ * dépasser 96 Kio, et la demande de l'utilisateur tombait alors **hors** de la
+ * fenêtre — on voyait le travail sans savoir à quoi il répondait. L'historique
+ * plus ancien se charge au défilement (`before`).
  */
-const FENETRE_INITIALE_OCTETS = 96 * 1024;
+const FENETRE_INITIALE_OCTETS = 256 * 1024;
 
 export const ChatScreen = ({
   agent,
@@ -347,6 +348,12 @@ export const ChatScreen = ({
         if (decision.genre === "remplace") {
           setEntries(session.entries);
           setMessages(toMessages(session.entries));
+          /*
+            ⚠️ **Une première page sans demande utilisateur n'est pas lisible.**
+            On voit le travail de l'agent sans savoir à quoi il répond. L'effet
+            `remonterJusquaUneDemande` s'en charge juste après : il remonte
+            **une** page quand le fil n'affiche aucune demande.
+          */
         } else if (decision.genre === "ajoute") {
           // ⚠️ Fusion, pas empilement : une entrée peut être **remplacée**
           // (opencode réécrit la ligne d'un message pendant qu'il le compose).
@@ -485,13 +492,16 @@ export const ChatScreen = ({
           return;
         }
         if (kind !== "session_changed") return;
-        // L'événement porte le pane concerné : on ne relit QUE la conversation
-        // affichée, jamais les autres.
-        const pane =
-          typeof donnees === "object" && donnees !== null && "pane_id" in donnees
-            ? donnees.pane_id
-            : undefined;
-        if (typeof pane === "string" && pane !== agent.paneId) return;
+        /*
+          ⚠️ **On ne filtre plus par pane.** Le filtre supposait un champ
+          `pane_id` dans la charge utile ; quand il manquait (ou portait un autre
+          nom), la relecture **ne partait jamais** et l'écran attendait le filet
+          de 15 s — d'où des messages qui arrivaient « plusieurs secondes » après
+          l'ordinateur. Une relecture incrémentale coûte ~1 ms côté serveur : la
+          relancer sur un événement voisin est moins cher que de rater le bon.
+          Le regroupement de 120 ms absorbe les rafales.
+        */
+        void donnees;
         relire();
       },
       onResync: () => {
@@ -548,6 +558,17 @@ export const ChatScreen = ({
    * compenserait alors un delta faux (la vue sauterait d'autant).
    */
   const hauteurAvantPrepend = useRef<{ hauteur: number; scroll: number } | null>(null);
+
+  /**
+   * Le fil contient-il une demande de l'utilisateur ?
+   *
+   * ⚠️ Sert à décider d'une remontée automatique : une fenêtre qui ne montre que
+   * le travail de l'agent est illisible, on ne sait pas à quoi il répond.
+   */
+  const aUneDemande = useMemo(
+    () => messages.some((message) => message.role === "user"),
+    [messages],
+  );
 
   const chargerPrecedents = useCallback(async () => {
     const before = previousCursor;
@@ -654,6 +675,26 @@ export const ChatScreen = ({
       setLoadingPrevious(false);
     }
   }, [agent.paneId, loadingPrevious, previousCursor]);
+
+  /**
+   * **Remonter jusqu'à la demande, une seule fois par fichier.**
+   *
+   * ⚠️ **Défaut constaté à l'usage** : après un refresh, l'écran ne montrait que
+   * le bloc de travail — pas la demande de l'utilisateur. La fenêtre initiale
+   * commençait au milieu du tour. Ici, si le fil n'affiche **aucune** demande et
+   * qu'il reste de l'historique, on remonte une page ; l'effet ne se rejoue pas
+   * tant que la demande reste absente et qu'une remontée est déjà partie.
+   */
+  const remonteeAuto = useRef(false);
+  useEffect(() => {
+    remonteeAuto.current = false;
+  }, [agent.paneId]);
+  useEffect(() => {
+    if (aUneDemande || previousCursor === null || remonteeAuto.current) return;
+    if (loading.current) return;
+    remonteeAuto.current = true;
+    void chargerPrecedents();
+  }, [aUneDemande, chargerPrecedents, previousCursor]);
 
   /**
    * **Le chargement paresseux de l'historique, au défilement vers le haut.**

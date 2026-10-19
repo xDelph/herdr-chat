@@ -151,12 +151,20 @@ describe("U20 — sans chemin de session, aucun appel", () => {
   });
 });
 
-describe("le premier affichage demande une PETITE fenêtre", () => {
-  test("96 Kio, pas 512 : le dernier tour d'abord, l'historique au défilement", () => {
-    // ⚠️ 512 Kio faisaient lire, transférer et analyser des dizaines de messages
-    // avant la première peinture. Le reste arrive quand on remonte (`before`).
-    expect(source).toContain("const FENETRE_INITIALE_OCTETS = 96 * 1024;");
+describe("le premier affichage demande une fenêtre BORNÉE", () => {
+  test("256 Kio, pas 512 : le dernier tour en entier, l'historique au défilement", () => {
+    // ⚠️ 96 Kio ne contenaient pas toujours le dernier tour : la demande de
+    // l'utilisateur tombait hors fenêtre et l'écran ne montrait que le travail.
+    // 512 Kio, eux, faisaient analyser des dizaines de messages avant la
+    // première peinture. 256 Kio tiennent le tour, le reste vient au défilement.
+    expect(source).toContain("const FENETRE_INITIALE_OCTETS = 256 * 1024;");
     expect(source).toContain("tail: FENETRE_INITIALE_OCTETS");
     expect(source).not.toContain("tail: 524_288");
+  });
+
+  test("une fenêtre sans demande utilisateur déclenche une remontée", () => {
+    // Sinon on voit le travail de l'agent sans savoir à quoi il répond.
+    expect(source).toContain("const aUneDemande = useMemo(");
+    expect(source).toContain("if (aUneDemande || previousCursor === null || remonteeAuto.current)");
   });
 });
