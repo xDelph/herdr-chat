@@ -133,6 +133,8 @@ export const ChatScreen = ({
   const [messageOuvert, setMessageOuvert] = useState<string | null>(null);
   const [stopping, setStopping] = useState(false);
   const [stopFeedback, setStopFeedback] = useState<string | null>(null);
+  /** Le retour du geste « focus sur le Mac » — jamais un succès supposé. */
+  const [focusFeedback, setFocusFeedback] = useState<string | null>(null);
   const sendTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   /**
    * Plafond de pages vides remontées d'affilée avant d'abandonner.
@@ -385,20 +387,35 @@ export const ChatScreen = ({
   }, [load]);
 
   /*
-    On **acquitte** la réponse en posant le focus sur le pane.
+    ⚠️ **AUCUN focus automatique (C24).** Il y avait ici un effet qui POSTait
+    `/api/agents/:id/focus` à l'ouverture **et** à chaque changement de statut.
+    Deux conséquences mesurées :
 
-    ⚠️ **Un seul effet, et rien à relâcher** — le mécanisme est une action, pas
-    un état. `agent.focus` fait passer un `done` à `idle` ; il n'existe aucun
-    « je ne regarde plus » à envoyer. Toute la mécanique de relâchement qui
-    précédait n'existait que parce que `agent.view.set` était un état — et elle
-    pouvait relâcher après avoir acquitté, laissant l'agent `done` pour toujours.
+    - lire une conversation changeait le focus réel du Mac — ouvrir un onglet
+      pour *regarder* volait le clavier à l'utilisateur ;
+    - l'acquittement d'un agent dépendait donc de la navigation : regarder une
+      réponse la marquait lue, sans que personne l'ait décidé.
 
-    ⚠️ On la refait à chaque changement de statut : une réponse qui arrive
-    **pendant** qu'on regarde la conversation doit être acquittée aussi.
+    Le geste est désormais **explicite** : le bouton de l'en-tête
+    (`focusDesktop`), et lui seul. L'endpoint reste, sa cible est capturée à
+    l'appel.
   */
-  useEffect(() => {
-    void focusAgent(agent.paneId);
-  }, [agent.paneId, agent.status]);
+  const focusDesktop = useCallback(async () => {
+    // ⚠️ Cible capturée : le pane de CETTE conversation, jamais « l'agent
+    // affiché au moment où la requête revient ».
+    const cible = agent.paneId;
+    setFocusFeedback(null);
+    try {
+      await focusAgent(cible);
+      setFocusFeedback("Focus moved to this pane on the Mac");
+    } catch (cause: unknown) {
+      // L'échec est une VALEUR : on dit que ça n'a pas marché, on ne prétend
+      // pas que le focus a bougé.
+      setFocusFeedback(
+        `Could not focus on the Mac: ${cause instanceof Error ? cause.message : String(cause)}`,
+      );
+    }
+  }, [agent.paneId]);
 
   const chargerPrecedents = useCallback(async () => {
     const before = previousCursor;
@@ -1033,6 +1050,23 @@ export const ChatScreen = ({
               envoyée est `/model …` ou `/thinking …`, transmise par le même
               canal confirmé qu'un prompt (voir ModelSheet.tsx).
             */}
+            {/*
+              ⚠️ Le focus desktop est un **geste**, jamais un effet de bord de
+              la navigation (C24). L'icône est un écran avec un curseur :
+              « amener ce pane au premier plan sur le Mac ».
+            */}
+            <button
+              type="button"
+              className="row__action row__action--icone"
+              aria-label="Focus this pane on the Mac"
+              onClick={() => void focusDesktop()}
+            >
+              <svg aria-hidden="true" viewBox="0 0 24 24">
+                <rect x="3" y="4" width="18" height="13" rx="1.5" />
+                <path d="M8 20h8M12 17v3" />
+                <path d="m10 8 4 2.5-4 2.5z" />
+              </svg>
+            </button>
             <button
               type="button"
               className="row__action row__action--icone"
@@ -1057,6 +1091,7 @@ export const ChatScreen = ({
           <TabPanes agents={voisins} courant={agent.paneId} onOpen={onOuvrirVoisin} />
 
           {error !== null ? <Notice ton="erreur">{error}</Notice> : null}
+          {focusFeedback === null ? null : <Notice ton="neutre">{focusFeedback}</Notice>}
 
           {/*
             Une session vide n'est **pas** une panne.

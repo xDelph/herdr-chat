@@ -18,6 +18,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import { cibleSuivante, ciblesVisibles, toucheDeFermeture } from "./focus.ts";
+import { ouvreDialogue } from "./dialogue.ts";
 
 interface Props {
   /** Nom accessible de la feuille — ce qu'un lecteur d'écran annonce. */
@@ -84,10 +85,18 @@ export const Feuille = ({
     const frame = window.requestAnimationFrame(() => setPhase("ouverte"));
     const ouverture = document.activeElement;
     avantOuverture.current = ouverture instanceof HTMLElement ? ouverture : null;
-    // Le focus entre dans la feuille : sans cela, un lecteur d'écran annonce encore
-    // le contrôle qui l'a ouverte.
+    /*
+      ⚠️ **Le fond devient inerte (C25).** `aria-modal` annonce une modale, il
+      ne la rend pas modale : sans `showModal()`, un clic dans la marge
+      atteignait la page derrière. Le repli (`open` simple) ne prétend rien —
+      le piège de focus reste alors le seul rempart, et c'est la limite du
+      moteur.
+    */
     const element = racine.current;
     if (element !== null) {
+      ouvreDialogue(element);
+      // Le focus entre dans la feuille : sans cela, un lecteur d'écran annonce
+      // encore le contrôle qui l'a ouverte.
       element.focus({ preventScroll: true });
     }
     return () => {
@@ -162,7 +171,6 @@ export const Feuille = ({
       // `tabIndex` négatif : la feuille reçoit le focus sans entrer dans le
       // parcours au `Tab`. Sans cela, le cycle s'arrêterait sur elle.
       onKeyDown={onKeyDown}
-      open
       ref={racine}
       tabIndex={-1}
     >

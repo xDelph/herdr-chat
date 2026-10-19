@@ -1776,3 +1776,46 @@ Les deux faits qui bloquent sont publiés, pas devinés : `unBrouillonExiste()` 
 - **Les types du store sont structurels** (`WorkerEnAttente`, `RegistrationAvecWorker`) : le faux de test n'a besoin d'aucune assertion `as`, et une évolution du DOM ne cassera pas silencieusement la règle.
 
 Commit préfixé `T060:`.
+
+## T062 — focus explicite (C24) et feuilles réellement modales (C25)
+
+Périmètre : `apps/web/src/{ChatScreen.tsx, Feuille.tsx, dialogue.ts}`, tests `apps/web/tests/{focus-explicite,dialogue-modal}.test.ts`.
+
+### C24 — le focus desktop est un geste, plus un effet de bord
+
+| Avant | Après |
+|---|---|
+| un `useEffect` POSTait `/api/agents/:id/focus` **à l'ouverture** et **à chaque changement de statut** | aucun effet ne touche au focus |
+| lire une conversation volait le clavier du Mac | un bouton d'en-tête `Focus this pane on the Mac` (icône + `aria-label`) |
+| l'acquittement d'un agent dépendait de la navigation | l'acquittement dépend d'un **geste** : c'est la correction demandée |
+| — | l'échec est une **valeur** : la notice dit « Could not focus on the Mac: … », jamais un succès supposé |
+
+La cible est **capturée** avant l'attente (`const cible = agent.paneId`) : la réponse ne peut pas viser un autre agent que celui de la conversation ouverte.
+
+**Arbitrage assumé entre deux textes du plan.** `C24` (table des corrections) et `T062` demandent « action explicite seulement » ; `TECH.md:340` dit que « whether the webapp automatically invokes it is a separate frontend product decision, outside backend parity ». J'ai suivi **C24** : c'est la correction numérotée, elle a un propriétaire de tâche, et l'endpoint reste intact (parité backend préservée). La conséquence — un agent reste `done` jusqu'à un geste — est exactement ce que C24 décrit comme souhaitable.
+
+### C25 — la feuille devient **réellement** modale
+
+| Avant | Après |
+|---|---|
+| `<dialog open aria-modal="true">` : le fond restait **interactif** (clic dans la marge, focus clavier tenu par notre JS seul) | `showModal()` : le dialogue passe en *top layer*, le reste du document devient **inerte — pointeur ET clavier — par le navigateur** |
+| — | repli explicite (`open` simple) quand le moteur n'a pas `showModal` ; le mode rendu (`modale`/`simple`) est **dit**, jamais supposé |
+| — | pas de second `showModal()` sur un dialogue déjà ouvert (il lèverait) |
+
+Ce qui existait déjà et reste : capture de l'élément focalisé **avant** l'ouverture, restitution à la fermeture si l'élément est encore connecté, piège de `Tab` recalculé à chaque appui, `Échap` sans modificateur.
+
+### Preuve
+
+| Commande | Résultat |
+|---|---|
+| `bun test apps/web/tests/focus-explicite.test.ts` | PASS — **4 tests** : le bouton existe dans le rendu ; `focusAgent(` n'apparaît **qu'une fois**, dans `focusDesktop`, **aucun** `useEffect` ne l'appelle, et aucun effet ne porte plus la dépendance `[agent.paneId, agent.status]`. |
+| `bun test apps/web/tests/dialogue-modal.test.ts` | PASS — **3 tests** : modal quand disponible, repli `open`, pas de double `showModal`. |
+| `bun test` | PASS — **1120 tests**. |
+| `bun run verify` + `cargo xtask verify` | verts. |
+
+### Limites dites
+
+- L'inertie du fond **ne peut pas être testée ici** (aucun harnais DOM) : c'est le navigateur qui la fournit, et c'est la raison pour laquelle on lui délègue au lieu de la simuler. Le test prouve la **décision** (modal si possible) et le **repli**.
+- La garde « aucun focus automatique » lit la source : c'est une **garde anti-régression**, pas une preuve de comportement. Elle est écrite comme telle.
+
+Commit préfixé `T062:`.
