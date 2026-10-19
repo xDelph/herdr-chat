@@ -9,14 +9,14 @@
  * Ne jamais déduire une capacité du schéma : la mesurer.
  */
 import { Schema } from "effect";
+import { AgentStatus } from "../generated/schemas.ts";
 
-/** `idle | working | blocked | done | unknown` — vérifié sur l'énum du schéma. */
-export const AgentStatus = Schema.Literals(["idle", "working", "blocked", "done", "unknown"]);
-export type AgentStatus = typeof AgentStatus.Type;
-
-/** Source de lecture d'un terminal. */
-export const ReadSource = Schema.Literals(["visible", "recent", "recent_unwrapped", "detection"]);
-export type ReadSource = typeof ReadSource.Type;
+/*
+  `AgentStatus` et `ReadSource` ont été RETIRÉS d'ici (T057) : ils sont dans le
+  contrat Rust (types du domaine réexportés par le bundle), et une seule
+  définition doit exister (C01). Ils restent accessibles par le paquet
+  (`@herdr-remote/shared`), qui réexporte la façade `api.ts`.
+*/
 
 /** `id` ou `path` — `path` est le seul cas observé en pratique (4 agents sur 4). */
 export const AgentSessionRefKind = Schema.Literals(["id", "path"]);

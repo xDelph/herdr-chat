@@ -1659,3 +1659,39 @@ Note : la lecture de la spec est ce qui a rattrapé le défaut — pas un test. 
 Commit préfixé `T053-fix:`.
 
 **Note de traçabilité** : le message de commit de ce correctif a perdu un fragment (`le test de parité REFUSE un path` → `REFUSE un`) parce que le shell a interprété les accents graves du message. Le code, les tests et le journal ci-dessus sont complets ; seul le message a été tronqué. Corrigé par le commit de journal suivant, qui ne change aucun code.
+
+## T057b — le basculement : `api.ts` devient une façade (C01, C18, C26)
+
+Périmètre : `packages/shared/src/{api.ts, protocol.ts, index.ts}`, `packages/shared/scripts/build_contract_corpus.ts`, `packages/shared/tests/contrat-genere.test.ts`. Aucun service réel, aucun agent.
+
+### Ce qui a changé
+
+| Avant | Après |
+|---|---|
+| `api.ts` : **674 lignes** de schemas Effect écrits à la main (tous les DTO HTTP) | **173 lignes** : `export * from "../generated/schemas.ts"` + 5 alias + le codec de curseur + les charges **amont Herdr** |
+| Deux définitions du contrat (TS + Rust) | Une seule : le bundle Rust. `api.ts` décode avec ce que le serveur sérialise |
+| `protocol.ts` redéclarait `AgentStatus` et `ReadSource` (copies identiques au bundle) | ces deux énumérations viennent du bundle ; `protocol.ts` les importe pour ses propres schémas |
+| `AgentViewSchema`, `RecentImageSchema`, `SessionEntrySchema`, `WorkspaceViewSchema`, `Choix` | **alias** des noms du contrat (`AgentView`, `RecentImage`, `SessionEntry`, `WorkspaceView`, `Choice`) — les imports existants ne bougent pas |
+
+**Ce qui reste écrit à la main, et pourquoi** (vérifié par le test de couverture, liste `HORS_CONTRAT`) :
+- `SessionCursor` + `encodeCursor`/`decodeCursor` — format **interne** du serveur, le client ne fait que le transporter ;
+- `TabInfo`, `SnapshotPane`, `PaneLayout{,Pane,Rect}`, `SnapshotPayload` — charges **amont Herdr** (TECH §5 : elles appartiennent au protocole, pas à notre API).
+
+### Preuve
+
+| Commande | Résultat |
+|---|---|
+| `bun run typecheck` | PASS — aucun import cassé par le basculement. |
+| `bun test` | PASS — **1092 tests**, dont `apps/server/tests/http/Api.test.ts` qui décode de **vraies réponses** du serveur via `decoderOf(...)` : le validateur est désormais **le schéma généré**, et il refuse une réponse hors contrat. |
+| `bun test packages/shared/tests/contrat-genere.test.ts` | PASS — **12 tests** (parité, SSE, couverture, alias). |
+| `cargo xtask contracts check` | PASS — corpus 214 identique, génération déterministe. |
+| `cargo xtask verify` | **5 portes vertes**. |
+
+### Décisions et honnêteté
+
+0. **Le basculement n'a pas touché une ligne de code applicatif** : les alias portent les noms historiques, et les tests du serveur (qui produisent de vraies réponses) décodent avec les schémas générés. C'est la preuve demandée par T057 (« contrat invalidé refusé par le vrai client »), pas une affirmation.
+1. **`AgentStatus`/`ReadSource` quittent `protocol.ts`** : deux copies strictement identiques (vérifié) devenaient une duplication au moment du basculement. Le bundle les portait déjà ; `protocol.ts` les importe. Sans ce retrait, `tsc` refusait deux `export *` du même nom — le conflit a servi de détecteur.
+2. **Les commentaires riches de `api.ts` sont perdus côté TS** : le générateur n'émet que la première ligne de description d'un DTO. La connaissance vit désormais dans les DTO Rust (et dans `EXECUTION.md`). C'est le prix de la génération, assumé ici plutôt que découvert plus tard.
+3. **`caughtUp` (C18) et `SessionChanged` (C26) sont dans la façade** ; leur **consommation** côté client (invalidation immédiate au lieu du sondage 400 ms) reste **T059**, comme la table de couverture du plan le prévoit.
+
+Commit préfixé `T057b:`.

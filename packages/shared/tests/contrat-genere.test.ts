@@ -9,11 +9,11 @@
  * est vert, le basculement est sûr ; s'il rougit, c'est une divergence réelle
  * que le générateur ou le schéma manuel doit corriger.
  *
- * ⚠️ **Ce qui n'est pas encore comparable est nommé** : les definitions Rust
- * qui portent un autre nom côté client (`AgentView` ↔ `AgentViewSchema`,
- * `RecentImage` ↔ `RecentImageSchema`, `SessionEntry` ↔ `SessionEntrySchema`)
- * sont listées dans `RENOMMAGES` — c'est la liste EXACTE du travail restant
- * de T057, pas un oubli silencieux.
+ * ⚠️ **Les noms qui diffèrent sont nommés** : le client historique suffixait
+ * ses schémas (`AgentViewSchema`) et appelait `Choix` ce que le contrat nomme
+ * `Choice`. Depuis le basculement (T057b), ces noms sont des **alias** de la
+ * façade — `RENOMMAGES` reste la table de correspondance, et le test vérifie
+ * que chaque alias pointe une définition réelle.
  */
 import { describe, expect, test } from "bun:test";
 import { Option, Schema } from "effect";
