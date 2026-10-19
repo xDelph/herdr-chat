@@ -1,0 +1,73 @@
+{
+  "arch": "aarch64",
+  "clients": 1,
+  "fixture": {
+    "bundle": "compatibility/benchmark/fixtures",
+    "delta_verifie": false,
+    "fichiers_verifies": 78
+  },
+  "hote": "macos",
+  "panes": 2,
+  "piles": [
+    {
+      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=60469 HERDR_REMOTE_BIND=127.0.0.1 bun run apps/server/src/main.ts",
+      "demandes_fixture": 875,
+      "dossier": "/tmp/herdr-banc-34664-1792429008728862000",
+      "journal_serveur": "",
+      "pile": "ts",
+      "pret_ms": 645,
+      "routes": [
+        "/api/overview",
+        "/api/conversations"
+      ],
+      "runs": [
+        {
+          "cpu_ms": 790,
+          "echantillons": 5,
+          "froid": true,
+          "max_us": 9463,
+          "non_200": 0,
+          "octets": 619875,
+          "p50_us": 910,
+          "p95_us": 2355,
+          "p99_us": 4376,
+          "par_route": {
+            "/api/conversations": {
+              "max_us": 9463,
+              "n": 435,
+              "p50_us": 905,
+              "p95_us": 2343,
+              "p99_us": 3704
+            },
+            "/api/overview": {
+              "max_us": 8108,
+              "n": 435,
+              "p50_us": 929,
+              "p95_us": 2383,
+              "p99_us": 4808
+            }
+          },
+          "requetes": 870,
+          "rss_max_kio": 112960,
+          "run": 0
+        }
+      ],
+      "sondes": [
+        {
+          "corps": "{\"agents\":[{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p1\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-34664-1792429008728862000/sessions/banc-0.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"w",
+          "route": "/api/overview",
+          "statut": 200
+        },
+        {
+          "corps": "{\"conversations\":[]}",
+          "route": "/api/conversations",
+          "statut": 200
+        }
+      ]
+    }
+  ],
+  "runs": 1,
+  "scenario": "base",
+  "schemaVersion": 1,
+  "secondes": 1
+}

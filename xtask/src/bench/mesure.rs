@@ -178,7 +178,7 @@ pub fn sonde(racine: &str, route: &str) -> Result<(u16, String), String> {
         .nth(1)
         .and_then(|code| code.parse::<u16>().ok())
         .unwrap_or(0);
-    Ok((statut, corps.chars().take(400).collect()))
+    Ok((statut, corps.chars().take(3000).collect()))
 }
 
 /// Attend qu'une route réponde 200, ou rend le dernier échec — jamais une

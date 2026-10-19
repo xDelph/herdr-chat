@@ -33,6 +33,9 @@ pub struct Options {
     /// `base` (petites sessions) ou `delta32` (32 Mio par session).
     pub scenario: String,
     pub racine: PathBuf,
+    /// Garde le dossier temporaire et le journal du serveur — un banc qui
+    /// efface ses traces interdit de comprendre un échec.
+    pub keep: bool,
 }
 
 impl Options {
@@ -47,9 +50,15 @@ impl Options {
             secondes: 5,
             scenario: String::from("base"),
             racine: racine.to_path_buf(),
+            keep: false,
         };
         let mut iterateur = arguments.iter();
         while let Some(argument) = iterateur.next() {
+            // Un drapeau sans valeur ne consomme pas l'argument suivant.
+            if argument == "--keep" {
+                options.keep = true;
+                continue;
+            }
             let (cle, valeur) = match argument.split_once('=') {
                 Some((cle, valeur)) => (cle, valeur.to_string()),
                 None => (
@@ -67,6 +76,7 @@ impl Options {
                 "--runs" => options.runs = nombre(&valeur, "--runs")?,
                 "--seconds" => options.secondes = nombre(&valeur, "--seconds")? as u64,
                 "--scenario" => options.scenario = valeur,
+                "--keep" => options.keep = true,
                 autre => return Err(format!("option inconnue : {autre}")),
             }
         }
@@ -150,6 +160,8 @@ pub struct Atelier {
     /// ce qui a été contrôlé et pas seulement ce qui a été mesuré.
     pub verifies: usize,
     pub delta_verifie: bool,
+    /// Garde le dossier après l'exécution (diagnostic d'un résultat vide).
+    pub garder: bool,
 }
 
 /// Les sessions du bundle, triées : la fixture est déterministe, l'ordre aussi.
@@ -298,12 +310,25 @@ impl Atelier {
             sessions,
             verifies,
             delta_verifie,
+            garder: options.keep,
         })
+    }
+}
+
+impl Atelier {
+    /// Le journal du serveur mesuré, pour expliquer un résultat vide.
+    #[must_use]
+    pub fn journal(&self) -> String {
+        std::fs::read_to_string(self.racine.join("banc.log")).unwrap_or_default()
     }
 }
 
 impl Drop for Atelier {
     fn drop(&mut self) {
+        if self.garder {
+            eprintln!("banc : dossier conservé {}", self.racine.display());
+            return;
+        }
         let _ = std::fs::remove_dir_all(&self.racine);
     }
 }
@@ -376,7 +401,14 @@ fn commande(
         .env("PI_SESSIONS_ROOT", atelier.racine.join("sessions"))
         .env("CLAUDE_PROJECTS_ROOT", atelier.racine.join("sessions"))
         .stdout(Stdio::null())
-        .stderr(Stdio::null());
+        .stderr(if options.keep {
+            Stdio::from(
+                std::fs::File::create(atelier.racine.join("serveur.err"))
+                    .map_err(|cause| format!("journal du serveur : {cause}"))?,
+            )
+        } else {
+            Stdio::null()
+        });
     Ok(commande)
 }
 
@@ -490,6 +522,8 @@ fn mesure_pile(options: &Options, pile: &str, atelier: &Atelier) -> Result<Value
         "pret_ms": attente.as_millis(),
         "routes": routes,
         "sondes": sondes,
+        "journal_serveur": if options.keep { atelier.journal() } else { String::new() },
+        "dossier": if options.keep { atelier.racine.display().to_string() } else { String::new() },
         "demandes_fixture": demandes_fixture,
         "runs": runs,
     }))

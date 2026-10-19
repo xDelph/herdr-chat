@@ -2268,3 +2268,29 @@ Pistes pour fermer T065 (dans cet ordre) :
 | 11 | Le build **release** cassait clippy dès que la PWA existait | `include!(OUT_DIR)` émettait `pub static FICHIERS` dans un module privé → `unreachable_pub` | `pub(crate) static` |
 
 Bonus : un test de transport passait alors que le faux serveur **paniquait dans un fil détaché** (`Ok(0)` sur la connexion d'essai) — le bruit était invisible parce que le panic ne tuait qu'un fil. C'est ce qui a masqué le défaut 10.
+
+### La comparaison est devenue possible — et Rust est en échec
+
+Le blocage était **dans la fixture, pas dans les piles** : `GET /api/conversations` de la référence filtre `decoded.panes` avant de résoudre la moindre session. Ma fausse Herdr ne servait que `agents` et `workspaces` → la pile TS ne pouvait rien lister. Ajout de `panes` (et `--keep`, qui garde le dossier et le journal du serveur : un banc qui efface ses traces interdit de comprendre un échec).
+
+Même fixture, même hôte, release, `--panes 2 --clients 2 --runs 2 --seconds 3`, run chaud :
+
+| Mesure | Rust | TS (référence) | Verdict |
+|---|---|---|---|
+| `/api/conversations` p50 | **29,4 ms** | 1,75 ms | Rust **16,8×** plus lent |
+| `/api/conversations` p95 | **72,4 ms** | 5,0 ms | **14,5×** |
+| `/api/overview` p50 | **0,42 ms** | 1,10 ms | Rust 2,6× plus rapide |
+| `/api/overview` p95 | 6,9 ms | 2,7 ms | Rust 2,6× plus lent |
+| requêtes servies en 3 s | 320 | 3282 | Rust **10×** moins |
+| RSS max | **31,3 Mo** | 134,7 Mo | Rust 4,3× plus léger |
+
+**La condition d'acceptation de T065 n'est pas remplie** : « latence p95, CPU et RSS Rust n'excèdent pas la référence ». Le p95 de `conversations` est 14,5× celui de la référence. Aucune affirmation de rapidité ne serait défendable, et l'en-tête de ce journal ne prétend rien de tel : un écart mesuré est un écart **dû**, pas une opinion.
+
+**Cause identifiée (pas encore corrigée).** Le chemin Rust relit et ré-analyse les sessions **à chaque requête** : `LitSessionsViaPort::fenetre` ouvre le fichier, lit 64 Kio et reparse le JSONL pour chaque agent, pour chaque client. La référence a un **cache de résumés** alimenté par sa veille (`Summary.ts`), d'où sa p50 de 1,75 ms. Le cache existe côté Rust (`sessions::metadata::CacheResumes`, capacité 256, prouvé par `le_cache_borne_et_evince_la_plus_ancienne`) mais il **n'est pas branché sur le chemin de lecture** : c'est le défaut, et il est architectural, pas micro-optimisatoire.
+
+Ordre de correction retenu pour la suite de T065 :
+1. brancher `CacheResumes` dans `LitSessionsViaPort` (clé = identité du fichier + taille + offset, comme D19 le spécifie) ;
+2. re-mesurer `conversations` avant/après, même fixture ;
+3. seulement ensuite rejouer la matrice 1/10/50 × 1/4/8, `cold`/`warm`, et les scénarios `delta32` / `lockDB` / `sse-idle`.
+
+Les rapports sont dans `compatibility/results/` (`bench-2p-2c-base.json` porte les deux piles, les sondes, les commandes et les compteurs).

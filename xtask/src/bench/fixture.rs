@@ -154,6 +154,7 @@ fn photo(plan: &Plan) -> Value {
         .collect();
     json!({
         "agents": agents(plan),
+        "panes": panes(plan),
         "protocol": 22,
         "version": "0.9.3",
         "workspaces": workspaces,
@@ -191,6 +192,25 @@ fn agents(plan: &Plan) -> Vec<Value> {
                 );
             }
             agent
+        })
+        .collect()
+}
+
+/// Les panes de la photo.
+///
+/// ⚠️ **Sans `panes`, la liste des conversations est vide** — et c'est la
+/// référence qui l'a dit : `GET /api/conversations` filtre `decoded.panes`
+/// avant de résoudre les sessions. Un faux qui ne servait que `agents`
+/// mesurait donc une pile TS qui ne pouvait rien lister : trouvé en comparant
+/// les deux piles, pas en relisant la fixture.
+fn panes(plan: &Plan) -> Vec<Value> {
+    (0..plan.panes)
+        .map(|indice| {
+            json!({
+                "pane_id": format!("w{}:p{}", indice / 4, indice % 4 + 1),
+                "tab_id": format!("w{}:t1", indice / 4),
+                "workspace_id": format!("w{}", indice / 4),
+            })
         })
         .collect()
 }
