@@ -1,6 +1,6 @@
 # Migration Rust — tâches d'exécution
 
-État : **T001–T063, T065 et T066 terminées** (T066 : assemblage et matrice CI ; publication non faite) ; **T056 fermée par l'exécution** (le démon sert le vrai Herdr) ; **T064 auditée à 113/116** — restent O08/O09/O10, qui exigent les artefacts de T066/T069 ; restent **T067–T070**.
+État : **T001–T063, T065 et T066 terminées** (T066 : assemblage et matrice CI ; publication non faite) ; **T056 fermée par l'exécution** (le démon sert le vrai Herdr) ; **T064 auditée à 113/116** — restent O08/O09/O10, qui exigent les artefacts de T066/T069 ; restent **T067–T070** ; **T071** (le front exploite le backend Rust) est livrée hors série.
 
 Références : [inventaire](CURRENT.md), [architecture](TECH.md), [composition des adaptateurs](ADAPTERS.md), [contrats](CONTRACTS.md), [couverture des sources](SOURCE-MAP.md), [complément de baseline](BASELINE-DELTA.md). H/D/A/E/S/O désignent les capacités de CURRENT ; C désigne les corrections de TECH §10.
 
