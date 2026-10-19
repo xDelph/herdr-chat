@@ -2497,7 +2497,7 @@ Autrement dit : **aucune dépendance à Bun/Node**, et Herdr absent n'empêche p
 
 | Élément | État |
 |---|---|
-| `xtask release` (build + archive + sha256 + manifeste) | **fait**, exécuté sur this machine |
+| `xtask release` (build + archive + sha256 + manifeste) | **fait**, exécuté sur cette machine |
 | Blocage OpenSSL système | **trouvé et corrigé** (vendored), prouvé par `otool -L` |
 | Binaire sans Bun/Node | **prouvé** sur le binaire empaqueté |
 | `--version` | ajouté (vérifier un binaire sans port) |
