@@ -39,3 +39,5 @@ bun-debug.log*
 # Rust (T002) — Cargo.lock suivi à la racine ; les artifacts de build ne le sont pas
 target/
 **/*.rs.bk
+/dist/
+compatibility/benchmark/fixtures/delta/

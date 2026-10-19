@@ -18,6 +18,13 @@ use std::sync::Arc;
 
 #[tokio::main]
 async fn main() {
+    // `--version` : la seule commande qui ne démarre rien. Elle existe pour que
+    // l'installation (formule Homebrew, service) puisse vérifier le binaire
+    // sans lui demander d'écouter sur un port — et sans Bun, sans Node.
+    if std::env::args().any(|argument| argument == "--version") {
+        println!("herdrchat {}", env!("CARGO_PKG_VERSION"));
+        return;
+    }
     let environnement: HashMap<String, String> = std::env::vars().collect();
     let maison = environnement
         .get("HOME")

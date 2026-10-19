@@ -8,7 +8,7 @@
 //! synthetic probes that prove each door fails; probes are removed after).
 
 const USAGE: &str =
-    "usage: cargo xtask [--root <dir>] <verify|verify-layout|graph|contracts|bench>";
+    "usage: cargo xtask [--root <dir>] <verify|verify-layout|graph|contracts|bench|release>";
 
 /// Lit `compatibility/coverage.json` et vérifie les preuves (T064).
 fn coverage_report(root: &std::path::Path) -> Result<xtask::coverage::Rapport, String> {
@@ -115,6 +115,7 @@ fn main() {
             }
         },
         "bench" => xtask::bench::entree(&root, &positional[1..]),
+        "release" => xtask::release::entree(&root, &positional[1..]),
         other => {
             eprintln!("sous-commande inconnue: {other}\n{USAGE}");
             std::process::exit(2);

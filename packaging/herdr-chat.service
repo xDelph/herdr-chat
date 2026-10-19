@@ -1,0 +1,27 @@
+# Service utilisateur de Herdr Chat (T066) — préparé, non publié ici.
+#
+# ⚠️ **Utilisateur, pas système.** Le démon lit les sessions de l'utilisateur
+# (`~/.pi`, `~/.codex`, `~/.claude`, les bases opencode/devin) et lui parle par
+# le socket Herdr : un service système tournerait avec un autre HOME et ne
+# verrait rien.
+#
+# Installation (documentée, pas automatique) :
+#   mkdir -p ~/.config/systemd/user
+#   cp herdr-chat.service ~/.config/systemd/user/
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now herdr-chat.service
+[Unit]
+Description=Herdr Chat (PWA distante pour Herdr)
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=%h/.local/bin/herdrchat
+Restart=on-failure
+RestartSec=3
+# Le démon refuse un bind public ; le tailnet est l'unique frontière d'accès.
+Environment=HERDR_REMOTE_BIND=127.0.0.1
+Environment=HERDR_REMOTE_PORT=8791
+
+[Install]
+WantedBy=default.target

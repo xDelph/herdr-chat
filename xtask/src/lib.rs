@@ -8,4 +8,5 @@ pub mod contracts;
 pub mod coverage;
 pub mod graph;
 pub mod layout;
+pub mod release;
 pub mod run;

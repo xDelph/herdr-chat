@@ -2451,3 +2451,38 @@ Lecture honnête : Rust est devant la référence sur **toutes** les routes de *
 | `delta32` / `lockDB` / `sse-idle` | **les trois mesurés**, verrou prouvé |
 | p95/CPU/RSS Rust sous la référence | **tenu partout** |
 | 1 rafraîchissement/source, 0 tâche orpheline | 4 à 6 demandes à la fausse Herdr pour des milliers de requêtes HTTP |
+
+## T066 — l'assemblage de livraison, et le défaut qu'il a refusé
+
+`cargo xtask release [--target <triple>|--native|--all]` : build **avec** la PWA (`HERDRCHAT_REQUIRE_PWA=1`, porte prouvée capable d'échouer), archive `tar.gz`, empreinte SHA256, manifeste (target, rustc/cargo, taille et sha256 du binaire, liens, nombre de fichiers PWA embarqués). Formule Homebrew et service systemd **préparés** dans `packaging/`, non publiés.
+
+### La porte a refusé le premier assemblage — et elle avait raison
+
+```
+xtask: le binaire aarch64-apple-darwin lie OpenSSL système — la livraison
+dépendrait d'une bibliothèque absente chez l'utilisateur :
+[… "/opt/homebrew/opt/openssl@4/lib/libssl.4.dylib", "…/libcrypto.4.dylib" …]
+```
+
+L'archive aurait démarré chez moi et **échoué partout ailleurs**. Cause : `web-push` → `isahc` (curl) et `ece` → `openssl-sys` (système). Correction : `openssl = { features = ["vendored"] }` dans `notifications`. Après correction, `otool -L` ne mentionne **plus aucun** `libssl`/`libcrypto`.
+
+### La preuve d'exécution, sur le binaire empaqueté
+
+Sans Bun ni Node dans le `PATH`, avec un `HOME` vide :
+
+```
+env -i PATH=/usr/bin:/bin HOME=/tmp/herdr-nohome HERDR_SOCKET_PATH=/tmp/absent.sock \
+  HERDR_REMOTE_BIND=127.0.0.1 HERDR_REMOTE_PORT=8798 dist/herdr-chat-macos-arm64/herdrchat
+→ /api/health [503] {"herdr":{"reachable":false,"socket":"/tmp/absent.sock"},"ok":false,…}
+→ herdrchat --version → "herdrchat 0.0.0"
+```
+
+Autrement dit : **aucune dépendance à Bun/Node**, et Herdr absent n'empêche pas de servir HTTP (O03).
+
+`--version` a été ajouté pour ça : une installation doit pouvoir vérifier un binaire sans lui demander d'écouter sur un port.
+
+### Ce qui n'est PAS fait dans T066
+
+- **Les quatre cibles.** Seule `aarch64-apple-darwin` est assemblée ici, et elle est marquée **« assemblée ET exécutée sur cette machine »**. Les trois autres ne sont ni compilées ni publiées : le rapport ne dira jamais « validée sur Linux » sans qu'un runner Linux l'ait lancée. Le `xtask release --all` existe pour la CI, pas pour prétendre.
+- La **publication** de la formule et du service : préparés, pas publiés (le workflow de release reste à brancher, T066 le prévoit).
+- La **matrice CI native** (runners macOS/Linux) : non écrite.
