@@ -3496,3 +3496,22 @@ button:disabled {
     width: 100%;
   }
 }
+
+/* Le champ de recherche de l'accueil : discret, collé sous les bandeaux. */
+.recherche {
+  padding: 2px 16px 8px;
+}
+.recherche__champ {
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  border-radius: 12px;
+  color: inherit;
+  font: inherit;
+  min-height: 40px;
+  padding: 8px 12px;
+  width: 100%;
+}
+.recherche__champ:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}

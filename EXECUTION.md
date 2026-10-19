@@ -2654,3 +2654,15 @@ Le balayage est **mécanique** : extraction des chaînes et du texte JSX hors co
 Priorité produit clarifiée : **iPhone 15 (393×852) et Galaxy S25 (360×780)** sont les formats de référence ; 320×568 reste le pire cas ; **le desktop est secondaire** et n'est capturé que sur demande (`HERDR_CAPTURES_DESKTOP=1`) — il ne doit pas dicter les décisions de mise en page.
 
 Les marges de sécurité iOS/Android sont déjà en place (`env(safe-area-inset-*)` sur l'en-tête, le bas de liste et le composeur) : la capture à 393×852 montre le fil replié correctement, les blocs d'outils fermés et le composeur au bas sans recouvrement.
+
+## T072 — points 1 et 4 livrés (sur les 5 demandés)
+
+**Point 1 — `done` rejoint « Needs attention ».** Vérifié dans le code : `sectionOf("done") === "recents"` noyait la seule information qui compte au téléphone (« une réponse est arrivée, personne ne l'a lue »). `blocked` **et** `done` demandent une action ; `idle` et `unknown` sont rangés. Trois tests mis à jour avec la nouvelle règle (dont l'ordre dans la section : date décroissante).
+
+**Compteur + badge.** Le nombre d'agents à traiter est calculé depuis la même source que les sections, et poussé sur l'icône via `navigator.setAppBadge` quand la plateforme le supporte — c'est ce qui évite d'ouvrir l'app pour savoir s'il y a quelque chose à faire.
+
+**Point 4 — recherche.** Champ sur l'accueil, affiché seulement au-delà de six conversations (en dessous, il prendrait la place d'une ligne pour filtrer trois éléments). Il filtre sur **ce que la ligne affiche déjà** — agent, dernier message, modèle, nom — donc sans requête supplémentaire : ces champs arrivent avec `/api/conversations`, les réinterroger serait un aller-retour pour rien.
+
+**Capture iPhone 15** : champ `Search conversations…`, bascule de tri, `IN PROGRESS` / `RECENT (19)`. Aucune section « Needs attention » à cet instant — c'est cohérent : aucun agent n'est bloqué ni en attente de lecture.
+
+**Non fait dans cette passe** : point 2 (fusion des blocs consécutifs + basename des fichiers), point 3 (en-tête compact), point 5 (vue « tour »). Ils restent ouverts et numérotés.

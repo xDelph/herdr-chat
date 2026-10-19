@@ -51,7 +51,7 @@ describe("U04 — un pane apparaît une fois", () => {
     expect(sectionOf("blocked")).toBe("a-traiter");
     expect(sectionOf("working")).toBe("en-cours");
     expect(sectionOf("idle")).toBe("recents");
-    expect(sectionOf("done")).toBe("recents");
+    expect(sectionOf("done")).toBe("a-traiter");
     expect(sectionOf("unknown")).toBe("recents");
   });
 
@@ -75,9 +75,11 @@ describe("U04 — un pane apparaît une fois", () => {
     ]);
     const total = entrees.reduce((somme, entree) => somme + entree.conversations.length, 0);
     expect(total).toBe(5);
-    expect(countOf(entrees, "a-traiter")).toBe(1);
+    // `blocked` ET `done` demandent une action ; `working` progresse ; `idle`
+    // et `unknown` sont rangés.
+    expect(countOf(entrees, "a-traiter")).toBe(2);
     expect(countOf(entrees, "en-cours")).toBe(1);
-    expect(countOf(entrees, "recents")).toBe(3);
+    expect(countOf(entrees, "recents")).toBe(2);
   });
 });
 
@@ -467,12 +469,17 @@ describe("U18 — l'attention passe avant le rangement", () => {
   test("le groupe d'un projet ne contient QUE ses agents au repos", () => {
     // ⚠️ C'est tout l'objet de la correction : `w1:p1` et `w1:p2` sont en haut,
     // pas ici. Les y remettre les rendrait trouvables à deux endroits.
+    // `w2:p2` est `done` : une réponse pas vue → « Needs attention », pas le
+    // groupe du projet. `w1:p1` (blocked) et `w1:p2` (working) sont en haut.
     expect(dans(groupes, "w1")).toEqual(["w1:p3"]);
-    expect(dans(groupes, "w2")).toEqual(["w2:p1", "w2:p2"]);
+    expect(dans(groupes, "w2")).toEqual(["w2:p1"]);
   });
 
   test("l'attention n'est pas découpée par projet", () => {
-    expect(dans(groupes, "a-traiter")).toEqual(["w1:p1"]);
+    // `done` rejoint `blocked` : les deux attendent une action de l'utilisateur.
+    // Ordonné par date décroissante dans la section : `w2:p2` (3 000) avant
+    // `w1:p1` (1 000).
+    expect(dans(groupes, "a-traiter")).toEqual(["w2:p2", "w1:p1"]);
     expect(dans(groupes, "en-cours")).toEqual(["w1:p2"]);
   });
 

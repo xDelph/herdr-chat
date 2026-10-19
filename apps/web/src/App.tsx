@@ -496,10 +496,46 @@ export const App = () => {
    * ⚠️ Le calcul vient **après** `projetDe` : c'est lui qui fournit le nom des
    * projets, et le regroupement par projet ne peut pas s'en passer.
    */
+  /*
+    ⚠️ **La recherche, parce qu'à vingt agents on ne trouve plus rien.** Elle
+    filtre sur ce que la ligne affiche déjà — agent, dernier message, modèle,
+    nom — donc sans aucune requête supplémentaire : ces champs arrivent avec la
+    liste, les réinterroger pour filtrer serait un aller-retour pour rien.
+  */
+  const [recherche, setRecherche] = useState("");
+  const conversationsFiltrees = useMemo(() => {
+    const terme = recherche.trim().toLowerCase();
+    if (terme.length === 0) return conversations;
+    return conversations.filter((conversation) =>
+      [conversation.agent, conversation.lastPrompt, conversation.model, conversation.name]
+        .filter((champ): champ is string => typeof champ === "string")
+        .some((champ) => champ.toLowerCase().includes(terme)),
+    );
+  }, [conversations, recherche]);
+
   const sections = useMemo(
-    () => groupesDe(conversations, ordre, groupement, projetDe),
-    [conversations, ordre, groupement, projetDe],
+    () => groupesDe(conversationsFiltrees, ordre, groupement, projetDe),
+    [conversationsFiltrees, ordre, groupement, projetDe],
   );
+
+  /**
+   * Le nombre d'agents qui **attendent une action** — le seul chiffre qui
+   * mérite d'être visible sans ouvrir l'application.
+   *
+   * ⚠️ Poussé aussi sur l'icône quand la plateforme le permet (`setAppBadge`) :
+   * sur un téléphone, c'est ce qui évite d'ouvrir l'app pour savoir s'il y a
+   * quelque chose à faire.
+   */
+  const aTraiter =
+    sections.find((section) => section.cle === "a-traiter")?.conversations.length ?? 0;
+  useEffect(() => {
+    const badge = navigator as Navigator & {
+      setAppBadge?: (n: number) => Promise<void>;
+      clearAppBadge?: () => Promise<void>;
+    };
+    if (aTraiter > 0) void badge.setAppBadge?.(aTraiter);
+    else void badge.clearAppBadge?.();
+  }, [aTraiter]);
   const ongletDe = useCallback(
     (paneId: string): string => {
       const agent = agents.find((candidat) => candidat.paneId === paneId);
@@ -786,6 +822,28 @@ export const App = () => {
         <TrustCard request={trustRequest} onDone={() => setTrustRequest(null)} />
       ) : null}
       {launchError !== null ? <Notice ton="erreur">{launchError}</Notice> : null}
+
+      {/*
+        La recherche : un champ, pas une vue. Elle apparaît dès qu'il y a de
+        quoi chercher (plus de six conversations) — en dessous, elle prendrait
+        la place d'une ligne pour filtrer trois éléments.
+      */}
+      {conversations.length > 6 ? (
+        <div className="recherche">
+          <label className="sr-only" htmlFor="recherche-conversations">
+            Search conversations
+          </label>
+          <input
+            autoComplete="off"
+            className="recherche__champ"
+            id="recherche-conversations"
+            onChange={(evenement) => setRecherche(evenement.target.value)}
+            placeholder="Search conversations…"
+            type="search"
+            value={recherche}
+          />
+        </div>
+      ) : null}
 
       {/*
         Détail d'un projet : la seule destination hors liste. Il porte

@@ -45,8 +45,15 @@ export const sectionOf = (status: AgentStatus): Section => {
       return "a-traiter";
     case "working":
       return "en-cours";
-    case "idle":
+    /*
+      ⚠️ **`done` est une réponse qu'on n'a PAS vue.** La laisser dans
+      « Recent » enterrait la seule information qui compte au téléphone :
+      « quelqu'un a fini et attend que je lise ». `idle`, lui, est déjà lu —
+      c'est toute la différence, et elle est mesurée par le statut de l'agent.
+    */
     case "done":
+      return "a-traiter";
+    case "idle":
     case "unknown":
       return "recents";
     default:
