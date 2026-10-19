@@ -11,6 +11,13 @@
  * (D016.2).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  ecritPosition,
+  hauteurDeReprise,
+  litPosition,
+  positionAffichee,
+  stockageNavigateur,
+} from "./memoire-defilement.ts";
 import { decideAffichage, gardeLeFilMalgréErreur, mentionLecturePartielle } from "./session-vue.ts";
 import {
   SEUIL_PREMIERES_LIGNES_PX,
@@ -643,9 +650,56 @@ export const ChatScreen = ({
    */
   const atBottom = useRef(true);
 
-  const onScroll = useCallback((event: React.UIEvent<HTMLDivElement>) => {
-    atBottom.current = suitLeBas(event.currentTarget);
-  }, []);
+  /*
+    ⚠️ **On retient la position, pas seulement l'intention.** `atBottom` dit si
+    on suivait le direct ; il ne dit pas *où* on lisait. Partir sur l'ordinateur
+    et revenir sur la PWA ramenait le fil en haut, parce que rien n'avait été
+    mémorisé. La position est écrite avec un délai : un défilement en produit
+    des dizaines par seconde.
+  */
+  const memoireEnAttente = useRef<number | undefined>(undefined);
+  const onScroll = useCallback(
+    (event: React.UIEvent<HTMLDivElement>) => {
+      const el = event.currentTarget;
+      atBottom.current = suitLeBas(el);
+      const position = positionAffichee({
+        clientHeight: el.clientHeight,
+        scrollHeight: el.scrollHeight,
+        scrollTop: el.scrollTop,
+        seuilBas: 48,
+      });
+      if (memoireEnAttente.current !== undefined) window.clearTimeout(memoireEnAttente.current);
+      memoireEnAttente.current = window.setTimeout(() => {
+        memoireEnAttente.current = undefined;
+        ecritPosition(stockageNavigateur(), agent.paneId, position);
+      }, 400);
+    },
+    [agent.paneId],
+  );
+
+  /*
+    Le retour dans une conversation **reprend la position mémorisée**, une seule
+    fois, dès que le contenu est là. Sans mémoire (première visite), c'est la
+    règle d'ancrage qui tranche — et elle est appliquée par l'effet de statut.
+  */
+  const repriseFaite = useRef(false);
+  useEffect(() => {
+    repriseFaite.current = false;
+  }, [agent.paneId]);
+  useEffect(() => {
+    if (phase !== "ready" || repriseFaite.current) return;
+    const scroller = scrollerRef.current;
+    if (scroller === null || entries.length === 0) return;
+    const position = litPosition(stockageNavigateur(), agent.paneId);
+    if (position === null) return;
+    repriseFaite.current = true;
+    scroller.scrollTop = hauteurDeReprise(position, {
+      clientHeight: scroller.clientHeight,
+      scrollHeight: scroller.scrollHeight,
+    });
+    // La reprise fixe aussi l'intention : si l'on était en bas, on suit le bas.
+    atBottom.current = position.bas;
+  }, [agent.paneId, entries.length, phase]);
 
   /**
    * Amène la **dernière demande** de l'utilisateur en haut de la vue.
