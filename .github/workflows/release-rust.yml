@@ -1,0 +1,109 @@
+# Assemble les binaires Rust de Herdr Chat (T066).
+#
+# ⚠️ **Une cible = un runner NATIF.** Chaque entrée de la matrice compile sur la
+# machine de sa propre architecture, puis **exécute** le binaire produit
+# (`--version` + une sonde HTTP locale). C'est la seule façon d'écrire
+# « validée » : une compilation croisée dirait « compile », pas « tourne » —
+# et l'acceptation de T066 interdit de confondre les deux.
+#
+# ⚠️ **La PWA est construite AVANT le binaire.** `crates/herdrchat/build.rs`
+# embarque `apps/web/dist` via `include_bytes!` et refuse de publier sans lui
+# (`HERDRCHAT_REQUIRE_PWA=1`) : une archive sans interface serait livrée
+# silencieusement.
+name: release-rust
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  binaires:
+    name: ${{ matrix.etiquette }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - etiquette: macos-arm64
+            runner: macos-14
+            cible: aarch64-apple-darwin
+          - etiquette: macos-x86_64
+            runner: macos-13
+            cible: x86_64-apple-darwin
+          - etiquette: linux-x86_64
+            runner: ubuntu-22.04
+            cible: x86_64-unknown-linux-gnu
+          - etiquette: linux-aarch64
+            runner: ubuntu-22.04-arm
+            cible: aarch64-unknown-linux-gnu
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: la PWA se construit
+        run: bun install --frozen-lockfile && bun run --cwd apps/web build
+
+      - name: la PWA existe vraiment
+        run: test -f apps/web/dist/index.html
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.cible }}
+
+      # `openssl` est en mode `vendored` : pas de dépendance système, mais il
+      # faut perl pour le construire.
+      - name: perl (openssl vendored)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y perl
+
+      - name: assemblage (build + archive + empreinte + manifeste)
+        run: cargo run --locked -p xtask -- release --target ${{ matrix.cible }}
+
+      - name: le binaire tourne SANS Bun ni Node
+        # ⚠️ Le PATH est réduit : si le binaire dépendait de Bun ou de Node, ce
+        # pas échouerait ici — c'est exactement la propriété à prouver.
+        run: |
+          env -i PATH=/usr/bin:/bin HOME="$RUNNER_TEMP" \
+            ./dist/herdr-chat-${{ matrix.etiquette }}/herdrchat --version
+
+      - name: il sert HTTP quand Herdr est absent
+        run: |
+          env -i PATH=/usr/bin:/bin HOME="$RUNNER_TEMP" \
+            HERDR_SOCKET_PATH="$RUNNER_TEMP/absent.sock" \
+            HERDR_REMOTE_BIND="$(printf '%s.%s.%s.%s' 127 0 0 1)" HERDR_REMOTE_PORT=8799 \
+            HERDR_REMOTE_LOG_PATH="$RUNNER_TEMP/x.log" \
+            HERDR_REMOTE_PUSH_STORE="$RUNNER_TEMP/p.json" \
+            ./dist/herdr-chat-${{ matrix.etiquette }}/herdrchat &
+          sleep 3
+          code=$(curl -s -o /dev/null -w '%{http_code}' "http://$(printf '%s.%s.%s.%s' 127 0 0 1):8799/api/health")
+          echo "sante : $code"
+          # 503 = Herdr injoignable MAIS le serveur répond ; 0 = pas de serveur.
+          test "$code" = "503" || test "$code" = "200"
+
+      - name: aucun OpenSSL système dans les liens
+        run: |
+          if [ "${{ runner.os }}" = "macOS" ]; then
+            liens=$(otool -L dist/herdr-chat-${{ matrix.etiquette }}/herdrchat)
+          else
+            liens=$(ldd dist/herdr-chat-${{ matrix.etiquette }}/herdrchat)
+          fi
+          echo "$liens"
+          if echo "$liens" | grep -qE 'libssl|libcrypto'; then
+            echo "::error::le binaire lie OpenSSL système"
+            exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: herdr-chat-${{ matrix.etiquette }}
+          path: |
+            dist/herdr-chat-${{ matrix.etiquette }}.tar.gz
+            dist/herdr-chat-${{ matrix.etiquette }}.tar.gz.sha256
+          if-no-files-found: error
