@@ -3,5 +3,6 @@
 
 pub mod capabilities;
 pub mod client;
+pub mod port;
 pub mod transport;
 pub mod wire;

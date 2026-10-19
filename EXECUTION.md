@@ -1952,3 +1952,37 @@ La tâche demande « 89 capacités + C01–C27 ont une preuve exécutée ». Il 
 |---|---|
 | `cargo run --locked -p xtask -- coverage` | 77 prouvées, 39 en attente, **0 défaut** (toutes les preuves nommées existent et sont sous `tests/`) |
 | `cargo xtask verify` + `bun run verify` | verts |
+
+## T056 (suite) — l'adaptateur `ControlPort` réel (le déblocage)
+
+Périmètre : `crates/herdr-client/src/port.rs` (nouveau), `crates/herdr-client/src/lib.rs`, `crates/herdrchat/src/main.rs`, `crates/herdr-client/tests/unit/port.rs` (nouveau).
+
+### Ce qui est branché
+
+| Pièce | Détail |
+|---|---|
+| Mappages **purs** | `wire::InfoAgent` → `AgentObservation`, `wire::InfoWorkspace` → `WorkspaceObservation`, `wire::PhotoSession` → `Snapshot` (provenance comprise), lecture d'écran → `ScreenObservation`, et les preuves : prompt (C05), transport, focus, lancement |
+| `PortHerdr` | `ClientHerdr` derrière un `Mutex` ; chaque méthode rend un futur qui exécute l'appel **bloquant au premier poll** (la convention du socle) ; `ping`/`snapshot`/`list_agents`/`read_screen`/`prompt`/`send_text`/`send_keys`/`focus`/`create_tab`/`start_agent`/`fermer_onglet`/`stop` |
+| `stop` | Herdr 0.9.3 n'a pas d'`agent.stop` : la primitive est `ctrl-c` via `agent.send_keys` (comme le fil) |
+| Erreurs | `AmontRefus` → `PortError::Upstream`, `DelaiDepasse` → `Timeout`, le reste → `Transport` — chaque cause garde sa nature |
+| `main` | compose le port de contrôle (`PortHerdr::connecte`) et refuse avec la liste **réduite** des quatre ports restants ; un socket absent donne une cause réelle (« Herdr injoignable (<chemin>) : … ») |
+
+### Ce que le mappage refuse d'inventer
+
+- un champ **absent** ou **null** chez Herdr reste `None` — jamais un substitut ;
+- un `focused` **absent** reste `None`, un `focused: false` **mesuré** reste `Some(false)` ;
+- `tabs` et `layouts` restent `None` : `session.snapshot` ne les porte pas, les déclarer (même vides) ferait croire qu'on a regardé ;
+- un texte d'écran **vide** ne devient pas un texte lu ;
+- une confirmation de prompt dont l'empreinte n'est **pas la nôtre** est `Unknown`, jamais `Confirmed` (C05) ; un `result` objet vide non plus.
+
+### Preuve
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p herdr-client` | PASS — **25 tests** (dont **12** nouveaux sur l'adaptateur : agent complet, champs absents, nom vide, workspace absent vs `false`, photo sans tabs, écran vide, empreinte étrangère, transport, causes d'erreur, cinq statuts, session par id, lancement). |
+| `cargo xtask verify` | **5 portes vertes**. |
+| `./target/debug/herdrchat` | refuse toujours, mais pour la **bonne raison** : `sessions, catalog, artifacts, notifications` — le contrôle est composé. |
+
+### Reste (nommé)
+
+Les quatre adaptateurs restants : `SessionPort` (sessions), `CatalogPort` (catalog), `ArtifactPort` (files), `NotificationPort` (notifications). Tant qu'ils manquent, `main` refuse — et c'est ce qu'on veut : une API servie à moitié mentirait sur ses lectures.

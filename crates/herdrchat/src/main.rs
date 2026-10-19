@@ -17,8 +17,12 @@ use herdrchat::cycle::{Arret, Declencheur, ErreurDemarrage};
 use std::collections::HashMap;
 
 /// Les ports que le binaire doit recevoir pour servir l'API.
-const PORTS_ATTENDUS: [&str; 5] = [
-    "control (herdr-client)",
+///
+/// ⚠️ Le **contrôle** est composé (T056 suite) ; les quatre autres attendent
+/// leurs adaptateurs. La liste reste la source de vérité du refus : elle
+/// rétrécit à mesure que les adaptateurs arrivent, et elle ne ment jamais sur
+/// ce qui manque.
+const PORTS_ATTENDUS: [&str; 4] = [
     "sessions (sessions)",
     "catalog (catalog)",
     "artifacts (files)",
@@ -38,8 +42,8 @@ fn main() {
             std::process::exit(1);
         }
     };
-    if let Err(manque) = demarre(&config) {
-        eprintln!("{manque}");
+    if let Err(cause) = demarre(&config) {
+        eprintln!("{cause}");
         std::process::exit(1);
     }
 }
@@ -48,10 +52,22 @@ fn main() {
 ///
 /// Le refus est **nomme** : il dit exactement quels ports manquent, et il ne
 /// cree aucun socket, n'ecrit aucun journal, ne lance aucun worker.
-fn demarre(_config: &Config) -> Result<(), ManquePort> {
+fn demarre(config: &Config) -> Result<(), String> {
+    // 1) Le port de contrôle : la seule chose qui peut être composée
+    //    aujourd'hui. Un socket absent est une cause RÉELLE, dite.
+    let _controle =
+        herdr_client::port::PortHerdr::connecte(&config.herdr_socket_path).map_err(|cause| {
+            format!(
+                "Herdr injoignable ({}): {cause}",
+                config.herdr_socket_path.display()
+            )
+        })?;
+    // 2) Les quatre autres ports n'ont pas encore d'adaptateur : le démon
+    //    refuse de servir une API à moitié câblée.
     Err(ManquePort {
         ports: PORTS_ATTENDUS.to_vec(),
-    })
+    }
+    .to_string())
 }
 
 /// Les elements du cycle de vie, exposes pour que le cablage final (quand les

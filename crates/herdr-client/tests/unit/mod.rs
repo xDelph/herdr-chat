@@ -1,4 +1,5 @@
 //! Cahier d'essais de `herdr-client`, pièce par pièce.
 
 pub(crate) mod client;
+pub(crate) mod port;
 pub(crate) mod transport;
