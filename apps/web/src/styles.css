@@ -3497,23 +3497,101 @@ button:disabled {
   }
 }
 
-/* Le champ de recherche de l'accueil : discret, collé sous les bandeaux. */
-.recherche {
-  padding: 2px 16px 8px;
-}
-.recherche__champ {
+/*
+  La recherche **dans l'en-tête** : un champ compact, aligné à droite du titre,
+  qui pousse les icônes sans les écraser. Elle prend la place disponible plutôt
+  qu'une largeur fixe — sur 320 px, un champ rigide volerait l'engrenage.
+*/
+.topbar__recherche {
+  align-items: center;
   background: var(--surface-2);
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: 999px;
+  display: flex;
+  flex: 1 1 auto;
+  gap: 6px;
+  margin-left: auto;
+  max-width: 220px;
+  min-width: 0;
+  padding: 4px 10px;
+}
+.topbar__recherche svg {
+  color: var(--muted);
+  flex: none;
+  height: 16px;
+  width: 16px;
+}
+.topbar__recherche input {
+  background: none;
+  border: 0;
   color: inherit;
   font: inherit;
-  min-height: 40px;
-  padding: 8px 12px;
+  min-height: 28px;
+  min-width: 0;
+  outline: none;
   width: 100%;
 }
-.recherche__champ:focus-visible {
+.topbar__recherche:focus-within {
   border-color: var(--accent);
-  outline: none;
+}
+
+/*
+  L'écran d'attente : **centré**, avec un mouvement. Un texte gris collé sous
+  l'en-tête ressemblait à une erreur ; trois points qui pulsent disent « ça
+  travaille ».
+*/
+.chargement {
+  align-items: center;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 12px;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+.chargement__points {
+  display: flex;
+  gap: 6px;
+}
+.chargement__points span {
+  animation: chargement-pulse 1.1s ease-in-out infinite;
+  background: var(--accent);
+  border-radius: 50%;
+  height: 8px;
+  opacity: 0.35;
+  width: 8px;
+}
+.chargement__points span:nth-child(2) {
+  animation-delay: 0.15s;
+}
+.chargement__points span:nth-child(3) {
+  animation-delay: 0.3s;
+}
+.chargement__texte {
+  font-weight: 600;
+  margin: 0;
+}
+.chargement__detail {
+  margin: 0;
+  max-width: 32ch;
+}
+@keyframes chargement-pulse {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .chargement__points span {
+    animation: none;
+    opacity: 0.7;
+  }
 }
 
 /*

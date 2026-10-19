@@ -51,6 +51,7 @@ import {
 } from "./rafraichissement.ts";
 import { miseAJourEnAttente } from "./mise-a-jour.ts";
 import { BandeauMiseAJour } from "./BandeauMiseAJour.tsx";
+import { Chargement } from "./Chargement.tsx";
 /**
  * Lit le fragment courant et se resynchronise sur les navigations, y compris le
  * bouton retour. L'analyse vit dans `routing.ts`, où elle est testée.
@@ -774,7 +775,10 @@ export const App = () => {
           <header className="topbar">
             <h1>Herdr Chat</h1>
           </header>
-          <output className="muted small">Loading this conversation…</output>
+          <Chargement
+            detail="Herdr is being read for the first time."
+            texte="Loading conversation…"
+          />
         </div>
       );
     }
@@ -815,6 +819,35 @@ export const App = () => {
             mais lu — c'est aussi ce qui rend l'information disponible au clavier
             et au survol.
           */}
+          {/*
+            ⚠️ **La recherche est dans l'en-tête, comme dans toute application
+            web.** Elle était un bloc pleine largeur sous l'en-tête : ça coûtait
+            une ligne de liste et ça ne ressemblait à rien de connu. Ici elle
+            partage l'en-tête avec le titre et les réglages, et n'apparaît
+            qu'au-delà de six conversations — en dessous, elle prendrait la place
+            du titre pour filtrer trois lignes.
+          */}
+          {conversations.length > 6 ? (
+            <label className="topbar__recherche">
+              <span className="sr-only">Search conversations</span>
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.8" />
+                <path
+                  d="m16 16 4 4"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <input
+                autoComplete="off"
+                onChange={(evenement) => setRecherche(evenement.target.value)}
+                placeholder="Search"
+                type="search"
+                value={recherche}
+              />
+            </label>
+          ) : null}
           <span className={`point point--${connexion}`} aria-hidden="true" />
           <span className="sr-only">Herdr {LIBELLE_CONNEXION[connexion]}</span>
           <button
@@ -857,28 +890,6 @@ export const App = () => {
         <TrustCard request={trustRequest} onDone={() => setTrustRequest(null)} />
       ) : null}
       {launchError !== null ? <Notice ton="erreur">{launchError}</Notice> : null}
-
-      {/*
-        La recherche : un champ, pas une vue. Elle apparaît dès qu'il y a de
-        quoi chercher (plus de six conversations) — en dessous, elle prendrait
-        la place d'une ligne pour filtrer trois éléments.
-      */}
-      {conversations.length > 6 ? (
-        <div className="recherche">
-          <label className="sr-only" htmlFor="recherche-conversations">
-            Search conversations
-          </label>
-          <input
-            autoComplete="off"
-            className="recherche__champ"
-            id="recherche-conversations"
-            onChange={(evenement) => setRecherche(evenement.target.value)}
-            placeholder="Search conversations…"
-            type="search"
-            value={recherche}
-          />
-        </div>
-      ) : null}
 
       {/*
         Détail d'un projet : la seule destination hors liste. Il porte
