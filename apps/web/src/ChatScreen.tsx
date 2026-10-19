@@ -26,6 +26,7 @@ import {
   positionApresPrepend,
   suitLeBas,
 } from "./defilement.ts";
+import { openEventStream } from "./api.ts";
 import type { AgentView, AnswerResult, SessionEntry } from "./api.ts";
 import { estOptionSaisieLibre } from "@herdr-remote/shared";
 import {
@@ -403,27 +404,20 @@ export const ChatScreen = ({
     setPreviousCursor(null);
     void load("initial");
     /*
-      ⚠️ **La cadence suit le regard, pas seulement le statut.**
-
-      Une app visible est regardée : on veut la mise à jour au plus près. Une app
-      en arrière-plan ne l'est pas — la sonder au même rythme vide la batterie du
-      téléphone pour un écran que personne ne lit. Le statut reste le second axe :
-      un agent qui travaille bouge vite, un agent au repos non.
-
-      Avant : 750 ms / 2 s quelle que soit la visibilité. On payait le prix du
-      premier plan en permanence, sans jamais l'obtenir au bon moment.
-
       ⚠️ **`visibilitychange` et non le focus du document.** La propriété
       `hasFocus` de `document` est instable sur iOS : elle tombe à `false` sans
       que l'app ait été quittée, et caler la cadence dessus la ralentirait au
-      moment précis où on est en train de lire. Le `focus` de la fenêtre est donc
-      utilisé pour **réveiller**, jamais pour ralentir.
+      moment précis où on est en train de lire. Le `focus` de la fenêtre sert
+      donc à **réveiller**, jamais à ralentir.
     */
-    const regardActif = () => document.visibilityState === "visible";
-    const cadence = () => {
-      if (!regardActif()) return statutRef.current === "working" ? 3000 : 10_000;
-      return statutRef.current === "working" ? 400 : 1200;
-    };
+    /*
+      ⚠️ **Le minuteur n'est plus la source de fraîcheur, il en est le filet.**
+      Le chat relisait toutes les 400 ms pendant un travail, 1,2 s au repos — des
+      limites imposées alors que le serveur publie `session_changed` et que le
+      coût d'une relecture incrémentale est mesuré à ~1 ms côté Rust (T065). On
+      garde un filet lent pour le cas où le flux se tairait sans le dire.
+    */
+    const cadence = () => (document.visibilityState === "visible" ? 15_000 : 60_000);
     // `setTimeout` en cascade plutôt que `setInterval` : la cadence est relue à
     // chaque tour, donc elle suit le statut et le regard sans que l'effet en
     // dépende.
@@ -450,6 +444,59 @@ export const ChatScreen = ({
       window.removeEventListener("focus", reveil);
     };
   }, [load]);
+
+  /**
+   * Le flux d'événements du chat : `session_changed` et `agent_status` pour
+   * **cet** agent déclenchent une relecture incrémentale immédiate.
+   *
+   * ⚠️ **C'est ce qui remplace les cadences serrées.** Un fichier de session est
+   * écrit par un agent sur le Mac ; le serveur le voit (veille 2 s), publie
+   * `session_changed` avec une révision opaque, et l'écran relit **ce qui a
+   * changé** — pas la session entière. Sans abonnement, il fallait sonder toutes
+   * les 400 ms pour approcher le direct.
+   *
+   * ⚠️ **Regroupement de 120 ms.** Un agent qui écrit en rafale publie plusieurs
+   * révisions ; sans ce lot, on lancerait une relecture par révision.
+   */
+  useEffect(() => {
+    let lot: number | undefined;
+    const relire = (): void => {
+      if (lot !== undefined) return;
+      lot = window.setTimeout(() => {
+        lot = undefined;
+        void load("incremental");
+      }, 120);
+    };
+    const fermer = openEventStream({
+      onEvent: (kind: string, donnees: unknown) => {
+        if (kind === "agent_status") {
+          relire();
+          return;
+        }
+        if (kind !== "session_changed") return;
+        // L'événement porte le pane concerné : on ne relit QUE la conversation
+        // affichée, jamais les autres.
+        const pane =
+          typeof donnees === "object" && donnees !== null && "pane_id" in donnees
+            ? donnees.pane_id
+            : undefined;
+        if (typeof pane === "string" && pane !== agent.paneId) return;
+        relire();
+      },
+      onResync: () => {
+        relire();
+      },
+      onStatus: () => {
+        // Le statut du flux est déjà affiché par l'application ; le chat n'a
+        // rien à en faire, mais l'abonnement doit exister pour recevoir les
+        // événements nommés.
+      },
+    });
+    return () => {
+      if (lot !== undefined) window.clearTimeout(lot);
+      fermer();
+    };
+  }, [agent.paneId, load]);
 
   /*
     ⚠️ **AUCUN focus automatique (C24).** Il y avait ici un effet qui POSTait

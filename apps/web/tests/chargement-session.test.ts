@@ -59,12 +59,12 @@ describe("le chargement d'une session ne dépend pas du statut", () => {
    * même prix : au premier plan, la latence se voit ; en arrière-plan, elle
    * vide la batterie du téléphone pour un écran que personne ne lit.
    */
-  test("la cadence est rapide au premier plan, lente en arrière-plan", () => {
+  test("la cadence de secours suit la visibilité", () => {
     const effet = effetDeChargement();
 
     expect(effet).toContain('document.visibilityState === "visible"');
-    expect(effet).toContain('statutRef.current === "working" ? 400 : 1200');
-    expect(effet).toContain('statutRef.current === "working" ? 3000 : 10_000');
+    expect(effet).toContain("15_000");
+    expect(effet).toContain("60_000");
   });
 
   test("revenir au premier plan relit immédiatement", () => {
@@ -89,10 +89,16 @@ describe("le chargement d'une session ne dépend pas du statut", () => {
     expect(effetDeChargement()).not.toContain("document.hasFocus(");
   });
 
-  test("la cadence est relue à chaque tour, pas figée au montage", () => {
-    // `setInterval` figerait la cadence à sa création.
+  test("le minuteur est un FILET, plus la source de fraîcheur", () => {
+    // ⚠️ Les cadences serrées (400 ms en travail, 1,2 s au repos) ont été
+    // supprimées : le chat relit sur `session_changed`, et le minuteur ne sert
+    // qu'au cas où le flux se tairait. Il doit donc être LENT et relu à chaque
+    // tour (pas figé au montage).
     const effet = effetDeChargement();
-    expect(effet).toContain("statutRef.current");
+    expect(effet).toContain("15_000");
+    expect(effet).toContain("60_000");
+    // On vise l'AFFECTATION, pas le commentaire qui raconte l'ancienne.
+    expect(effet).not.toContain('working" ? 400');
     // L'appel, pas le mot : le commentaire qui explique le choix le nomme.
     expect(effet).not.toContain("setInterval(");
   });

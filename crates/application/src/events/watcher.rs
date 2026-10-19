@@ -36,7 +36,15 @@ use std::time::{Duration, Instant};
 
 /// La cadence de la veille : 2 s APRÈS une itération complète (E01) — une
 /// itération lente retarde la suivante, jamais deux lectures en même temps.
-pub const INTERVALLE_VEILLE: Duration = Duration::from_secs(2);
+/// La période d'observation de Herdr.
+///
+/// ⚠️ **C'est la borne de fraîcheur de toute l'application.** Le flux SSE ne
+/// peut pas publier plus vite que cette veille ne voit : 2 s de retard sur
+/// l'écran de l'ordinateur, même avec un client parfaitement événementiel.
+/// Passé à **500 ms** : Herdr est local, l'appel est un aller-retour sur un
+/// socket Unix, et le banc T065 a mesuré `session.snapshot` sous la milliseconde
+/// côté serveur. Le client, lui, ne relit que ce qui a changé (curseur).
+pub const INTERVALLE_VEILLE: Duration = Duration::from_millis(500);
 
 /// La signature d'un agent : le diff ne publie que les changements réels
 /// (E02) — statut, titre, cwd, type, chemin de session. Un changement de
