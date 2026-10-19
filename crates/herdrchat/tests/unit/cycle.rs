@@ -110,6 +110,28 @@ async fn demarre(
     (adresse, declencheur, Arc::new(EnCours::nouveau()), poignee)
 }
 
+/// ⚠️ **Le drain ne borne pas la durée de vie.** Trouvé en LANÇANT le binaire :
+/// un `timeout(delai, serveur)` autour du serveur entier l'arrêtait tout seul
+/// après 10 s, sans aucun signal. Ce test le refuse : avec un délai de 100 ms,
+/// le serveur doit rester vivant bien au-delà et répondre encore.
+#[tokio::test(flavor = "multi_thread")]
+async fn le_drain_ne_borne_pas_la_duree_de_vie() {
+    let sink = SinkMemoire::default();
+    let taches = Arc::new(Taches::nouveau());
+    let (adresse, declencheur, _en_cours, poignee) =
+        demarre(Duration::from_millis(100), sink, taches).await;
+    // Plus de 15 fois le délai de drain, sans aucun signal.
+    tokio::time::sleep(Duration::from_millis(1500)).await;
+    assert!(
+        !poignee.is_finished(),
+        "le serveur ne s'arrête pas tout seul"
+    );
+    let reponse = requete(adresse, "/rapide").await;
+    assert_eq!(reponse, "ok", "il répond encore après le délai de drain");
+    declencheur.demande();
+    let _ = tokio::time::timeout(Duration::from_secs(5), poignee).await;
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn un_port_occupe_est_une_erreur_nommee() {
     let premier = ecoute(

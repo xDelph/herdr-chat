@@ -12,6 +12,23 @@ pub mod overview;
 pub mod ports {
     pub use domain::ports::*;
 }
+
+/// Le noyau du domaine (identités, observations, erreurs) réexporté pour
+/// l'assembleur : `herdrchat` compose mais le graphe ne lui donne pas
+/// `domain` directement.
+pub mod noyau {
+    pub use domain::errors::{ErreurDomaine, PortError};
+    pub use domain::ids::*;
+    pub use domain::observation::*;
+    pub use domain::status::*;
+}
+
+/// Les valeurs de session du domaine, réexportées pour l'assembleur : le
+/// démon compose des adaptateurs de session mais le graphe ne lui donne pas
+/// `domain` directement.
+pub mod sessions_types {
+    pub use domain::session::*;
+}
 pub mod permis;
 pub mod refresh;
 pub mod state;

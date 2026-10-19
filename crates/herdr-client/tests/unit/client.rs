@@ -40,17 +40,21 @@ impl FauxHerdr {
         Self { chemin, ecoute }
     }
 
+    /// Sert **une connexion par demande** — mesuré sur le vrai Herdr : il
+    /// ferme la connexion après chaque réponse, donc le client en ouvre une
+    /// par appel. Le script est rejoué pour chacune.
     fn sert_une<F>(&self, script: F)
     where
-        F: FnOnce(UnixStream) + Send + 'static,
+        F: Fn(UnixStream) + Clone + Send + 'static,
     {
         let ecoute = match self.ecoute.try_clone() {
             Ok(ecoute) => ecoute,
             Err(cause) => panic!("clone d'écoute refusé : {cause}"),
         };
         std::thread::spawn(move || {
-            if let Ok((flux, _)) = ecoute.accept() {
-                script(flux);
+            while let Ok((flux, _)) = ecoute.accept() {
+                let script = script.clone();
+                std::thread::spawn(move || script(flux));
             }
         });
     }

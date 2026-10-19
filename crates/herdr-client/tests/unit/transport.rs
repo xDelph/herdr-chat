@@ -14,8 +14,11 @@ use std::time::Duration;
 
 static NONCE: AtomicU32 = AtomicU32::new(0);
 
-/// Un faux serveur : socket lié **une fois**, une connexion servie par un
-/// fil qui applique le script.
+/// Un faux serveur : socket lié **une fois**.
+///
+/// ⚠️ **Une connexion par demande** (mesuré sur le vrai Herdr : il ferme la
+/// connexion après chaque réponse). Le faux accepte donc **autant de
+/// connexions que le client en ouvre**, chacune servie par le même script.
 struct FauxHerdr {
     chemin: PathBuf,
     ecoute: UnixListener,
@@ -40,25 +43,33 @@ impl FauxHerdr {
         Self { chemin, ecoute }
     }
 
-    /// Accepte UNE connexion dans un fil séparé, puis applique le script.
+    /// Accepte les connexions du client, **une par demande**.
+    ///
+    /// ⚠️ Le script est partagé : `F: Fn + Clone` — chaque connexion le
+    /// rejoue. Une seule connexion était le modèle d'avant la mesure ; garder
+    /// ce modèle aurait laissé les tests verts sur un transport qui ne parle
+    /// pas au vrai Herdr.
     fn sert_une<F>(&self, script: F)
     where
-        F: FnOnce(UnixStream) + Send + 'static,
+        F: Fn(UnixStream) + Clone + Send + 'static,
     {
         let ecoute = match self.ecoute.try_clone() {
             Ok(ecoute) => ecoute,
             Err(cause) => panic!("clone d'écoute refusé : {cause}"),
         };
         thread::spawn(move || {
-            if let Ok((flux, _)) = ecoute.accept() {
-                script(flux);
+            // Le fil s'arrête quand le test a fini : on accepte sans limite,
+            // chaque acceptation non bloquante échoue après le drop du client.
+            while let Ok((flux, _)) = ecoute.accept() {
+                let script = script.clone();
+                thread::spawn(move || script(flux));
             }
         });
     }
 }
 
 /// Lit la requête du transport (une ligne) — pour que le script réponde.
-fn lis_cadre(flux: &mut UnixStream) -> (u64, String, Value) {
+fn lis_cadre(flux: &mut UnixStream) -> (Value, String, Value) {
     let clone = match flux.try_clone() {
         Ok(clone) => clone,
         Err(cause) => panic!("clone : {cause}"),
@@ -74,7 +85,10 @@ fn lis_cadre(flux: &mut UnixStream) -> (u64, String, Value) {
         Err(cause) => panic!("JSON du cadre : {cause}"),
     };
     (
-        demande.get("id").and_then(Value::as_u64).unwrap_or(0),
+        // ⚠️ L'identifiant est rendu **tel qu'il est arrivé** (chaîne dans le
+        // cas réel, nombre chez certains intermédiaires) : le faux ne doit pas
+        // imposer une forme que le vrai socket refuse.
+        demande.get("id").cloned().unwrap_or(Value::Null),
         demande
             .get("method")
             .and_then(Value::as_str)
@@ -302,9 +316,14 @@ fn aucune_relance_automatique_et_les_ids_avancent() {
         autre => panic!("délai attendu, pas {autre:?}"),
     }
     thread::sleep(Duration::from_millis(150));
+    // ⚠️ Le compte peut être 0 ou 1 : le transport n'ouvre la connexion
+    // qu'au premier `write`, et le faux peut ne pas avoir encore lu quand le
+    // délai a expiré. Ce qui est PROUVÉ, c'est qu'il n'y a **jamais deux**
+    // écritures pour un appel — la relance automatique serait un 2.
+    let ecritures = compteur.load(Ordering::SeqCst);
     assert!(
-        compteur.load(Ordering::SeqCst) == 1,
-        "UNE seule écriture — aucune relance mutante automatique"
+        ecritures <= 1,
+        "au plus UNE écriture par appel — aucune relance mutante automatique ({ecritures})"
     );
     // L'appelant rejoue EXPLICITEMENT : le compteur d'ids a avancé.
     assert!(

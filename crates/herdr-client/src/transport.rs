@@ -12,7 +12,7 @@
 use serde_json::{Value, json};
 use std::io::{BufReader, Read, Write};
 use std::os::unix::net::UnixStream;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 /// Un cadre (ligne JSONL) au-delà de 16 MiB est un refus — jamais une
@@ -82,26 +82,24 @@ impl std::fmt::Display for ErreurTransport {
 
 impl std::error::Error for ErreurTransport {}
 
-/// Le transport : un socket Unix, un compteur d'identifiants monotone.
+/// Le transport : le **chemin** du socket et un compteur d'identifiants.
+///
+/// ⚠️ **Une connexion PAR demande**, et c'est une mesure, pas un choix :
+/// Herdr ferme la connexion après chaque réponse (la deuxième écriture lève
+/// un tube cassé). Le fil ouvrait lui aussi une connexion par appel — trouvé
+/// en LANÇANT le vrai démon, pas en relisant le code.
 #[derive(Debug)]
 pub struct TransportUnix {
-    flux: UnixStream,
-    lecteur: BufReader<UnixStream>,
+    chemin: PathBuf,
     prochain_id: u64,
 }
 
 impl TransportUnix {
-    /// Se connecte au socket Herdr.
+    /// Vérifie que le socket répond, et retient son chemin.
     pub fn connecte(chemin: &Path) -> Result<Self, ErreurTransport> {
-        let flux = UnixStream::connect(chemin)
-            .map_err(|cause| ErreurTransport::Socket(cause.to_string()))?;
-        let lecteur = BufReader::new(
-            flux.try_clone()
-                .map_err(|cause| ErreurTransport::Socket(cause.to_string()))?,
-        );
+        UnixStream::connect(chemin).map_err(|cause| ErreurTransport::Socket(cause.to_string()))?;
         Ok(Self {
-            flux,
-            lecteur,
+            chemin: chemin.to_path_buf(),
             prochain_id: 1,
         })
     }
@@ -122,28 +120,40 @@ impl TransportUnix {
     ) -> Result<Value, ErreurTransport> {
         let identifiant = self.prochain_id;
         self.prochain_id += 1;
-        self.envoie(identifiant, methode, params, delai)?;
-        self.recoit(identifiant, delai)
+        let mut flux = UnixStream::connect(&self.chemin)
+            .map_err(|cause| ErreurTransport::Socket(cause.to_string()))?;
+        let mut lecteur = BufReader::new(
+            flux.try_clone()
+                .map_err(|cause| ErreurTransport::Socket(cause.to_string()))?,
+        );
+        self.envoie(&mut flux, identifiant, methode, params, delai)?;
+        self.recoit(&flux, &mut lecteur, identifiant, delai)
     }
 
     fn envoie(
         &mut self,
+        flux: &mut UnixStream,
         identifiant: u64,
         methode: &str,
         params: &Value,
         delai: Duration,
     ) -> Result<(), ErreurTransport> {
-        self.flux
-            .set_write_timeout(Some(delai))
+        flux.set_write_timeout(Some(delai))
             .map_err(|cause| ErreurTransport::Socket(cause.to_string()))?;
-        let cadre = json!({ "id": identifiant, "method": methode, "params": params });
+        // ⚠️ L'identifiant est une **chaîne** : mesuré sur le socket réel,
+        // Herdr refuse un entier (`invalid type: integer 1, expected a string`).
+        // Le faux des tests l'acceptait en nombre — c'est le lancement du vrai
+        // démon qui l'a révélé.
+        let cadre = json!({
+            "id": identifiant.to_string(),
+            "method": methode,
+            "params": params
+        });
         let mut ligne = cadre.to_string();
         ligne.push('\n');
-        self.flux
-            .write_all(ligne.as_bytes())
+        flux.write_all(ligne.as_bytes())
             .map_err(|cause| ErreurTransport::Socket(cause.to_string()))?;
-        self.flux
-            .flush()
+        flux.flush()
             .map_err(|cause| ErreurTransport::Socket(cause.to_string()))
     }
 
@@ -156,11 +166,12 @@ impl TransportUnix {
 
     fn recoit(
         &mut self,
+        flux: &UnixStream,
+        lecteur: &mut BufReader<UnixStream>,
         identifiant_attendu: u64,
         delai: Duration,
     ) -> Result<Value, ErreurTransport> {
-        self.flux
-            .set_read_timeout(Some(delai))
+        flux.set_read_timeout(Some(delai))
             .map_err(|cause| ErreurTransport::Socket(cause.to_string()))?;
         // Lecture par octets jusqu'au saut de ligne : l'UTF-8 peut être
         // fragmenté EN CADRE, jamais À TRAVERS les cadres (le saut de ligne
@@ -169,7 +180,7 @@ impl TransportUnix {
         let mut compteur = 0_usize;
         let mut octet = [0_u8; 1];
         loop {
-            let lus = self.lecteur.read(&mut octet).map_err(|cause| {
+            let lus = lecteur.read(&mut octet).map_err(|cause| {
                 if cause.kind() == std::io::ErrorKind::WouldBlock
                     || cause.kind() == std::io::ErrorKind::TimedOut
                 {
@@ -194,9 +205,22 @@ impl TransportUnix {
             .map_err(|cause| ErreurTransport::JsonInvalide(cause.to_string()))?;
         let reponse: Value = serde_json::from_str(texte.trim())
             .map_err(|cause| ErreurTransport::JsonInvalide(cause.to_string()))?;
-        let recu = reponse.get("id").and_then(Value::as_u64).ok_or_else(|| {
-            ErreurTransport::EnveloppeInvalide(String::from("id absent ou non numérique"))
-        })?;
+        // L'écho peut revenir en chaîne (le cas réel) ou en nombre (certains
+        // intermédiaires) : les deux se lisent, et la corrélation compare la
+        // représentation.
+        let recu = match reponse.get("id") {
+            Some(Value::String(texte)) => texte.parse::<u64>().map_err(|_| {
+                ErreurTransport::EnveloppeInvalide(format!("id non numérique : {texte}"))
+            })?,
+            Some(valeur) => valeur.as_u64().ok_or_else(|| {
+                ErreurTransport::EnveloppeInvalide(String::from("id absent ou non numérique"))
+            })?,
+            None => {
+                return Err(ErreurTransport::EnveloppeInvalide(String::from(
+                    "id absent",
+                )));
+            }
+        };
         if recu != identifiant_attendu {
             return Err(ErreurTransport::MauvaiseCorrelation {
                 attendu: identifiant_attendu,

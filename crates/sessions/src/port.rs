@@ -12,7 +12,7 @@
 //! vide `Vide`, un contenu tronqué `Invalide`, une panne d'accès `Io` — quatre
 //! causes distinctes, jamais un 502 indifférencié.
 
-use crate::agents::opencode;
+use crate::agents::{devin, opencode};
 use crate::cursor;
 use crate::resolver::{Emplacement, Racines, Resolveur, SourceSession, source_session_de};
 use crate::storage::jsonl::identity::{CurseurFichier, identite_de};
@@ -352,27 +352,64 @@ fn page_sqlite(source: &ResolvedSource, request: &SessionPageRequest) -> Session
         .as_ref()
         .map(|kind| kind.as_str().to_string())
         .unwrap_or_default();
-    let reponse = match famille.as_str() {
+    // Chaque famille a son lecteur ; la composition avant/depuis/aucun est la
+    // même (opencode la porte déjà, devin l'expose en trois fonctions).
+    let page = match famille.as_str() {
         "opencode" => opencode::moteur::page_session(
             &ouvrier,
             identifiant.as_str(),
             avant,
             depuis,
             request.limit,
-        ),
+        )
+        .map(|page| {
+            (
+                page.curseur,
+                page.previous_seq,
+                page.incremental,
+                page.has_more,
+                page.entrees,
+            )
+        }),
+        "devin" => {
+            let lue = match (avant, depuis) {
+                (Some(borne), _) => {
+                    devin::moteur::lire_avant(&ouvrier, identifiant.as_str(), borne, request.limit)
+                }
+                (None, Some(borne)) => {
+                    devin::moteur::lire_depuis(&ouvrier, identifiant.as_str(), borne, request.limit)
+                }
+                (None, None) => {
+                    devin::moteur::lire_derniere(&ouvrier, identifiant.as_str(), request.limit)
+                }
+            };
+            lue.map(|page| {
+                // Le curseur est la dernière ligne LUE ; la page précédente
+                // repart de la première ligne RENDUE — les confondre ferait
+                // redemander la même page.
+                let curseur = avant.unwrap_or(page.dernier_seq);
+                let precedent = page.has_more.then_some(page.premier_seq);
+                (
+                    curseur,
+                    precedent,
+                    depuis.is_some(),
+                    page.has_more,
+                    page.entrees,
+                )
+            })
+        }
         _ => {
             return SessionPageOutcome::Invalide {
                 detail: format!("famille SQLite non composée : {famille}"),
             };
         }
     };
-    let Ok(page) = reponse else {
+    let Ok((curseur_lu, previous_seq, incremental, has_more, entrees)) = page else {
         return SessionPageOutcome::Io {
-            detail: String::from("lecture SQLite échouée"),
+            detail: format!("lecture SQLite échouée ({famille})"),
         };
     };
-    let entries: Vec<SessionEntry> = page
-        .entrees
+    let entries: Vec<SessionEntry> = entrees
         .iter()
         .map(|entree| SessionEntry {
             kind: entree.genre.clone(),
@@ -382,18 +419,17 @@ fn page_sqlite(source: &ResolvedSource, request: &SessionPageRequest) -> Session
             timestamp: entree.timestamp.clone(),
         })
         .collect();
-    let curseur = cursor::encode(&empreinte, identifiant.as_str(), 1, page.curseur);
-    let precedent = page
-        .previous_seq
+    let curseur = cursor::encode(&empreinte, identifiant.as_str(), 1, curseur_lu);
+    let precedent = previous_seq
         .map(|seq| cursor::encode(&empreinte, identifiant.as_str(), 1, seq))
         .unwrap_or_else(|| cursor::encode(&empreinte, identifiant.as_str(), 1, 0));
     let session = SessionPage {
         session_path: source.base.clone(),
         entries,
-        incremental: page.incremental,
+        incremental,
         cursor: Some(curseur),
         previous_cursor: Some(precedent),
-        has_more: page.has_more,
+        has_more,
         reset: false,
         rattrape: false,
     };

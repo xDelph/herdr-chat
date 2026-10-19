@@ -115,9 +115,20 @@ impl ClientHerdr {
             .map_err(|cause| ErreurTransport::EnveloppeInvalide(cause.to_string()))
     }
 
+    /// La photo du monde.
+    ///
+    /// ⚠️ **Le `result` est une ENVELOPPE** : `{ type, snapshot }` (mesuré sur
+    /// le socket réel). Décoder `result` directement cherchait `agents` au
+    /// premier niveau et échouait — le fil lisait `payload["snapshot"]`.
     pub fn photo_session(&mut self) -> Resultat<PhotoSession> {
         let resultat = self.demande_objet("session.snapshot", &json!({}))?;
-        serde_json::from_value(resultat)
+        let interieur = match resultat.get("snapshot") {
+            Some(snapshot) if snapshot.is_object() => snapshot.clone(),
+            // Une forme sans enveloppe reste lue telle quelle : on ne
+            // l'invente pas, on la décode ou on la refuse.
+            _ => resultat,
+        };
+        serde_json::from_value(interieur)
             .map_err(|cause| ErreurTransport::EnveloppeInvalide(cause.to_string()))
     }
 

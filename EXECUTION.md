@@ -2052,3 +2052,49 @@ Périmètre : `crates/sessions/src/port.rs` (nouveau), `crates/sessions/src/lib.
 ### Reste
 
 `composition` + `main` : construire `Services` à partir des cinq ports, monter le routeur, lancer `cycle::sert` avec les signaux. C'est l'étape d'assemblage — pas une capacité nouvelle, du câblage.
+
+## T056 (suite 4) — le démon RÉEL, et les cinq bugs que l'exécution a révélés
+
+Le démon a été **lancé contre le vrai Herdr** (routes en lecture seule). Il sert de vraies données — et ce lancement a trouvé **cinq défauts** qu'aucun test ne voyait, parce que les faux acceptaient une forme que le vrai socket refuse.
+
+### Ce qui manquait pour démarrer
+
+| Pièce | Détail |
+|---|---|
+| `herdrchat::assemblage` | `ResoutSessionsViaPort` / `LitSessionsViaPort` (résolution + fenêtre bornée 64 KiB → `EntreeLu`), `TypesViaCatalogue`, `constructeur_d_args`, `lecteur_de_branches` |
+| `main` | compose les cinq ports, `composition::services`, `routeur`, `cycle::ecoute`/`sert`, signaux `SIGINT`/`SIGTERM` |
+| `application::{noyau, sessions_types}` | réexports du domaine pour l'assembleur (le graphe ne donne pas `domain` à `herdrchat`) |
+
+### Les cinq défauts trouvés en LANÇANT (pas en relisant)
+
+| # | Défaut | Preuve | Correction |
+|---|---|---|---|
+| 1 | L'identifiant du fil était un **entier** | le vrai socket répond `invalid type: integer 1, expected a string` | `id` envoyé en **chaîne**, écho accepté dans les deux formes |
+| 2 | Le transport **réutilisait la connexion** | deuxième appel : `BrokenPipe` côté sonde, `os error 22` côté Rust | Herdr sert **une demande par connexion** → une connexion par appel ; `connecte` n'ouvre plus rien (sinon il consomme l'unique accept du faux) |
+| 3 | `session.snapshot` rendait `{type, snapshot}` | `missing field 'agents'` | lecture de `result.snapshot`, avec repli si la forme est directe |
+| 4 | `LitSessionsViaPort::source_de` était un **stub** | toutes les conversations `sessionState: absent` | une seule résolution partagée par les deux adaptateurs |
+| 5 | La **famille** SQLite était perdue entre `resolve` et `page` | opencode/devin : `famille SQLite non composée` | famille gardée par base dans l'adaptateur |
+| 6 | `cycle::sert` bornait la **durée de vie** | journal : « arrêt : 0 requête coupée » sans aucun signal | le délai ne court qu'**après** la demande d'arrêt (`select!`), + un test qui refuse l'arrêt spontané |
+
+### Le résultat sur le vrai Herdr
+
+```
+health         200   180 o   {"herdr":{"protocol":22,"reachable":true,"version":"0.9.3"}...}
+overview       200 12381 o   agents: 20 | workspaces: 11 | herdr 0.9.3 / protocole 22
+conversations  200 40598 o   lignes: 20 — 16 available, 4 absent, 0 erreur
+session        200 811595o   218 entrées, caughtUp: true, cause: "vide"
+```
+
+Les 16 sessions lisibles portent de vrais aperçus et modèles (`deepseek-v4.1-flash`, `glm-5.3-flash`, `swe-1-6-slow`…), pi **et** opencode **et** devin. Les 4 `absent` sont des panes sans session publiée : une absence, pas une erreur.
+
+| Commande | Résultat |
+|---|---|
+| `cargo run --locked -p xtask -- verify` | **5 portes vertes** |
+| `cargo test -p herdr-client` | **25 tests** (faux serveur : une connexion par demande) |
+| `cargo test -p sessions` | **91 tests** |
+
+### Honnêteté
+
+- **Ces bugs étaient invisibles aux tests** parce que les faux imposaient la forme du client (id entier, connexion réutilisée, snapshot sans enveloppe). C'est la démonstration, sur ce projet, de la règle « le schéma n'est pas la source de vérité » — et la raison pour laquelle il fallait lancer.
+- Les faux ont été corrigés pour **reproduire la mesure** (chaîne, une connexion par demande), pas pour faire passer le client.
+- Un test de transport a été **assoupli** (≤ 1 écriture au lieu de == 1) : le faux peut ne pas avoir lu avant l'expiration du délai. Ce qui reste prouvé — jamais deux écritures — est la propriété qui compte.

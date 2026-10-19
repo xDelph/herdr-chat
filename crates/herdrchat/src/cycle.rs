@@ -184,31 +184,58 @@ pub async fn sert(
     en_cours: Arc<EnCours>,
     taches: Arc<Taches>,
     diagnostics: Arc<dyn SinkDiagnostic>,
-    mut arret: Arret,
+    arret: Arret,
     delai: Duration,
 ) -> RapportArret {
     let service = routeur.into_make_service();
-    let signal = async move { arret.recu().await };
+    // ⚠️ **Le drain ne borne PAS la durée de vie.** Il y avait ici un
+    // `timeout(delai, serveur)` autour du serveur entier : le démon
+    // s'arrêtait donc tout seul après 10 s, même sans signal — trouvé en
+    // LANÇANT le binaire (le journal disait « arrêt : 0 requête coupée »
+    // sans qu'aucun signal n'ait été envoyé). Le délai ne commence qu'UNE
+    // FOIS l'arrêt demandé.
+    let signal = {
+        let mut pour_le_serveur = arret.clone();
+        async move { pour_le_serveur.recu().await }
+    };
     let serveur = axum::serve(ecouteur, service)
         .with_graceful_shutdown(signal)
         .into_future();
-    // Le drain est BORNÉ : au-delà, on ferme (un flux SSE ouvert ne doit pas
-    // empêcher l'arrêt).
-    let (drain_interrompu, requetes_coupees) = match tokio::time::timeout(delai, serveur).await {
-        Ok(Ok(())) => {
-            // Le serveur s'est arrêté proprement : tout ce qui était admis est
-            // terminé.
-            (false, 0)
+    tokio::pin!(serveur);
+    let mut pour_le_drain = arret.clone();
+    let (drain_interrompu, requetes_coupees) = tokio::select! {
+        // Le serveur s'arrête de lui-même (erreur d'écoute, ou fin propre).
+        resultat = &mut serveur => match resultat {
+            Ok(()) => (false, 0),
+            Err(cause) => {
+                diagnostics.ecrit(
+                    &EntreeDiagnostic::nouvelle(
+                        Niveau::Error,
+                        "server",
+                        &format!("le serveur s'est arrêté sur une erreur : {cause}"),
+                    ),
+                );
+                (false, en_cours.nombre())
+            }
+        },
+        // L'arrêt est demandé : on lui laisse `delai` au plus.
+        _ = pour_le_drain.recu() => {
+            match tokio::time::timeout(delai, &mut serveur).await {
+                Ok(Ok(())) => (false, 0),
+                Ok(Err(cause)) => {
+                    diagnostics.ecrit(
+                        &EntreeDiagnostic::nouvelle(
+                            Niveau::Error,
+                            "server",
+                            &format!("le serveur s'est arrêté sur une erreur : {cause}"),
+                        ),
+                    );
+                    (false, en_cours.nombre())
+                }
+                // Le délai expire : des requêtes sont encore en vol, on ferme.
+                Err(_) => (true, en_cours.nombre()),
+            }
         }
-        Ok(Err(cause)) => {
-            diagnostics.ecrit(&EntreeDiagnostic::nouvelle(
-                Niveau::Error,
-                "server",
-                &format!("le serveur s'est arrêté sur une erreur : {cause}"),
-            ));
-            (false, en_cours.nombre())
-        }
-        Err(_) => (true, en_cours.nombre()),
     };
     // L'issue partielle est TRACÉE : combien de commandes ont été coupées.
     if drain_interrompu || requetes_coupees > 0 {
