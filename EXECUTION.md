@@ -2019,3 +2019,36 @@ Périmètre : `crates/files/src/port.rs`, `crates/notifications/src/port.rs`, `c
 ### Reste
 
 **`SessionPort`** : les lecteurs par famille (jsonl + SQLite), les curseurs liés (`hc2:`), le bornage (T025 : 2 MiB/16 MiB, `caughtUp`), et la traduction des clauses en `SessionPageOutcome`. C'est le morceau le plus lourd — et le seul qui empêche le démon de démarrer.
+
+## T056 (suite 3) — l'adaptateur `SessionPort` : les cinq ports sont composés
+
+Périmètre : `crates/sessions/src/port.rs` (nouveau), `crates/sessions/src/lib.rs`, `crates/herdrchat/src/main.rs`, `crates/sessions/tests/unit/port.rs` (nouveau).
+
+### Ce qui est branché
+
+| Méthode | Détail |
+|---|---|
+| `resolve` | `hint.published` → `Emplacement` → `source_session_de` (Herdr fait foi ; repli titre **codex seulement**) → `ResolvedSource` (fichier ou SQLite, famille comprise). Sans preuve : `None`, pas une panne. |
+| `page` | **Fichier** : `hc2:` décodé et **lié** à la source (`lie_a`), identité du fichier **mesurée**, `page_bornee` (2 MiB / 16 MiB), entrées au brut **tel quel** ; `previous_cursor` → `page_arriere`. **SQLite** : famille → `opencode::moteur::page_session`. |
+| `metadata` | En-tête de fichier ; **aucun modèle supposé** — absent reste absent. |
+
+### Ce que le port refuse d'inventer
+
+- un curseur **d'une autre source** ou illisible → `Invalide` (400), jamais une relecture au hasard ;
+- un **fichier absent** → `Absente` (bénin : le JSONL naît au premier message), distinct de `Io` ;
+- un **record au-delà du plafond** → `Invalide` nommé avec sa taille ;
+- un **reset** n'est dit que s'il est **prouvé** — troncature (position au-delà de la taille) ou réinitialisation constatée par le lecteur. Le format `hc2:` ne transporte pas `dev`/`ino` : je ne prétends donc pas détecter une rotation de même taille, et c'est écrit ici.
+- une famille SQLite non composée (`devin`) → `Invalide` nommé, jamais une page vide déguisée.
+
+### Preuve
+
+| Commande | Résultat |
+|---|---|
+| `cargo test -p sessions` | PASS — **91 tests** (dont 9 sur le port : page initiale et son curseur, suite sans doublon, fichier absent, curseur étranger refusé, curseur illisible, page arrière, résolution par emplacement publié, absence de preuve, métadonnées sans modèle supposé). |
+| `cargo xtask verify` | **5 portes vertes**. |
+| `bun run verify` | **1137 tests**. |
+| `main` | **les cinq ports sont composés** ; il reste à les **assembler** (`composition::services`) et à monter le routeur. |
+
+### Reste
+
+`composition` + `main` : construire `Services` à partir des cinq ports, monter le routeur, lancer `cycle::sert` avec les signaux. C'est l'étape d'assemblage — pas une capacité nouvelle, du câblage.

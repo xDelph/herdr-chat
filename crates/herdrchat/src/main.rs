@@ -24,7 +24,7 @@ use std::sync::Arc;
 /// bornage). La liste est la source de vérité du refus : elle rétrécit à
 /// mesure que les adaptateurs arrivent, et elle ne ment jamais sur ce qui
 /// manque.
-const PORTS_ATTENDUS: [&str; 1] = ["sessions (sessions)"];
+const PORTS_ATTENDUS: [&str; 0] = [];
 
 fn main() {
     let environnement: HashMap<String, String> = std::env::vars().collect();
@@ -81,8 +81,21 @@ fn demarre(config: &Config) -> Result<(), String> {
     let _notifications = notifications::port::PortNotifications::nouveau(Arc::new(
         notifications::store::GardienDeStore::nouveau(config.push_store_path.clone(), None),
     ));
-    // 5) `sessions` n'a pas encore d'adaptateur : le démon refuse de servir
-    //    une API dont la lecture de conversation manquerait.
+    // 5) Les sessions : les racines de la configuration, résolues par le
+    //    résolveur, lues par les lecteurs par famille.
+    let _sessions = sessions::port::PortSessions::nouveau(sessions::resolver::Racines {
+        claude_projects: config
+            .session_roots
+            .first()
+            .cloned()
+            .unwrap_or_else(|| config.codex_home.clone()),
+        codex_home: config.codex_home.clone(),
+        codex_sessions: config.codex_home.clone(),
+        devin_db: config.devin_db_path.clone(),
+        opencode_db: config.opencode_db_path.clone(),
+    });
+    // Les cinq ports sont composés : il reste à les ASSEMBLER (`composition`)
+    // et à monter le routeur — l'étape suivante.
     Err(ManquePort {
         ports: PORTS_ATTENDUS.to_vec(),
     }

@@ -12,5 +12,6 @@ pub(crate) mod jsonl;
 pub(crate) mod metadata;
 pub(crate) mod path_policy;
 pub(crate) mod pipeline;
+pub(crate) mod port;
 pub(crate) mod resolver;
 pub(crate) mod sqlite;

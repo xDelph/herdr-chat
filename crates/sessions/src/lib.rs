@@ -8,5 +8,6 @@ pub mod index;
 pub mod metadata;
 pub mod path_policy;
 pub mod pipeline;
+pub mod port;
 pub mod resolver;
 pub mod storage;
