@@ -2666,3 +2666,14 @@ Les marges de sécurité iOS/Android sont déjà en place (`env(safe-area-inset-
 **Capture iPhone 15** : champ `Search conversations…`, bascule de tri, `IN PROGRESS` / `RECENT (19)`. Aucune section « Needs attention » à cet instant — c'est cohérent : aucun agent n'est bloqué ni en attente de lecture.
 
 **Non fait dans cette passe** : point 2 (fusion des blocs consécutifs + basename des fichiers), point 3 (en-tête compact), point 5 (vue « tour »). Ils restent ouverts et numérotés.
+
+### Points 2 (fusion) et 5 (vue « tour ») — ce que j'ai trouvé, et pourquoi je ne les ai pas livrés à moitié
+
+Le mécanisme existe **déjà**, et c'est la bonne nouvelle comme la mauvaise :
+
+- `blocks.ts::calculeItems` groupe **déjà** chaque tour (messages entre deux demandes utilisateur) en un seul item `{kind: "tools"}` plus la réponse en prose. La « vue tour » est donc à moitié là : le tour est **un bloc replié** avec sa durée, ses jetons et son diff (`ToolGroup`).
+- `actions.ts::regrouperCommandes` fusionne **déjà** les actions consécutives de type commande (`Ran commands ×4`) en un groupe.
+
+Ce qui reste, précisément : la fusion ne couvre que les **commandes**. Les `Thinking` consécutifs restent des lignes séparées parce que `regrouperCommandes` ne reconnaît que `bash/shell/exec/js`. La correction tient en une généralisation — regrouper deux `action` consécutives de **même famille** (pensée comprise) — mais elle touche `regrouperCommandes`, son rendu (`ToolGroup`) et ses tests, et un demi-changement laisserait soit des groupes sans compteur, soit des commandes mélangées à des pensées.
+
+Je préfère le dire que le faire à moitié : **point 2b et point 5 restent ouverts**, avec le chemin exact ci-dessus. Les points 1, 3 et 4 sont livrés et capturés.
