@@ -163,8 +163,8 @@ export const LaunchSheet = ({ kinds, launching, onClose, onLaunch, titre, worksp
             propres valeurs — c'est un choix proposé, pas une absence.
           */
         <p className="muted small">
-          {catalog?.error ?? `aucun catalogue de modèles vérifié pour ${kind}`} — l'agent démarrera
-          avec ses propres valeurs.
+          {catalog?.error ?? `no verified model catalog for ${kind}`} — l'agent démarrera avec ses
+          propres valeurs.
         </p>
       ) : (
         <>

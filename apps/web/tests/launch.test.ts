@@ -142,7 +142,7 @@ describe("U06 — l'envoi est bloqué, et la cause est dite", () => {
     });
     expect(verdict.envoyable).toBe(false);
     // C'est exactement le symptôme du filtre mal utilisé comme sélection.
-    if (!verdict.envoyable) expect(verdict.raison).toContain("2 modèles vérifiés");
+    if (!verdict.envoyable) expect(verdict.raison).toContain("2 verified models");
   });
 
   test("catalogue illisible : bloqué plutôt que d'envoyer un identifiant inventé", () => {
@@ -164,10 +164,10 @@ describe("U06 — l'envoi est bloqué, et la cause est dite", () => {
       thinking: "",
     });
     expect(verdict.envoyable).toBe(false);
-    if (!verdict.envoyable) expect(verdict.raison).toContain("aucun modèle vérifié");
+    if (!verdict.envoyable) expect(verdict.raison).toContain("no verified model");
   });
 
-  test("modèle sans aucun niveau déclaré : le refus le dit", () => {
+  test("modèle sans no reasoning level déclaré : le refus le dit", () => {
     const verdict = verifierLancement({
       catalog: catalogue("pi", [modele("muet")]),
       kind: "pi",
@@ -175,7 +175,7 @@ describe("U06 — l'envoi est bloqué, et la cause est dite", () => {
       thinking: "high",
     });
     expect(verdict.envoyable).toBe(false);
-    if (!verdict.envoyable) expect(verdict.raison).toContain("aucun niveau");
+    if (!verdict.envoyable) expect(verdict.raison).toContain("no reasoning level");
   });
 });
 

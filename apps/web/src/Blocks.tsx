@@ -540,7 +540,7 @@ const ImageContentBlock = ({ block }: { block: Extract<Block, { kind: "image" }>
   <img
     className="blk__image"
     src={`data:${block.mimeType};base64,${block.data}`}
-    alt="pièce jointe"
+    alt="attachment"
   />
 );
 

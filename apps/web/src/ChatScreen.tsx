@@ -356,7 +356,7 @@ export const ChatScreen = ({
         }
         setLecturePartielle(mentionLecturePartielle(message));
         setError(message);
-        reportError("échec du chargement de session", {
+        reportError("failed to load the session", {
           message,
           paneId: agent.paneId,
         });
@@ -963,7 +963,7 @@ export const ChatScreen = ({
     } catch (cause) {
       const detail = cause instanceof Error ? cause.message : String(cause);
       setStopFeedback(`Stop request failed: ${detail}`);
-      reportError("échec de l'interruption d'un agent", {
+      reportError("failed to interrupt the agent", {
         detail,
         paneId: agent.paneId,
       });

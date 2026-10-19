@@ -119,7 +119,7 @@ export const creeMagasinEnvois = (lance: Lanceur, planifie: Planificateur): Maga
       const resultat = await lance(pane, text);
       if (resultat.kind === "suppressed") {
         remplace(id, {
-          detail: `Herdr avait déjà confirmé un envoi identique : ${resultat.reason}`,
+          detail: `Herdr had already confirmed an identical send: ${resultat.reason}`,
           state: "delivered",
         });
         return;

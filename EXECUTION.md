@@ -2630,3 +2630,21 @@ L'attente est maintenant **sur le contenu** (`attendreQue`), jamais sur une dur�
 | « le texte déborde à 320 px » | `setDeviceMetricsOverride` **sans `reload`** : la page gardait la mise en page de la taille précédente |
 
 Les deux dernières ont été prises pour des défauts d'interface. C'est exactement le piège que le dépôt nomme ailleurs : **une mesure dont on ne peut pas prouver qu'elle échoue ne prouve rien** — et un harnais qui mesure mal fabrique des défauts qui n'existent pas.
+
+### T072 — l'interface passe entièrement en anglais
+
+Décision (utilisateur) : l'environnement est agentique/IA/dev, l'anglais est la langue commune. Les **commentaires, specs et journal restent en français** — c'est la convention du dépôt —, seule l'**interface** change de langue.
+
+Traductions appliquées (31 chaînes visibles + `‹ Files`) :
+
+| Fichier | Exemples |
+|---|---|
+| `api.ts` | `réponse illisible` → `unreadable response`, `forme de réponse inattendue : …` → `unexpected response shape: …`, `échec (status)` → `failed (status)`, `arrêt d'agent` → `agent stop`, `catalogue de modèles` → `model catalog` |
+| `ChatScreen.tsx` | `échec du chargement de session` → `failed to load the session`, `échec de l'interruption d'un agent` → `failed to interrupt the agent` |
+| `App.tsx` | `échec du chargement de la vue d'ensemble` → `failed to load the overview`, `échec du lancement d'agent` → `failed to launch an agent` |
+| `launch.ts` | `« x » ne fait pas partie des N modèles vérifiés de Y` → `“x” is not among the N verified models of Y` |
+| `LaunchSheet` / `ModelSheet` / `Blocks` / `main.tsx` | `aucun catalogue…`, `pièce jointe` → `attachment`, `élément #root introuvable` → `#root element not found` |
+
+Le balayage est **mécanique** : extraction des chaînes et du texte JSX hors commentaires, puis contrôle final (**0 chaîne accentuée restante**). Quatre tests qui affirmaient les libellés français ont suivi (`launch`, `etats-envoi`, `envois-store`) — une traduction qui laisse les tests en français ne prouve rien.
+
+⚠️ **Ce qui n'est pas traduit, volontairement** : les messages de `reportError(...)` destinés au **journal serveur** restent en français (ce sont des lignes de diagnostic, pas de l'interface), et tous les commentaires.

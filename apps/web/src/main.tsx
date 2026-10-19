@@ -75,7 +75,7 @@ registerSW({
 
 const container = document.getElementById("root");
 if (container === null) {
-  throw new Error("élément #root introuvable");
+  throw new Error("#root element not found");
 }
 
 createRoot(container).render(

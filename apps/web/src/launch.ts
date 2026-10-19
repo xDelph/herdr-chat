@@ -146,7 +146,7 @@ export const verifierLancement = ({
   if (catalog === null) {
     return {
       envoyable: false,
-      raison: `catalogue de ${kind} illisible : « ${model} » ne peut pas être vérifié.`,
+      raison: `unreadable ${kind} catalog: “${model}” cannot be verified.`,
     };
   }
 
@@ -157,8 +157,8 @@ export const verifierLancement = ({
       envoyable: false,
       raison:
         nombre === 0
-          ? `aucun modèle vérifié pour ${catalog.kind} : « ${model} » ne peut pas être confirmé.`
-          : `« ${model} » ne fait pas partie des ${nombre} modèles vérifiés de ${catalog.kind}.`,
+          ? `no verified model for ${catalog.kind}: “${model}” cannot be confirmed.`
+          : `“${model}” is not among the ${nombre} verified models of ${catalog.kind}.`,
     };
   }
 
@@ -168,7 +168,7 @@ export const verifierLancement = ({
       envoyable: false,
       raison:
         acceptes.length === 0
-          ? `« ${model} » ne déclare aucun niveau de raisonnement.`
+          ? `“${model}” declares no reasoning level.`
           : `« ${thinking} » n'est pas un niveau de « ${model} » (${acceptes.join(", ")}).`,
     };
   }

@@ -68,7 +68,7 @@ export type {
 /**
  * Répond à une invite de confiance.
  *
- * `accepted: false` n'est pas une erreur réseau : le serveur a refusé d'envoyer
+ * `accepted: false` n'est pas une erreur réseau : le serveur a refused d'envoyer
  * quoi que ce soit, et `detail` dit pourquoi. Les deux cas sont distingués pour
  * que l'interface n'affiche jamais « répondu » quand rien ne l'a été.
  */
@@ -109,18 +109,18 @@ export const answerTrust = async (paneId: string, accept: boolean): Promise<Trus
     const failure = decodeError(payload);
     return {
       accepted: false,
-      detail: failure?.error ?? `échec ${String(response.status)}`,
+      detail: failure?.error ?? `failed (${String(response.status)})`,
       state: "inconnu",
     };
   }
   const decoded = decoderOf(TrustResolvedResponse)(payload);
   if (decoded === undefined) {
     // Réponse illisible : on ne la lit pas comme un refus, ni comme un accord.
-    return { accepted: false, detail: "réponse illisible", state: "inconnu" };
+    return { accepted: false, detail: "unreadable response", state: "inconnu" };
   }
   return {
     accepted: decoded.accepted,
-    detail: decoded.accepted ? "ok" : "refusé",
+    detail: decoded.accepted ? "ok" : "refused",
     state: decoded.state,
   };
 };
@@ -148,7 +148,7 @@ const OverviewSchema = OverviewResponse;
  * Lance un agent dans un projet.
  *
  * Deux étapes côté serveur (onglet puis agent), une seule action côté client.
- * Un projet qui a déjà un agent est **refusé** : lancer un second agent est un
+ * Un projet qui a déjà un agent est **refused** : lancer un second agent est un
  * choix explicite, pas un effet de bord.
  */
 export const launchAgent = async (
@@ -183,12 +183,12 @@ export const launchAgent = async (
   }
   if (!response.ok) {
     const failure = decodeError(payload);
-    throw new Error(failure?.error ?? `échec ${String(response.status)}`);
+    throw new Error(failure?.error ?? `failed (${String(response.status)})`);
   }
 
   const decoded = decoderOf(LaunchAgentResponse)(payload);
   if (decoded === undefined) {
-    throw new Error("forme de réponse inattendue : lancement");
+    throw new Error("unexpected response shape: launch");
   }
   return decoded;
 };
@@ -203,7 +203,7 @@ export const fetchModelCatalog = (kind: string): Promise<ModelCatalogResponse> =
   decoded(
     `/api/agents/${encodeURIComponent(kind)}/models`,
     decoderOf(ModelCatalogResponse),
-    "catalogue de modèles",
+    "model catalog",
   );
 
 /**
@@ -247,7 +247,7 @@ const readJson = async (response: Response): Promise<unknown> => {
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error(`réponse illisible (${response.status})`);
+    throw new Error(`unreadable response (${response.status})`);
   }
 };
 
@@ -259,7 +259,7 @@ const request = async (path: string, init?: RequestInit): Promise<unknown> => {
   const payload = await readJson(response);
   if (!response.ok) {
     const failure = decodeError(payload);
-    throw new Error(failure?.error ?? `échec ${response.status}`);
+    throw new Error(failure?.error ?? `failed (${response.status})`);
   }
   return payload;
 };
@@ -273,7 +273,7 @@ const decoded = async <A>(
   const payload = await request(path);
   const value = decodePayload(payload);
   if (value === undefined) {
-    throw new Error(`forme de réponse inattendue : ${label}`);
+    throw new Error(`unexpected response shape: ${label}`);
   }
   return value;
 };
@@ -327,7 +327,7 @@ export const fetchSession = (
 export const fetchAgentKinds = async (): Promise<ReadonlyArray<InstalledKind>> => {
   const payload = await request("/api/agents/kinds");
   const kinds = decoderOf(InstalledKindsResponse)(payload);
-  if (kinds === undefined) throw new Error("forme de réponse inattendue : types d'agents");
+  if (kinds === undefined) throw new Error("unexpected response shape: agent kinds");
   return kinds.kinds;
 };
 
@@ -335,7 +335,7 @@ export const fetchAgentKinds = async (): Promise<ReadonlyArray<InstalledKind>> =
 export const fetchRecentImages = async (): Promise<ReadonlyArray<RecentImage>> => {
   const payload = await request("/api/images");
   const images = decoderOf(RecentImagesResponse)(payload);
-  if (images === undefined) throw new Error("forme de réponse inattendue : images");
+  if (images === undefined) throw new Error("unexpected response shape: images");
   return images.images;
 };
 
@@ -374,7 +374,7 @@ export const sendPrompt = async (paneId: string, text: string): Promise<SendResu
   } catch {
     return {
       kind: "failed",
-      message: `réponse illisible (${response.status})`,
+      message: `unreadable response (${response.status})`,
       state: "inconnu",
     };
   }
@@ -406,7 +406,7 @@ export const sendPrompt = async (paneId: string, text: string): Promise<SendResu
   const failure = decodeError(payload);
   return {
     kind: "failed",
-    message: failure?.error ?? `échec ${response.status}`,
+    message: failure?.error ?? `failed (${response.status})`,
     state: "inconnu",
   };
 };
@@ -416,7 +416,7 @@ export const stopAgent = (paneId: string): Promise<StopAgentResponse> =>
   decoded(
     `/api/agents/${encodeURIComponent(paneId)}/stop`,
     decoderOf(StopAgentResponse),
-    "arrêt d'agent",
+    "agent stop",
   );
 
 /**
@@ -552,7 +552,7 @@ export const openEventStream = (handlers: {
  * URL de lecture d'un fichier du projet.
  *
  * Le serveur n'accepte que les chemins **sous les dossiers de travail des
- * projets** : un chemin hors de là est refusé (403), pas servi.
+ * projets** : un chemin hors de là est refused (403), pas servi.
  */
 export const fileUrl = (path: string): string => `/api/file?path=${encodeURIComponent(path)}`;
 
@@ -602,7 +602,7 @@ export const answerQuestion = async (
     payload = await readJson(response);
   } catch {
     return {
-      detail: `réponse illisible (${response.status})`,
+      detail: `unreadable response (${response.status})`,
       state: "refusee",
     };
   }
@@ -612,9 +612,9 @@ export const answerQuestion = async (
     const message =
       typeof payload === "object" && payload !== null && "error" in payload
         ? String((payload as { error?: unknown }).error)
-        : `échec (${response.status})`;
+        : `failed (${response.status})`;
     return {
-      detail: message.length > 0 ? message : `échec (${response.status})`,
+      detail: message.length > 0 ? message : `failed (${response.status})`,
       state: "refusee",
     };
   }
@@ -623,7 +623,7 @@ export const answerQuestion = async (
   const valeur = Option.getOrUndefined(decode(payload));
   return valeur === undefined
     ? {
-        detail: "réponse illisible : l'état n'a pas pu être lu",
+        detail: "unreadable response: the state could not be read",
         state: "refusee",
       }
     : { detail: valeur.detail, state: valeur.state };

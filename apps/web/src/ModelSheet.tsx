@@ -142,7 +142,7 @@ export const ModelSheet = ({
         const message = cause instanceof Error ? cause.message : String(cause);
         if (!cancelled) {
           setCatalogError(message);
-          reportError("échec de lecture du catalogue de modèles", { kind, message });
+          reportError("failed to read the model catalog", { kind, message });
         }
       }
     })();

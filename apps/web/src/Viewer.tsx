@@ -180,7 +180,7 @@ export const FileViewer = ({ path, onClose, onBack }: ViewerProps) => {
       ariaLabel={`${name} — viewer`}
       onClose={onClose}
       onRetour={onBack}
-      retourLibelle={onBack === undefined ? undefined : "‹ Fichiers"}
+      retourLibelle={onBack === undefined ? undefined : "‹ Files"}
       titre={name}
     >
       <p className="file__path mono small">{path}</p>

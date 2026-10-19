@@ -188,7 +188,7 @@ describe("T058 — les états du fil, sans mensonge", () => {
     await souffle();
     const envoi = magasin.liste("w1:p1")[0];
     expect(envoi?.state).toBe("delivered");
-    expect(envoi?.detail).toContain("déjà confirmé");
+    expect(envoi?.detail).toContain("already confirmed");
   });
 
   test("le lanceur qui LÈVE donne un échec `inconnu`", async () => {

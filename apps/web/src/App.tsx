@@ -252,7 +252,7 @@ export const App = () => {
     if (resultat.overview.ok) {
       setOverview(resultat.overview.valeur);
     } else {
-      reportError("échec du chargement de la vue d'ensemble", resultat.overview.cause);
+      reportError("failed to load the overview", resultat.overview.cause);
     }
     if (resultat.health.ok) {
       setHealth(resultat.health.valeur);
@@ -577,7 +577,7 @@ export const App = () => {
           } else {
             const message = cause instanceof Error ? cause.message : String(cause);
             setLaunchError(message);
-            reportError("échec du lancement d'agent", {
+            reportError("failed to launch an agent", {
               message,
               workspaceId,
               kind,

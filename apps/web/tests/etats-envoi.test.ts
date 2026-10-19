@@ -174,7 +174,7 @@ describe("U08 — la décision ne se perd plus en route", () => {
   });
 
   test("une réponse illisible n'est lue ni comme un accord ni comme un refus", () => {
-    expect(api).toContain('detail: "réponse illisible", state: "inconnu"');
+    expect(api).toContain('detail: "unreadable response", state: "inconnu"');
   });
 
   test("la carte ne se sépare que d'un état résolu", () => {
