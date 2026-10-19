@@ -1695,3 +1695,52 @@ Périmètre : `packages/shared/src/{api.ts, protocol.ts, index.ts}`, `packages/s
 3. **`caughtUp` (C18) et `SessionChanged` (C26) sont dans la façade** ; leur **consommation** côté client (invalidation immédiate au lieu du sondage 400 ms) reste **T059**, comme la table de couverture du plan le prévoit.
 
 Commit préfixé `T057b:`.
+
+## T061 — libellés des cinq états (C22)
+
+Périmètre : `apps/web/src/mot-etat.ts` (nouveau), `apps/web/src/ConversationRow.tsx`, `apps/web/tests/mot-etat.test.ts` (nouveau). Les tableaux Markdown étaient déjà corrigés (T0?? antérieur, `markdown.test.ts`).
+
+### Défauts corrigés (mesurés, pas supposés)
+
+| Défaut | Conséquence | Correction |
+|---|---|---|
+| `blocked` affichait « working » | l'utilisateur croyait l'agent au travail alors qu'il **attendait une réponse** — donc il ne la donnait pas | le mot vient de `STATUS_LABEL` (« waiting for input »), la table partagée par les autres écrans |
+| `idle` affichait « finished il y a 3 min » | une **fin inventée**, calculée sur l'horloge de l'écran et un horodatage qui ne dit rien d'une fin de travail | `idle` dit « idle », point. La durée n'est ajoutée que pour `done`, et seulement si la session fournit l'horodatage |
+
+Le libellé vit maintenant dans **un module** (`mot-etat.ts`) : `ConversationRow` l'importe, et la table des mots reste celle de `labels.tsx` — deux endroits ne peuvent plus diverger.
+
+### Preuve
+
+| Commande | Résultat |
+|---|---|
+| `bun test apps/web/tests/mot-etat.test.ts` | PASS — **8 tests** : les cinq états, `blocked ≠ working`, `idle` sans « finished », `done` avec/sans horodatage, et **la ligne réellement rendue** (`renderToStaticMarkup`) pour `blocked` et `idle`. |
+| `bun test` | PASS — **1105 tests**. |
+| `bun run verify` + `cargo xtask verify` | verts. |
+
+## T063 — une frappe ne recalcule plus l'historique (C27)
+
+Périmètre : `apps/web/src/blocks.ts` (mémoïsation de `toItems`/`touchedFilesOf`), `apps/web/src/ChatScreen.tsx` (`useMemo`), `apps/web/tests/calcul-historique.test.ts` (nouveau).
+
+### Ce qui a changé
+
+| Avant | Après |
+|---|---|
+| `toItems(messages, working)` et `touchedFilesOf(messages)` appelés **dans le rendu** | `useMemo` sur `(messages, enCours)` dans `ChatScreen` |
+| Chaque frappe refaisait le découpage de **tout** l'historique | cache **par identité du tableau** (et par état du dernier tour) dans `blocks.ts` : même tableau ⇒ zéro travail, quel que soit l'appelant |
+| — | `WeakMap` : naviguer entre conversations ne retient pas les anciens tableaux |
+
+### La mesure (pas un chronomètre)
+
+Le tableau de messages est enveloppé dans un `Proxy` qui **compte les accès aux éléments** : sur **2 000 messages**, le second appel lit **zéro** message (compteur identique avant/après) et rend **le même objet**. Un tableau nouveau (message reçu) recalcule ; un changement d'état du dernier tour a son propre résultat mémorisé.
+
+| Commande | Résultat |
+|---|---|
+| `bun test apps/web/tests/calcul-historique.test.ts` | PASS — **5 tests** (2 000 messages). |
+| `bun test` | PASS — **1105 tests**. |
+
+### Notes d'honnêteté
+
+- **T062 n'est pas faite** : `ChatScreen` POSTe encore `/api/agents/:id/focus` **automatiquement** à l'ouverture et à chaque changement de statut. C24/T062 demandent « action explicite seulement », mais `TECH.md:340` dit que « whether the webapp automatically invokes it is a separate frontend product decision, outside backend parity ». **Les deux textes du plan se contredisent** : retirer l'appel change un comportement visible (les agents resteraient `done`), donc je ne le fais pas sans arbitrage.
+- **C25 (fond inerte des feuilles)** n'est pas prouvable ici : aucun harnais DOM (`happy-dom`/`jsdom`) n'est installé ; les tests existants vérifient le piège de focus par fonctions pures. Ajouter le harnais est un choix de toolchain, pas une ligne de code.
+
+Commit préfixé `T061+T063:`.

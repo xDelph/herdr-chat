@@ -21,7 +21,7 @@ import type { ConversationSummary } from "@herdr-remote/shared";
 import { etiquetteDePane } from "@herdr-remote/shared";
 import { AgentBadge } from "./AgentBadge.tsx";
 import { levelLabel } from "./launch.ts";
-import { dureeDepuis } from "./duree.ts";
+import { motDEtat } from "./mot-etat.ts";
 
 /** Couleur du mot d'état, par état du contrat. */
 const CLASSE_ETAT: Record<ConversationSummary["status"], string> = {
@@ -30,24 +30,6 @@ const CLASSE_ETAT: Record<ConversationSummary["status"], string> = {
   idle: "etat",
   unknown: "etat",
   working: "etat etat--en-cours",
-};
-
-/**
- * Mot d'état.
- *
- * « Inconnu » devient « état inconnu » : le mot seul laisserait croire à un
- * défaut de l'application plutôt qu'à une information qu'Herdr ne donne pas.
- * `done` et `idle` affichent **quand** le dernier travail s'est terminé, si la
- * session fournit son horodatage. `idle` sans historique reste simplement idle.
- */
-const motDEtat = (conversation: ConversationSummary, maintenant: number): string => {
-  if (conversation.status === "unknown") return "unknown status";
-  if (conversation.status === "done" || conversation.status === "idle") {
-    const quand = dureeDepuis(conversation.timestamp ?? null, maintenant);
-    if (quand !== null) return `finished ${quand}`;
-    return conversation.status === "done" ? "finished" : "idle";
-  }
-  return "working";
 };
 
 /**

@@ -895,7 +895,40 @@ const toolNamesOf = (
  * réponse : elle se lit hors du bloc, sinon il faudrait déplier pour lire ce
  * qu'on est venu chercher.
  */
+/**
+ * Cache de `toItems` — **par identité du tableau ET par état du dernier tour**.
+ *
+ * ⚠️ **Pourquoi (C27).** `ChatScreen` rappelle `toItems` à chaque rendu ; une
+ * frappe dans le composeur est un rendu. Sans cache, chaque touche recalculait
+ * les blocs de **tout** l'historique (mesuré : 2 000 messages), et la frappe
+ * devenait pâteuse à mesure que la conversation grandissait.
+ *
+ * La clé est l'**identité** du tableau : `messages` est un état, il ne change
+ * qu'à l'arrivée de vrais messages. Un nouveau tableau = un nouveau calcul ;
+ * le même tableau = zéro travail. Le booléen du dernier tour fait partie de la
+ * clé : un agent qui passe à `working` change le découpage, sans changer le
+ * tableau.
+ *
+ * ⚠️ Une `WeakMap` : le cache ne retient pas les tableaux abandonnés (naviguer
+ * entre deux conversations ne fuit pas).
+ */
+const cacheItems = new WeakMap<ReadonlyArray<RenderedMessage>, Map<boolean, ReadonlyArray<Item>>>();
+
 export const toItems = (
+  messages: ReadonlyArray<RenderedMessage>,
+  lastTurnInProgress = false,
+): ReadonlyArray<Item> => {
+  const deja = cacheItems.get(messages)?.get(lastTurnInProgress);
+  if (deja !== undefined) return deja;
+  const calcule = calculeItems(messages, lastTurnInProgress);
+  const parEtat = cacheItems.get(messages) ?? new Map<boolean, ReadonlyArray<Item>>();
+  parEtat.set(lastTurnInProgress, calcule);
+  cacheItems.set(messages, parEtat);
+  return calcule;
+};
+
+/** Le calcul réel — séparé pour que le cache reste une ligne au-dessus. */
+const calculeItems = (
   messages: ReadonlyArray<RenderedMessage>,
   lastTurnInProgress = false,
 ): ReadonlyArray<Item> => {
@@ -1106,9 +1139,20 @@ export interface TouchedFile {
  * « fichiers touchés » doit montrer **ce qui a changé** — sinon il faut relire
  * tout le fichier pour trouver les trois lignes modifiées.
  */
+/** Cache des fichiers touchés — même clé que `toItems` (C27). */
+const cacheFichiers = new WeakMap<ReadonlyArray<RenderedMessage>, ReadonlyArray<TouchedFile>>();
+
 export const touchedFilesOf = (
   messages: ReadonlyArray<RenderedMessage>,
 ): ReadonlyArray<TouchedFile> => {
+  const deja = cacheFichiers.get(messages);
+  if (deja !== undefined) return deja;
+  const calcule = calculeFichiers(messages);
+  cacheFichiers.set(messages, calcule);
+  return calcule;
+};
+
+const calculeFichiers = (messages: ReadonlyArray<RenderedMessage>): ReadonlyArray<TouchedFile> => {
   const byPath = new Map<
     string,
     {

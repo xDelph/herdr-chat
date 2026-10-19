@@ -146,6 +146,18 @@ export const ChatScreen = ({
   /** `true` quand la visionneuse a été ouverte depuis la liste des fichiers. */
   const [fromFiles, setFromFiles] = useState(false);
 
+  /*
+    ⚠️ **Les items ne se recalculent PAS à chaque frappe (C27).** `messages`
+    est un état : il ne change qu'à l'arrivée de vrais messages. Sans ce
+    `useMemo`, chaque touche dans le composeur refaisait le découpage de tout
+    l'historique — 2 000 messages, à chaque caractère.
+  */
+  const aguiche = agent.status === "working";
+  const items = useMemo(
+    () => avecTravailEnCours(toItems(messages, aguiche), aguiche),
+    [messages, aguiche],
+  );
+
   const réglagesSession = useMemo(() => {
     let model: string | undefined;
     let provider: string | undefined;
@@ -1087,14 +1099,7 @@ export const ChatScreen = ({
                   {previousError === null ? null : <p role="alert">{previousError}</p>}
                 </div>
               )}
-              <ItemsView
-                enCours={agent.status === "working"}
-                items={avecTravailEnCours(
-                  toItems(messages, agent.status === "working"),
-                  agent.status === "working",
-                )}
-                cwd={agent.cwd}
-              />
+              <ItemsView enCours={aguiche} items={items} cwd={agent.cwd} />
               {/*
                   ⚠️ **Les envois en attente restent COLLÉS au bas du fil.**
               
