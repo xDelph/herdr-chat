@@ -251,6 +251,10 @@ impl Atelier {
         let sources = sessions_du_bundle(&fixtures, options.panes)?;
         let racine = dossier_court("herdr-banc");
 
+        // ⚠️ Chemin **canonique** : `/tmp` est un lien vers `/private/tmp` sur
+        // macOS, et une racine non canonique fait refuser les fichiers par la
+        // référence (« no usable session path ») alors qu'ils sont dedans.
+        let racine = std::fs::canonicalize(&racine).unwrap_or(racine);
         let dossier = racine.join("sessions");
         std::fs::create_dir_all(&dossier)
             .map_err(|cause| format!("dossier de sessions : {cause}"))?;
@@ -431,13 +435,28 @@ fn mesure_pile(options: &Options, pile: &str, atelier: &Atelier) -> Result<Value
     let attente = mesure::attend_pret(&racine_http, "/api/health", Duration::from_secs(120))
         .map_err(|cause| format!("pile {pile} : {cause}"))?;
 
-    let routes = vec![
+    let mut routes = vec![
         String::from("/api/overview"),
         String::from("/api/conversations"),
     ];
+    // `delta32` : la lecture de session entre dans la charge — c'est elle qui
+    // relit le fichier après l'ajout de 32 Mio (rattrapage complet).
+    if options.scenario == "delta32" || options.scenario == "base" {
+        // Le pane du premier agent de la fixture : `w0:p1` (la fausse Herdr
+        // numérote les panes par workspace/position, comme le vrai fil).
+        routes.push(String::from("/api/agents/w0:p1/session?tail=65536"));
+    }
+    // `sse-idle` : huit abonnés qui ne demandent rien, ouverts AVANT la charge.
+    let flux = if options.scenario == "sse-idle" {
+        Some(charge::FluxIdle::ouvre(&racine_http, "/api/events", 8))
+    } else {
+        None
+    };
     // La sonde : ce que la pile rend AVANT la charge. Une mesure sur des 500
     // ne mesure pas une latence, elle mesure un échec.
     let mut sondes = Vec::new();
+    // La sonde couvre la route qu'on ne saurait pas interpréter autrement :
+    // en `delta32`, une latence sur une réponse d'erreur ne dit rien.
     for route in &routes {
         match mesure::sonde(&racine_http, route) {
             Ok((statut, corps)) => sondes.push(json!({
@@ -496,6 +515,7 @@ fn mesure_pile(options: &Options, pile: &str, atelier: &Atelier) -> Result<Value
             .into();
         runs.push(json!({
             "run": indice,
+            "mode": if indice == 0 { "cold" } else { "warm" },
             "froid": indice == 0,
             "requetes": centiles.n,
             "non_200": non_200,
@@ -510,7 +530,12 @@ fn mesure_pile(options: &Options, pile: &str, atelier: &Atelier) -> Result<Value
             "par_route": routes_mesurees,
         }));
     }
+    // Les agrégats par mode : une p50 « froide » est celle du premier run,
+    // une p50 « chaude » est la médiane des suivants — les deux sont publiées
+    // séparément, parce qu'une moyenne des deux ne décrit aucun des deux.
+    let agregats = agregats_par_mode(&runs);
     let demandes_fixture = fausse.servies();
+    drop(flux);
     let _ = serveur.kill();
     let _ = serveur.wait();
     Ok(json!({
@@ -526,7 +551,58 @@ fn mesure_pile(options: &Options, pile: &str, atelier: &Atelier) -> Result<Value
         "dossier": if options.keep { atelier.racine.display().to_string() } else { String::new() },
         "demandes_fixture": demandes_fixture,
         "runs": runs,
+        "agregats": agregats,
     }))
+}
+
+/// La médiane des p50/p95 par mode (`cold` = le premier run, `warm` = les
+/// autres) et les totaux de requêtes/CPU/RSS.
+fn agregats_par_mode(runs: &[Value]) -> Value {
+    let mut sortie = serde_json::Map::new();
+    for mode in ["cold", "warm"] {
+        let selection: Vec<&Value> = runs
+            .iter()
+            .filter(|run| run.get("mode").and_then(Value::as_str) == Some(mode))
+            .collect();
+        if selection.is_empty() {
+            continue;
+        }
+        let mediane = |cle: &str| -> u128 {
+            let mut valeurs: Vec<u128> = selection
+                .iter()
+                .filter_map(|run| run.get(cle).and_then(Value::as_u64))
+                .map(u128::from)
+                .collect();
+            if valeurs.is_empty() {
+                return 0;
+            }
+            valeurs.sort_unstable();
+            valeurs[valeurs.len() / 2]
+        };
+        let somme = |cle: &str| -> u64 {
+            selection
+                .iter()
+                .filter_map(|run| run.get(cle).and_then(Value::as_u64))
+                .sum()
+        };
+        sortie.insert(
+            String::from(mode),
+            json!({
+                "runs": selection.len(),
+                "p50_us": mediane("p50_us"),
+                "p95_us": mediane("p95_us"),
+                "p99_us": mediane("p99_us"),
+                "requetes": somme("requetes"),
+                "cpu_ms": somme("cpu_ms"),
+                "rss_max_kio": selection
+                    .iter()
+                    .filter_map(|run| run.get("rss_max_kio").and_then(Value::as_u64))
+                    .max()
+                    .unwrap_or(0),
+            }),
+        );
+    }
+    Value::Object(sortie)
 }
 
 /// Le point d'entrée du sous-commande, pour `xtask bench`.

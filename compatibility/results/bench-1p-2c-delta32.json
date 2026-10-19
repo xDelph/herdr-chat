@@ -1,0 +1,273 @@
+{
+  "arch": "aarch64",
+  "clients": 2,
+  "fixture": {
+    "bundle": "compatibility/benchmark/fixtures",
+    "delta_verifie": true,
+    "fichiers_verifies": 78
+  },
+  "hote": "macos",
+  "panes": 1,
+  "piles": [
+    {
+      "agregats": {
+        "cold": {
+          "cpu_ms": 3320,
+          "p50_us": 767,
+          "p95_us": 22042,
+          "p99_us": 27812,
+          "requetes": 528,
+          "rss_max_kio": 55648,
+          "runs": 1
+        },
+        "warm": {
+          "cpu_ms": 3430,
+          "p50_us": 640,
+          "p95_us": 20053,
+          "p99_us": 29991,
+          "requetes": 585,
+          "rss_max_kio": 56080,
+          "runs": 1
+        }
+      },
+      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=54777 HERDR_REMOTE_BIND=127.0.0.1 target/{release,debug}/herdrchat",
+      "demandes_fixture": 4,
+      "dossier": "",
+      "journal_serveur": "",
+      "pile": "rust",
+      "pret_ms": 321,
+      "routes": [
+        "/api/overview",
+        "/api/conversations",
+        "/api/agents/w0:p1/session?tail=65536"
+      ],
+      "runs": [
+        {
+          "cpu_ms": 3320,
+          "echantillons": 10,
+          "froid": true,
+          "max_us": 124322,
+          "mode": "cold",
+          "non_200": 0,
+          "octets": 481956992,
+          "p50_us": 767,
+          "p95_us": 22042,
+          "p99_us": 27812,
+          "par_route": {
+            "/api/agents/w0:p1/session?tail=65536": {
+              "max_us": 124322,
+              "n": 176,
+              "p50_us": 19705,
+              "p95_us": 25941,
+              "p99_us": 105333
+            },
+            "/api/conversations": {
+              "max_us": 14648,
+              "n": 176,
+              "p50_us": 672,
+              "p95_us": 2580,
+              "p99_us": 6922
+            },
+            "/api/overview": {
+              "max_us": 6645,
+              "n": 176,
+              "p50_us": 311,
+              "p95_us": 1920,
+              "p99_us": 6431
+            }
+          },
+          "requetes": 528,
+          "rss_max_kio": 55648,
+          "run": 0
+        },
+        {
+          "cpu_ms": 3430,
+          "echantillons": 10,
+          "froid": false,
+          "max_us": 69177,
+          "mode": "warm",
+          "non_200": 0,
+          "octets": 533986440,
+          "p50_us": 640,
+          "p95_us": 20053,
+          "p99_us": 29991,
+          "par_route": {
+            "/api/agents/w0:p1/session?tail=65536": {
+              "max_us": 69177,
+              "n": 195,
+              "p50_us": 17551,
+              "p95_us": 24318,
+              "p99_us": 61302
+            },
+            "/api/conversations": {
+              "max_us": 6379,
+              "n": 195,
+              "p50_us": 588,
+              "p95_us": 2040,
+              "p99_us": 6248
+            },
+            "/api/overview": {
+              "max_us": 4531,
+              "n": 195,
+              "p50_us": 278,
+              "p95_us": 1245,
+              "p99_us": 4479
+            }
+          },
+          "requetes": 585,
+          "rss_max_kio": 56080,
+          "run": 1
+        }
+      ],
+      "sondes": [
+        {
+          "corps": "{\"agents\":[{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p1\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-60406-1792431488313875000/sessions/banc-0.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"}],\"herdrProtocol\":22,\"herdrVersion\":\"0.9.3\",\"withoutSession\":0,\"workspaces\":[{\"agentPanes\":[\"w0:p1\"],\"agentStatus\":null,\"checkoutPath\":\"/tmp/banc\",\"focused\":false,\"label\":\"banc-0\",\"paneCount\":4,\"tabCount\":1,\"workspaceId\":\"w0\"}]}",
+          "route": "/api/overview",
+          "statut": 200
+        },
+        {
+          "corps": "{\"conversations\":[{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\nlecture repli repli focus catalogne opaque référence cause curseur état mesure rafraîchissement verdict verdict accessibilité rafraîchissement lecture rendu\",\"sessionState\":\"available\",\"timestamp\":1709715240000,\"title\":\"banc 0 — essai\",\"status\":\"idle\",\"workspaceId\":\"w0\",\"tabId\":\"w0:t1\",\"paneId\":\"w0:p1\"}]}",
+          "route": "/api/conversations",
+          "statut": 200
+        },
+        {
+          "corps": "{\"cause\":\"vide\",\"entries\":[{\"type\":\"message\",\"id\":\"msg-0-u\",\"raw\":\"{\\\"content\\\":[{\\\"text\\\":\\\"Le chemin critique passe par le serveur, jamais par le contenu de la session. (0)\\\",\\\"type\\\":\\\"text\\\"}],\\\"id\\\":\\\"msg-0-u\\\",\\\"role\\\":\\\"user\\\",\\\"timestamp\\\":\\\"2024-03-05T08:00:00.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:00:00.000Z\"},{\"type\":\"message\",\"id\":\"msg-0-a\",\"raw\":\"{\\\"message\\\":{\\\"content\\\":[{\\\"thinking\\\":\\\"opaque vérification décodage vérification contrat octets erreur verdict octets repli feuille fenêtre session repli verdict cause erreur décodage\\\",\\\"type\\\":\\\"thinking\\\"},{\\\"text\\\":\\\"Le chemin critique passe par le serveur, jamais par le contenu de la session.\\\\n\\\\nrendu état vérification mesure opaque décodage décodage fenêtre octets fenêtre cause fenêtre décodage fenêtre catalogne lecture rendu fenêtre\\\",\\\"type\\\":\\\"text\\\"},{\\\"arguments\\\":{\\\"path\\\":\\\"/dev/projets/pixel/src/fichier-0.ts\\\"},\\\"id\\\":\\\"call-0\\\",\\\"name\\\":\\\"read\\\",\\\"type\\\":\\\"toolCall\\\"}],\\\"model\\\":\\\"gpt-5\\\",\\\"role\\\":\\\"assistant\\\",\\\"stopReason\\\":\\\"toolUse\\\",\\\"usage\\\":{\\\"cost\\\":{\\\"total\\\":0.01},\\\"totalTokens\\\":400}},\\\"id\\\":\\\"msg-0-a\\\",\\\"timestamp\\\":\\\"2024-03-05T08:00:02.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:00:02.000Z\"},{\"type\":\"message\",\"id\":\"msg-0-r\",\"parentId\":\"msg-0-a\",\"raw\":\"{\\\"message\\\":{\\\"content\\\":[{\\\"output\\\":\\\"lecture rendu rendu repli décodage fenêtre résultat référence fenêtre contrat octets contrat résultat erreur curseur focus feuille mesure\\\",\\\"toolCallId\\\":\\\"call-0\\\",\\\"toolName\\\":\\\"read\\\"}],\\\"role\\\":\\\"toolResult\\\",\\\"toolName\\\":\\\"read\\\"},\\\"id\\\":\\\"msg-0-r\\\",\\\"parentId\\\":\\\"msg-0-a\\\",\\\"timestamp\\\":\\\"2024-03-05T08:00:03.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:00:03.000Z\"},{\"type\":\"message\",\"id\":\"msg-1-u\",\"raw\":\"{\\\"content\\\":[{\\\"text\\\":\\\"Une mesure sans méthode n'est pas une mesure, c'est une impression. (1)\\\",\\\"type\\\":\\\"text\\\"}],\\\"id\\\":\\\"msg-1-u\\\",\\\"role\\\":\\\"user\\\",\\\"timestamp\\\":\\\"2024-03-05T08:01:00.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:01:00.000Z\"},{\"type\":\"message\",\"id\":\"msg-1-a\",\"raw\":\"{\\\"message\\\":{\\\"content\\\":[{\\\"thinking\\\":\\\"état octets vérification focus lecture focus octets accessibilité vérification résultat opaque rafraîchissement décodage état opaque mesure accessibilité feuille\\\",\\\"type\\\":\\\"thinking\\\"},{\\\"text\\\":\\\"Une mesure sans méthode n'est pas une mesure, c'est une impression.\\\\n\\\\nfeuille accessibilité rafraîchissement opaque rafraîchissement curseur accessibilité décodage repli accessibilité vérification erreur fenêtre verdict décodage accessibilité référence opaque\\\",\\\"type\\\":\\\"text\\\"},{\\\"arguments\\\":{\\\"path\\\":\\\"/dev/projets/pixel/src/fichier-1.ts\\\"},\\\"id\\\":\\\"call-1\\\",\\\"name\\\":\\\"edit\\\",\\\"type\\\":\\\"toolCall\\\"}],\\\"model\\\":\\\"gpt-5\\\",\\\"role\\\":\\\"assistant\\\",\\\"stopReason\\\":\\\"toolUse\\\",\\\"usage\\\":{\\\"cost\\\":{\\\"total\\\":0.011},\\\"totalTokens\\\":401}},\\\"id\\\":\\\"msg-1-a\\\",\\\"timestamp\\\":\\\"2024-03-05T08:01:02.000Z\\\",\\\"type\\\":\\\"message\\\"}\",\"timestamp\":\"2024-03-05T08:01:02.000Z\"},{\"type\":\"message\",\"id\":\"msg-1-",
+          "route": "/api/agents/w0:p1/session?tail=65536",
+          "statut": 200
+        }
+      ]
+    },
+    {
+      "agregats": {
+        "cold": {
+          "cpu_ms": 2550,
+          "p50_us": 818,
+          "p95_us": 2031,
+          "p99_us": 3491,
+          "requetes": 3953,
+          "rss_max_kio": 139552,
+          "runs": 1
+        },
+        "warm": {
+          "cpu_ms": 2390,
+          "p50_us": 746,
+          "p95_us": 1874,
+          "p99_us": 3631,
+          "requetes": 4180,
+          "rss_max_kio": 149568,
+          "runs": 1
+        }
+      },
+      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=55919 HERDR_REMOTE_BIND=127.0.0.1 bun run apps/server/src/main.ts",
+      "demandes_fixture": 8141,
+      "dossier": "",
+      "journal_serveur": "",
+      "pile": "ts",
+      "pret_ms": 332,
+      "routes": [
+        "/api/overview",
+        "/api/conversations",
+        "/api/agents/w0:p1/session?tail=65536"
+      ],
+      "runs": [
+        {
+          "cpu_ms": 2550,
+          "echantillons": 10,
+          "froid": true,
+          "max_us": 16901,
+          "mode": "cold",
+          "non_200": 1317,
+          "octets": 2138911,
+          "p50_us": 818,
+          "p95_us": 2031,
+          "p99_us": 3491,
+          "par_route": {
+            "/api/agents/w0:p1/session?tail=65536": {
+              "max_us": 5871,
+              "n": 1317,
+              "p50_us": 589,
+              "p95_us": 1441,
+              "p99_us": 2441
+            },
+            "/api/conversations": {
+              "max_us": 16901,
+              "n": 1318,
+              "p50_us": 1181,
+              "p95_us": 2745,
+              "p99_us": 4808
+            },
+            "/api/overview": {
+              "max_us": 9162,
+              "n": 1318,
+              "p50_us": 735,
+              "p95_us": 1543,
+              "p99_us": 2455
+            }
+          },
+          "requetes": 3953,
+          "rss_max_kio": 139552,
+          "run": 0
+        },
+        {
+          "cpu_ms": 2390,
+          "echantillons": 10,
+          "froid": false,
+          "max_us": 27682,
+          "mode": "warm",
+          "non_200": 1392,
+          "octets": 2262056,
+          "p50_us": 746,
+          "p95_us": 1874,
+          "p99_us": 3631,
+          "par_route": {
+            "/api/agents/w0:p1/session?tail=65536": {
+              "max_us": 18215,
+              "n": 1392,
+              "p50_us": 536,
+              "p95_us": 1195,
+              "p99_us": 2522
+            },
+            "/api/conversations": {
+              "max_us": 27682,
+              "n": 1394,
+              "p50_us": 1083,
+              "p95_us": 2519,
+              "p99_us": 5553
+            },
+            "/api/overview": {
+              "max_us": 11689,
+              "n": 1394,
+              "p50_us": 680,
+              "p95_us": 1393,
+              "p99_us": 2402
+            }
+          },
+          "requetes": 4180,
+          "rss_max_kio": 149568,
+          "run": 1
+        }
+      ],
+      "sondes": [
+        {
+          "corps": "{\"agents\":[{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p1\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-60406-1792431488313875000/sessions/banc-0.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"}],\"herdrProtocol\":22,\"herdrVersion\":\"0.9.3\",\"withoutSession\":0,\"workspaces\":[{\"agentPanes\":[\"w0:p1\"],\"agentStatus\":null,\"checkoutPath\":null,\"focused\":false,\"label\":\"banc-0\",\"paneCount\":4,\"tabCount\":1,\"workspaceId\":\"w0\"}]}",
+          "route": "/api/overview",
+          "statut": 200
+        },
+        {
+          "corps": "{\"conversations\":[{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneId\":\"w0:p1\",\"paneRank\":null,\"preview\":\"Le chemin critique passe par le serveur, jamais par le contenu de la session.\\n\\noctets opaque fenêtre cause lecture session mesure p95 résultat décodage décodage fenêtre cause fenêtre opaque p95 résultat rendu\",\"sessionState\":\"available\",\"status\":\"idle\",\"tabId\":\"\",\"tabPaneCount\":1,\"timestamp\":1709625603000,\"title\":\"banc-0\",\"workspaceId\":\"w0\"}]}",
+          "route": "/api/conversations",
+          "statut": 200
+        },
+        {
+          "corps": "{\"error\":\"no usable session path for this agent\"}",
+          "route": "/api/agents/w0:p1/session?tail=65536",
+          "statut": 404
+        }
+      ]
+    }
+  ],
+  "runs": 2,
+  "scenario": "delta32",
+  "schemaVersion": 1,
+  "secondes": 2
+}

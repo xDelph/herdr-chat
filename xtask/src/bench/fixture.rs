@@ -121,7 +121,11 @@ fn sert(flux: UnixStream, plan: &Plan, compteur: &AtomicU64) -> std::io::Result<
         })),
         "agent.list" => Ok(json!({ "agents": agents(plan) })),
         "integration.list" => Ok(json!({ "integrations": integrations() })),
-        "agent.read" => Ok(json!({
+        // ⚠️ `agent.get` est demandé par la référence sur la route de session ;
+        // sans lui elle recevait une erreur de méthode inconnue et rendait un
+        // 502 — un faux incomplet accusait la pile mesurée.
+        "agent.get" => Ok(agents(plan).first().cloned().unwrap_or_else(|| json!({}))),
+        "pane.read" | "agent.read" => Ok(json!({
             "read": { "text": "écran de banc d'essai\n", "truncated": false }
         })),
         autre => Err(format!("méthode non servie par la fausse : {autre}")),

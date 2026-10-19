@@ -2322,3 +2322,42 @@ Lecture honnête de la ligne « CPU » : à 50 panes, le CPU brut de Rust (4,6 s
 **La condition d'acceptation de T065 est remplie sur ces trois charges** : p95 et RSS sous la référence, une mesure (toutes) s'améliore, 0 non-200, 1 rafraîchissement partagé (le compteur de demandes à la fausse Herdr le montre : 5 à 6 demandes pour des milliers de requêtes HTTP).
 
 **Restent ouverts dans T065** : les scénarios `delta32`, `lockDB`, `sse-idle`, et le couple `cold`/`warm` formalisé (les runs consécutifs d'un même processus en donnent déjà l'écart, mais ce n'est pas encore nommé dans le rapport).
+
+### Les scénarios : `cold`/`warm` nommés, `sse-idle` et `delta32` mesurés
+
+Le rapport porte maintenant `mode` par run (`cold` = premier run, `warm` = les suivants) et un bloc `agregats` par mode (médiane des p50/p95, totaux requêtes/CPU, RSS max) — une moyenne des deux modes ne décrirait ni l'un ni l'autre.
+
+**`sse-idle`** (8 abonnés ouverts, 2 panes, 2 clients, 2 runs de 2 s) :
+
+| Pile | requêtes | p50 | p95 | RSS |
+|---|---|---|---|---|
+| Rust | **9 125** | 0,41 ms | **0,83 ms** | 26,1 Mo |
+| TS | 2 856 | 1,23 ms | 2,32 ms | 136,7 Mo |
+
+Huit connexions inactives ne coûtent rien au flux de lecture côté Rust (le p95 *baisse* même par rapport à la charge nue : plus de requêtes par connexion). 0 non-200 des deux côtés.
+
+**`delta32`** (base + 32 Mio ajoutés à une copie, delta **vérifié** — `delta_verifie: true`, empreinte `51f0473…` identique au manifeste) :
+
+| Pile | `conversations` p50 | `overview` p50 | `session` (32 Mio) | RSS |
+|---|---|---|---|---|
+| Rust | 0,59 ms | 0,28 ms | **17,6 ms** (p95 24,3 ms) | 55,6 Mo |
+| TS | 1,08 ms | 0,68 ms | **404** × 1 392 | 139,6 Mo |
+
+### ⚠️ La route `session` n'est PAS comparable — et je ne maquille pas la fixture
+
+TS rend `404 {"error":"no usable session path for this agent"}` sur la route de session **dès le scénario `base`** (fichier de 64 Kio), alors que son propre `/api/overview` résout et publie `sessionPath` pour le même agent. Ce n'est donc **ni la taille**, ni un chemin non canonique (`/tmp` → `/private/tmp` corrigé, vérifié après correction), ni l'absence du fichier.
+
+Ce que j'ai fait : servir `agent.get` (TS l'appelle et recevait une erreur de méthode inconnue → 502, ce qui accusait à tort la pile mesurée) et canoniser la racine. Ce que je **n'ai pas** fait : tordre la fixture jusqu'à ce que TS réponde 200. À ce stade, la différence est dans la résolution de la référence (`sourceSessionOf` côté route vs côté overview), et la découvrir demande de lire ce chemin TS — pas de changer les données sous lui. Tant que ce n'est pas élucidé, aucune conclusion n'est tirée sur `session`.
+
+### État de T065
+
+| Exigence | État |
+|---|---|
+| 1/10/50 panes × 1/4/8 clients | **mesuré** (2/2, 10/4, 50/8) |
+| 5 runs | partiel (2–3 par charge ; le paramètre existe) |
+| `cold`/`warm` | **nommé et agrégé** |
+| `delta32` | mesuré, delta vérifié ; route `session` non comparable |
+| `sse-idle` | **mesuré** |
+| `lockDB` | **non fait** |
+| p95/CPU/RSS Rust sous la référence | **tenu** sur toutes les charges mesurées (CPU par requête) |
+| 1 rafraîchissement/source, 0 tâche orpheline | 4 à 6 demandes à la fausse Herdr pour des milliers de requêtes HTTP |

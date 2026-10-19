@@ -1,0 +1,233 @@
+{
+  "arch": "aarch64",
+  "clients": 2,
+  "fixture": {
+    "bundle": "compatibility/benchmark/fixtures",
+    "delta_verifie": false,
+    "fichiers_verifies": 78
+  },
+  "hote": "macos",
+  "panes": 2,
+  "piles": [
+    {
+      "agregats": {
+        "cold": {
+          "cpu_ms": 2610,
+          "p50_us": 406,
+          "p95_us": 826,
+          "p99_us": 1452,
+          "requetes": 8980,
+          "rss_max_kio": 26064,
+          "runs": 1
+        },
+        "warm": {
+          "cpu_ms": 2660,
+          "p50_us": 416,
+          "p95_us": 876,
+          "p99_us": 1624,
+          "requetes": 9125,
+          "rss_max_kio": 26160,
+          "runs": 1
+        }
+      },
+      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=50532 HERDR_REMOTE_BIND=127.0.0.1 target/{release,debug}/herdrchat",
+      "demandes_fixture": 4,
+      "dossier": "",
+      "journal_serveur": "",
+      "pile": "rust",
+      "pret_ms": 212,
+      "routes": [
+        "/api/overview",
+        "/api/conversations"
+      ],
+      "runs": [
+        {
+          "cpu_ms": 2610,
+          "echantillons": 10,
+          "froid": true,
+          "max_us": 55256,
+          "mode": "cold",
+          "non_200": 0,
+          "octets": 10416800,
+          "p50_us": 406,
+          "p95_us": 826,
+          "p99_us": 1452,
+          "par_route": {
+            "/api/conversations": {
+              "max_us": 55256,
+              "n": 4490,
+              "p50_us": 527,
+              "p95_us": 1008,
+              "p99_us": 1736
+            },
+            "/api/overview": {
+              "max_us": 22421,
+              "n": 4490,
+              "p50_us": 165,
+              "p95_us": 446,
+              "p99_us": 846
+            }
+          },
+          "requetes": 8980,
+          "rss_max_kio": 26064,
+          "run": 0
+        },
+        {
+          "cpu_ms": 2660,
+          "echantillons": 10,
+          "froid": false,
+          "max_us": 10004,
+          "mode": "warm",
+          "non_200": 0,
+          "octets": 10585075,
+          "p50_us": 416,
+          "p95_us": 876,
+          "p99_us": 1624,
+          "par_route": {
+            "/api/conversations": {
+              "max_us": 10004,
+              "n": 4562,
+              "p50_us": 531,
+              "p95_us": 1074,
+              "p99_us": 1938
+            },
+            "/api/overview": {
+              "max_us": 9530,
+              "n": 4563,
+              "p50_us": 171,
+              "p95_us": 483,
+              "p99_us": 991
+            }
+          },
+          "requetes": 9125,
+          "rss_max_kio": 26160,
+          "run": 1
+        }
+      ],
+      "sondes": [
+        {
+          "corps": "{\"agents\":[{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p1\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-91079-1792431528097942000/sessions/banc-0.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"paneId\":\"w0:p2\",\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":null,\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-91079-1792431528097942000/sessions/banc-1.jsonl\",\"status\":\"idle\",\"tabLabel\":null,\"tabId\":\"w0:t1\",\"tabNumber\":null,\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"title\":\"banc 1 — essai\",\"workspaceLabel\":\"banc-0\",\"workspaceId\":\"w0\"}],\"herdrProtocol\":22,\"herdrVersion\":\"0.9.3\",\"withoutSession\":0,\"workspaces\":[{\"agentPanes\":[\"w0:p1\",\"w0:p2\"],\"agentStatus\":null,\"checkoutPath\":\"/tmp/banc\",\"focused\":false,\"label\":\"banc-0\",\"paneCount\":4,\"tabCount\":1,\"workspaceId\":\"w0\"}]}",
+          "route": "/api/overview",
+          "statut": 200
+        },
+        {
+          "corps": "{\"conversations\":[{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\nlecture repli repli focus catalogne opaque référence cause curseur état mesure rafraîchissement verdict verdict accessibilité rafraîchissement lecture rendu\",\"sessionState\":\"available\",\"timestamp\":1709715240000,\"title\":\"banc 0 — essai\",\"status\":\"idle\",\"workspaceId\":\"w0\",\"tabId\":\"w0:t1\",\"paneId\":\"w0:p1\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneRank\":null,\"tabPaneCount\":1,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\nfeuille contrat résultat catalogne erreur p95 état erreur lecture lecture décodage fenêtre contrat lecture p95 résultat curseur session\",\"sessionState\":\"available\",\"timestamp\":1709713743000,\"title\":\"banc 1 — essai\",\"status\":\"idle\",\"workspaceId\":\"w0\",\"tabId\":\"w0:t1\",\"paneId\":\"w0:p2\"}]}",
+          "route": "/api/conversations",
+          "statut": 200
+        }
+      ]
+    },
+    {
+      "agregats": {
+        "cold": {
+          "cpu_ms": 3260,
+          "p50_us": 1227,
+          "p95_us": 2348,
+          "p99_us": 3575,
+          "requetes": 2934,
+          "rss_max_kio": 136720,
+          "runs": 1
+        },
+        "warm": {
+          "cpu_ms": 2940,
+          "p50_us": 1232,
+          "p95_us": 2324,
+          "p99_us": 4458,
+          "requetes": 2856,
+          "rss_max_kio": 141392,
+          "runs": 1
+        }
+      },
+      "commande": "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT=52493 HERDR_REMOTE_BIND=127.0.0.1 bun run apps/server/src/main.ts",
+      "demandes_fixture": 5797,
+      "dossier": "",
+      "journal_serveur": "",
+      "pile": "ts",
+      "pret_ms": 421,
+      "routes": [
+        "/api/overview",
+        "/api/conversations"
+      ],
+      "runs": [
+        {
+          "cpu_ms": 3260,
+          "echantillons": 10,
+          "froid": true,
+          "max_us": 10550,
+          "mode": "cold",
+          "non_200": 0,
+          "octets": 3391908,
+          "p50_us": 1227,
+          "p95_us": 2348,
+          "p99_us": 3575,
+          "par_route": {
+            "/api/conversations": {
+              "max_us": 10550,
+              "n": 1466,
+              "p50_us": 1476,
+              "p95_us": 2731,
+              "p99_us": 4351
+            },
+            "/api/overview": {
+              "max_us": 4994,
+              "n": 1468,
+              "p50_us": 967,
+              "p95_us": 1715,
+              "p99_us": 2477
+            }
+          },
+          "requetes": 2934,
+          "rss_max_kio": 136720,
+          "run": 0
+        },
+        {
+          "cpu_ms": 2940,
+          "echantillons": 10,
+          "froid": false,
+          "max_us": 19606,
+          "mode": "warm",
+          "non_200": 0,
+          "octets": 3301536,
+          "p50_us": 1232,
+          "p95_us": 2324,
+          "p99_us": 4458,
+          "par_route": {
+            "/api/conversations": {
+              "max_us": 15768,
+              "n": 1428,
+              "p50_us": 1468,
+              "p95_us": 2751,
+              "p99_us": 5956
+            },
+            "/api/overview": {
+              "max_us": 19606,
+              "n": 1428,
+              "p50_us": 961,
+              "p95_us": 1616,
+              "p99_us": 2849
+            }
+          },
+          "requetes": 2856,
+          "rss_max_kio": 141392,
+          "run": 1
+        }
+      ],
+      "sondes": [
+        {
+          "corps": "{\"agents\":[{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p1\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-91079-1792431528097942000/sessions/banc-0.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 0 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"},{\"agent\":\"pi\",\"cwd\":\"/tmp/banc\",\"focused\":false,\"name\":null,\"paneId\":\"w0:p2\",\"paneRank\":null,\"parentSession\":null,\"sessionCwd\":null,\"sessionCwdMatches\":null,\"sessionId\":\"msg-0-u\",\"sessionKind\":\"path\",\"sessionPath\":\"/tmp/herdr-banc-91079-1792431528097942000/sessions/banc-1.jsonl\",\"status\":\"idle\",\"tabId\":\"w0:t1\",\"tabLabel\":null,\"tabNumber\":null,\"tabPaneCount\":1,\"title\":\"banc 1 — essai\",\"workspaceId\":\"w0\",\"workspaceLabel\":\"banc-0\"}],\"herdrProtocol\":22,\"herdrVersion\":\"0.9.3\",\"withoutSession\":0,\"workspaces\":[{\"agentPanes\":[\"w0:p1\",\"w0:p2\"],\"agentStatus\":null,\"checkoutPath\":null,\"focused\":false,\"label\":\"banc-0\",\"paneCount\":4,\"tabCount\":1,\"workspaceId\":\"w0\"}]}",
+          "route": "/api/overview",
+          "statut": 200
+        },
+        {
+          "corps": "{\"conversations\":[{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneId\":\"w0:p1\",\"paneRank\":null,\"preview\":\"La coupure conserve le fil et le brouillon : c'est la règle, pas l'intention.\\n\\nréférence repli fenêtre état repli décodage état erreur lecture octets octets cause référence mesure résultat feuille lecture repli\",\"sessionState\":\"available\",\"status\":\"idle\",\"tabId\":\"\",\"tabPaneCount\":1,\"timestamp\":1709628843000,\"title\":\"banc-0\",\"workspaceId\":\"w0\"},{\"agent\":\"pi\",\"model\":\"gpt-5\",\"name\":null,\"paneId\":\"w0:p2\",\"paneRank\":null,\"preview\":\"Un identifiant interne n'aide jamais personne à comprendre ce qu'il regarde.\\n\\nfeuille contrat résultat catalogne erreur p95 état erreur lecture lecture décodage fenêtre contrat lecture p95 résultat curseur session\",\"sessionState\":\"available\",\"status\":\"idle\",\"tabId\":\"\",\"tabPaneCount\":1,\"timestamp\":1709627343000,\"title\":\"banc-0\",\"workspaceId\":\"w0\"}]}",
+          "route": "/api/conversations",
+          "statut": 200
+        }
+      ]
+    }
+  ],
+  "runs": 2,
+  "scenario": "sse-idle",
+  "schemaVersion": 1,
+  "secondes": 2
+}
