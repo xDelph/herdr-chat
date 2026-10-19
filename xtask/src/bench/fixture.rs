@@ -121,10 +121,21 @@ fn sert(flux: UnixStream, plan: &Plan, compteur: &AtomicU64) -> std::io::Result<
         })),
         "agent.list" => Ok(json!({ "agents": agents(plan) })),
         "integration.list" => Ok(json!({ "integrations": integrations() })),
-        // ⚠️ `agent.get` est demandé par la référence sur la route de session ;
-        // sans lui elle recevait une erreur de méthode inconnue et rendait un
-        // 502 — un faux incomplet accusait la pile mesurée.
-        "agent.get" => Ok(agents(plan).first().cloned().unwrap_or_else(|| json!({}))),
+        // ⚠️ `agent.get` : la référence l'appelle sur la route de session (sans
+        // lui : erreur de méthode inconnue → 502, un faux incomplet accusait la
+        // pile mesurée). On rend l'**enveloppe** `{agent: …}`, la forme que la
+        // route lit (`payload["agent"]`).
+        //
+        // ⚠️ **Sa forme réelle n'a jamais été mesurée** — le client Rust traite
+        // `agent.get` comme opaque. Trois formes essayées (agent nu, enveloppe,
+        // enveloppe avec `agent_session` réduit à `{kind, value}`) : la route
+        // répond 404 « no usable session path » dans les trois cas. Prochain
+        // pas : relever la forme réelle sur le socket, puis corriger la fixture
+        // — pas l'inverse.
+        "agent.get" => {
+            let agent = agents(plan).first().cloned().unwrap_or_else(|| json!({}));
+            Ok(json!({ "agent": agent }))
+        }
         "pane.read" | "agent.read" => Ok(json!({
             "read": { "text": "écran de banc d'essai\n", "truncated": false }
         })),

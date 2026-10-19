@@ -2361,3 +2361,19 @@ Ce que j'ai fait : servir `agent.get` (TS l'appelle et recevait une erreur de m�
 | `lockDB` | **non fait** |
 | p95/CPU/RSS Rust sous la référence | **tenu** sur toutes les charges mesurées (CPU par requête) |
 | 1 rafraîchissement/source, 0 tâche orpheline | 4 à 6 demandes à la fausse Herdr pour des milliers de requêtes HTTP |
+
+### Le 404 de la route `session` : trois formes essayées, trois 404
+
+| Forme de `agent.get` | Résultat TS |
+|---|---|
+| agent nu (`{pane_id, agent, agent_session: {agent, kind, source, value}, …}`) | 404 |
+| enveloppe `{agent: …}` (la forme que la route lit : `payload["agent"]`) | 404 |
+| enveloppe + `agent_session` réduit à `{kind, value}` (le schéma étroit `AgentSessionSlot`) | 404 |
+
+Ce qui est **éliminé** : la forme de `agent_session` (les trois passent), la taille du fichier (404 aussi en `base`, 64 Kio), la canonicalisation du chemin (`/tmp` → `/private/tmp`, corrigée), l'absence du fichier, et l'absence de la méthode (elle est servie).
+
+Ce qui **reste** : `agent.get` **n'a jamais été mesuré sur le vrai socket** — le client Rust le traite comme opaque (`fiche_agent` rend un `Value`), donc ni le port ni ses tests n'ont jamais eu besoin de sa forme. La fixture l'a **devinée**. La différence vit donc dans le contrat de réponse de `agent.get`, et le prochain pas est de le relever sur le socket réel (lecture seule) puis de corriger la fixture — pas de plier la fixture jusqu'à ce que la référence réponde 200, ce qui ne mesurerait plus qu'elle-même.
+
+### `lockDB` — non fait, et pourquoi ce n'est pas un oubli silencieux
+
+Le scénario demande une transaction d'écriture tenue sur `opencode.db` pendant les lectures (chemin du `busy_timeout` de 3 s). Il exige trois pièces qui n'existent pas encore dans le banc : une pane **SQLite** dans la fausse Herdr (`kind: id`, famille opencode), une **copie** de la base du bundle dans le dossier temporaire (le bundle gelé ne s'écrit jamais), et un **détenteur de transaction** (`sqlite3` alimenté par `BEGIN IMMEDIATE`). Rien de tout cela n'est fait ici : le scénario est déclaré **non mesuré**, pas « sans écart ».
