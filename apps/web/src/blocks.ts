@@ -206,7 +206,17 @@ const SessionLine = Schema.Struct({
   type: Schema.optional(Schema.String),
 });
 
-const decodeSessionLine = Schema.decodeUnknownOption(SessionLine);
+/*
+  ⚠️ **Les propriétés excédentaires sont IGNORÉES, et c'est vital.** Une ligne de
+  session normalisée par le backend porte des champs qui ne sont pas dans le
+  schéma (`phase`, `isError`, `toolName`, `exitCode`…) selon la famille d'agent.
+  Avec le décodage strict par défaut, **une seule clé en trop faisait échouer
+  tout le message** — et le fil entier disparaissait, sans erreur : la session
+  opencode de 229 messages s'affichait « No messages ».
+*/
+const decodeSessionLine = Schema.decodeUnknownOption(SessionLine, {
+  onExcessProperty: "ignore",
+});
 const decodeBlock = Schema.decodeUnknownOption(AnyBlock);
 const decodeBash = Schema.decodeUnknownOption(BashExecution);
 const decodeCompaction = Schema.decodeUnknownOption(Compaction);
@@ -530,7 +540,38 @@ export const decodeRawLine = (raw: string): typeof SessionLine.Type | undefined 
   } catch {
     return undefined;
   }
-  return Option.getOrUndefined(decodeSessionLine(parsed));
+  const strict = Option.getOrUndefined(decodeSessionLine(parsed));
+  if (strict !== undefined) return strict;
+  /*
+    ⚠️ **Repli tolérant, et c'est ce qui manquait.** Une ligne normalisée par le
+    backend porte des champs propres à sa famille (`phase`, `toolName`,
+    `isError`, `exitCode`, `output`…) que le schéma ne connaît pas. Le décodage
+    strict échouait alors **sur toute la ligne**, et le fil entier disparaissait
+    sans erreur : la session opencode de 229 messages s'affichait « No messages ».
+    On garde donc les seuls champs que le rendu utilise ; le reste est ignoré,
+    jamais deviné.
+  */
+  if (typeof parsed !== "object" || parsed === null) return undefined;
+  const typeLigne = Reflect.get(parsed, "type");
+  const corps = Reflect.get(parsed, "message");
+  const horodatage = Reflect.get(parsed, "timestamp");
+  if (typeof typeLigne !== "string" || typeof corps !== "object" || corps === null) {
+    return undefined;
+  }
+  // Accès par `Reflect` : pas d'assertion de type sur une donnée venue du fil.
+  const champ = (cle: string): unknown => Reflect.get(corps, cle);
+  const compact = {
+    message: {
+      content: champ("content"),
+      model: champ("model"),
+      provider: champ("provider"),
+      role: champ("role"),
+      thinkingLevel: champ("thinkingLevel"),
+    },
+    timestamp: horodatage ?? champ("timestamp"),
+    type: typeLigne,
+  };
+  return Option.getOrUndefined(decodeSessionLine(compact));
 };
 
 /**

@@ -601,3 +601,52 @@ describe("blockToText", () => {
     ).toBe("s");
   });
 });
+
+describe("une ligne normalisée par le backend n'est jamais jetée en silence", () => {
+  /**
+   * ⚠️ **Le défaut constaté sur une vraie session opencode.** Le backend
+   * normalise les lignes en forme pi, mais y laisse les champs de sa famille
+   * (`phase`, `toolName`, `isError`, `exitCode`, `output`). Le décodage strict
+   * échouait sur ces clés en trop, `toMessages` rendait **zéro** message, et le
+   * fil affichait « No messages » — sans aucune erreur, pour 229 messages
+   * parfaitement lisibles côté API.
+   */
+  const ligneReelle = JSON.stringify({
+    id: "opencode:msg_15ddf5d60001PCqcmWt0XgeZ6t",
+    message: {
+      cancelled: false,
+      command: "",
+      content: [
+        { redacted: false, thinking: "The user didn't ask a new question.", type: "thinking" },
+        { text: "Acknowledged — the report is ready.", type: "text" },
+      ],
+      exitCode: null,
+      isError: false,
+      model: "beam-free",
+      output: "",
+      phase: "final",
+      provider: "opencode",
+      role: "assistant",
+      thinkingLevel: "max",
+      toolName: null,
+      truncated: false,
+    },
+    timestamp: "2026-10-21T09:51:21.960Z",
+    type: "message",
+  });
+
+  test("les champs de famille en trop ne font pas perdre le message", () => {
+    const rendus = toMessages([{ raw: ligneReelle, type: "message" }]);
+    expect(rendus).toHaveLength(1);
+    expect(rendus[0]?.role).toBe("assistant");
+    expect(rendus[0]?.blocks.map((bloc) => bloc.kind)).toEqual(["thinking", "text"]);
+  });
+
+  test("un texte seul passe aussi", () => {
+    const ligne = JSON.parse(ligneReelle);
+    ligne.message.content = [{ text: "bonjour", type: "text" }];
+    const rendus = toMessages([{ raw: JSON.stringify(ligne), type: "message" }]);
+    expect(rendus).toHaveLength(1);
+    expect(rendus[0]?.blocks.map((bloc) => bloc.kind)).toEqual(["text"]);
+  });
+});
