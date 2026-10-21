@@ -11,6 +11,12 @@ export default defineConfig({
   plugins: [
     react(),
     visualizer({ filename: "dist/stats.html", open: false }),
+    {
+      name: "build-id",
+      transformIndexHtml(html) {
+        return html.replace("__BUILD_ID__", new Date().toISOString());
+      },
+    },
     VitePWA({
       // Registration is explicit in main.tsx so an installed app checks for a
       // new worker whenever it returns to the foreground.

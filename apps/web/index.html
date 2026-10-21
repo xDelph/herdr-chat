@@ -26,20 +26,25 @@
   <body>
     <div id="root"></div>
     <script>
-      // Cache-busting reset: runs before any module loads
-      if (new URLSearchParams(window.location.search).get("reset") === "1") {
-        (async () => {
+      // Build-version cache control: transparent cache invalidation.
+      // Each build has a unique ID. If the stored ID differs, clear all
+      // caches and service workers, then reload. No manual ?reset=1 needed.
+      (async () => {
+        const buildId = "__BUILD_ID__";
+        const stored = localStorage.getItem("herdr-build-id");
+        if (stored !== null && stored !== buildId) {
           try {
             const regs = (await navigator.serviceWorker?.getRegistrations()) ?? [];
             await Promise.all(regs.map((r) => r.unregister()));
             const keys = (await caches?.keys()) ?? [];
             await Promise.all(keys.map((k) => caches.delete(k)));
           } catch (e) {}
-          const url = new URL(window.location.href);
-          url.searchParams.delete("reset");
-          window.location.replace(url.toString());
-        })();
-      }
+          localStorage.setItem("herdr-build-id", buildId);
+          window.location.reload();
+          return;
+        }
+        localStorage.setItem("herdr-build-id", buildId);
+      })();
     </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
