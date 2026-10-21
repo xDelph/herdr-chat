@@ -53,7 +53,7 @@ export default defineConfig({
         globPatterns: [],
         importScripts: ["/push-sw.js"],
         navigateFallback: null,
-        skipWaiting: true,
+        skipWaiting: false,
       },
       manifest: {
         background_color: "#0b1220",
