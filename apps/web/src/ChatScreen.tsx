@@ -49,6 +49,7 @@ import { fusionnerEntrees } from "./messages.ts";
 import { agentName, headerContext, headerReglages, statusClass } from "./labels.tsx";
 import { TabPanes } from "./TabPanes.tsx";
 import { TrustCard } from "./TrustCard.tsx";
+import { motion, AnimatePresence } from "./v2/motion.tsx";
 import type { TrustRequired } from "./api.ts";
 import { FileOpenerContext, ItemsView, UrlOpenerContext } from "./Blocks.tsx";
 import { FilesSheet } from "./Files.tsx";
@@ -1527,79 +1528,81 @@ export const ChatScreen = ({
                   les derniers enfants du fil, donc ils se collent au bord bas du
                   conteneur défilant pendant qu'on remonte lire.
                 */}
-              <div className="envois">
-                {envoisLocaux.map((message) => {
-                  const status =
-                    message.state === "queued"
-                      ? "Queued…"
-                      : message.state === "sending"
-                        ? "Sending"
-                        : message.state === "delivered"
-                          ? "Received by Herdr"
-                          : message.state === "uncertain"
-                            ? "Delivery unconfirmed"
-                            : "Send failed";
-                  const interactive = message.state !== "delivered";
-                  const open = messageOuvert === message.id;
-                  return (
-                    <article
-                      key={message.id}
-                      className={`bubble bubble--user optimistic optimistic--${message.state}`}
-                    >
-                      {interactive ? (
-                        <button
-                          type="button"
-                          className="optimistic__tap"
-                          aria-label={`${message.text}. Status: ${status}. Tap for options.`}
-                          aria-expanded={open}
-                          onClick={() => setMessageOuvert(open ? null : message.id)}
-                        >
-                          <span className="optimistic__text">{message.text}</span>
-                          <span className="optimistic__status" aria-hidden="true">
-                            {message.state === "queued" || message.state === "sending"
-                              ? "◌"
-                              : message.state === "failed"
-                                ? "!"
-                                : "?"}
-                          </span>
-                        </button>
-                      ) : (
-                        <>
-                          <span className="optimistic__text">{message.text}</span>
-                          <span className="optimistic__status" aria-label={status} title={status}>
-                            ✓
-                          </span>
-                        </>
-                      )}
-                      {open ? (
-                        <fieldset className="optimistic__menu" aria-label="Message status">
-                          <strong>{status}</strong>
-                          {message.detail === null ? null : (
-                            <p className={message.state === "failed" ? "optimistic__error" : ""}>
-                              {message.detail}
-                            </p>
-                          )}
-                          {message.state === "queued" ? (
-                            <button type="button" onClick={() => annulerEnvoi(message)}>
-                              Cancel send
-                            </button>
-                          ) : null}
-                          {message.state === "failed" || message.state === "uncertain" ? (
-                            <button type="button" onClick={() => reessayerEnvoi(message)}>
-                              {message.failureState === "inconnu"
-                                ? "Retry (may send a duplicate)"
-                                : "Retry"}
-                            </button>
-                          ) : null}
-                          <button type="button" onClick={() => setMessageOuvert(null)}>
-                            Cancel
+              <motion.div className="envois" layout>
+                <AnimatePresence>
+                  {envoisLocaux.map((message) => {
+                    const status =
+                      message.state === "queued"
+                        ? "Queued…"
+                        : message.state === "sending"
+                          ? "Sending"
+                          : message.state === "delivered"
+                            ? "Received by Herdr"
+                            : message.state === "uncertain"
+                              ? "Delivery unconfirmed"
+                              : "Send failed";
+                    const interactive = message.state !== "delivered";
+                    const open = messageOuvert === message.id;
+                    return (
+                      <article
+                        key={message.id}
+                        className={`bubble bubble--user optimistic optimistic--${message.state}`}
+                      >
+                        {interactive ? (
+                          <button
+                            type="button"
+                            className="optimistic__tap"
+                            aria-label={`${message.text}. Status: ${status}. Tap for options.`}
+                            aria-expanded={open}
+                            onClick={() => setMessageOuvert(open ? null : message.id)}
+                          >
+                            <span className="optimistic__text">{message.text}</span>
+                            <span className="optimistic__status" aria-hidden="true">
+                              {message.state === "queued" || message.state === "sending"
+                                ? "◌"
+                                : message.state === "failed"
+                                  ? "!"
+                                  : "?"}
+                            </span>
                           </button>
-                        </fieldset>
-                      ) : null}
-                    </article>
-                  );
-                })}
-              </div>
+                        ) : (
+                          <>
+                            <span className="optimistic__text">{message.text}</span>
+                            <span className="optimistic__status" aria-label={status} title={status}>
+                              ✓
+                            </span>
+                          </>
+                        )}
+                        {open ? (
+                          <fieldset className="optimistic__menu" aria-label="Message status">
+                            <strong>{status}</strong>
+                            {message.detail === null ? null : (
+                              <p className={message.state === "failed" ? "optimistic__error" : ""}>
+                                {message.detail}
+                              </p>
+                            )}
+                            {message.state === "queued" ? (
+                              <button type="button" onClick={() => annulerEnvoi(message)}>
+                                Cancel send
+                              </button>
+                            ) : null}
+                            {message.state === "failed" || message.state === "uncertain" ? (
+                              <button type="button" onClick={() => reessayerEnvoi(message)}>
+                                {message.failureState === "inconnu"
+                                  ? "Retry (may send a duplicate)"
+                                  : "Retry"}
+                              </button>
+                            ) : null}
+                            <button type="button" onClick={() => setMessageOuvert(null)}>
+                              Cancel
+                            </button>
+                          </fieldset>
+                        ) : null}
+                      </article>
+                    );
+                  })}
+                </AnimatePresence>
+              </motion.div>
             </div>
           </div>
 
