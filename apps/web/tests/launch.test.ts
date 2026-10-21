@@ -235,7 +235,9 @@ describe("U06 — la feuille ne rejoue pas le défaut", () => {
   });
 
   test("le verdict décide du bouton, pas la seule présence des choix", () => {
-    const bouton = feuille.slice(feuille.lastIndexOf("<button"));
+    const bouton = feuille.slice(
+      Math.max(feuille.lastIndexOf("<button"), feuille.lastIndexOf("<motion.button")),
+    );
     expect(bouton).toContain("disabled={!verdict.envoyable || launching");
   });
 

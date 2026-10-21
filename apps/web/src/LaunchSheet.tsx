@@ -17,7 +17,9 @@
  * proposerait un choix que l'agent refusera. Le niveau reste affiché, marqué
  * comme non accepté, et bloque l'envoi tant qu'il ne correspond pas.
  */
+/* oxlint-disable react-perf/jsx-no-new-object-as-prop */
 import { useCallback, useEffect, useState } from "react";
+import { motion } from "./v2/motion.tsx";
 import type { InstalledKind, ModelCatalog } from "./api.ts";
 import { fetchModelCatalog } from "./api.ts";
 import {
@@ -280,14 +282,15 @@ export const LaunchSheet = ({ kinds, launching, onClose, onLaunch, titre, worksp
       {verdict.envoyable ? null : <Notice ton="erreur">{verdict.raison}</Notice>}
 
       <div className="launch__actions">
-        <button
+        <motion.button
           type="button"
           className="row__action row__action--primary"
           disabled={!verdict.envoyable || launching || kinds.length === 0}
           onClick={lancer}
+          whileTap={{ scale: 0.95 }}
         >
           {launching ? "Launching…" : "Launch"}
-        </button>
+        </motion.button>
         <p className="muted small">
           Herdr cannot change the model or thinking level after launch. These are the only settings
           the app can set for all agents.
