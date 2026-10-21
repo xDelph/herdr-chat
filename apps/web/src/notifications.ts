@@ -30,7 +30,8 @@ export const pushSupported =
 
 export const currentPushSubscription = async (): Promise<PushSubscription | null> => {
   if (!pushSupported) return null;
-  const registration = await navigator.serviceWorker.ready;
+  const registration = await navigator.serviceWorker.getRegistration();
+  if (registration === undefined) return null;
   return registration.pushManager.getSubscription();
 };
 
@@ -48,7 +49,13 @@ export const enablePushNotifications = async (): Promise<void> => {
     );
   }
 
-  const registration = await navigator.serviceWorker.ready;
+  const registration = await navigator.serviceWorker.getRegistration();
+  if (registration === undefined) {
+    throw new Error(
+      "No service worker is registered. Install the PWA from the Share menu first, then try again.",
+    );
+  }
+
   const existing = await registration.pushManager.getSubscription();
   if (existing !== null) {
     await subscriptionRequest(existing.toJSON());

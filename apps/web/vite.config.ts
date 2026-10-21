@@ -47,10 +47,12 @@ export default defineConfig({
         Ce worker s'auto-désinscrit et efface les caches au premier chargement ;
         il n'y a plus de version périmée possible.
       */
-      selfDestroying: true,
+      selfDestroying: false,
       workbox: {
         clientsClaim: true,
+        globPatterns: [],
         importScripts: ["/push-sw.js"],
+        navigateFallback: null,
         skipWaiting: true,
       },
       manifest: {
