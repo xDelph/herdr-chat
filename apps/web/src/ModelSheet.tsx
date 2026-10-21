@@ -28,7 +28,9 @@ import { fetchModelCatalog, reportError, sendPrompt } from "./api.ts";
 import type { SendResult } from "./api.ts";
 import type { ModelCatalogResponse } from "@herdr-remote/shared";
 import type { AgentModel } from "@herdr-remote/shared";
+/* oxlint-disable react-perf/jsx-no-new-object-as-prop */
 import { Feuille } from "./Feuille.tsx";
+import { motion } from "./v2/motion.tsx";
 import { Notice } from "./Notice.tsx";
 import { expliquerEnvoi, expliquerEchec, expliquerSuppression } from "./etats-envoi.ts";
 
@@ -404,14 +406,15 @@ export const ModelSheet = ({
       ) : null}
 
       <div className="model__actions">
-        <button
+        <motion.button
           type="button"
           className="row__action row__action--primary"
           disabled={busy || modele === null || !changementsDisponibles}
           onClick={() => void appliquer()}
+          whileTap={{ scale: 0.95 }}
         >
           {busy ? "Sending…" : "Apply changes"}
-        </button>
+        </motion.button>
         <p className="muted small">
           Confirmation means the command reached the agent; it does not confirm the setting was
           applied.

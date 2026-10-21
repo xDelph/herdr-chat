@@ -10,7 +10,9 @@
  * vérifie qu'ils sont bien sous un dossier de projet — un chemin hors de là est
  * refusé, pas servi.
  */
+/* oxlint-disable react-perf/jsx-no-new-object-as-prop */
 import { baseName } from "./api.ts";
+import { motion, AnimatePresence } from "./v2/motion.tsx";
 import type { TouchedFile } from "./blocks.ts";
 import { relativeWorkspacePath } from "./blocks.ts";
 import { Feuille } from "./Feuille.tsx";
@@ -79,30 +81,39 @@ export const FilesSheet = ({
       }
     >
       <ul className="files__list">
-        {sorted.map((file) => (
-          <li key={file.path} className="file">
-            {/*
+        <AnimatePresence>
+          {sorted.map((file) => (
+            <motion.li
+              animate={{ opacity: 1, x: 0 }}
+              className="file"
+              exit={{ opacity: 0, x: -8 }}
+              initial={{ opacity: 0, x: 8 }}
+              key={file.path}
+              transition={{ duration: 0.15 }}
+            >
+              {/*
               Le **diff** d'abord : c'est ce qui a changé, et c'est la question
               qu'on se pose devant une liste de fichiers modifiés. Le fichier
               entier reste accessible, mais en second.
             */}
-            <details className="file__details">
-              <summary className="file__head">
-                <span className="file__name">
-                  {relativeWorkspacePath(file.path, cwd) || baseName(file.path)}
-                </span>
-                <span className="file__stats small">
-                  <span className="stat stat--add">+{file.added}</span>
-                  <span className="stat stat--del">−{file.removed}</span>
-                </span>
-              </summary>
-              <DiffView file={file} />
-              <button type="button" className="blk__toggle" onClick={() => onOpenFile(file.path)}>
-                Open full file
-              </button>
-            </details>
-          </li>
-        ))}
+              <details className="file__details">
+                <summary className="file__head">
+                  <span className="file__name">
+                    {relativeWorkspacePath(file.path, cwd) || baseName(file.path)}
+                  </span>
+                  <span className="file__stats small">
+                    <span className="stat stat--add">+{file.added}</span>
+                    <span className="stat stat--del">−{file.removed}</span>
+                  </span>
+                </summary>
+                <DiffView file={file} />
+                <button type="button" className="blk__toggle" onClick={() => onOpenFile(file.path)}>
+                  Open full file
+                </button>
+              </details>
+            </motion.li>
+          ))}
+        </AnimatePresence>
       </ul>
     </Feuille>
   );
