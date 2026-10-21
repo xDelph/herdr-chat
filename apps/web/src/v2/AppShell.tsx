@@ -1,15 +1,12 @@
 /**
- * AppShell v2 — Effect-native.
+ * AppShell v2 — Effect-native avec SubscriptionRef.
  *
- * Migration en cours : on remplace progressivement useState/fetch/setTimeout
- * par SubscriptionRef/Effect services/Fiber. Cette version utilise les services
- * Effect pour le réseau et le flux SSE, tout en gardant useState pour l'état
- * (la migration vers SubscriptionRef est la prochaine étape).
+ * L'état vit dans un seul `SubscriptionRef<AppState>`. Les composants
+ * s'abonnent à des slices via `useSubscriptionRef`. Plus de `useState` soup.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Overview, Health, InstalledKind, AgentView } from "../api.ts";
-import type { Route } from "../routing.ts";
-import { reportError } from "../api.ts";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { Effect, SubscriptionRef, Fiber, Stream } from "effect";
+import type { Overview, Health } from "../api.ts";
 import type { ConversationSummary } from "@herdr-remote/shared";
 import { ChatScreen } from "../ChatScreen.tsx";
 import { BandeauEtat } from "../EtatLecture.tsx";
@@ -18,23 +15,22 @@ import { FENETRE_DEMARRAGE_MS, etatLecture } from "../etats.ts";
 import { ProjectDetail } from "../ProjectDetail.tsx";
 import { parseRoute, routeToHash } from "../routing.ts";
 import { groupesDe } from "../sections.ts";
-import type { Ordre } from "../sections.ts";
-import { lireGroupement, retenirGroupement, type Groupement } from "../preferences.ts";
+import { retenirGroupement } from "../preferences.ts";
 import { ConversationRow } from "../ConversationRow.tsx";
 import { SectionTitle } from "../SectionTitle.tsx";
 import { Notice } from "../Notice.tsx";
 import { EVENEMENTS_RAFRAICHISSANTS, doitAppliquer, type Resultat } from "../rafraichissement.ts";
 import { BandeauMiseAJour } from "../BandeauMiseAJour.tsx";
 import { Chargement } from "../Chargement.tsx";
-// useHashRoute defined locally below
+import { reportError } from "../api.ts";
 import { HerdrClientLive } from "./services/HerdrClientLive.ts";
 import { createEventStream } from "./services/EventStream.ts";
 import { refreshLoop } from "./services/Refresh.ts";
-import { Effect } from "effect";
-import { Fiber } from "effect";
-import { Stream } from "effect";
+import { createStateRef } from "./state.ts";
+import type { AppState } from "./state.ts";
+import { useSubscriptionRef } from "./useSubscriptionRef.ts";
 
-// Hooks
+// Viewport hook
 const useViewport = (): void => {
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -61,29 +57,55 @@ const useViewport = (): void => {
   }, []);
 };
 
+// Hash route hook
+const useHashRoute = (): [AppState["route"], (next: AppState["route"]) => void] => {
+  const [route, setRoute] = useState<AppState["route"]>(() => parseRoute(window.location.hash));
+  useEffect(() => {
+    const onChange = () => setRoute(parseRoute(window.location.hash));
+    window.addEventListener("hashchange", onChange);
+    return () => window.removeEventListener("hashchange", onChange);
+  }, []);
+  const navigate = useCallback((next: AppState["route"]) => {
+    const hash = routeToHash(next);
+    if (window.location.hash !== hash) window.location.hash = hash;
+    setRoute(next);
+  }, []);
+  return [route, navigate];
+};
+
+import { useState } from "react";
+
 export const AppShell = () => {
   useViewport();
   const [route, navigate] = useHashRoute();
-  const [overview, setOverview] = useState<Overview | null>(null);
-  const [health, setHealth] = useState<Health | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [live, setLive] = useState<"live" | "down">("down");
-  const [conversations, setConversations] = useState<ReadonlyArray<ConversationSummary>>([]);
-  const [reglagesOuverts, setReglagesOuverts] = useState(false);
-  const [chargement, setChargement] = useState(true);
-  const [dernierSucces, setDernierSucces] = useState<number | null>(null);
-  const [groupement, setGroupement] = useState<Groupement>(lireGroupement);
-  const ordre: Ordre = "recent";
-  const [kinds, setKinds] = useState<readonly InstalledKind[]>([]);
-  const [memoire, setMemoire] = useState<ReadonlyMap<string, AgentView>>(() => new Map());
-  const [maintenant] = useState<number>(() => Date.now());
-  const [agePage, setAgePage] = useState(0);
-  const debutPage = useRef<number | null>(null);
 
-  // Effect-based client
+  // Single state ref — the only owner of application state
+  const stateRef = useMemo(() => Effect.runSync(createStateRef()), []);
+
+  // Slices
+  const overview = useSubscriptionRef(stateRef, (s) => s.overview);
+  const health = useSubscriptionRef(stateRef, (s) => s.health);
+  const conversations = useSubscriptionRef(stateRef, (s) => s.conversations);
+  const error = useSubscriptionRef(stateRef, (s) => s.error);
+  const chargement = useSubscriptionRef(stateRef, (s) => s.chargement);
+  const dernierSucces = useSubscriptionRef(stateRef, (s) => s.dernierSucces);
+  const live = useSubscriptionRef(stateRef, (s) => s.live);
+  const kinds = useSubscriptionRef(stateRef, (s) => s.kinds);
+  const groupement = useSubscriptionRef(stateRef, (s) => s.groupement);
+  const memoire = useSubscriptionRef(stateRef, (s) => s.memoire);
+  const maintenant = useSubscriptionRef(stateRef, (s) => s.maintenant);
+  const agePage = useSubscriptionRef(stateRef, (s) => s.agePage);
+  const reglagesOuverts = useSubscriptionRef(stateRef, (s) => s.reglagesOuverts);
+
   const client = HerdrClientLive;
-
   const generationAppliquee = useRef(0);
+
+  const updateState = useCallback(
+    (updater: (s: AppState) => AppState) => {
+      Effect.runSync(SubscriptionRef.update(stateRef, updater));
+    },
+    [stateRef],
+  );
 
   const applique = useCallback(
     (
@@ -91,22 +113,32 @@ export const AppShell = () => {
     ) => {
       if (!doitAppliquer(resultat, generationAppliquee.current)) return;
       generationAppliquee.current = resultat.generation;
-      if (resultat.overview.ok) setOverview(resultat.overview.valeur);
-      else reportError("failed to load the overview", resultat.overview.cause);
-      if (resultat.health.ok) setHealth(resultat.health.valeur);
-      if (resultat.conversations.ok) setConversations(resultat.conversations.valeur.conversations);
-      else if (!resultat.overview.ok) setError(resultat.conversations.cause);
-      if (resultat.overview.ok || resultat.conversations.ok || resultat.health.ok) {
-        setDernierSucces(Date.now());
-        setError(null);
-      }
+      updateState((s) => ({
+        ...s,
+        overview: resultat.overview.ok ? resultat.overview.valeur : s.overview,
+        health: resultat.health.ok ? resultat.health.valeur : s.health,
+        conversations: resultat.conversations.ok
+          ? resultat.conversations.valeur.conversations
+          : s.conversations,
+        error:
+          resultat.overview.ok || resultat.conversations.ok || resultat.health.ok
+            ? null
+            : resultat.conversations.ok
+              ? null
+              : (resultat.conversations.cause ?? s.error),
+        dernierSucces:
+          resultat.overview.ok || resultat.conversations.ok || resultat.health.ok
+            ? Date.now()
+            : s.dernierSucces,
+      }));
+      if (!resultat.overview.ok)
+        reportError("failed to load the overview", resultat.overview.cause);
     },
-    [],
+    [updateState],
   );
 
-  // Fetch via Effect service (replaces creeClient)
   const refresh = useCallback(async () => {
-    setChargement(true);
+    updateState((s) => ({ ...s, chargement: true }));
     try {
       let overviewR: { ok: boolean; valeur?: Overview; cause?: string } = {
         ok: false,
@@ -164,11 +196,11 @@ export const AppShell = () => {
       };
       applique(resultat);
     } finally {
-      setChargement(false);
+      updateState((s) => ({ ...s, chargement: false }));
     }
-  }, [applique, client]);
+  }, [applique, client, updateState]);
 
-  // Effect-based refresh loop (replaces setTimeout cascade)
+  // Effect-based refresh loop
   useEffect(() => {
     void refresh();
     const fiber = Effect.runFork(
@@ -187,14 +219,14 @@ export const AppShell = () => {
     void (async () => {
       try {
         const agentKinds = await Effect.runPromise(client.fetchAgentKinds());
-        setKinds(agentKinds);
+        updateState((s) => ({ ...s, kinds: agentKinds }));
       } catch {
-        setKinds([]);
+        updateState((s) => ({ ...s, kinds: [] }));
       }
     })();
-  }, [client]);
+  }, [client, updateState]);
 
-  // SSE via Effect Stream (replaces openEventStream + creeRegroupement)
+  // SSE via Effect Stream
   useEffect(() => {
     const stream = createEventStream();
     const fiber = Effect.runFork(
@@ -204,7 +236,7 @@ export const AppShell = () => {
           svc.messages,
           (msg: { _tag: string; kind?: string; value?: "live" | "down" }) => {
             if (msg._tag === "status") {
-              setLive(msg.value ?? "down");
+              updateState((s) => ({ ...s, live: msg.value ?? "down" }));
             } else if (msg._tag === "resync") {
               void refresh();
             } else if (
@@ -221,19 +253,19 @@ export const AppShell = () => {
     return () => {
       Effect.runSync(Fiber.interrupt(fiber));
     };
-  }, [refresh]);
+  }, [refresh, updateState]);
 
   const agents = useMemo(() => overview?.agents ?? [], [overview]);
 
   useEffect(() => {
-    setMemoire((precedent) => {
-      if (precedent.size === agents.length && agents.every((a) => precedent.get(a.paneId) === a))
-        return precedent;
-      const suivant = new Map(precedent);
+    updateState((s) => {
+      if (s.memoire.size === agents.length && agents.every((a) => s.memoire.get(a.paneId) === a))
+        return s;
+      const suivant = new Map(s.memoire);
       for (const a of agents) suivant.set(a.paneId, a);
-      return suivant;
+      return { ...s, memoire: suivant };
     });
-  }, [agents]);
+  }, [agents, updateState]);
 
   const total = conversations.length;
   const etat = etatLecture({
@@ -246,12 +278,13 @@ export const AppShell = () => {
   });
 
   useEffect(() => {
-    if (debutPage.current === null) debutPage.current = Date.now();
+    const debutPage = Date.now();
     if (agePage >= FENETRE_DEMARRAGE_MS) return undefined;
-    const debut = debutPage.current;
-    const timer = window.setTimeout(() => setAgePage(Date.now() - debut), 500);
+    const timer = window.setTimeout(() => {
+      updateState((s) => ({ ...s, agePage: Date.now() - debutPage }));
+    }, 500);
     return () => window.clearTimeout(timer);
-  }, [agePage]);
+  }, [agePage, updateState]);
 
   const reessayer = useCallback(() => {
     void refresh();
@@ -264,8 +297,8 @@ export const AppShell = () => {
   );
 
   const groupes = useMemo(
-    () => groupesDe(conversations, ordre, groupement, projetDe),
-    [conversations, ordre, groupement, projetDe],
+    () => groupesDe(conversations, "recent", groupement, projetDe),
+    [conversations, groupement, projetDe],
   );
 
   // --- Render ---
@@ -336,7 +369,10 @@ export const AppShell = () => {
     <div className="app">
       <header className="app-header">
         <h1>Conversations</h1>
-        <button onClick={() => setReglagesOuverts(true)} aria-label="Settings">
+        <button
+          onClick={() => updateState((s) => ({ ...s, reglagesOuverts: true }))}
+          aria-label="Settings"
+        >
           ⚙
         </button>
       </header>
@@ -367,11 +403,11 @@ export const AppShell = () => {
       {reglagesOuverts ? (
         <SettingsSheet
           health={health}
-          onClose={() => setReglagesOuverts(false)}
+          onClose={() => updateState((s) => ({ ...s, reglagesOuverts: false }))}
           sansSession={0}
           groupement={groupement}
           onGroupement={(g) => {
-            setGroupement(g);
+            updateState((s) => ({ ...s, groupement: g }));
             retenirGroupement(g);
           }}
         />
@@ -380,21 +416,3 @@ export const AppShell = () => {
     </div>
   );
 };
-
-// Keep useHashRoute defined locally (used by AppShell)
-const useHashRoute = (): [Route, (next: Route) => void] => {
-  const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
-  useEffect(() => {
-    const onChange = () => setRoute(parseRoute(window.location.hash));
-    window.addEventListener("hashchange", onChange);
-    return () => window.removeEventListener("hashchange", onChange);
-  }, []);
-  const navigate = useCallback((next: Route) => {
-    const hash = routeToHash(next);
-    if (window.location.hash !== hash) window.location.hash = hash;
-    setRoute(next);
-  }, []);
-  return [route, navigate];
-};
-
-export { useHashRoute };

@@ -28,10 +28,13 @@ export interface AppState {
   readonly ordre: Ordre;
   readonly memoire: ReadonlyMap<string, AgentView>;
   readonly maintenant: number;
+  readonly agePage: number;
+  readonly reglagesOuverts: boolean;
 }
 
 /** Valeur initiale — aucun état métier dans les composants. */
 export const initialState: AppState = {
+  agePage: 0,
   chargement: true,
   conversations: [],
   dernierSucces: null,
@@ -44,6 +47,7 @@ export const initialState: AppState = {
   memoire: new Map(),
   ordre: "recent",
   overview: null,
+  reglagesOuverts: false,
   route: { kind: "liste" },
 };
 
