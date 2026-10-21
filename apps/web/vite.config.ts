@@ -1,6 +1,7 @@
 import react from "@vitejs/plugin-react";
 import { backendPort } from "@herdr-remote/shared";
 import { defineConfig } from "vite";
+import { visualizer } from "rollup-plugin-visualizer";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
@@ -9,6 +10,7 @@ export default defineConfig({
   },
   plugins: [
     react(),
+    visualizer({ filename: "dist/stats.html", open: false }),
     VitePWA({
       // Registration is explicit in main.tsx so an installed app checks for a
       // new worker whenever it returns to the foreground.
