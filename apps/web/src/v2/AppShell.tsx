@@ -21,7 +21,7 @@ import { Notice } from "../Notice.tsx";
 import { EVENEMENTS_RAFRAICHISSANTS, doitAppliquer, type Resultat } from "../rafraichissement.ts";
 import { BandeauMiseAJour } from "../BandeauMiseAJour.tsx";
 import { motion, AnimatePresence } from "./motion.tsx";
-import { Chargement } from "../Chargement.tsx";
+import { Skeleton } from "../Skeleton.tsx";
 import { reportError } from "../api.ts";
 import { HerdrClientLive } from "./services/HerdrClientLive.ts";
 import { createEventStream } from "./services/EventStream.ts";
@@ -395,7 +395,7 @@ export const AppShell = () => {
       <main className="screen screen--liste">
         <BandeauEtat etat={etat} libelleVide="No conversations" onReessayer={reessayer} />
         {chargement && conversations.length === 0 ? (
-          <Chargement texte="Loading conversations…" />
+          <Skeleton lignes={5} />
         ) : (
           <div className="conversations">
             <AnimatePresence>
