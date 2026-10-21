@@ -886,10 +886,13 @@ export const App = () => {
       </header>
 
       {/*
-        ⚠️ **Une seule attente, un seul aspect.** L'écran d'agent montre trois
-        points centrés ; la liste affichait une ligne grise en haut. On rend donc
-        le MÊME composant ici dès qu'il n'y a rien d'autre à lire — la première
-        lecture, et le cas où le parc est encore vide.
+        ⚠️ **Pendant l'attente, une seule chose à l'écran : les trois points.**
+
+        L'attente était une notice grise collée sous l'en-tête, alors que l'écran
+        d'agent montrait les points centrés : deux aspects pour la même chose, et
+        la liste gardait son sélecteur d'ordre sous l'attente. Une attente
+        remplace le contenu ; elle ne cohabite pas avec lui (la liste est donc
+        aussi conditionnée à `etat.phase !== "chargement"` plus bas).
       */}
       {etat.phase === "chargement" ? (
         <Chargement detail="Reading Herdr for the first time." texte="Loading…" />
@@ -938,7 +941,7 @@ export const App = () => {
         « Réglages » est passé derrière l'engrenage. Trois onglets pour deux
         écrans réels coûtaient un geste à chaque ouverture.
       */}
-      {route.kind !== "projet" ? (
+      {route.kind !== "projet" && etat.phase !== "chargement" ? (
         <section className="screen screen--liste">
           {/*
           Un **basculement**, pas une liste déroulante : deux états, un seul
