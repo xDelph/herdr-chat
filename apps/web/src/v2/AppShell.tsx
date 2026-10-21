@@ -72,8 +72,13 @@ const useHashRoute = (): [AppState["route"], (next: AppState["route"]) => void] 
       if (window.location.hash !== hash) window.location.hash = hash;
       setRoute(next);
     };
-    // View Transitions API (progressive enhancement) — disabled pending type fix
-    doNavigate();
+    // View Transitions API (progressive enhancement)
+    const doc = document as Document & { startViewTransition?: (cb: () => void) => void };
+    if (typeof doc.startViewTransition === "function") {
+      doc.startViewTransition(doNavigate);
+    } else {
+      doNavigate();
+    }
   }, []);
   return [route, navigate];
 };
