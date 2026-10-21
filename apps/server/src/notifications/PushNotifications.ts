@@ -49,13 +49,15 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
 const isPushSubscription = (value: unknown): value is PushSubscription => {
-  if (!isRecord(value) || typeof value.endpoint !== "string") return false;
-  const keys = value.keys;
-  return isRecord(keys) && typeof keys.p256dh === "string" && typeof keys.auth === "string";
+  if (!isRecord(value) || typeof value["endpoint"] !== "string") return false;
+  const keys = value["keys"];
+  return isRecord(keys) && typeof keys["p256dh"] === "string" && typeof keys["auth"] === "string";
 };
 
 const isVapidKeys = (value: unknown): value is VapidKeys =>
-  isRecord(value) && typeof value.publicKey === "string" && typeof value.privateKey === "string";
+  isRecord(value) &&
+  typeof value["publicKey"] === "string" &&
+  typeof value["privateKey"] === "string";
 
 /**
  * Contenu d'une notification.
@@ -232,14 +234,14 @@ export const makePushNotifications = (
     try {
       const raw: unknown = JSON.parse(await readFile(storePath, "utf8"));
       if (!isRecord(raw)) throw new Error("push store is not an object");
-      const rawSubscriptions = raw.subscriptions;
+      const rawSubscriptions = raw["subscriptions"];
       if (!Array.isArray(rawSubscriptions)) throw new Error("push subscriptions are invalid");
       const subscriptions: PushSubscription[] = [];
       for (const value of rawSubscriptions) {
         if (!isPushSubscription(value)) throw new Error("push subscription is invalid");
         subscriptions.push(value);
       }
-      const rawVapidKeys = raw.vapidKeys;
+      const rawVapidKeys = raw["vapidKeys"];
       if (rawVapidKeys !== undefined && !isVapidKeys(rawVapidKeys)) {
         throw new Error("push VAPID keys are invalid");
       }
