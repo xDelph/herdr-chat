@@ -25,6 +25,22 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Cache-busting reset: runs before any module loads
+      if (new URLSearchParams(window.location.search).get("reset") === "1") {
+        (async () => {
+          try {
+            const regs = (await navigator.serviceWorker?.getRegistrations()) ?? [];
+            await Promise.all(regs.map((r) => r.unregister()));
+            const keys = (await caches?.keys()) ?? [];
+            await Promise.all(keys.map((k) => caches.delete(k)));
+          } catch (e) {}
+          const url = new URL(window.location.href);
+          url.searchParams.delete("reset");
+          window.location.replace(url.toString());
+        })();
+      }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
