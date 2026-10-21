@@ -1,3 +1,4 @@
+/* oxlint-disable react-perf/jsx-no-new-object-as-prop */
 /**
  * AppShell v2 — Effect-native avec SubscriptionRef.
  */
@@ -19,6 +20,7 @@ import { SectionTitle } from "../SectionTitle.tsx";
 import { Notice } from "../Notice.tsx";
 import { EVENEMENTS_RAFRAICHISSANTS, doitAppliquer, type Resultat } from "../rafraichissement.ts";
 import { BandeauMiseAJour } from "../BandeauMiseAJour.tsx";
+import { motion, AnimatePresence } from "./motion.tsx";
 import { Chargement } from "../Chargement.tsx";
 import { reportError } from "../api.ts";
 import { HerdrClientLive } from "./services/HerdrClientLive.ts";
@@ -387,21 +389,36 @@ export const AppShell = () => {
           <Chargement texte="Loading conversations…" />
         ) : (
           <div className="conversations">
-            {groupes.map((groupe) => (
-              <section key={groupe.cle}>
-                <SectionTitle count={groupe.conversations.length}>{groupe.titre}</SectionTitle>
-                {groupe.conversations.map((c) => (
-                  <ConversationRow
-                    key={c.paneId}
-                    conversation={c}
-                    projet={projetDe(c.workspaceId)}
-                    onglet=""
-                    maintenant={maintenant}
-                    onOpen={(paneId) => navigate({ kind: "agent", paneId })}
-                  />
-                ))}
-              </section>
-            ))}
+            <AnimatePresence>
+              {groupes.map((groupe) => (
+                <motion.section
+                  key={groupe.cle}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  initial={{ opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  <SectionTitle count={groupe.conversations.length}>{groupe.titre}</SectionTitle>
+                  {groupe.conversations.map((c) => (
+                    <motion.div
+                      key={c.paneId}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -8 }}
+                      initial={{ opacity: 0, y: 8 }}
+                      transition={{ duration: 0.15 }}
+                    >
+                      <ConversationRow
+                        conversation={c}
+                        projet={projetDe(c.workspaceId)}
+                        onglet=""
+                        maintenant={maintenant}
+                        onOpen={(paneId) => navigate({ kind: "agent", paneId })}
+                      />
+                    </motion.div>
+                  ))}
+                </motion.section>
+              ))}
+            </AnimatePresence>
           </div>
         )}
       </main>
@@ -417,18 +434,28 @@ export const AppShell = () => {
         </footer>
       ) : null}
 
-      {reglagesOuverts ? (
-        <SettingsSheet
-          health={health}
-          onClose={() => updateState((s) => ({ ...s, reglagesOuverts: false }))}
-          sansSession={0}
-          groupement={groupement}
-          onGroupement={(g) => {
-            updateState((s) => ({ ...s, groupement: g }));
-            retenirGroupement(g);
-          }}
-        />
-      ) : null}
+      <AnimatePresence>
+        {reglagesOuverts ? (
+          <motion.div
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 20 }}
+            key="settings"
+            transition={{ duration: 0.2 }}
+          >
+            <SettingsSheet
+              health={health}
+              onClose={() => updateState((s) => ({ ...s, reglagesOuverts: false }))}
+              sansSession={0}
+              groupement={groupement}
+              onGroupement={(g) => {
+                updateState((s) => ({ ...s, groupement: g }));
+                retenirGroupement(g);
+              }}
+            />
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       {projetChoisi ? (
         <ProjectPicker
