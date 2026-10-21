@@ -68,8 +68,12 @@ const useHashRoute = (): [AppState["route"], (next: AppState["route"]) => void] 
   }, []);
   const navigate = useCallback((next: AppState["route"]) => {
     const hash = routeToHash(next);
-    if (window.location.hash !== hash) window.location.hash = hash;
-    setRoute(next);
+    const doNavigate = () => {
+      if (window.location.hash !== hash) window.location.hash = hash;
+      setRoute(next);
+    };
+    // View Transitions API (progressive enhancement) — disabled pending type fix
+    doNavigate();
   }, []);
   return [route, navigate];
 };
