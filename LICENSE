@@ -1,141 +1,86 @@
-# PolyForm Noncommercial License 1.0.0
+PolyForm Noncommercial License 1.0.0
 
-<https://polyformproject.org/licenses/noncommercial/1.0.0>
+https://polyformproject.org/licenses/noncommercial/1.0.0
 
-## Acceptance
+Copyright (c) 2026 Thomas Delalonde
 
-In order to get any license under these terms, you must agree
-to them as both strict obligations and conditions to all your
-licenses.
+1.  Acceptance
 
-## Copyright License
+In order to get any license under these terms, you must agree to them as
+both strict obligations and conditions to all your licenses.
 
-The licensor grants you a copyright license for the software to
-do everything you might do with the software that would otherwise
-infringe the licensor's copyright in it for any permitted
-purpose. However, you may only distribute the software according
-to [Distribution License](#distribution-license) and make changes
-or new works based on the software according to [Changes and New
-Works License](#changes-and-new-works-license).
+2.  Copyright License
 
-## Distribution License
+The licensor grants you a copyright license for the software to do
+everything you might do with the software that would otherwise infringe the
+licensor's copyright in it for any permitted purpose. However, you may
+only distribute the software according to Distribution and you may only
+make changes according to Changes and New Works.
 
-The licensor grants you an additional copyright license to
-distribute copies of the software. Your license to distribute
-covers distributing the software with changes and new works
-permitted by [Changes and New Works License](#changes-and-new-works-license).
+3.  Distribution
 
-## Notices
+You may distribute copies of the software to others, but only if:
 
-You must ensure that anyone who gets a copy of any part of the
-software from you also gets a copy of these terms or the URL for
-them above, as well as copies of any plain-text lines beginning
-with `Required Notice:` that the licensor provided with the
-software. For example:
+- you do not charge any fee for the software;
+- you do not use the software for any commercial purpose;
+- you keep intact all copyright and other notices, including this license;
+- you give each recipient a copy of this license;
+- you provide each recipient with a copy of the source code, or a way to get
+  a copy of the source code.
 
-> Required Notice: Copyright Thomas Delalonde (https://github.com/xDelph/devcli)
+4.  Changes and New Works
 
-## Changes and New Works License
+You may make changes to the software, or create new works from it, and
+distribute them, but only if:
 
-The licensor grants you an additional copyright license to make
-changes and new works based on the software for any permitted
-purpose.
+- you do not charge any fee for the software;
+- you do not use the software for any commercial purpose;
+- you keep intact all copyright and other notices, including this license;
+- you give each recipient a copy of this license;
+- you provide each recipient with a copy of the source code, or a way to get
+  a copy of the source code;
+- you clearly mark any changes you make, or new works you create, as
+  different from the original software;
+- you do not use the licensor's name, trademarks, or service marks to
+  endorse or promote the new work, or in any other way, without the
+  licensor's prior written permission.
 
-## Patent License
+5.  Patents
 
-The licensor grants you a patent license for the software that
-covers patent claims the licensor can license, or becomes able to
-license, that you would infringe by using the software.
+The licensor grants you a patent license for the software to do everything
+with the software that would otherwise infringe any patent claims the
+licensor can license, for any permitted purpose. However, you may only
+distribute the software according to Distribution and you may only make
+changes according to Changes and New Works.
 
-## Noncommercial Purposes
+6.  Permitted Purpose
 
 Any noncommercial purpose is a permitted purpose.
 
-## Personal Uses
+7.  Termination
 
-Personal use for research, experiment, and testing for the
-benefit of public knowledge, personal study, private
-entertainment, hobby projects, amateur pursuits, or religious
-observance, without any anticipated commercial application, is
-use for a permitted purpose.
+Your license terminates automatically if you breach any of its conditions.
+If your license terminates, you must stop all use and distribution of the
+software and destroy all copies.
 
-## Noncommercial Organizations
+8.  No Liability
 
-Use by any charitable organization, educational institution,
-public research organization, public safety or health
-organization, environmental protection organization, or
-government institution is use for a permitted purpose regardless
-of the source of funding or obligations resulting from the
-funding.
+***As far as the law allows, the software comes as is, without any warranty
+or condition, and the licensor will not be liable to you for any damages
+arising out of use of the software, whether direct, indirect, special,
+incidental, or consequential, even if the licensor has been advised of the
+possibility of such damages.***
 
-## Fair Use
+9.  Definitions
 
-You may have "fair use" rights for the software under the law.
-These terms do not limit them.
+"Software" means the software the licensor makes available under these terms.
 
-## No Other Rights
+"Commercial purpose" means any purpose intended for or directed toward
+commercial advantage or monetary compensation.
 
-These terms do not allow you to sublicense or transfer any of
-your licenses to anyone else, or prevent the licensor from
-granting licenses to anyone else. These terms do not imply any
-other licenses.
+"You" means the individual or entity exercising rights under these terms.
 
-## Patent Defense
+"Licensor" means the individual or entity offering the software under
+these terms.
 
-If you make any written claim that the software infringes or
-contributes to infringement of any patent, your patent license
-for the software granted under these terms ends immediately. If
-your company makes such a claim, your patent license ends
-immediately for work on behalf of your company.
-
-## Violations
-
-The first time you are notified in writing that you have
-violated any of these terms, or done anything with the software
-not covered by your licenses, your licenses can nonetheless
-continue if you come into full compliance with these terms, and
-take practical steps to correct past violations, within 32 days
-of receiving notice. Otherwise, all your licenses end
-immediately.
-
-## No Liability
-
-***As far as the law allows, the software comes as is, without
-any warranty or condition, and the licensor will not be liable to
-you for any damages arising out of these terms or the use or
-nature of the software, under any kind of legal claim.***
-
-## Definitions
-
-The **licensor** is Thomas Delalonde.
-
-The **software** is the software the licensor makes available
-under these terms, including any portion of the software and any
-changes or new works a contributor makes based on the software.
-
-**You** refers to the individual or entity agreeing to these
-terms.
-
-**Your company** is any legal entity, sole proprietorship, or
-other kind of organization that you work for, plus all
-organizations that have control over, are under the control of,
-or are under common control with that organization. **Control**
-means ownership of substantially all the assets of an entity, or
-the power to direct its management and policies by vote,
-contract, or otherwise. Control can be direct or indirect.
-
-**Your licenses** are all the licenses granted to you for the
-software under these terms.
-
-**Use** means anything you do with the software requiring one of
-your licenses.
-
----
-
-## Commercial Licensing
-
-For commercial use beyond noncommercial purposes defined above,
-please contact devcli@delalonde.dev for commercial licensing options.
-
-Commercial licenses available starting at $99/year per developer.
-See LICENSE-COMMERCIAL.md for details.
+SPDX-License-Identifier: PolyForm-Noncommercial-1.0.0
