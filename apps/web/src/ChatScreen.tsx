@@ -709,14 +709,23 @@ export const ChatScreen = ({
    * qu'il reste de l'historique, on remonte une page ; l'effet ne se rejoue pas
    * tant que la demande reste absente et qu'une remontée est déjà partie.
    */
-  const remonteeAuto = useRef(false);
+  /*
+    ⚠️ **La remontée automatique ne s'arrête plus après UNE page.** Elle posait
+    un drapeau « déjà fait » : si la page ramenée ne contenait encore aucune
+    demande, elle ne réessayait jamais. Mesuré sur `w7:p1` : 72 entrées de
+    queue, toutes d'un seul tour (résultats d'outils + réponses), et la demande
+    de l'utilisateur **hors de la fenêtre initiale** — l'écran s'ouvrait donc sur
+    un fil sans demande. On remonte tant qu'il n'y en a pas, avec un plafond :
+    une session réellement sans demande ne doit pas lire le fichier entier.
+  */
+  const remonteeAuto = useRef(0);
   useEffect(() => {
-    remonteeAuto.current = false;
+    remonteeAuto.current = 0;
   }, [agent.paneId]);
   useEffect(() => {
-    if (aUneDemande || previousCursor === null || remonteeAuto.current) return;
-    if (loading.current) return;
-    remonteeAuto.current = true;
+    if (aUneDemande || previousCursor === null) return;
+    if (loading.current || remonteeAuto.current >= REMONTEES_AUTO_MAX) return;
+    remonteeAuto.current += 1;
     void chargerPrecedents();
   }, [aUneDemande, chargerPrecedents, previousCursor]);
 
@@ -1030,6 +1039,12 @@ export const ChatScreen = ({
    * La hauteur est remise à `auto` **avant** de mesurer — sinon `scrollHeight`
    * ne fait que croître et le champ ne redescend jamais quand on efface.
    */
+  /**
+   * Combien de pages on remonte au plus, à l'ouverture, pour retrouver la
+   * demande de l'utilisateur. Douze : de quoi couvrir une session dont les
+   * seize dernières pages sont des résultats d'outils, sans lire 4 Mo.
+   */
+  const REMONTEES_AUTO_MAX = 12;
   /** Hauteur d'une ligne — doit suivre le `line-height` du CSS. */
   const LINE_HEIGHT = 22;
   /** Au-delà, on écrit un document, pas un message. */

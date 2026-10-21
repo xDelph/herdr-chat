@@ -770,9 +770,20 @@ export const App = () => {
     */
     const saitDeja = dernierSucces !== null || error !== null;
     if (!saitDeja) {
+      /*
+        ⚠️ **La sortie reste EN PLACE pendant le chargement.** Cet écran rendait
+        un simple bandeau de titre : la flèche de retour n'existait pas encore, et
+        elle apparaissait ensuite **à une autre position** — on ne pouvait pas
+        quitter un écran qui n'avait pas fini de charger, et l'icône « sautait »
+        à l'arrivée des données. L'en-tête est donc le même que la conversation,
+        avec le même bouton au même endroit.
+      */
       return (
         <div className="app">
           <header className="topbar">
+            <button type="button" className="back" onClick={closeAgent}>
+              ‹ Back
+            </button>
             <h1>Herdr Chat</h1>
           </header>
           <Chargement

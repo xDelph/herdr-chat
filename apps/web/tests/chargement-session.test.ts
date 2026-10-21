@@ -166,6 +166,13 @@ describe("le premier affichage demande une fenêtre BORNÉE", () => {
   test("une fenêtre sans demande utilisateur déclenche une remontée", () => {
     // Sinon on voit le travail de l'agent sans savoir à quoi il répond.
     expect(source).toContain("const aUneDemande = useMemo(");
-    expect(source).toContain("if (aUneDemande || previousCursor === null || remonteeAuto.current)");
+    /*
+      ⚠️ La remontée ne s'arrête plus après UNE page. Le garde était
+      `remonteeAuto.current` (un drapeau) : si la page ramenée n'avait toujours
+      aucune demande, on ne réessayait jamais. Mesuré sur `w7:p1` — 72 entrées
+      de queue, aucune demande. C'est un COMPTEUR, avec un plafond.
+    */
+    expect(source).toContain("if (aUneDemande || previousCursor === null) return;");
+    expect(source).toContain("remonteeAuto.current >= REMONTEES_AUTO_MAX");
   });
 });
