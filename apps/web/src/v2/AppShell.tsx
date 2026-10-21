@@ -1,4 +1,5 @@
 /* oxlint-disable react-perf/jsx-no-new-object-as-prop */
+/* oxlint-disable react-perf/jsx-no-jsx-as-prop */
 /**
  * AppShell v2 — Effect-native avec SubscriptionRef.
  */
@@ -6,7 +7,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Effect, SubscriptionRef, Fiber, Stream } from "effect";
 import type { Overview, Health } from "../api.ts";
 import type { ConversationSummary } from "@herdr-remote/shared";
-import { ChatScreen } from "../ChatScreen.tsx";
+import { lazy, Suspense } from "react";
+const ChatScreen = lazy(async () => {
+  const m = await import("../ChatScreen.tsx");
+  return { default: m.ChatScreen };
+});
 import { BandeauEtat } from "../EtatLecture.tsx";
 import { SettingsSheet } from "../SettingsSheet.tsx";
 import { FENETRE_DEMARRAGE_MS, etatLecture } from "../etats.ts";
@@ -326,18 +331,20 @@ export const AppShell = () => {
             This agent is no longer visible in Herdr. Showing its last known state.
           </Notice>
         ) : null}
-        <ChatScreen
-          agent={agentAffiche}
-          voisins={voisins}
-          onOuvrirVoisin={(paneId) => navigate({ kind: "agent", paneId })}
-          currentModel={conv?.model}
-          currentProvider={conv?.provider}
-          currentThinking={conv?.thinking}
-          onBack={() => navigate({ kind: "liste" })}
-          question={undefined}
-          trust={undefined}
-          waiting={conv?.waiting}
-        />
+        <Suspense fallback={<div className="skeleton" aria-busy="true" aria-label="Loading" />}>
+          <ChatScreen
+            agent={agentAffiche}
+            voisins={voisins}
+            onOuvrirVoisin={(paneId) => navigate({ kind: "agent", paneId })}
+            currentModel={conv?.model}
+            currentProvider={conv?.provider}
+            currentThinking={conv?.thinking}
+            onBack={() => navigate({ kind: "liste" })}
+            question={undefined}
+            trust={undefined}
+            waiting={conv?.waiting}
+          />
+        </Suspense>
       </div>
     );
   }
