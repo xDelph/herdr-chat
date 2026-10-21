@@ -1,50 +1,40 @@
 /**
- * AppShell — seul propriétaire de la route, du flux SSE et de l'overview.
+ * AppShell v2 — Effect-native.
  *
- * Phase 0 : on garde la logique existante (rafraîchissement, SSE, mémoire)
- * mais on l'organise dans un module dédié. La migration vers Effect (streams,
- * fibers, SubscriptionRef) se fait en Phase 1–2.
+ * Migration en cours : on remplace progressivement useState/fetch/setTimeout
+ * par SubscriptionRef/Effect services/Fiber. Cette version utilise les services
+ * Effect pour le réseau et le flux SSE, tout en gardant useState pour l'état
+ * (la migration vers SubscriptionRef est la prochaine étape).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  fetchAgentKinds,
-  fetchConversations,
-  fetchHealth,
-  fetchOverview,
-  openEventStream,
-  reportError,
-} from "../api.ts";
 import type { Overview, Health, InstalledKind, AgentView } from "../api.ts";
+import type { Route } from "../routing.ts";
+import { reportError } from "../api.ts";
 import type { ConversationSummary } from "@herdr-remote/shared";
 import { ChatScreen } from "../ChatScreen.tsx";
 import { BandeauEtat } from "../EtatLecture.tsx";
 import { SettingsSheet } from "../SettingsSheet.tsx";
 import { FENETRE_DEMARRAGE_MS, etatLecture } from "../etats.ts";
 import { ProjectDetail } from "../ProjectDetail.tsx";
-// launch/trust unused in v2 shell for now
 import { parseRoute, routeToHash } from "../routing.ts";
 import { groupesDe } from "../sections.ts";
 import type { Ordre } from "../sections.ts";
 import { lireGroupement, retenirGroupement, type Groupement } from "../preferences.ts";
 import { ConversationRow } from "../ConversationRow.tsx";
 import { SectionTitle } from "../SectionTitle.tsx";
-// ProjectPicker unused in v2 shell for now
-import type { Route } from "../routing.ts";
 import { Notice } from "../Notice.tsx";
-import {
-  EVENEMENTS_RAFRAICHISSANTS,
-  cadence,
-  creeClient,
-  creeRegroupement,
-  doitAppliquer,
-  type Resultat,
-} from "../rafraichissement.ts";
-// miseAJourEnAttente unused in v2 shell for now
+import { EVENEMENTS_RAFRAICHISSANTS, doitAppliquer, type Resultat } from "../rafraichissement.ts";
 import { BandeauMiseAJour } from "../BandeauMiseAJour.tsx";
 import { Chargement } from "../Chargement.tsx";
-// (already imported above)
+// useHashRoute defined locally below
+import { HerdrClientLive } from "./services/HerdrClientLive.ts";
+import { createEventStream } from "./services/EventStream.ts";
+import { refreshLoop } from "./services/Refresh.ts";
+import { Effect } from "effect";
+import { Fiber } from "effect";
+import { Stream } from "effect";
 
-// Re-use the viewport hook logic inline (will be extracted in P0.x)
+// Hooks
 const useViewport = (): void => {
   useEffect(() => {
     const viewport = window.visualViewport;
@@ -90,15 +80,9 @@ export const AppShell = () => {
   const [agePage, setAgePage] = useState(0);
   const debutPage = useRef<number | null>(null);
 
-  const client = useMemo(
-    () =>
-      creeClient({
-        conversations: fetchConversations,
-        health: fetchHealth,
-        overview: fetchOverview,
-      }),
-    [],
-  );
+  // Effect-based client
+  const client = HerdrClientLive;
+
   const generationAppliquee = useRef(0);
 
   const applique = useCallback(
@@ -120,68 +104,122 @@ export const AppShell = () => {
     [],
   );
 
+  // Fetch via Effect service (replaces creeClient)
   const refresh = useCallback(async () => {
     setChargement(true);
     try {
-      applique(await client.lit());
+      let overviewR: { ok: boolean; valeur?: Overview; cause?: string } = {
+        ok: false,
+        cause: "unknown",
+      };
+      let healthR: { ok: boolean; valeur?: Health; cause?: string } = {
+        ok: false,
+        cause: "unknown",
+      };
+      let convR: {
+        ok: boolean;
+        valeur?: { conversations: ReadonlyArray<ConversationSummary> };
+        cause?: string;
+      } = { ok: false, cause: "unknown" };
+
+      try {
+        const v = await Effect.runPromise(client.overview());
+        overviewR = { ok: true, valeur: v };
+      } catch (e) {
+        overviewR = { ok: false, cause: String(e) };
+      }
+
+      try {
+        const v = await Effect.runPromise(client.health());
+        healthR = { ok: true, valeur: v };
+      } catch (e) {
+        healthR = { ok: false, cause: String(e) };
+      }
+
+      try {
+        const v = await Effect.runPromise(client.conversations());
+        convR = { ok: true, valeur: { conversations: v } };
+      } catch (e) {
+        convR = { ok: false, cause: String(e) };
+      }
+
+      const resultat: Resultat<
+        Overview,
+        Health,
+        { conversations: ReadonlyArray<ConversationSummary> }
+      > = {
+        conversations:
+          convR.ok && convR.valeur
+            ? { ok: true, valeur: convR.valeur }
+            : { ok: false, cause: convR.cause ?? "unknown" },
+        generation: ++generationAppliquee.current,
+        health:
+          healthR.ok && healthR.valeur
+            ? { ok: true, valeur: healthR.valeur }
+            : { ok: false, cause: healthR.cause ?? "unknown" },
+        overview:
+          overviewR.ok && overviewR.valeur
+            ? { ok: true, valeur: overviewR.valeur }
+            : { ok: false, cause: overviewR.cause ?? "unknown" },
+      };
+      applique(resultat);
     } finally {
       setChargement(false);
     }
   }, [applique, client]);
 
+  // Effect-based refresh loop (replaces setTimeout cascade)
   useEffect(() => {
     void refresh();
-    let timer: number | null = null;
-    const programme = (): void => {
-      if (timer !== null) window.clearInterval(timer);
-      timer = window.setInterval(
-        () => {
-          void refresh();
-        },
-        cadence(document.visibilityState === "visible", live === "live"),
-      );
-    };
-    const surVisibilite = (): void => {
-      programme();
-      if (document.visibilityState === "visible") {
-        void refresh();
-      }
-    };
-    programme();
-    document.addEventListener("visibilitychange", surVisibilite);
+    const fiber = Effect.runFork(
+      refreshLoop(
+        () => refresh(),
+        () => live === "live",
+      ),
+    );
     return () => {
-      if (timer !== null) window.clearInterval(timer);
-      document.removeEventListener("visibilitychange", surVisibilite);
+      Effect.runSync(Fiber.interrupt(fiber));
     };
   }, [live, refresh]);
 
+  // Agent kinds
   useEffect(() => {
     void (async () => {
       try {
-        setKinds(await fetchAgentKinds());
+        const agentKinds = await Effect.runPromise(client.fetchAgentKinds());
+        setKinds(agentKinds);
       } catch {
         setKinds([]);
       }
     })();
-  }, []);
+  }, [client]);
 
+  // SSE via Effect Stream (replaces openEventStream + creeRegroupement)
   useEffect(() => {
-    const regroupement = creeRegroupement(() => {
-      void refresh();
-    });
-    const fermer = openEventStream({
-      onEvent: (kind: string) => {
-        if ((EVENEMENTS_RAFRAICHISSANTS as readonly string[]).includes(kind))
-          regroupement.signale();
-      },
-      onResync: () => {
-        void refresh();
-      },
-      onStatus: setLive,
-    });
+    const stream = createEventStream();
+    const fiber = Effect.runFork(
+      Effect.gen(function* () {
+        const svc = yield* stream;
+        yield* Stream.runForEach(
+          svc.messages,
+          (msg: { _tag: string; kind?: string; value?: "live" | "down" }) => {
+            if (msg._tag === "status") {
+              setLive(msg.value ?? "down");
+            } else if (msg._tag === "resync") {
+              void refresh();
+            } else if (
+              msg.kind &&
+              (EVENEMENTS_RAFRAICHISSANTS as readonly string[]).includes(msg.kind)
+            ) {
+              void refresh();
+            }
+            return Effect.void;
+          },
+        );
+      }),
+    );
     return () => {
-      regroupement.annule();
-      fermer();
+      Effect.runSync(Fiber.interrupt(fiber));
     };
   }, [refresh]);
 
@@ -257,7 +295,6 @@ export const AppShell = () => {
         </div>
       );
     }
-    // Agent never seen
     return (
       <div className="app">
         <header className="app-header">
@@ -284,7 +321,6 @@ export const AppShell = () => {
           kinds={kinds}
           launching={false}
           onLaunch={(_wsId, _kind, _choice) => {
-            /* launch logic */
             void _wsId;
             void _kind;
             void _choice;
@@ -296,7 +332,6 @@ export const AppShell = () => {
     );
   }
 
-  // Liste (default)
   return (
     <div className="app">
       <header className="app-header">
@@ -346,23 +381,20 @@ export const AppShell = () => {
   );
 };
 
-/** Lit le fragment courant et se resynchronise sur les navigations. */
+// Keep useHashRoute defined locally (used by AppShell)
 const useHashRoute = (): [Route, (next: Route) => void] => {
   const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
-
   useEffect(() => {
     const onChange = () => setRoute(parseRoute(window.location.hash));
     window.addEventListener("hashchange", onChange);
     return () => window.removeEventListener("hashchange", onChange);
   }, []);
-
   const navigate = useCallback((next: Route) => {
     const hash = routeToHash(next);
-    if (window.location.hash !== hash) {
-      window.location.hash = hash;
-    }
+    if (window.location.hash !== hash) window.location.hash = hash;
     setRoute(next);
   }, []);
-
   return [route, navigate];
 };
+
+export { useHashRoute };
