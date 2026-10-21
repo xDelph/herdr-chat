@@ -19,7 +19,7 @@ const css = readFileSync(join(import.meta.dir, "..", "src", "styles.css"), "utf8
  * pour absent — et le test échouerait sur un écran parfaitement correct.
  */
 const cssNu = css.replace(/\/\*[\s\S]*?\*\//g, "");
-const app = readFileSync(join(import.meta.dir, "..", "src", "App.tsx"), "utf8");
+const app = readFileSync(join(import.meta.dir, "..", "src", "v2", "AppShell.tsx"), "utf8");
 const ligne = readFileSync(join(import.meta.dir, "..", "src", "ConversationRow.tsx"), "utf8");
 
 /** Déclarations d'un bloc, comme dans `chat-layout.test.ts`. */
@@ -135,7 +135,9 @@ describe("U16 — la liste garde sa structure", () => {
       dans `sections.ts` évite un `as Section` dans le rendu, c'est-à-dire une
       assertion qui masquerait une clé inattendue au lieu de la montrer.
     */
-    expect(app).toContain("<SectionTitle count={lignes.length}>{titre}</SectionTitle>");
+    expect(app).toContain(
+      "<SectionTitle count={groupe.conversations.length}>{groupe.titre}</SectionTitle>",
+    );
     expect(app).not.toContain("SECTION_LABEL[");
   });
 

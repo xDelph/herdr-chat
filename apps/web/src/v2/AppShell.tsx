@@ -1,10 +1,7 @@
 /**
  * AppShell v2 — Effect-native avec SubscriptionRef.
- *
- * L'état vit dans un seul `SubscriptionRef<AppState>`. Les composants
- * s'abonnent à des slices via `useSubscriptionRef`. Plus de `useState` soup.
  */
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Effect, SubscriptionRef, Fiber, Stream } from "effect";
 import type { Overview, Health } from "../api.ts";
 import type { ConversationSummary } from "@herdr-remote/shared";
@@ -13,6 +10,7 @@ import { BandeauEtat } from "../EtatLecture.tsx";
 import { SettingsSheet } from "../SettingsSheet.tsx";
 import { FENETRE_DEMARRAGE_MS, etatLecture } from "../etats.ts";
 import { ProjectDetail } from "../ProjectDetail.tsx";
+import { ProjectPicker } from "../ProjectPicker.tsx";
 import { parseRoute, routeToHash } from "../routing.ts";
 import { groupesDe } from "../sections.ts";
 import { retenirGroupement } from "../preferences.ts";
@@ -30,34 +28,35 @@ import { createStateRef } from "./state.ts";
 import type { AppState } from "./state.ts";
 import { useSubscriptionRef } from "./useSubscriptionRef.ts";
 
-// Viewport hook
 const useViewport = (): void => {
+  const coquille = useRef({ hauteur: 0, haut: 0 });
   useEffect(() => {
     const viewport = window.visualViewport;
     const applique = (hauteur: number, haut: number): void => {
+      if (coquille.current.hauteur === hauteur && coquille.current.haut === haut) return;
+      coquille.current = { hauteur, haut };
       document.documentElement.style.setProperty("--app-viewport-height", `${hauteur}px`);
       document.documentElement.style.setProperty("--app-viewport-top", `${haut}px`);
     };
-    const sync = () => {
+    const syncViewport = () => {
       applique(viewport?.height ?? window.innerHeight, viewport?.offsetTop ?? 0);
     };
-    sync();
-    viewport?.addEventListener("resize", sync);
-    viewport?.addEventListener("scroll", sync);
-    document.addEventListener("focusin", sync);
-    document.addEventListener("focusout", sync);
-    window.addEventListener("resize", sync);
+    syncViewport();
+    viewport?.addEventListener("resize", syncViewport);
+    viewport?.addEventListener("scroll", syncViewport);
+    document.addEventListener("focusin", syncViewport);
+    document.addEventListener("focusout", syncViewport);
+    window.addEventListener("resize", syncViewport);
     return () => {
-      viewport?.removeEventListener("resize", sync);
-      viewport?.removeEventListener("scroll", sync);
-      document.removeEventListener("focusin", sync);
-      document.removeEventListener("focusout", sync);
-      window.removeEventListener("resize", sync);
+      viewport?.removeEventListener("resize", syncViewport);
+      viewport?.removeEventListener("scroll", syncViewport);
+      document.removeEventListener("focusin", syncViewport);
+      document.removeEventListener("focusout", syncViewport);
+      window.removeEventListener("resize", syncViewport);
     };
   }, []);
 };
 
-// Hash route hook
 const useHashRoute = (): [AppState["route"], (next: AppState["route"]) => void] => {
   const [route, setRoute] = useState<AppState["route"]>(() => parseRoute(window.location.hash));
   useEffect(() => {
@@ -73,16 +72,12 @@ const useHashRoute = (): [AppState["route"], (next: AppState["route"]) => void] 
   return [route, navigate];
 };
 
-import { useState } from "react";
-
 export const AppShell = () => {
   useViewport();
   const [route, navigate] = useHashRoute();
 
-  // Single state ref — the only owner of application state
   const stateRef = useMemo(() => Effect.runSync(createStateRef()), []);
 
-  // Slices
   const overview = useSubscriptionRef(stateRef, (s) => s.overview);
   const health = useSubscriptionRef(stateRef, (s) => s.health);
   const conversations = useSubscriptionRef(stateRef, (s) => s.conversations);
@@ -96,6 +91,7 @@ export const AppShell = () => {
   const maintenant = useSubscriptionRef(stateRef, (s) => s.maintenant);
   const agePage = useSubscriptionRef(stateRef, (s) => s.agePage);
   const reglagesOuverts = useSubscriptionRef(stateRef, (s) => s.reglagesOuverts);
+  const projetChoisi = useSubscriptionRef(stateRef, (s) => s.projetChoisi);
 
   const client = HerdrClientLive;
   const generationAppliquee = useRef(0);
@@ -123,9 +119,7 @@ export const AppShell = () => {
         error:
           resultat.overview.ok || resultat.conversations.ok || resultat.health.ok
             ? null
-            : resultat.conversations.ok
-              ? null
-              : (resultat.conversations.cause ?? s.error),
+            : (resultat.conversations.cause ?? s.error),
         dernierSucces:
           resultat.overview.ok || resultat.conversations.ok || resultat.health.ok
             ? Date.now()
@@ -200,7 +194,6 @@ export const AppShell = () => {
     }
   }, [applique, client, updateState]);
 
-  // Effect-based refresh loop
   useEffect(() => {
     void refresh();
     const fiber = Effect.runFork(
@@ -214,7 +207,6 @@ export const AppShell = () => {
     };
   }, [live, refresh]);
 
-  // Agent kinds
   useEffect(() => {
     void (async () => {
       try {
@@ -226,7 +218,6 @@ export const AppShell = () => {
     })();
   }, [client, updateState]);
 
-  // SSE via Effect Stream
   useEffect(() => {
     const stream = createEventStream();
     const fiber = Effect.runFork(
@@ -267,6 +258,12 @@ export const AppShell = () => {
     });
   }, [agents, updateState]);
 
+  const selectedAgent =
+    route.kind === "agent" ? (agents.find((a) => a.paneId === route.paneId) ?? null) : null;
+  const agentMemorise = route.kind === "agent" ? (memoire.get(route.paneId) ?? null) : null;
+  const agentAffiche = selectedAgent ?? agentMemorise;
+  const agentPerime = selectedAgent === null && agentMemorise !== null;
+
   const total = conversations.length;
   const etat = etatLecture({
     chargement,
@@ -278,10 +275,10 @@ export const AppShell = () => {
   });
 
   useEffect(() => {
-    const debutPage = Date.now();
     if (agePage >= FENETRE_DEMARRAGE_MS) return undefined;
+    const debut = Date.now();
     const timer = window.setTimeout(() => {
-      updateState((s) => ({ ...s, agePage: Date.now() - debutPage }));
+      updateState((s) => ({ ...s, agePage: Date.now() - debut }));
     }, 500);
     return () => window.clearTimeout(timer);
   }, [agePage, updateState]);
@@ -302,42 +299,49 @@ export const AppShell = () => {
   );
 
   // --- Render ---
-  if (route.kind === "agent") {
-    const agent = memoire.get(route.paneId) ?? agents.find((a) => a.paneId === route.paneId);
-    if (agent) {
-      const voisins = agents
-        .filter((a) => a.tabId === agent.tabId)
-        .toSorted(
-          (a, b) => (a.paneRank ?? 999) - (b.paneRank ?? 999) || a.paneId.localeCompare(b.paneId),
-        );
-      const conv = conversations.find((c) => c.paneId === agent.paneId);
-      return (
-        <div className="app">
-          <ChatScreen
-            agent={agent}
-            voisins={voisins}
-            onOuvrirVoisin={(paneId) => navigate({ kind: "agent", paneId })}
-            currentModel={conv?.model}
-            currentProvider={conv?.provider}
-            currentThinking={conv?.thinking}
-            onBack={() => navigate({ kind: "liste" })}
-            question={undefined}
-            trust={undefined}
-            waiting={conv?.waiting}
-          />
-        </div>
+  if (route.kind === "agent" && agentAffiche !== null) {
+    const voisins = agents
+      .filter((candidat) => candidat.tabId === agentAffiche.tabId)
+      .toSorted(
+        (a, b) =>
+          (a.paneRank ?? Number.MAX_SAFE_INTEGER) - (b.paneRank ?? Number.MAX_SAFE_INTEGER) ||
+          a.paneId.localeCompare(b.paneId),
       );
-    }
+    const conv = conversations.find((c) => c.paneId === agentAffiche.paneId);
     return (
       <div className="app">
-        <header className="app-header">
+        {agentPerime ? (
+          <Notice ton="avertissement">
+            This agent is no longer visible in Herdr. Showing its last known state.
+          </Notice>
+        ) : null}
+        <ChatScreen
+          agent={agentAffiche}
+          voisins={voisins}
+          onOuvrirVoisin={(paneId) => navigate({ kind: "agent", paneId })}
+          currentModel={conv?.model}
+          currentProvider={conv?.provider}
+          currentThinking={conv?.thinking}
+          onBack={() => navigate({ kind: "liste" })}
+          question={undefined}
+          trust={undefined}
+          waiting={conv?.waiting}
+        />
+      </div>
+    );
+  }
+
+  if (route.kind === "agent") {
+    return (
+      <div className="app">
+        <header className="topbar">
           <button onClick={() => navigate({ kind: "liste" })} aria-label="Back">
             ←
           </button>
           <h1>Agent</h1>
         </header>
         <main className="app-main">
-          <Notice ton="avertissement">This agent is no longer visible in Herdr.</Notice>
+          <Notice ton="avertissement">This agent no longer exists in Herdr.</Notice>
         </main>
       </div>
     );
@@ -367,8 +371,9 @@ export const AppShell = () => {
 
   return (
     <div className="app">
-      <header className="app-header">
+      <header className="topbar">
         <h1>Conversations</h1>
+        <span className="sr-only">connected</span>
         <button
           onClick={() => updateState((s) => ({ ...s, reglagesOuverts: true }))}
           aria-label="Settings"
@@ -376,7 +381,7 @@ export const AppShell = () => {
           ⚙
         </button>
       </header>
-      <main className="app-main">
+      <main className="screen screen--liste">
         <BandeauEtat etat={etat} libelleVide="No conversations" onReessayer={reessayer} />
         {chargement && conversations.length === 0 ? (
           <Chargement texte="Loading conversations…" />
@@ -400,6 +405,18 @@ export const AppShell = () => {
           </div>
         )}
       </main>
+      {route.kind === "liste" ? (
+        <footer className="app__footer">
+          <button
+            type="button"
+            className="fab"
+            onClick={() => updateState((s) => ({ ...s, projetChoisi: true }))}
+          >
+            + New agent
+          </button>
+        </footer>
+      ) : null}
+
       {reglagesOuverts ? (
         <SettingsSheet
           health={health}
@@ -412,6 +429,15 @@ export const AppShell = () => {
           }}
         />
       ) : null}
+
+      {projetChoisi ? (
+        <ProjectPicker
+          onClose={() => updateState((s) => ({ ...s, projetChoisi: false }))}
+          onPick={() => updateState((s) => ({ ...s, projetChoisi: false }))}
+          workspaces={overview?.workspaces ?? []}
+        />
+      ) : null}
+
       <BandeauMiseAJour />
     </div>
   );

@@ -679,9 +679,9 @@ describe("U19 — les panes d'un onglet", () => {
   test("les voisins sont triés par rang de disposition", () => {
     // ⚠️ Pas par identifiant : l'ordre de la barre doit être celui qu'on voit sur
     // le Mac, sinon « le troisième » ne désigne rien de stable.
-    const app = readFileSync(join(import.meta.dir, "..", "src", "App.tsx"), "utf8");
+    const app = readFileSync(join(import.meta.dir, "..", "src", "v2", "AppShell.tsx"), "utf8");
     expect(app).toContain("paneRank ?? Number.MAX_SAFE_INTEGER");
-    expect(app).toContain("candidat.tabId === agent.tabId");
+    expect(app).toContain("candidat.tabId === agentAffiche.tabId");
   });
 
   test("la barre est un vrai bouton, donc touchable", () => {

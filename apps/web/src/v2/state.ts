@@ -30,6 +30,7 @@ export interface AppState {
   readonly maintenant: number;
   readonly agePage: number;
   readonly reglagesOuverts: boolean;
+  readonly projetChoisi: boolean;
 }
 
 /** Valeur initiale — aucun état métier dans les composants. */
@@ -47,6 +48,7 @@ export const initialState: AppState = {
   memoire: new Map(),
   ordre: "recent",
   overview: null,
+  projetChoisi: false,
   reglagesOuverts: false,
   route: { kind: "liste" },
 };

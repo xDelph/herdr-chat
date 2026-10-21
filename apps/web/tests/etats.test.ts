@@ -114,7 +114,7 @@ describe("U10 — la fraîcheur se dit, ou ne se dit pas", () => {
  * pas démonté**. Ces tests lisent le composant et ferment cette porte.
  */
 describe("U10 — une coupure ne sort pas de la conversation", () => {
-  const app = readFileSync(join(import.meta.dir, "..", "src", "App.tsx"), "utf8");
+  const app = readFileSync(join(import.meta.dir, "..", "src", "v2", "AppShell.tsx"), "utf8");
 
   test("l'agent affiché retombe sur la dernière observation", () => {
     expect(app).toContain("memoire.get(route.paneId)");

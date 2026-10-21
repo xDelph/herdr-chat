@@ -21,7 +21,7 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-const source = readFileSync(join(import.meta.dir, "..", "src", "App.tsx"), "utf8");
+const source = readFileSync(join(import.meta.dir, "..", "src", "v2", "AppShell.tsx"), "utf8");
 
 /** Corps de l'effet qui écrit la hauteur de la coquille. */
 const effet = (): string => {
