@@ -10,8 +10,10 @@
  * (`~/.codex/config.toml`). Un agent lancé dans un dépôt qu'on vient de
  * cloner accordait cette permission sans que personne ne l'ait vue.
  */
+/* oxlint-disable react-perf/jsx-no-new-object-as-prop */
 import { useState } from "react";
 import { answerTrust } from "./api.ts";
+import { motion } from "./v2/motion.tsx";
 import type { TrustRequired } from "./api.ts";
 import { Notice } from "./Notice.tsx";
 import { expliquerConfiance, libelleRefus } from "./etats-envoi.ts";
@@ -55,7 +57,12 @@ export const TrustCard = ({ request, onDone }: Props) => {
   };
 
   return (
-    <div className="trust">
+    <motion.div
+      animate={{ opacity: 1, scale: 1 }}
+      className="trust"
+      initial={{ opacity: 0, scale: 0.95 }}
+      transition={{ duration: 0.2 }}
+    >
       <p className="trust__title">
         <strong>{request.kind}</strong> requests access to “{request.folder}”
       </p>
@@ -91,6 +98,6 @@ export const TrustCard = ({ request, onDone }: Props) => {
           </button>
         </div>
       )}
-    </div>
+    </motion.div>
   );
 };
