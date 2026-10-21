@@ -8,6 +8,8 @@
  */
 import { useEffect, useState } from "react";
 import { Notice } from "./Notice.tsx";
+/* oxlint-disable react-perf/jsx-no-new-object-as-prop */
+import { motion } from "./v2/motion.tsx";
 import { unBrouillonExiste } from "./brouillons.ts";
 import { envoiEnCours } from "./envois-en-cours.ts";
 import {
@@ -40,20 +42,26 @@ export const BandeauMiseAJour = () => {
   });
 
   return (
-    <Notice ton="avertissement">
-      {texteDeMiseAJour(blocage)}{" "}
-      <button
-        type="button"
-        disabled={blocage !== "aucune"}
-        onClick={() => {
-          appliquerMiseAJour({
-            brouillon: unBrouillonExiste(),
-            envoi: envoiEnCours(),
-          });
-        }}
-      >
-        Reload to update
-      </button>
-    </Notice>
+    <motion.div
+      animate={{ opacity: 1, y: 0 }}
+      initial={{ opacity: 0, y: -10 }}
+      transition={{ duration: 0.2 }}
+    >
+      <Notice ton="avertissement">
+        {texteDeMiseAJour(blocage)}{" "}
+        <button
+          type="button"
+          disabled={blocage !== "aucune"}
+          onClick={() => {
+            appliquerMiseAJour({
+              brouillon: unBrouillonExiste(),
+              envoi: envoiEnCours(),
+            });
+          }}
+        >
+          Reload to update
+        </button>
+      </Notice>
+    </motion.div>
   );
 };
