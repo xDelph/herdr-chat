@@ -203,11 +203,33 @@ fn page_fichier(source: &ResolvedSource, request: &SessionPageRequest) -> Sessio
         entries,
         incremental: request.cursor.is_some(),
         cursor: Some(nouveau_curseur),
-        // Une page arrière n'est pas demandée ici : le client la demande par
-        // `previous_cursor`, et la présence d'historique est calculée par le
-        // lecteur (`has_more` historique du fil).
-        previous_cursor: Some(cursor::encode(&empreinte, &source.base, 1, 0)),
-        has_more: page.curseur.offset > 0,
+        /*
+          ⚠️ **`previous_cursor` pointe le DÉBUT DE LA PAGE SERVIE, pas zéro.**
+
+          Il était encodé avec l'offset `0` en dur : sur une session de 738 Ko
+          dont la fenêtre initiale commence à 476 Ko, la PWA demandait donc
+          `before=<offset 0>` — une page **vide**, à chaque remontée, pour
+          toujours. Mesuré : `previousCursor` présent, `hasMore: true`, et zéro
+          entrée ramenée. La remontée de l'historique ne pouvait pas fonctionner.
+
+          Le début de la page est `depart` du premier cadre rendu ; sans cadre,
+          c'est la position de lecture elle-même (rien n'a été consommé).
+        */
+        previous_cursor: Some(cursor::encode(
+            &empreinte,
+            &source.base,
+            1,
+            i64::try_from(
+                page.cadres
+                    .first()
+                    .map_or(curseur.offset, |cadre| cadre.depart),
+            )
+            .unwrap_or(0),
+        )),
+        has_more: page
+            .cadres
+            .first()
+            .map_or(curseur.offset > 0, |cadre| cadre.depart > 0),
         // Un reset est dit seulement s'il est PROUVÉ : troncature, ou
         // réinitialisation constatée par le lecteur.
         reset: tronque || page.reinitialisee,

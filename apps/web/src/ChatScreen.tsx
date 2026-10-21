@@ -27,6 +27,7 @@ import {
   suitLeBas,
 } from "./defilement.ts";
 import { DELAI_ACQUITTEMENT_MS, doitAcquitter } from "./accuse-reception.ts";
+import { Chargement } from "./Chargement.tsx";
 import { openEventStream } from "./api.ts";
 import type { AgentView, AnswerResult, SessionEntry } from "./api.ts";
 import { estOptionSaisieLibre } from "@herdr-remote/shared";
@@ -668,11 +669,12 @@ export const ChatScreen = ({
 
         Le curseur peut encore désigner quelque chose alors que la remontée n'a
         ramené **aucune** entrée : pages vides en cascade, ou plafond atteint.
-        Laisser le bouton dans cet état est le pire des deux mondes — il reste
-        affiché et ne fait rien, indéfiniment. On le retire.
+        Laisser un curseur vivant dans cet état est le pire des deux mondes : le
+        repère de haut de fil redemanderait une page qui ne rend rien, à chaque
+        défilement, indéfiniment.
 
-        Un curseur nul fait disparaître le bouton : c'est le seul signal que
-        l'interface écoute, et c'est exactement ce qu'il signifie ici.
+        Un curseur nul éteint le repère : c'est le seul signal que l'interface
+        écoute, et c'est exactement ce qu'il signifie ici.
       */
       setPreviousCursor(entriesAnterieures.length > 0 ? pageCursor : null);
       // ⚠️ La compensation se fait **après** que React a peint les nouveaux
@@ -729,8 +731,8 @@ export const ChatScreen = ({
    *
    * Ici, approcher du haut **déclenche** le chargement, avec
    * `SEUIL_PREMIERES_LIGNES_PX` de marge : on charge avant d'atteindre le bord,
-   * donc on ne voit jamais de trou. Le bouton reste, pour le clavier et pour
-   * réessayer après un échec.
+   * donc on ne voit jamais de trou — et **sans aucun bouton** : faire défiler
+   * est le geste, le repère est le déclencheur.
    *
    * ⚠️ `doitChargerPlusTot` porte les deux gardes qui évitent les défauts
    * classiques : pas de second chargement pendant qu'un est en cours (double
@@ -763,6 +765,33 @@ export const ChatScreen = ({
     observateur.observe(sentinelle);
     return () => observateur.disconnect();
   }, [chargerPrecedents, loadingPrevious, previousCursor]);
+
+  /*
+    ⚠️ **Le repère de haut de fil ne se déclenche qu'UNE fois par intersection.**
+    À l'ouverture, il est visible avant que la première lecture ne soit finie :
+    `chargerPrecedents` refusait alors (un chargement était en cours) et
+    l'observateur, lui, ne rappelait plus — l'élément restait visible sans
+    nouvelle intersection. Mesuré sur une session de 738 Ko : `previousCursor`
+    présent, `hasMore: true`, et **zéro requête `before=`** même après quatre
+    remontées. Cette effet rejoue la demande dès que la lecture laisse la place,
+    tant qu'on est près du haut.
+  */
+  useEffect(() => {
+    if (phase !== "ready" || previousCursor === null) return;
+    const scroller = scrollerRef.current;
+    if (scroller === null) return;
+    if (
+      !doitChargerPlusTot({
+        curseurDisponible: true,
+        distanceAuHaut: scroller.scrollTop,
+        enCours: loadingPrevious || loading.current,
+        seuil: SEUIL_PREMIERES_LIGNES_PX,
+      })
+    ) {
+      return;
+    }
+    void chargerPrecedents();
+  }, [agent.paneId, phase, previousCursor, loadingPrevious, chargerPrecedents]);
 
   /**
    * Défilement automatique — **conditionnel**.
@@ -860,8 +889,18 @@ export const ChatScreen = ({
   }, [aguiche]);
 
   const repriseFaite = useRef(false);
+  /*
+    ⚠️ **La première pose n'appartient pas à l'utilisateur.** Au montage, le
+    navigateur émet un événement de défilement à `scrollTop = 0` : `onScroll` en
+    concluait « il ne suit plus le bas », et la conversation s'ouvrait donc **en
+    haut** de la session — mesuré : 6818 px de fil, position 0. Cette ref dit si
+    une pose a déjà été décidée (position mémorisée, ou bas par défaut) ; tant
+    que non, l'observateur de taille a le droit de poser la vue.
+  */
+  const poseFaite = useRef(false);
   useEffect(() => {
     repriseFaite.current = false;
+    poseFaite.current = false;
   }, [agent.paneId]);
   useEffect(() => {
     if (phase !== "ready" || repriseFaite.current) return;
@@ -870,6 +909,7 @@ export const ChatScreen = ({
     const position = litPosition(stockageNavigateur(), agent.paneId);
     if (position === null) return;
     repriseFaite.current = true;
+    poseFaite.current = true;
     scroller.scrollTop = hauteurDeReprise(position, {
       clientHeight: scroller.clientHeight,
       scrollHeight: scroller.scrollHeight,
@@ -915,7 +955,16 @@ export const ChatScreen = ({
     const scroller = scrollerRef.current;
     if (content === null || scroller === null) return undefined;
     const suivreLeBas = () => {
-      if (atBottom.current) scroller.scrollTop = scroller.scrollHeight;
+      if (atBottom.current) {
+        scroller.scrollTop = scroller.scrollHeight;
+        return;
+      }
+      if (poseFaite.current) return;
+      // Aucune intention exprimée, aucune position mémorisée : on se pose en bas.
+      if (litPosition(stockageNavigateur(), agent.paneId) !== null) return;
+      scroller.scrollTop = scroller.scrollHeight;
+      atBottom.current = true;
+      poseFaite.current = true;
     };
     const observer = new ResizeObserver(suivreLeBas);
     observer.observe(content);
@@ -939,7 +988,7 @@ export const ChatScreen = ({
     observer.observe(scroller);
     suivreLeBas();
     return () => observer.disconnect();
-  }, []);
+  }, [agent.paneId]);
 
   /**
    * Où se poser quand un agent finit de travailler.
@@ -1384,6 +1433,16 @@ export const ChatScreen = ({
             Aucun diagnostic n'est inventé : les deux causes possibles sont
             énoncées, et la charge utile reste utilisable.
           */}
+          {/*
+            ⚠️ **La première lecture d'une conversation se dit au MILIEU**, avec
+            les mêmes trois points que partout ailleurs. Sans ça, l'écran est
+            vide entre l'en-tête et le composeur : impossible de distinguer
+            « ça arrive » de « il n'y a rien ».
+          */}
+          {phase === "loading" && error === null && messages.length === 0 ? (
+            <Chargement texte="Loading conversation…" />
+          ) : null}
+
           {phase === "ready" &&
           error === null &&
           messages.length === 0 &&
@@ -1425,16 +1484,22 @@ export const ChatScreen = ({
                 une raison sans rapport avec le composeur.
               */}
               <span className="messages__sentinel" ref={sentinelleRef} aria-hidden="true" />
-              {previousCursor === null ? null : (
+              {/*
+                ⚠️ **Aucun bouton.** La remontée est purement paresseuse : le
+                repère ci-dessus déclenche le chargement dès qu'on approche du
+                haut, et le fil se complète sans qu'on ait rien à toucher. Un
+                bouton de remontée demandait un appui par page — jusqu'à dix sur
+                une session codex réelle — alors que le geste naturel (faire
+                défiler) suffisait déjà.
+
+                Un ÉCHEC, lui, reste affiché : il ne se répare pas tout seul, et
+                le taire ferait croire à un fil complet qui n'en est qu'au
+                début. Le message est une ligne, pas un bouton : le prochain
+                défilement vers le haut retentera.
+              */}
+              {previousError === null ? null : (
                 <div className="history__older">
-                  <button
-                    type="button"
-                    onClick={() => void chargerPrecedents()}
-                    disabled={loadingPrevious}
-                  >
-                    {loadingPrevious ? "Loading history…" : "Load earlier messages"}
-                  </button>
-                  {previousError === null ? null : <p role="alert">{previousError}</p>}
+                  <p role="alert">{previousError}</p>
                 </div>
               )}
               <ItemsView enCours={aguiche} items={items} cwd={agent.cwd} maintenant={maintenant} />

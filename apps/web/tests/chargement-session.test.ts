@@ -117,9 +117,10 @@ describe("le chargement d'une session ne dépend pas du statut", () => {
     expect(source).not.toContain("autoLoadedPrevious");
     expect(source).toContain("IntersectionObserver");
     expect(source).toContain("doitChargerPlusTot({");
-    // Le bouton reste : le clavier n'a pas de geste de défilement, et un échec
-    // doit pouvoir être réessayé.
-    expect(source).toContain("Load earlier messages");
+    // ⚠️ Aucun bouton : la remontée est purement paresseuse (décision du
+    // 2026-10-21). Le fil se complète en défilant, sans appui par page.
+    expect(source).not.toContain("Load earlier messages");
+    expect(source).not.toContain("Loading history…");
   });
 });
 

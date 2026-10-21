@@ -874,11 +874,21 @@ export const App = () => {
         </div>
       </header>
 
-      <BandeauEtat
-        etat={etat}
-        libelleVide="No conversations in Herdr yet."
-        onReessayer={reessayer}
-      />
+      {/*
+        ⚠️ **Une seule attente, un seul aspect.** L'écran d'agent montre trois
+        points centrés ; la liste affichait une ligne grise en haut. On rend donc
+        le MÊME composant ici dès qu'il n'y a rien d'autre à lire — la première
+        lecture, et le cas où le parc est encore vide.
+      */}
+      {etat.phase === "chargement" ? (
+        <Chargement detail="Reading Herdr for the first time." texte="Loading…" />
+      ) : (
+        <BandeauEtat
+          etat={etat}
+          libelleVide="No conversations in Herdr yet."
+          onReessayer={reessayer}
+        />
+      )}
 
       {/*
         Invite de confiance : **globale**, au-dessus de tout.

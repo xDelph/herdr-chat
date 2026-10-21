@@ -603,16 +603,6 @@ button:disabled {
   pointer-events: none;
 }
 
-.history__older button {
-  background: transparent;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-pill);
-  color: var(--muted);
-  font-size: 12px;
-  min-height: 36px;
-  padding: 4px 12px;
-}
-
 .history__older p {
   color: var(--err);
   font-size: 12px;

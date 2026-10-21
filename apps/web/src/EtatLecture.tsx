@@ -26,7 +26,17 @@ export const BandeauEtat = ({ etat, libelleVide, onReessayer }: Props) => {
       return null;
 
     case "chargement":
-      return <Notice>Loading…</Notice>;
+      /*
+        ⚠️ **Rien ici : l'attente est CENTRÉE, pas une ligne en haut.**
+        Ce cas rendait une petite notice grise collée sous l'en-tête. Elle
+        ressemblait à un message d'erreur — même place, même discrétion, aucune
+        indication que quelque chose avance — alors que l'écran d'agent affichait,
+        lui, les trois points centrés (`Chargement`). Deux attentes, deux
+        aspects, pour la même chose : l'incohérence se voyait à chaque ouverture.
+        L'appelant rend donc `Chargement` à la place, au même endroit que
+        l'écran d'agent.
+      */
+      return null;
 
     case "vide":
       // Jamais en rouge : un parc sans agent n'est pas une panne.
