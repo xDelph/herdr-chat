@@ -49,6 +49,7 @@ import { fusionnerEntrees } from "./messages.ts";
 import { agentName, headerContext, headerReglages, statusClass } from "./labels.tsx";
 import { TabPanes } from "./TabPanes.tsx";
 import { TrustCard } from "./TrustCard.tsx";
+/* oxlint-disable react-perf/jsx-no-new-object-as-prop */
 import { motion, AnimatePresence } from "./v2/motion.tsx";
 import type { TrustRequired } from "./api.ts";
 import { FileOpenerContext, ItemsView, UrlOpenerContext } from "./Blocks.tsx";
@@ -1792,15 +1793,16 @@ export const ChatScreen = ({
                 <span aria-hidden="true">■</span>
               </button>
             ) : (
-              <button
+              <motion.button
                 type="button"
                 className="send"
                 onClick={onSubmit}
                 disabled={phase !== "ready" || sending || draft.trim().length === 0}
                 aria-label="Send"
+                whileTap={{ scale: 0.9 }}
               >
                 <span aria-hidden="true">↑</span>
-              </button>
+              </motion.button>
             )}
           </div>
           {stopFeedback === null ? null : <output className="sendState">{stopFeedback}</output>}
