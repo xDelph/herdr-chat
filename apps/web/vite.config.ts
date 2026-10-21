@@ -36,6 +36,16 @@ export default defineConfig({
         décision explicite (C21 : jamais de rechargement subi).
       */
       registerType: "prompt",
+      /*
+        ⚠️ **Le service worker se DÉTRUIT.** On a passé une journée à servir
+        l'ancien code sans le savoir : un worker précache l'`index.html`, donc il
+        sert l'ANCIENNE page — y compris mon propre `?reset=1`, qui ne pouvait
+        donc pas fonctionner. Un cache offline n'apporte rien ici : l'application
+        ne fait que parler à Herdr, et sans lui elle n'affiche rien d'utile.
+        Ce worker s'auto-désinscrit et efface les caches au premier chargement ;
+        il n'y a plus de version périmée possible.
+      */
+      selfDestroying: true,
       workbox: {
         clientsClaim: true,
         importScripts: ["/push-sw.js"],
