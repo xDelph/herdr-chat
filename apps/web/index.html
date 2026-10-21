@@ -27,25 +27,57 @@
     <div id="root"></div>
     <script>
       // Build-version cache control: transparent cache invalidation.
-      // Each build has a unique ID. If the stored ID differs, clear all
-      // caches and service workers, then reload. No manual ?reset=1 needed.
-      (async () => {
-        const buildId = "__BUILD_ID__";
-        const stored = localStorage.getItem("herdr-build-id");
+      // Runs synchronously to unregister old service workers before they
+      // can intercept requests.
+      (function () {
+        var buildId = "__BUILD_ID__";
+        var stored = null;
+        try {
+          stored = localStorage.getItem("herdr-build-id");
+        } catch (e) {}
         if (stored !== null && stored !== buildId) {
-          try {
-            const regs = (await navigator.serviceWorker?.getRegistrations()) ?? [];
-            await Promise.all(regs.map((r) => r.unregister()));
-            const keys = (await caches?.keys()) ?? [];
-            await Promise.all(keys.map((k) => caches.delete(k)));
-          } catch (e) {}
-          localStorage.setItem("herdr-build-id", buildId);
-          window.location.reload();
-          return;
+          // New build detected: unregister ALL service workers synchronously
+          // and clear caches, then reload.
+          if (navigator.serviceWorker) {
+            navigator.serviceWorker
+              .getRegistrations()
+              .then(function (regs) {
+                return Promise.all(
+                  regs.map(function (r) {
+                    return r.unregister();
+                  }),
+                );
+              })
+              .then(function () {
+                return caches.keys();
+              })
+              .then(function (keys) {
+                return Promise.all(
+                  keys.map(function (k) {
+                    return caches.delete(k);
+                  }),
+                );
+              })
+              .then(function () {
+                try {
+                  localStorage.setItem("herdr-build-id", buildId);
+                } catch (e) {}
+                window.location.reload();
+              })
+              .catch(function () {
+                try {
+                  localStorage.setItem("herdr-build-id", buildId);
+                } catch (e) {}
+                window.location.reload();
+              });
+            return; // Don't load the app until cache is cleared
+          }
         }
-        localStorage.setItem("herdr-build-id", buildId);
+        try {
+          localStorage.setItem("herdr-build-id", buildId);
+        } catch (e) {}
       })();
     </script>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="/src/main.tsx?v=__BUILD_ID__"></script>
   </body>
 </html>
