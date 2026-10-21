@@ -22,11 +22,23 @@ describe("quand acquitter", () => {
   test("`blocked` ne s'acquitte JAMAIS", () => {
     // L'agent pose une question : l'effacer de « Needs attention » ferait
     // passer une question pour lue.
-    expect(doitAcquitter({ aInteragi: true, dejaAcquitte: false, statut: "blocked" })).toBe(false);
+    expect(
+      doitAcquitter({
+        aInteragi: true,
+        dejaAcquitte: false,
+        statut: "blocked",
+      }),
+    ).toBe(false);
   });
 
   test("`working` et `idle` ne s'acquittent pas", () => {
-    expect(doitAcquitter({ aInteragi: true, dejaAcquitte: false, statut: "working" })).toBe(false);
+    expect(
+      doitAcquitter({
+        aInteragi: true,
+        dejaAcquitte: false,
+        statut: "working",
+      }),
+    ).toBe(false);
     expect(doitAcquitter({ aInteragi: true, dejaAcquitte: false, statut: "idle" })).toBe(false);
   });
 

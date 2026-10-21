@@ -247,7 +247,10 @@ const toolArgumentsOf = (value: unknown): Readonly<Record<string, unknown>> => {
 export interface PatchFileChange {
   readonly kind: "add" | "delete" | "update";
   readonly path: string;
-  readonly edits: ReadonlyArray<{ readonly newText: string; readonly oldText: string }>;
+  readonly edits: ReadonlyArray<{
+    readonly newText: string;
+    readonly oldText: string;
+  }>;
 }
 
 /** Commande shell portée par un appel Codex, sous ses différentes formes. */
@@ -272,7 +275,10 @@ export const patchFilesOf = (command: string): ReadonlyArray<PatchFileChange> =>
   let newLines: string[] = [];
   const flushEdit = () => {
     if (oldLines.length > 0 || newLines.length > 0) {
-      edits.push({ newText: newLines.join("\n"), oldText: oldLines.join("\n") });
+      edits.push({
+        newText: newLines.join("\n"),
+        oldText: oldLines.join("\n"),
+      });
       oldLines = [];
       newLines = [];
     }
@@ -558,17 +564,29 @@ export const decodeRawLine = (raw: string): typeof SessionLine.Type | undefined 
   if (typeof typeLigne !== "string" || typeof corps !== "object" || corps === null) {
     return undefined;
   }
+  /*
+    ⚠️ **Un champ `null` ne doit pas être recopié tel quel.** Les lignes opencode
+    portent `toolName: null`, `model: null`… : recopiés, ils refaisaient échouer
+    le second décodage, et **les messages `user` disparaissaient** (les messages
+    `assistant` passaient, eux, parce que leurs champs étaient remplis). C'est
+    ce qui donnait « zéro demande affichée » sur une session qui en contenait 6,
+    et un tour unique de 10 h 25.
+  */
   // Accès par `Reflect` : pas d'assertion de type sur une donnée venue du fil.
   const champ = (cle: string): unknown => Reflect.get(corps, cle);
+  const texte = (cle: string): string | undefined => {
+    const valeur = champ(cle);
+    return typeof valeur === "string" && valeur !== "" ? valeur : undefined;
+  };
   const compact = {
     message: {
       content: champ("content"),
-      model: champ("model"),
-      provider: champ("provider"),
-      role: champ("role"),
-      thinkingLevel: champ("thinkingLevel"),
+      model: texte("model"),
+      provider: texte("provider"),
+      role: texte("role"),
+      thinkingLevel: texte("thinkingLevel"),
     },
-    timestamp: horodatage ?? champ("timestamp"),
+    timestamp: typeof horodatage === "string" ? horodatage : texte("timestamp"),
     type: typeLigne,
   };
   return Option.getOrUndefined(decodeSessionLine(compact));
@@ -971,44 +989,45 @@ export const toItems = (
 /** Le calcul réel — séparé pour que le cache reste une ligne au-dessus. */
 const calculeItems = (
   messages: ReadonlyArray<RenderedMessage>,
-  lastTurnInProgress = false,
+  // Conservé pour la clé de cache : le découpage ne dépend plus de ce booléen,
+  // mais `toItems` reste appelé avec lui et un changement de valeur doit
+  // recalculer (le statut `working` peut coïncider avec une nouvelle prose).
+  _lastTurnInProgress = false,
 ): ReadonlyArray<Item> => {
   const items: Item[] = [];
   let tour: RenderedMessage[] = [];
 
-  const flush = (inProgress = lastTurnInProgress) => {
+  /*
+    ⚠️ **Toute prose de l'agent est un message, jamais du « travail ».**
+
+    Avant, la règle était « la réponse = la dernière prose du tour », et **tout
+    le reste du tour** — y compris de longues réponses déjà écrites — partait
+    dans le groupe replié. Dès qu'un texte arrive après la réponse (un brief
+    injecté, un plugin, un skill qui écrit un accusé), la grande réponse
+    disparaissait dans le groupe et la **petite** devenait « la réponse ».
+
+    On découpe donc le tour en séquence : les blocs de travail (réflexion,
+    appels d'outils, résultats) forment des groupes, et chaque bloc de prose
+    sort **à sa place**, comme message. L'ordre du fil est préservé, et aucune
+    prose lisible n'est cachée.
+  */
+  const pousseTravail = (travail: ReadonlyArray<RenderedMessage>) => {
+    if (travail.length === 0) return;
+    items.push({
+      callCount: travail.length,
+      // L'identité du groupe suit son premier message : le nombre de messages
+      // augmente pendant le streaming et ne doit pas remonter son composant.
+      id: `travail:${travail[0]?.id ?? "?"}`,
+      kind: "tools",
+      messages: travail,
+      tools: toolNamesOf(travail),
+    });
+  };
+
+  const flush = () => {
     if (tour.length === 0) return;
-
-    /*
-      La réponse = la **dernière** prose du tour.
-    */
-    let indexReponse = -1;
-    if (!inProgress) {
-      for (let index = tour.length - 1; index >= 0; index -= 1) {
-        if (aDeLaProse(tour[index])) {
-          indexReponse = index;
-          break;
-        }
-      }
-    }
-
-    /*
-      ⚠️ **Le message-réponse est DÉCOUPÉ.**
-
-      Un tour réel finit sur `thinking + text` : la réponse et le raisonnement
-      vivent dans le **même** message. Le prendre entier laissait la réponse dans
-      le bloc ; le refuser entièrement faisait sortir sa réflexion, en sous-bloc
-      orphelin hors d'un bloc refermé.
-
-      Sa prose sort — c'est la réponse — et son travail reste dedans.
-    */
-    const travail: RenderedMessage[] = [];
-    let reponse: RenderedMessage | undefined;
-    for (const [index, message] of tour.entries()) {
-      if (index !== indexReponse) {
-        travail.push(message);
-        continue;
-      }
+    let travail: RenderedMessage[] = [];
+    for (const message of tour) {
       const prose = message.blocks.filter(
         (block) => block.kind === "text" || block.kind === "image",
       );
@@ -1016,33 +1035,25 @@ const calculeItems = (
         (block) => block.kind !== "text" && block.kind !== "image",
       );
       if (reste.length > 0) travail.push({ ...message, blocks: reste });
-      if (prose.length > 0) reponse = { ...message, blocks: prose };
+      if (prose.length > 0) {
+        pousseTravail(travail);
+        travail = [];
+        items.push({ kind: "single", message: { ...message, blocks: prose } });
+      }
     }
-
-    if (travail.length > 0) {
-      items.push({
-        callCount: travail.length,
-        // L'identité du groupe suit son premier message. Le nombre de messages
-        // augmente pendant le streaming et ne doit pas remonter son composant.
-        id: `travail:${travail[0]?.id ?? "?"}`,
-        kind: "tools",
-        messages: travail,
-        tools: toolNamesOf(travail),
-      });
-    }
-    if (reponse !== undefined) items.push({ kind: "single", message: reponse });
-
+    pousseTravail(travail);
     tour = [];
   };
 
   for (const message of messages) {
     if (message.role === "user") {
-      flush(false);
+      flush();
       items.push({ kind: "single", message });
       continue;
     }
     tour.push(message);
   }
+
   flush();
 
   return items;
@@ -1113,23 +1124,6 @@ export const avecTravailEnCours = (
     },
   ];
 };
-
-/**
- * `true` si un message est **uniquement** de la prose.
- *
- * ⚠️ **Uniquement**, et c'est le point. Un message `text + thinking` est de la
- * prose *et* du travail : le prendre pour la réponse sortait son `thinking` du
- * bloc, et une ligne « Réflexion » se retrouvait **hors** d'un bloc refermé.
- * C'est exactement le sous-bloc orphelin qu'on voyait à l'écran.
- *
- * Un résultat d'outil est du texte, mais ce n'est pas une réponse non plus : le
- * compter comme telle ferait passer la dernière sortie de commande pour la
- * conclusion du tour.
- */
-const aDeLaProse = (message: RenderedMessage | undefined): boolean =>
-  message !== undefined &&
-  message.role === "assistant" &&
-  message.blocks.some((block) => block.kind === "text");
 
 // ---------------------------------------------------------------------------
 // Question en attente

@@ -34,7 +34,10 @@ import {
  */
 type RegistrationMinimale = Pick<ServiceWorkerRegistration, "waiting" | "installing">;
 
-const workerFaux = (): { registration: RegistrationMinimale; recus: unknown[] } => {
+const workerFaux = (): {
+  registration: RegistrationMinimale;
+  recus: unknown[];
+} => {
   const recus: unknown[] = [];
   const worker = {
     postMessage: (message: unknown) => {

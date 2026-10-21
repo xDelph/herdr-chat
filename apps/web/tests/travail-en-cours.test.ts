@@ -212,7 +212,20 @@ describe("le bloc vide et le premier vrai groupe ne se remplacent pas dans le do
   test("le vrai groupe est bien celui que `toItems` produit", () => {
     // On ne suppose pas la forme : on vérifie qu'un tour d'outils se termine bien
     // par un groupe — celui-là même qui rend le bloc vide inutile.
-    const items = toItems([message("u1", "user"), message("a1")], true);
+    //
+    // ⚠️ Le message final doit porter **du travail**, pas de la prose : la prose
+    // de l'agent sort désormais comme message (sa réponse ne doit pas se cacher
+    // dans le groupe), donc un tour qui finit sur un texte ne finit pas sur un
+    // groupe.
+    const appel: RenderedMessage = {
+      at: null,
+      blocks: [{ arguments: {}, id: "t1", kind: "toolCall", name: "bash" }],
+      id: "a1",
+      meta: {},
+      role: "assistant",
+      text: "",
+    };
+    const items = toItems([message("u1", "user"), appel], true);
 
     expect(items.at(-1)?.kind).toBe("tools");
     expect(avecTravailEnCours(items, true).length).toBe(items.length);

@@ -13,3 +13,4 @@ pub mod composition;
 pub mod config;
 pub mod cycle;
 pub mod logging;
+pub mod veille;

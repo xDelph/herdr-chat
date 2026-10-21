@@ -119,14 +119,22 @@ const line = (message: unknown, type = "message") =>
 const toolCall = (id: string, name: string) =>
   JSON.stringify({
     id,
-    message: { content: [{ arguments: {}, name, type: "toolCall" }], role: "assistant" },
+    message: {
+      content: [{ arguments: {}, name, type: "toolCall" }],
+      role: "assistant",
+    },
     type: "message",
   });
 
 const toolResult = (id: string, name: string, text = "ok", isError = false) =>
   JSON.stringify({
     id,
-    message: { content: [{ text, type: "text" }], isError, role: "toolResult", toolName: name },
+    message: {
+      content: [{ text, type: "text" }],
+      isError,
+      role: "toolResult",
+      toolName: name,
+    },
     type: "message",
   });
 
@@ -172,7 +180,12 @@ describe("toBlocks", () => {
 
   test("appel d'outil : arguments décodés en objet", () => {
     const blocks = toBlocks([
-      { arguments: { command: "ls -la" }, id: "c1", name: "bash", type: "toolCall" },
+      {
+        arguments: { command: "ls -la" },
+        id: "c1",
+        name: "bash",
+        type: "toolCall",
+      },
     ]);
     if (blocks[0]?.kind === "toolCall") {
       expect(blocks[0].name).toBe("bash");
@@ -339,7 +352,13 @@ describe("toMessages", () => {
 
   test("un compactage sans résumé ne casse pas", () => {
     expect(
-      toMessages([{ id: "c2", raw: JSON.stringify({ type: "compaction" }), type: "compaction" }]),
+      toMessages([
+        {
+          id: "c2",
+          raw: JSON.stringify({ type: "compaction" }),
+          type: "compaction",
+        },
+      ]),
     ).toHaveLength(1);
   });
 
@@ -440,7 +459,10 @@ describe("toMessages", () => {
       toMessages([
         {
           id: "m",
-          raw: line({ content: [{ text: "", type: "text" }], role: "assistant" }),
+          raw: line({
+            content: [{ text: "", type: "text" }],
+            role: "assistant",
+          }),
           type: "message",
         },
       ]),
@@ -450,7 +472,11 @@ describe("toMessages", () => {
   test("une ligne illisible n'empêche pas les autres", () => {
     const result = toMessages([
       { raw: "{ tronqué", type: "message" },
-      { id: "ok", raw: line({ content: "bonjour", role: "user" }), type: "message" },
+      {
+        id: "ok",
+        raw: line({ content: "bonjour", role: "user" }),
+        type: "message",
+      },
     ]);
     expect(result).toHaveLength(1);
     expect(result[0]?.role).toBe("user");
@@ -458,7 +484,15 @@ describe("toMessages", () => {
 });
 
 describe("toItems — regroupement des appels d'outils", () => {
-  test("pendant un tour actif, la progression reste dans le bloc de travail", () => {
+  test("pendant un tour actif, la prose de l'agent est un message, pas du travail", () => {
+    /*
+      ⚠️ **Règle changée le 2026-10-21.** Avant, pendant un tour actif, toute la
+      prose restait dans le groupe. Sur une vraie session opencode, cela faisait
+      disparaître la vraie réponse derrière un groupe replié dès qu'un texte
+      arrivait après elle (un brief injecté, un accusé d'un skill). La prose
+      écrite par l'agent est un message : elle sort **à sa place**, pendant
+      comme après.
+    */
     const items = toItems(
       messages([
         { raw: assistantText("progress", "I found the issue.") },
@@ -467,10 +501,10 @@ describe("toItems — regroupement des appels d'outils", () => {
       ]),
       true,
     );
-    expect(items).toHaveLength(1);
-    expect(items[0]?.kind).toBe("tools");
-    if (items[0]?.kind === "tools")
-      expect(items[0].messages[0]?.text).toContain("I found the issue.");
+    expect(items.map((item) => item.kind)).toEqual(["single", "tools"]);
+    expect(items[0]?.kind === "single" ? items[0].message.text : "").toContain(
+      "I found the issue.",
+    );
   });
 
   test("une suite d'outils devient un seul groupe", () => {
@@ -525,7 +559,12 @@ describe("toItems — regroupement des appels d'outils", () => {
     const items = toItems(
       messages([
         { raw: toolCall("1", "bash") },
-        { raw: line({ content: [{ text: "fais ceci", type: "text" }], role: "user" }) },
+        {
+          raw: line({
+            content: [{ text: "fais ceci", type: "text" }],
+            role: "user",
+          }),
+        },
         { raw: toolCall("2", "bash") },
       ]),
     );
@@ -597,7 +636,12 @@ describe("blockToText", () => {
     expect(blockToText({ data: "x", kind: "image", mimeType: "image/png" })).toBe("[image]");
     expect(blockToText({ arguments: {}, id: "i", kind: "toolCall", name: "bash" })).toBe("[bash]");
     expect(
-      blockToText({ kind: "compaction", firstKeptEntryId: null, summary: "s", tokensBefore: 1 }),
+      blockToText({
+        kind: "compaction",
+        firstKeptEntryId: null,
+        summary: "s",
+        tokensBefore: 1,
+      }),
     ).toBe("s");
   });
 });
@@ -617,7 +661,11 @@ describe("une ligne normalisée par le backend n'est jamais jetée en silence", 
       cancelled: false,
       command: "",
       content: [
-        { redacted: false, thinking: "The user didn't ask a new question.", type: "thinking" },
+        {
+          redacted: false,
+          thinking: "The user didn't ask a new question.",
+          type: "thinking",
+        },
         { text: "Acknowledged — the report is ready.", type: "text" },
       ],
       exitCode: null,
@@ -648,5 +696,65 @@ describe("une ligne normalisée par le backend n'est jamais jetée en silence", 
     const rendus = toMessages([{ raw: JSON.stringify(ligne), type: "message" }]);
     expect(rendus).toHaveLength(1);
     expect(rendus[0]?.blocks.map((bloc) => bloc.kind)).toEqual(["text"]);
+  });
+});
+
+/**
+ * Une ligne `user` telle que la produit le backend pour opencode : tous les
+ * champs de famille sont **nuls**.
+ */
+const fabriqueDemande = (texte: string): string =>
+  JSON.stringify({
+    id: "opencode:msg_user",
+    message: {
+      cancelled: null,
+      command: null,
+      content: [{ text: texte, type: "text" }],
+      exitCode: null,
+      isError: null,
+      model: null,
+      output: null,
+      phase: null,
+      provider: null,
+      role: "user",
+      thinkingLevel: null,
+      toolName: null,
+      truncated: null,
+    },
+    timestamp: "2026-10-20T10:00:00.000Z",
+    type: "message",
+  });
+
+describe("une demande utilisateur opencode n'est jamais perdue", () => {
+  /*
+    ⚠️ **Le défaut qui rendait la session opencode illisible.** Ses lignes
+    portent `toolName: null`, `model: null`, `phase: null`… Le repli tolérant
+    les recopiait tels quels, le second décodage échouait, et **les messages
+    `user` disparaissaient** — les `assistant` passaient, eux, parce que leurs
+    champs étaient remplis. Résultat mesuré : 6 demandes dans la session, 0 à
+    l'écran, un seul « tour » de 10 h 25 et la petite réponse finale à la place
+    de la vraie.
+  */
+  test("une demande dont les champs sont nuls est rendue", () => {
+    const rendus = toMessages([{ raw: fabriqueDemande("check this repo"), type: "message" }]);
+    expect(rendus).toHaveLength(1);
+    expect(rendus[0]?.role).toBe("user");
+    expect(rendus[0]?.text).toBe("check this repo");
+  });
+
+  test("la demande sépare deux tours : plus de durée de 10 h", () => {
+    const rendus = toItems(
+      toMessages([
+        { raw: fabriqueDemande("première demande"), type: "message" },
+        {
+          raw: assistantText("a1", "fini"),
+          timestamp: "2026-10-20T10:05:00Z",
+          type: "message",
+        },
+        { raw: fabriqueDemande("seconde demande"), type: "message" },
+        { raw: assistantText("a2", "encore fini"), type: "message" },
+      ]),
+    );
+    expect(rendus.map((item) => item.kind)).toEqual(["single", "single", "single", "single"]);
   });
 });

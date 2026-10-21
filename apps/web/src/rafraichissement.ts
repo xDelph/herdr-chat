@@ -68,7 +68,10 @@ const uneLecture = async <T>(lecture: () => Promise<T>): Promise<Issue<T>> => {
   try {
     return { ok: true, valeur: await lecture() };
   } catch (cause) {
-    return { ok: false, cause: cause instanceof Error ? cause.message : String(cause) };
+    return {
+      ok: false,
+      cause: cause instanceof Error ? cause.message : String(cause),
+    };
   }
 };
 

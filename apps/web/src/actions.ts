@@ -514,7 +514,13 @@ export const coutDuGroupe = (messages: ReadonlyArray<RenderedMessage>): Cout => 
   // intervalle qui n'existe pas.
   const dureeMs =
     premier !== null && dernier !== null && dernier > premier ? dernier - premier : null;
-  return { added, debutMs: premier, dureeMs, jetons: avecJetons ? jetons : null, removed };
+  return {
+    added,
+    debutMs: premier,
+    dureeMs,
+    jetons: avecJetons ? jetons : null,
+    removed,
+  };
 };
 
 /**

@@ -245,7 +245,10 @@ describe("U22 — la taille d'un changement se dit sur la ligne", () => {
   });
 
   test("le delta remonte dans l'action, prêt à afficher", () => {
-    const action = actionDe("edit", { edits: [{ newText: "x", oldText: "a\nb" }], path: "a.ts" });
+    const action = actionDe("edit", {
+      edits: [{ newText: "x", oldText: "a\nb" }],
+      path: "a.ts",
+    });
     expect(action.delta).toEqual({ added: 1, removed: 2 });
     expect(action.cible).toBe("a.ts");
   });
@@ -265,7 +268,14 @@ describe("U22 — l'appel lui-même est son détail", () => {
       name: "edit",
     };
     const lignes = lignesDeTravail([
-      { at: null, blocks: [appel], id: "m1", meta: {}, role: "assistant", text: "" },
+      {
+        at: null,
+        blocks: [appel],
+        id: "m1",
+        meta: {},
+        role: "assistant",
+        text: "",
+      },
     ]);
     expect(lignes).toHaveLength(1);
     const premiere = lignes[0];
@@ -321,18 +331,40 @@ describe("U22 — l'appel lui-même est son détail", () => {
 
   test("les commandes consécutives sont regroupées, les éditions restent séparées", () => {
     const appels = [
-      { arguments: { command: "pwd" }, id: "c1", kind: "toolCall" as const, name: "bash" },
+      {
+        arguments: { command: "pwd" },
+        id: "c1",
+        kind: "toolCall" as const,
+        name: "bash",
+      },
       {
         arguments: { command: "bun run build" },
         id: "c2",
         kind: "toolCall" as const,
         name: "bash",
       },
-      { arguments: { path: "src/app.ts" }, id: "c3", kind: "toolCall" as const, name: "edit" },
-      { arguments: { command: "git status" }, id: "c4", kind: "toolCall" as const, name: "bash" },
+      {
+        arguments: { path: "src/app.ts" },
+        id: "c3",
+        kind: "toolCall" as const,
+        name: "edit",
+      },
+      {
+        arguments: { command: "git status" },
+        id: "c4",
+        kind: "toolCall" as const,
+        name: "bash",
+      },
     ];
     const lines = lignesDeTravail([
-      { at: null, blocks: appels, id: "m1", meta: {}, role: "assistant", text: "" },
+      {
+        at: null,
+        blocks: appels,
+        id: "m1",
+        meta: {},
+        role: "assistant",
+        text: "",
+      },
     ]);
     const visible = regrouperCommandes(lines);
     expect(visible.map((line) => line.kind)).toEqual(["commands", "action", "action"]);

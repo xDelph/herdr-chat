@@ -290,7 +290,10 @@ const ligneProjet = (
   workspaceId: string,
   status: AgentStatus = "idle",
   timestamp?: number,
-): ConversationSummary => ({ ...ligne(paneId, status, timestamp), workspaceId });
+): ConversationSummary => ({
+  ...ligne(paneId, status, timestamp),
+  workspaceId,
+});
 
 /** Résolveur de libellé : `w1` → « Alpha », le reste → « Workspace ». */
 const nomDeProjet = (workspaceId: string): string =>

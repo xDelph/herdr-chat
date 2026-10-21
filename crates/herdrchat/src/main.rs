@@ -135,6 +135,14 @@ async fn demarre(config: &Config) -> Result<(), String> {
         diagnostics,
         Arc::new(herdrchat::assets::AssetsEmbarques),
     ));
+    /*
+      ⚠️ **La veille démarre AVANT le routeur, et elle manquait totalement.**
+      Sans elle, le démon ne publiait jamais `agent_status` ni
+      `session_changed` : la PWA retombait sur son filet (30 s / 120 s), donc
+      ni statut en direct, ni message en direct — même écran ouvert.
+    */
+    let mut veille =
+        herdrchat::veille::Veille::demarre(Arc::clone(&services), Arc::clone(&maintenant));
     // 8) Le routeur, l'écoute et le cycle de vie.
     let adresse = format!("{}:{}", config.hostname, config.port);
     let adresse: std::net::SocketAddr = adresse
@@ -163,6 +171,9 @@ async fn demarre(config: &Config) -> Result<(), String> {
         herdrchat::cycle::DELAI_DRAIN,
     )
     .await;
+    // La veille s'arrête avec le serveur : un fil qui interroge Herdr après la
+    // fermeture du socket d'écoute serait un résidu.
+    veille.arrete();
     if rapport.drain_interrompu {
         eprintln!(
             "arrêt : {} requête(s) coupée(s) après le délai de drain",

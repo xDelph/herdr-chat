@@ -211,14 +211,25 @@ export const ModelSheet = ({
       readonly value: string;
     }> = [];
     if (modeleChange)
-      commands.push({ command: `/model ${modele.id}`, type: "model", value: modele.id });
+      commands.push({
+        command: `/model ${modele.id}`,
+        type: "model",
+        value: modele.id,
+      });
     if (penseeChange && pensee !== null) {
-      commands.push({ command: `/thinking ${pensee}`, type: "thinking", value: pensee });
+      commands.push({
+        command: `/thinking ${pensee}`,
+        type: "thinking",
+        value: pensee,
+      });
     }
     if (commands.length === 0) return;
 
     setBusy(true);
-    const sent: Array<{ readonly command: string; readonly result: SendResult }> = [];
+    const sent: Array<{
+      readonly command: string;
+      readonly result: SendResult;
+    }> = [];
     const transmettre = async (index: number): Promise<void> => {
       const entry = commands[index];
       if (entry === undefined) return;

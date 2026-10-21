@@ -23,7 +23,12 @@ export const BandeauMiseAJour = () => {
   const [blocage, setBlocage] = useState<Blocage>("aucune");
 
   const relis = (): void => {
-    setBlocage(blocageDeMiseAJour({ brouillon: unBrouillonExiste(), envoi: envoiEnCours() }));
+    setBlocage(
+      blocageDeMiseAJour({
+        brouillon: unBrouillonExiste(),
+        envoi: envoiEnCours(),
+      }),
+    );
   };
 
   useEffect(() => {
@@ -41,7 +46,10 @@ export const BandeauMiseAJour = () => {
         type="button"
         disabled={blocage !== "aucune"}
         onClick={() => {
-          appliquerMiseAJour({ brouillon: unBrouillonExiste(), envoi: envoiEnCours() });
+          appliquerMiseAJour({
+            brouillon: unBrouillonExiste(),
+            envoi: envoiEnCours(),
+          });
         }}
       >
         Reload to update

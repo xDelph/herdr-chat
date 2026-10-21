@@ -55,7 +55,9 @@ export const enablePushNotifications = async (): Promise<void> => {
     return;
   }
 
-  const keyResponse = await fetch("/api/notifications/vapid-key", { cache: "no-store" });
+  const keyResponse = await fetch("/api/notifications/vapid-key", {
+    cache: "no-store",
+  });
   if (!keyResponse.ok) {
     throw new Error((await keyResponse.text()) || "Could not configure push notifications.");
   }

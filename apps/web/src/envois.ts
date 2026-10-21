@@ -51,7 +51,11 @@ export type Lanceur = (
 ) => Promise<
   | { readonly kind: "sent"; readonly confirmation: "confirmed" | "unknown" }
   | { readonly kind: "suppressed"; readonly reason: string }
-  | { readonly kind: "failed"; readonly message: string; readonly state: EtatEchec }
+  | {
+      readonly kind: "failed";
+      readonly message: string;
+      readonly state: EtatEchec;
+    }
 >;
 
 /** Le planificateur de la minuterie — injecté pour que les tests n'attendent pas. */

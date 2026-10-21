@@ -56,7 +56,10 @@ const planificateurManuel = (): {
 
 /** Un lanceur qui note les cibles, et répond ce qu'on lui demande. */
 const lanceurNote = (
-  reponse: Awaited<ReturnType<Lanceur>> = { confirmation: "confirmed", kind: "sent" },
+  reponse: Awaited<ReturnType<Lanceur>> = {
+    confirmation: "confirmed",
+    kind: "sent",
+  },
 ): { appels: Array<{ pane: string; text: string }>; lance: Lanceur } => {
   const appels: Array<{ pane: string; text: string }> = [];
   return {
@@ -139,7 +142,11 @@ describe("C20 — la minuterie survit à la navigation", () => {
     const { appels, lance } = lanceurNote();
     const { avance, planifie } = planificateurManuel();
     const magasin = creeMagasinEnvois(lance, planifie);
-    const id = magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "à annuler" });
+    const id = magasin.ajoute({
+      baseline: 0,
+      pane: "w1:p1",
+      text: "à annuler",
+    });
     expect(magasin.annule(id)).toBe("à annuler");
     avance(DELAI_ENVOI_MS);
     await souffle();
@@ -186,7 +193,10 @@ describe("T058 — les états du fil, sans mensonge", () => {
   });
 
   test("un double supprimé est un succès assumé, pas une erreur", async () => {
-    const { lance } = lanceurNote({ kind: "suppressed", reason: "consecutive identical send" });
+    const { lance } = lanceurNote({
+      kind: "suppressed",
+      reason: "consecutive identical send",
+    });
     const { avance, planifie } = planificateurManuel();
     const magasin = creeMagasinEnvois(lance, planifie);
     magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "x" });

@@ -22,7 +22,12 @@ import {
 const page = (
   entries: readonly string[],
   options: { incremental?: boolean; reset?: boolean; cause?: string } = {},
-): { entries: readonly string[]; incremental: boolean; reset: boolean; cause?: string } => ({
+): {
+  entries: readonly string[];
+  incremental: boolean;
+  reset: boolean;
+  cause?: string;
+} => ({
   cause: options.cause,
   entries,
   incremental: options.incremental ?? false,
@@ -33,7 +38,10 @@ describe("une lecture vide ne détruit pas le fil", () => {
   test("session absente alors qu'on affiche des messages : on garde", () => {
     // Le cas rapporté : l'agent passe en `blocked`, le serveur répond
     // `cause: "absente"`, `entries: []`. Avant : fil vidé, écran mort.
-    const decision = decideAffichage({ affiches: 12, page: page([], { cause: "absente" }) });
+    const decision = decideAffichage({
+      affiches: 12,
+      page: page([], { cause: "absente" }),
+    });
     expect(decision.genre).toBe("garde");
   });
 
@@ -60,7 +68,10 @@ describe("une lecture vide ne détruit pas le fil", () => {
 
 describe("une lecture qui apporte est appliquée", () => {
   test("incrémental avec des entrées : on ajoute", () => {
-    const decision = decideAffichage({ affiches: 12, page: page(["c"], { incremental: true }) });
+    const decision = decideAffichage({
+      affiches: 12,
+      page: page(["c"], { incremental: true }),
+    });
     expect(decision).toEqual({ entries: ["c"], genre: "ajoute" });
   });
 
@@ -72,7 +83,10 @@ describe("une lecture qui apporte est appliquée", () => {
   test("première lecture vide : on remplace aussi (il n'y a rien à perdre)", () => {
     // Un agent neuf : aucun message affiché, la page vide est la vérité du
     // moment. C'est le seul cas où un vide s'applique.
-    const decision = decideAffichage({ affiches: 0, page: page([], { cause: "vide" }) });
+    const decision = decideAffichage({
+      affiches: 0,
+      page: page([], { cause: "vide" }),
+    });
     expect(decision.genre).toBe("remplace");
   });
 

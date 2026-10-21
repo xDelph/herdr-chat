@@ -32,7 +32,13 @@ const catalogue = (
   kind: string,
   models: ReadonlyArray<ReturnType<typeof modele>>,
   thinkingLevels: string[] = [],
-): ModelCatalog => ({ error: null, kind, models: [...models], source: "essai", thinkingLevels });
+): ModelCatalog => ({
+  error: null,
+  kind,
+  models: [...models],
+  source: "essai",
+  thinkingLevels,
+});
 
 const deuxModeles = () =>
   catalogue("pi", [
@@ -82,7 +88,12 @@ describe("U06 — l'envoi est bloqué, et la cause est dite", () => {
   test("rien choisi : l'agent part avec ses propres valeurs", () => {
     // Un choix, pas une absence de vérification : c'est le chemin le plus
     // fréquent et il doit rester ouvert, même sans catalogue.
-    const verdict = verifierLancement({ catalog: null, kind: "pi", model: "", thinking: "" });
+    const verdict = verifierLancement({
+      catalog: null,
+      kind: "pi",
+      model: "",
+      thinking: "",
+    });
     expect(verdict.envoyable).toBe(true);
     if (verdict.envoyable) expect(verdict.choix).toEqual({});
   });
@@ -188,7 +199,12 @@ describe("U06 — la liste affichée reste utilisable", () => {
     // Le plafond porte sur l'affichage, jamais sur la vérification : un modèle
     // hors de la fenêtre doit rester sélectionnable par son identifiant.
     expect(grand.models.length).toBeGreaterThan(MAX_MODELES_AFFICHES);
-    const verdict = verifierLancement({ catalog: grand, kind: "pi", model: "m499", thinking: "" });
+    const verdict = verifierLancement({
+      catalog: grand,
+      kind: "pi",
+      model: "m499",
+      thinking: "",
+    });
     expect(verdict.envoyable).toBe(true);
   });
 });

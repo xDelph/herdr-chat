@@ -118,7 +118,10 @@ describe("toBubbles", () => {
   });
 
   test("ignore les messages sans texte plutôt que d'afficher un bloc vide", () => {
-    const empty = JSON.stringify({ message: { content: "", role: "system" }, type: "message" });
+    const empty = JSON.stringify({
+      message: { content: "", role: "system" },
+      type: "message",
+    });
     const blank = JSON.stringify({
       message: { content: [{ type: "toolCall" }], role: "assistant" },
       type: "message",

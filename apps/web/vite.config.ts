@@ -61,9 +61,19 @@ export default defineConfig({
         */
         icons: [
           { sizes: "192x192", src: "/icon-192.png", type: "image/png" },
-          { purpose: "maskable", sizes: "192x192", src: "/icon-192.png", type: "image/png" },
+          {
+            purpose: "maskable",
+            sizes: "192x192",
+            src: "/icon-192.png",
+            type: "image/png",
+          },
           { sizes: "512x512", src: "/icon-512.png", type: "image/png" },
-          { purpose: "maskable", sizes: "512x512", src: "/icon-512.png", type: "image/png" },
+          {
+            purpose: "maskable",
+            sizes: "512x512",
+            src: "/icon-512.png",
+            type: "image/png",
+          },
         ],
         description: "Pilot Herdr and its agents from your phone",
         display: "standalone",

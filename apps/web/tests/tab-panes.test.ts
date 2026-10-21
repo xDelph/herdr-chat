@@ -51,8 +51,18 @@ describe("TabPanes — la barre ne sert que s'il y a des voisins", () => {
   test("deux panes : deux boutons", () => {
     const html = rendre(
       [
-        agent({ name: "verif-ui", paneId: "w1:p1", paneRank: 1, tabPaneCount: 2 }),
-        agent({ name: "verif-db", paneId: "w1:p2", paneRank: 2, tabPaneCount: 2 }),
+        agent({
+          name: "verif-ui",
+          paneId: "w1:p1",
+          paneRank: 1,
+          tabPaneCount: 2,
+        }),
+        agent({
+          name: "verif-db",
+          paneId: "w1:p2",
+          paneRank: 2,
+          tabPaneCount: 2,
+        }),
       ],
       "w1:p1",
     );
@@ -98,8 +108,18 @@ describe("TabPanes — la barre ne sert que s'il y a des voisins", () => {
   test("l'état est porté par la classe du point", () => {
     const html = rendre(
       [
-        agent({ paneId: "w1:p1", paneRank: 1, status: "blocked", tabPaneCount: 2 }),
-        agent({ paneId: "w1:p2", paneRank: 2, status: "working", tabPaneCount: 2 }),
+        agent({
+          paneId: "w1:p1",
+          paneRank: 1,
+          status: "blocked",
+          tabPaneCount: 2,
+        }),
+        agent({
+          paneId: "w1:p2",
+          paneRank: 2,
+          status: "working",
+          tabPaneCount: 2,
+        }),
       ],
       "w1:p1",
     );

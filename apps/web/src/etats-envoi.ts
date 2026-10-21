@@ -59,7 +59,10 @@ export const expliquerEchec = (
     préfère le montrer que le masquer : un état qu'on ne sait pas nommer doit
     se voir, pas disparaître en silence.
   */
-  return { texte: `Send failed in an unknown state: ${String(etat)}`, action: null };
+  return {
+    texte: `Send failed in an unknown state: ${String(etat)}`,
+    action: null,
+  };
 };
 
 /**
@@ -107,7 +110,10 @@ export const expliquerConfiance = (state: string): IssueConfiance => {
   switch (state) {
     case "acceptee":
       // Seule issue favorable : la permission est écrite, l'agent démarre.
-      return { resolue: true, texte: "Folder access approved — the agent can start" };
+      return {
+        resolue: true,
+        texte: "Folder access approved — the agent can start",
+      };
     case "refusee":
       /*
         ⚠️ **Refuser, c'est arrêter l'agent** — les deux familles mesurées
@@ -143,6 +149,9 @@ export const expliquerConfiance = (state: string): IssueConfiance => {
         accord. Le retour prudent est « pas résolue » : la carte reste, et
         l'utilisateur voit qu'on ne sait pas.
       */
-      return { resolue: false, texte: `Folder access decision in an unknown state: ${state}` };
+      return {
+        resolue: false,
+        texte: `Folder access decision in an unknown state: ${state}`,
+      };
   }
 };

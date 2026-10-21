@@ -151,7 +151,12 @@ describe("U10 — une coupure ne sort pas de la conversation", () => {
 });
 
 describe("le démarrage n'est pas une panne", () => {
-  const base = { chargement: false, dernierSucces: null, live: false, total: 0 };
+  const base = {
+    chargement: false,
+    dernierSucces: null,
+    live: false,
+    total: 0,
+  };
 
   test("un premier échec pendant la fenêtre de grâce est une connexion", () => {
     // ⚠️ Défaut rapporté : au rechargement, le premier vol part avant que le

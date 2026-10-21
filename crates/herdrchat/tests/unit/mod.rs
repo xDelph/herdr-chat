@@ -6,3 +6,4 @@ pub(crate) mod composition;
 pub(crate) mod config;
 pub(crate) mod cycle;
 pub(crate) mod logging;
+mod veille;

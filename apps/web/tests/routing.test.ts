@@ -15,7 +15,10 @@ describe("routage — les deux destinations réelles", () => {
   });
 
   test("un project se rouvre aussi", () => {
-    expect(parseRoute("#/projet/w1")).toEqual({ kind: "projet", workspaceId: "w1" });
+    expect(parseRoute("#/projet/w1")).toEqual({
+      kind: "projet",
+      workspaceId: "w1",
+    });
   });
 
   test("l'accueil est la liste", () => {

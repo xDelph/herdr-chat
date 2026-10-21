@@ -64,7 +64,11 @@ describe("C23 — huit signaux, UN vol", () => {
     // Un seul vol réel : le compteur du client, et ceux des lectures.
     expect(client.vols()).toBe(1);
     await Promise.all(appels);
-    expect(lectures.compteurs).toEqual({ conversations: 1, health: 1, overview: 1 });
+    expect(lectures.compteurs).toEqual({
+      conversations: 1,
+      health: 1,
+      overview: 1,
+    });
     // Une fois le vol terminé, un nouveau signal relance — c'est voulu : le
     // vol unique ne fige pas le client.
     await client.lit();

@@ -29,7 +29,12 @@ const stockage = (): Stockage & { contenu: Map<string, string> } => {
 describe("ce qu'on retient d'un état de défilement", () => {
   test("collé au bas : on retient « je suivais le bas »", () => {
     expect(
-      positionAffichee({ clientHeight: 700, scrollHeight: 2000, scrollTop: 1300, seuilBas: 48 }),
+      positionAffichee({
+        clientHeight: 700,
+        scrollHeight: 2000,
+        scrollTop: 1300,
+        seuilBas: 48,
+      }),
     ).toEqual({ bas: true, ratio: 1 });
   });
 

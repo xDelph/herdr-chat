@@ -31,7 +31,11 @@ const cible = (tabIndex = 0, hidden: boolean | string | undefined = false): Cibl
  * qui inclut `undefined`, et le test se retrouve à teste une arithmétique de
  * types au lieu du comportement du cycle.
  */
-const trois = (): { readonly a: Cible; readonly b: Cible; readonly c: Cible } => ({
+const trois = (): {
+  readonly a: Cible;
+  readonly b: Cible;
+  readonly c: Cible;
+} => ({
   a: cible(),
   b: cible(),
   c: cible(),

@@ -322,7 +322,9 @@ export const ChatScreen = ({
         const session =
           mode === "incremental" && known !== null && known.cursor !== undefined
             ? await fetchSession(agent.paneId, { cursor: known.cursor })
-            : await fetchSession(agent.paneId, { tail: FENETRE_INITIALE_OCTETS });
+            : await fetchSession(agent.paneId, {
+                tail: FENETRE_INITIALE_OCTETS,
+              });
 
         cursor.current = { cursor: session.cursor, path: session.sessionPath };
         if (!session.incremental || session.reset) {
@@ -569,7 +571,10 @@ export const ChatScreen = ({
    * entre les deux, une réponse peut arriver et changer la hauteur, et on
    * compenserait alors un delta faux (la vue sauterait d'autant).
    */
-  const hauteurAvantPrepend = useRef<{ hauteur: number; scroll: number } | null>(null);
+  const hauteurAvantPrepend = useRef<{
+    hauteur: number;
+    scroll: number;
+  } | null>(null);
 
   /**
    * Le fil contient-il une demande de l'utilisateur ?
@@ -597,11 +602,16 @@ export const ChatScreen = ({
       while (pageCursor !== null) {
         // Pages are cursor dependent; each next cursor is returned by this fetch.
         // oxlint-disable-next-line no-await-in-loop
-        const session = await fetchSession(agent.paneId, { before: pageCursor });
+        const session = await fetchSession(agent.paneId, {
+          before: pageCursor,
+        });
         if (session.reset) {
           setEntries(session.entries);
           setMessages(toMessages(session.entries));
-          cursor.current = { cursor: session.cursor, path: session.sessionPath };
+          cursor.current = {
+            cursor: session.cursor,
+            path: session.sessionPath,
+          };
           setPreviousCursor(session.previousCursor ?? null);
           return;
         }
@@ -745,7 +755,10 @@ export const ChatScreen = ({
           void chargerPrecedents();
         }
       },
-      { root: scroller, rootMargin: `${String(SEUIL_PREMIERES_LIGNES_PX)}px 0px 0px 0px` },
+      {
+        root: scroller,
+        rootMargin: `${String(SEUIL_PREMIERES_LIGNES_PX)}px 0px 0px 0px`,
+      },
     );
     observateur.observe(sentinelle);
     return () => observateur.disconnect();
@@ -944,7 +957,11 @@ export const ChatScreen = ({
     if (phase !== "ready") return;
     const avant = statutVu.current;
     statutVu.current = agent.status;
-    const ou = ancrage({ apres: agent.status, avant, suivaitLeBas: atBottom.current });
+    const ou = ancrage({
+      apres: agent.status,
+      avant,
+      suivaitLeBas: atBottom.current,
+    });
     if (ou === "aucun") return;
     if (ou === "bas") {
       const scroller = scrollerRef.current;

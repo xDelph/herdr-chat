@@ -32,10 +32,18 @@ describe("suivre le bas", () => {
     // Un doigt ne vise pas le pixel, et un clavier qui monte décale de quelques
     // pixels : sans tolérance, on « décroche » du bas sans l'avoir voulu.
     expect(
-      suitLeBas({ clientHeight: 500, scrollHeight: 1200, scrollTop: 700 - PIXELS_BAS + 1 }),
+      suitLeBas({
+        clientHeight: 500,
+        scrollHeight: 1200,
+        scrollTop: 700 - PIXELS_BAS + 1,
+      }),
     ).toBe(true);
     expect(
-      suitLeBas({ clientHeight: 500, scrollHeight: 1200, scrollTop: 700 - PIXELS_BAS - 1 }),
+      suitLeBas({
+        clientHeight: 500,
+        scrollHeight: 1200,
+        scrollTop: 700 - PIXELS_BAS - 1,
+      }),
     ).toBe(false);
   });
 
@@ -79,21 +87,33 @@ describe("la position après un préfixe", () => {
   test("on compense exactement la hauteur ajoutée", () => {
     // 400 px de messages plus anciens : on descend d'autant, et le message
     // qu'on lisait reste au même endroit de l'écran.
-    expect(positionApresPrepend({ hauteurApres: 2400, hauteurAvant: 2000, scrollAvant: 300 })).toBe(
-      700,
-    );
+    expect(
+      positionApresPrepend({
+        hauteurApres: 2400,
+        hauteurAvant: 2000,
+        scrollAvant: 300,
+      }),
+    ).toBe(700);
   });
 
   test("une liste reconstruite plus courte ne donne pas une position négative", () => {
-    expect(positionApresPrepend({ hauteurApres: 900, hauteurAvant: 2000, scrollAvant: 100 })).toBe(
-      0,
-    );
+    expect(
+      positionApresPrepend({
+        hauteurApres: 900,
+        hauteurAvant: 2000,
+        scrollAvant: 100,
+      }),
+    ).toBe(0);
   });
 
   test("sans ajout, rien ne bouge", () => {
-    expect(positionApresPrepend({ hauteurApres: 2000, hauteurAvant: 2000, scrollAvant: 512 })).toBe(
-      512,
-    );
+    expect(
+      positionApresPrepend({
+        hauteurApres: 2000,
+        hauteurAvant: 2000,
+        scrollAvant: 512,
+      }),
+    ).toBe(512);
   });
 });
 
@@ -118,8 +138,11 @@ describe("le chargement paresseux", () => {
   });
 
   test("loin du haut, on attend", () => {
-    expect(doitChargerPlusTot({ ...base, distanceAuHaut: SEUIL_PREMIERES_LIGNES_PX + 1 })).toBe(
-      false,
-    );
+    expect(
+      doitChargerPlusTot({
+        ...base,
+        distanceAuHaut: SEUIL_PREMIERES_LIGNES_PX + 1,
+      }),
+    ).toBe(false);
   });
 });
