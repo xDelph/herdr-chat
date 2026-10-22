@@ -38,6 +38,19 @@ use std::sync::Arc;
 
 /// Le plafond du contrat : 4 lectures de session en même temps.
 pub const MAX_SESSION_READS: usize = 4;
+
+/// Le plafond des **lectures d'écran**, distinct de celui des sessions.
+///
+/// ⚠️ **Une lecture d'écran coûte ~500 ms, mesuré.** Chaque appel est un
+/// aller-retour sur le socket d'Herdr (`agent.read`, 200 lignes) : avec la borne
+/// des sessions (4), 19 panes donnaient **2,55 s** à eux seuls, et
+/// `/api/conversations` répondait en 2,7 s — la liste ne s'affichait pas au
+/// démarrage sur un téléphone. Le backend TS, lui, lançait ces lectures en
+/// parallèle et répondait en 0,2 s.
+///
+/// 16 : assez pour que les 19 panes tiennent en deux vagues (≈ 1 s), assez peu
+/// pour ne pas ouvrir trente sockets d'un coup sur un Herdr local.
+pub const MAX_ECRANS_LUS: usize = 16;
 /// La lecture d'écran d'enrichissement : 200 lignes, source visible (le fil
 /// lit de même — un agent bloqué est en écran alternatif ou l'historique
 /// est illisible, seule la vue courante l'est).
@@ -217,12 +230,71 @@ impl ServiceConversations {
             .collect();
         // 2) Les lignes de base — lecture bornée au permis (4).
         let lignes_brutes = self.lit_avec_permis(&prevu, &nommage);
-        // 3) L'enrichissement à l'écran — séquentiel, borné (jamais un
-        // `Promise.all` sans plafond : chaque lecture cible déjà exactement
-        // les lignes qui n'ont rien à montrer).
-        lignes_brutes
+        /*
+          ⚠️ **L'enrichissement à l'écran est PARALLÈLE, borné — il était
+          séquentiel, et c'était le coût de la route.**
+
+          Chaque lecture d'écran est un aller-retour sur le socket d'Herdr (une
+          connexion par requête, Herdr ferme après chaque réponse). Sur 19 panes,
+          une boucle séquentielle donnait **3 à 5 s** pour `/api/conversations` :
+          la liste ne s'affichait pas au démarrage sur un téléphone, alors que le
+          même backend TS répondait en 0,2 s (il lance ces lectures avec un
+          `Promise.all`).
+
+          On garde la borne du contrat — `MAX_SESSION_READS` workers, comme les
+          sessions — plutôt qu'un `Promise.all` sans plafond : assez pour ramener
+          la latence au niveau d'un aller-retour, jamais 19 sockets ouverts d'un
+          coup.
+        */
+        Self::enrichit_ecran_borne(port, lignes_brutes)
+    }
+
+    /// L'enrichissement à l'écran, en parallèle borné (mêmes workers que les
+    /// sessions) : la lecture d'écran est un aller-retour réseau, pas un calcul.
+    fn enrichit_ecran_borne(
+        port: &dyn ControlPort,
+        lignes: Vec<LigneConversation>,
+    ) -> Vec<LigneConversation> {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use std::sync::{Mutex, PoisonError};
+
+        let suivant = AtomicUsize::new(0);
+        let resultats: Mutex<Vec<Option<LigneConversation>>> = Mutex::new(vec![None; lignes.len()]);
+        let parts = Mutex::new(lignes);
+        std::thread::scope(|portee| {
+            let workers = parts
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .len()
+                .clamp(1, MAX_ECRANS_LUS);
+            for _ in 0..workers {
+                let suivant = &suivant;
+                let resultats = &resultats;
+                let parts = &parts;
+                portee.spawn(move || {
+                    loop {
+                        let index = suivant.fetch_add(1, Ordering::SeqCst);
+                        let ligne = parts
+                            .lock()
+                            .unwrap_or_else(PoisonError::into_inner)
+                            .get(index)
+                            .cloned();
+                        let Some(ligne) = ligne else { break };
+                        let enrichie = Self::enrichit_ecran(port, ligne);
+                        resultats.lock().unwrap_or_else(PoisonError::into_inner)[index] =
+                            Some(enrichie);
+                    }
+                });
+            }
+        });
+        resultats
+            .into_inner()
+            .unwrap_or_else(PoisonError::into_inner)
             .into_iter()
-            .map(|ligne| Self::enrichit_ecran(port, ligne))
+            .enumerate()
+            .map(|(index, ligne)| {
+                ligne.unwrap_or_else(|| panic!("chaque worker remplit son index ({index})"))
+            })
             .collect()
     }
 

@@ -56,17 +56,18 @@ async fn demarre(config: &Config) -> Result<(), String> {
                 config.herdr_socket_path.display()
             )
         })?;
-    // 2) Les catalogues partagent le MÊME socket (un client, un verrou) ; la
-    //    découverte d'intégrations est une entrée fournie par la composition.
-    let client = controle.client();
+    // 2) La découverte d'intégrations est une entrée fournie par la
+    //    composition. Elle passe par le MÊME port que le reste : le port prête
+    //    un client le temps de l'appel (chaque demande ouvre sa connexion), au
+    //    lieu d'un verrou unique qui sérialisait tous les appels du démon.
+    let controle: Arc<herdr_client::port::PortHerdr> = Arc::new(controle);
+    let pour_integrations = Arc::clone(&controle);
+    // Le port de contrôle vu par les handlers : le même objet, derrière son trait.
+    let controle_port: Arc<dyn application::ports::ControlPort> = Arc::clone(&controle) as _;
     let integrations: catalog::port::SourceIntegrations = Arc::new(move || {
-        // ⚠️ L'`Arc` doit vivre le temps du verrou : un clone temporaire serait
-        // détruit à la fin de l'expression.
-        let partage = Arc::clone(&client);
-        let mut garde = partage
-            .lock()
-            .map_err(|_| String::from("client Herdr empoisonné"))?;
-        garde.integrations().map_err(|cause| cause.to_string())
+        pour_integrations
+            .integrations()
+            .map_err(|cause| cause.to_string())
     });
     let catalogue: Arc<dyn application::ports::CatalogPort> =
         Arc::new(catalog::port::PortCatalogue::nouveau(
@@ -99,7 +100,7 @@ async fn demarre(config: &Config) -> Result<(), String> {
     let maintenant: Arc<dyn application::refresh::SourceMaintenant> =
         Arc::new(application::refresh::MaintenantReelle);
     let ports = herdrchat::composition::Ports {
-        controle: Arc::new(controle),
+        controle: Arc::clone(&controle_port),
         sessions: Arc::clone(&port_sessions),
         catalogue: Arc::clone(&catalogue),
         artefacts: Arc::clone(&artefacts) as Arc<dyn application::ports::ArtifactPort>,

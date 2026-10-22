@@ -30,7 +30,7 @@ use domain::ports::{
     TargetedText, TransportEvidence, TransportOutcome,
 };
 use domain::status::AgentStatus;
-use std::sync::{Arc, Mutex, PoisonError};
+use std::sync::{Mutex, PoisonError};
 
 /// Le statut amont → le statut du domaine. **Union fermée des deux côtés** :
 /// un ajout d'un côté casse la compilation ici, pas le comportement.
@@ -267,37 +267,68 @@ pub fn erreur_de_port(cause: &ErreurTransport) -> PortError {
     }
 }
 
-/// Le port réel : un client Herdr derrière un verrou (une seule conversation
-/// à la fois sur le socket, comme le fil).
+/// Le port réel : des clients Herdr interchangeables, prêtés le temps d'un appel.
+///
+/// ⚠️ **Un verrou unique sérialisait TOUT, et c'était le coût de la liste.**
+/// `ClientHerdr` n'est qu'un chemin de socket et un compteur d'identifiants :
+/// **chaque demande ouvre sa propre connexion** (Herdr sert une requête par
+/// connexion, puis ferme). Le verrou n'était donc nécessaire à rien — il
+/// transformait les lectures d'écran en file d'attente. Mesuré : 19 panes à
+/// ~135 ms l'un, soit **2,6 s** pour `/api/conversations`, même avec des
+/// workers parallèles, puisqu'ils se bloquaient tous sur le même verrou. Le
+/// backend TS répond, lui, en 0,2 s sur les mêmes appels.
+///
+/// On prête donc un client : N appels concurrents, N connexions, et le client
+/// revient dans la réserve. Aucune corrélation ne peut se mélanger, chaque
+/// connexion ne portant qu'une seule demande.
 pub struct PortHerdr {
-    /// ⚠️ **Partagé** avec les autres ports qui parlent à Herdr (catalogues) :
-    /// un seul socket, donc un seul client derrière un seul verrou — deux
-    /// connexions concurrentes sur le même socket mélangeraient les
-    /// corrélations.
-    client: Arc<Mutex<ClientHerdr>>,
+    chemin: std::path::PathBuf,
+    /// Les clients libres. Chacun est un chemin + un compteur : les créer coûte
+    /// un `PathBuf`, les garder évite d'en fabriquer un par requête.
+    disponibles: Mutex<Vec<ClientHerdr>>,
 }
 
 impl PortHerdr {
     /// Ouvre le socket. Un échec de connexion est rendu, jamais contourné : le
     /// démon dira « Herdr injoignable » au lieu de servir des données vides.
     pub fn connecte(chemin: &std::path::Path) -> Result<Self, PortError> {
-        ClientHerdr::connecte(chemin)
-            .map(Self::avec_client)
-            .map_err(|cause| erreur_de_port(&cause))
+        let client = ClientHerdr::connecte(chemin).map_err(|cause| erreur_de_port(&cause))?;
+        Ok(Self {
+            chemin: chemin.to_path_buf(),
+            disponibles: Mutex::new(vec![client]),
+        })
     }
 
-    /// Le port sur un client déjà ouvert — partagé avec les autres ports.
-    #[must_use]
-    pub fn avec_client(client: ClientHerdr) -> Self {
-        Self {
-            client: Arc::new(Mutex::new(client)),
+    /// Un client libre — ou un nouveau, fabriqué depuis le chemin mesuré.
+    fn emprunte(&self) -> Result<ClientHerdr, PortError> {
+        if let Some(client) = self
+            .disponibles
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .pop()
+        {
+            return Ok(client);
         }
+        ClientHerdr::connecte(&self.chemin).map_err(|cause| erreur_de_port(&cause))
     }
 
-    /// Le client partagé, pour un autre port du même socket.
-    #[must_use]
-    pub fn client(&self) -> Arc<Mutex<ClientHerdr>> {
-        Arc::clone(&self.client)
+    /// Rend le client à la réserve, qu'il ait servi ou non.
+    fn rend(&self, client: ClientHerdr) {
+        self.disponibles
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .push(client);
+    }
+
+    /// Les intégrations installées, sur un client de la réserve (H07) — la
+    /// charge brute, telle qu'Herdr la rend : le catalogue la décode lui-même.
+    pub fn integrations(&self) -> Result<serde_json::Value, PortError> {
+        let mut client = self.emprunte()?;
+        let resultat = client
+            .integrations()
+            .map_err(|cause| erreur_de_port(&cause));
+        self.rend(client);
+        resultat
     }
 
     /// Exécute une demande **bloquante** et la rend comme un futur qui répond
@@ -309,8 +340,10 @@ impl PortHerdr {
         F: FnOnce(&mut ClientHerdr) -> Resultat<T> + Send + 'static,
     {
         Box::pin(async move {
-            let mut client = self.client.lock().unwrap_or_else(PoisonError::into_inner);
-            demande(&mut client).map_err(|cause| erreur_de_port(&cause))
+            let mut client = self.emprunte()?;
+            let resultat = demande(&mut client).map_err(|cause| erreur_de_port(&cause));
+            self.rend(client);
+            resultat
         })
     }
 }
@@ -344,10 +377,26 @@ impl ControlPort for PortHerdr {
     }
 
     fn read_screen(&self, request: ScreenRead) -> PortFuture<'_, ScreenObservation> {
-        // `visible` lit l'écran courant **sans lignes** ; `recent` porte son
-        // nombre de lignes (mesuré sur le fil).
-        let source = SourceLecture::Recent;
-        let lignes = Some(request.max_lines);
+        /*
+          ⚠️ **`visible`, jamais `recent` — et c'est une mesure, pas un goût.**
+
+          `recent` demande à Herdr de reconstruire l'historique du pane : mesuré
+          sur le socket réel, `agent.read {source: "recent", lines: 200}` prend
+          **de 80 ms à 1 075 ms** selon le pane, alors que `{source: "visible"}`
+          prend **4 ms**. Sur les 19 panes de `/api/conversations`, cela faisait
+          **1 à 2,6 s** par requête : la liste ne s'affichait pas au démarrage
+          sur un téléphone.
+
+          C'est aussi la lecture JUSTE pour ce qu'on en fait : une question, une
+          invite de confiance ou une attente sont sur l'écran **courant**. Le
+          backend TS lisait déjà `visible` pour ces trois usages, et c'est pour
+          ça qu'il répondait en 0,2 s sur les mêmes appels.
+
+          `visible` ne porte pas de nombre de lignes : Herdr rend l'écran tel
+          qu'il est (le client n'envoie `lines` que pour `recent`).
+        */
+        let source = SourceLecture::Visible;
+        let lignes = None;
         let pane = request.pane.clone();
         self.bloquant(move |client| {
             client

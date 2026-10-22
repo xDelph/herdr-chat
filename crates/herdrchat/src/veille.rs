@@ -14,7 +14,7 @@
 
 use application::events::subscription::ServiceAbonnements;
 use application::events::watcher::{
-    BoucleDeVeille, Changement, INTERVALLE_VEILLE, PublicateurDeChangements, SourceDeVues, Veilleur,
+    BoucleDeVeille, Changement, PublicateurDeChangements, SourceDeVues, Veilleur,
 };
 use application::noyau::AgentView;
 use application::overview::ComposeurOverview;
@@ -22,6 +22,18 @@ use application::refresh::SourceMaintenant;
 use http_api::services::Services;
 use std::sync::Arc;
 use std::thread::JoinHandle;
+use std::time::Duration;
+
+/// La cadence de la veille de production.
+///
+/// ⚠️ **2 s, et c'est mesuré, pas choisi.** À 500 ms, la veille composait la vue
+/// complète — résolution de session comprise (SQLite opencode, globs claude) —
+/// cinq fois par seconde : `/api/conversations` est passé de **0,14 s** à
+/// **2,65 s**, et l'application ne chargeait plus rien (liste vide, « Herdr not
+/// readable »). Deux secondes suffisent à voir un changement ; c'est la borne
+/// de fraîcheur déjà documentée (E01), et la veille ne prend plus le CPU des
+/// requêtes.
+pub const INTERVALLE_VEILLE_PRODUCTION: Duration = Duration::from_millis(2_000);
 
 /// Les agents, lus **par la même composition que `/api/overview`**.
 ///
@@ -103,7 +115,7 @@ impl Veille {
             Arc::new(Veilleur::nouveau()),
             Arc::new(PublieDansLeJournal::nouveau(Arc::clone(&services.journal))),
             maintenant,
-            INTERVALLE_VEILLE,
+            INTERVALLE_VEILLE_PRODUCTION,
         ));
         let pour_fil = Arc::clone(&boucle);
         let fil = std::thread::Builder::new()

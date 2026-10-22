@@ -2703,3 +2703,21 @@ GET https://…:8443/assets/index-TRo7LkId.js contient « Loading this conversat
 ```
 
 Le bundle servi est **celui du `dist` construit**, pas une compilation de développement. Le démon et l'API sont sur la même origine, ce qui supprime aussi la couche Vite du chemin critique.
+
+### La PWA v2 était branchée mais jetait toutes ses lectures — et le démon était périmé
+
+**Constat, mesuré au navigateur, pas déduit.** Les deux PWA (8790 et 8443) affichaient « No conversations », les réglages disaient Herdr illisible, et le bandeau de mise à jour restait affiché sans que son bouton fasse quoi que ce soit. Pourtant `/api/health`, `/api/overview` et `/api/conversations` répondaient **200** (20 agents, 48 Ko) sur les deux backends.
+
+Quatre causes distinctes, toutes vérifiées :
+
+1. **`generation` rejetait chaque lecture.** `AppShell` faisait `generation: ++generationAppliquee` puis comparait `generation > dejaAppliquee` — égalité stricte, donc **toujours faux**. Toutes les réponses étaient jetées : liste vide, statut `unknown`, réglages « illisible ». Deux compteurs désormais : un pour **produire** les numéros, un pour retenir le dernier **accepté**.
+2. **Le bandeau de mise à jour n'était plus gardé.** La v1 le rendait sous `miseAJourEnAttente()` ; la v2 le rendait **toujours** — d'où « A new version is ready » en permanence, sur un build à jour, avec un bouton qui ne pouvait rien faire (aucun worker en attente). La garde est rétablie.
+3. **La question, l'invite de confiance et l'attente étaient perdues.** La v2 passait `question={undefined} trust={undefined}` en dur : un agent `blocked` n'affichait plus rien à quoi répondre. Elles viennent de nouveau de la liste (donc elles suivent le rafraîchissement et disparaissent d'elles-mêmes).
+4. **Le démon servi sur 8793 était un VIEUX processus.** Mes redémarrages échouaient en silence (`Address already in use`) parce que le fichier de PID était périmé : le binaire vivant depuis 00:17 servait un bundle embarqué d'avant les correctifs. Vérifié en comparant le hash servi au hash de `dist`.
+
+**Et une cause de lenteur, mesurée au socket.** `/api/conversations` prenait **2,6 s** côté Rust contre 0,14 s côté TS. Deux défauts cumulés :
+
+- `agent.read` était appelé avec `source: "recent"` + 200 lignes : mesuré sur le socket réel, **80 à 1 075 ms** selon le pane, contre **4 ms** en `source: "visible"`. Le backend TS lisait déjà `visible` pour ces trois usages (question, confiance, attente) — c'est exactement la lecture juste, et c'est pour ça qu'il répondait en 0,2 s.
+- `PortHerdr` gardait **un seul client derrière un seul `Mutex`**, alors que chaque demande ouvre sa propre connexion (Herdr sert une requête par connexion) : les workers parallèles se bloquaient sur le verrou. Le port prête désormais un client (réserve), et les écrans se lisent en parallèle borné (`MAX_ECRANS_LUS = 16`).
+
+Mesure après correction : `/api/conversations` **0,154 s** à froid, **4 ms** à chaud. Captures headless : 20 conversations sur `localhost:8793`, `…:8443` et `…:8790` ; réglages « Herdr reachable : yes », « Readable conversations : all » ; plus aucun bandeau de mise à jour.

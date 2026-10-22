@@ -25,6 +25,7 @@ import { SectionTitle } from "../SectionTitle.tsx";
 import { Notice } from "../Notice.tsx";
 import { EVENEMENTS_RAFRAICHISSANTS, doitAppliquer, type Resultat } from "../rafraichissement.ts";
 import { BandeauMiseAJour } from "../BandeauMiseAJour.tsx";
+import { miseAJourEnAttente } from "../mise-a-jour.ts";
 import { motion, AnimatePresence } from "./motion.tsx";
 import { Skeleton } from "../Skeleton.tsx";
 import { reportError } from "../api.ts";
@@ -110,7 +111,17 @@ export const AppShell = () => {
   const projetChoisi = useSubscriptionRef(stateRef, (s) => s.projetChoisi);
 
   const client = HerdrClientLive;
+  /*
+    ⚠️ **DEUX compteurs, et pas un seul.** `generationAppliquee` retient la
+    dernière génération ACCEPTÉE ; `prochaineGeneration` produit les numéros.
+    Le shell n'en avait qu'un : il faisait `generation: ++generationAppliquee`
+    dans la lecture, puis `doitAppliquer` comparait `generation > appliquee` —
+    égalité stricte, donc **faux à chaque fois**. Toutes les lectures étaient
+    jetées : liste vide, statut inconnu, réglages « Herdr illisible », alors que
+    `/api/overview`, `/api/health` et `/api/conversations` répondaient 200.
+  */
   const generationAppliquee = useRef(0);
+  const prochaineGeneration = useRef(0);
 
   const updateState = useCallback(
     (updater: (s: AppState) => AppState) => {
@@ -194,7 +205,7 @@ export const AppShell = () => {
           convR.ok && convR.valeur
             ? { ok: true, valeur: convR.valeur }
             : { ok: false, cause: convR.cause ?? "unknown" },
-        generation: ++generationAppliquee.current,
+        generation: ++prochaineGeneration.current,
         health:
           healthR.ok && healthR.valeur
             ? { ok: true, valeur: healthR.valeur }
@@ -280,6 +291,17 @@ export const AppShell = () => {
   const agentAffiche = selectedAgent ?? agentMemorise;
   const agentPerime = selectedAgent === null && agentMemorise !== null;
 
+  /*
+    ⚠️ **La question, l'invite de confiance et l'attente viennent de la LISTE.**
+    La v2 les passait à `undefined` en dur : un agent `blocked` n'affichait donc
+    ni sa question ni sa carte de confiance, et un agent qui attendait sur un
+    formulaire sans choix numéroté (opencode) n'affichait rien du tout. Elles
+    suivent le même rafraîchissement que la liste, donc elles disparaissent
+    d'elles-mêmes dès que l'agent reprend.
+  */
+  const ligneDe = (paneId: string | undefined) =>
+    paneId === undefined ? undefined : conversations.find((ligne) => ligne.paneId === paneId);
+
   const total = conversations.length;
   const etat = etatLecture({
     chargement,
@@ -323,7 +345,7 @@ export const AppShell = () => {
           (a.paneRank ?? Number.MAX_SAFE_INTEGER) - (b.paneRank ?? Number.MAX_SAFE_INTEGER) ||
           a.paneId.localeCompare(b.paneId),
       );
-    const conv = conversations.find((c) => c.paneId === agentAffiche.paneId);
+    const conv = ligneDe(agentAffiche.paneId);
     return (
       <div className="app">
         {agentPerime ? (
@@ -340,8 +362,8 @@ export const AppShell = () => {
             currentProvider={conv?.provider}
             currentThinking={conv?.thinking}
             onBack={() => navigate({ kind: "liste" })}
-            question={undefined}
-            trust={undefined}
+            question={conv?.question}
+            trust={conv?.trust}
             waiting={conv?.waiting}
           />
         </Suspense>
@@ -481,7 +503,15 @@ export const AppShell = () => {
         />
       ) : null}
 
-      <BandeauMiseAJour />
+      {/*
+        ⚠️ **Le bandeau n'existe QUE si un worker attend vraiment.**
+        `BandeauMiseAJour` se rend toujours lui-même : sans cette garde il
+        s'affichait en permanence, et son bouton ne faisait rien — il n'y avait
+        aucun worker en attente à qui envoyer `SKIP_WAITING`. C'était le cas
+        mesuré sur les deux PWA : « A new version is ready » à chaque ouverture,
+        sur un build parfaitement à jour.
+      */}
+      {miseAJourEnAttente() ? <BandeauMiseAJour /> : null}
     </div>
   );
 };
