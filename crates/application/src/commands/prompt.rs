@@ -165,9 +165,9 @@ impl EnvoieurPrompt {
             }
         }
         // 2) L'exécution — prompt ou frappes, puis le repli sur refus connu.
-        let mut par_frappes = saisie;
         let mut issue = if saisie {
-            les_frappes(port, cible, texte)
+            // Les frappes écrites : « inconnu » — pas que l'agent a appliqué.
+            les_frappes(port, cible, texte).map(|()| Confirmation::Inconnu)
         } else {
             let demande = TargetedPrompt {
                 pane: cible.clone(),
@@ -182,17 +182,11 @@ impl EnvoieurPrompt {
         {
             // ⚠️ Le refus NAMÉ la saisie interactive : les frappes sont le
             // seul chemin vers une invite.
-            par_frappes = true;
-            issue = les_frappes(port, cible, texte);
+            issue = les_frappes(port, cible, texte).map(|()| Confirmation::Inconnu);
         }
         // 3) La preuve — le discriminateur de succès est EXIGÉ (C05/C06).
         let confirmation = match issue {
-            // Les frappes écrites : « inconnu » — pas que l'agent a appliqué.
-            Ok(()) if par_frappes => Confirmation::Inconnu,
-            // L'empreinte confirmée = CELLE DEMANDÉE (une confirmation
-            // étrangère n'est jamais un succès — rapportée en inconnu,
-            // rien n'est enregistré).
-            Ok(()) => Confirmation::Confirme,
+            Ok(confirmation) => confirmation,
             // Échec : rien n'est enregistré — le prochain envoi passe.
             Err(cause) => {
                 return Err(RefusEnvoi::NonConfirme {
@@ -202,8 +196,15 @@ impl EnvoieurPrompt {
                 });
             }
         };
-        // 4) L'enregistrement — après la preuve seulement.
-        if let Ok(mut derniers) = self.derniers.lock() {
+        /*
+          ⚠️ **On n'enregistre QUE ce qui a été confirmé** (D007.2) : un envoi
+          « inconnu » ne doit pas verrouiller la déduplication — sinon un renvoi
+          du même texte, après un premier envoi non prouvé, serait supprimé comme
+          doublon alors que rien ne prouve que le premier soit arrivé.
+        */
+        if confirmation == Confirmation::Confirme
+            && let Ok(mut derniers) = self.derniers.lock()
+        {
             derniers.insert(
                 cible.as_str().to_string(),
                 Dernier {
@@ -219,21 +220,27 @@ impl EnvoieurPrompt {
     }
 }
 
-fn le_prompt(port: &dyn ControlPort, demande: TargetedPrompt) -> Result<(), PortError> {
+/// Envoie le prompt et rend la **confirmation** — `Inconnu` compris.
+///
+/// ⚠️ **« Inconnu » n'est pas une panne.** Un envoi sans preuve d'acceptation
+/// est un état du contrat (A02 : `confirmed | unknown`), pas un refus : le
+/// traiter comme une erreur faisait répondre **502** à la PWA, qui affichait un
+/// échec rouge pour un message réellement parti. Seuls un refus nommé par
+/// l'amont et une vraie panne de transport restent des erreurs.
+fn le_prompt(port: &dyn ControlPort, demande: TargetedPrompt) -> Result<Confirmation, PortError> {
     let empreinte = demande.fingerprint.clone();
     match prompt_attendu(port, demande)? {
+        PromptEvidence::Confirmed { fingerprint } if fingerprint == empreinte => {
+            Ok(Confirmation::Confirme)
+        }
         // C05 : la confirmation portant une AUTRE empreinte n'est pas une
-        // confirmation — rapportée en inconnu.
-        PromptEvidence::Confirmed { fingerprint } if fingerprint == empreinte => Ok(()),
-        PromptEvidence::Confirmed { fingerprint } => Err(PortError::Upstream {
-            code: String::from("preuve étrangère"),
-            message: format!(
-                "l'empreinte confirmée ({}) n'est pas celle demandée ({})",
-                fingerprint.as_str(),
-                empreinte.as_str()
-            ),
-        }),
-        PromptEvidence::Unknown { detail, .. } => Err(PortError::Transport { detail }),
+        // confirmation — rapportée en inconnu, jamais en succès.
+        PromptEvidence::Confirmed { fingerprint } => {
+            let _ = fingerprint;
+            Ok(Confirmation::Inconnu)
+        }
+        // Ni preuve ni refus : l'état est indéterminé, et il se dit tel quel.
+        PromptEvidence::Unknown { .. } => Ok(Confirmation::Inconnu),
         PromptEvidence::Suppressed { reason } => Err(PortError::Transport { detail: reason }),
         PromptEvidence::Failed { detail } => Err(PortError::Transport { detail }),
     }

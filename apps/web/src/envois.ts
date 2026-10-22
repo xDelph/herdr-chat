@@ -86,8 +86,15 @@ export interface MagasinEnvois {
    */
   readonly resoutParEvenement: (pane: string) => number;
   /**
-   * Oublie un envoi DÉLIVRÉ : il est désormais dans la session, sa bulle
-   * optimiste n'a plus lieu d'être.
+   * Oublie un envoi dont la **session porte le texte** : sa bulle optimiste n'a
+   * plus lieu d'être.
+   *
+   * ⚠️ **L'apparition dans la session vaut PREUVE, quel que soit l'état.** La
+   * fonction n'acceptait que `delivered` : un envoi resté `uncertain` (réponse
+   * muette) dont le texte était **visible dans le fil** gardait donc sa bulle
+   * indéfiniment — le message apparaissait deux fois, et la bulle disait encore
+   * « non confirmé » alors que la preuve était sous les yeux. Un `failed` aussi
+   * est démenti par la preuve : le texte est là.
    */
   readonly oublie: (id: string) => void;
   /** Les envois d'un pane, dans l'ordre de création. */
@@ -148,16 +155,28 @@ export const creeMagasinEnvois = (lance: Lanceur, planifie: Planificateur): Maga
         });
         return;
       }
+      /*
+        ⚠️ **« Peut-être parti » n'est pas « échoué ».** Le serveur distingue
+        trois natures de panne (B05) : `attente` (délai dépassé — le message est
+        peut-être arrivé), `inconnu` (transport muet — idem), `erreur` (refus
+        amont — perdu). Les deux premières s'affichaient en **rouge**, comme un
+        échec certain, alors qu'elles ne prouvent rien : c'est exactement la
+        bulle rouge observée sur un message pourtant parti. Seul `erreur` est un
+        échec ; les deux autres restent `uncertain` (orange), avec le détail et
+        un renvoi possible.
+      */
       remplace(id, {
         detail: resultat.message,
         failureState: resultat.state,
-        state: "failed",
+        state: resultat.state === "erreur" ? "failed" : "uncertain",
       });
     } catch (cause) {
+      // Même règle : une exception réseau ne prouve pas que la requête n'est
+      // pas partie.
       remplace(id, {
         detail: cause instanceof Error ? cause.message : String(cause),
         failureState: "inconnu",
-        state: "failed",
+        state: "uncertain",
       });
     }
   };
@@ -219,7 +238,7 @@ export const creeMagasinEnvois = (lance: Lanceur, planifie: Planificateur): Maga
     lancements: () => appels,
     oublie: (id) => {
       const envoi = envois.get(id);
-      if (envoi === undefined || envoi.state !== "delivered") return;
+      if (envoi === undefined) return;
       envois.delete(id);
       previent();
     },

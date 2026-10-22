@@ -207,7 +207,14 @@ describe("T058 — les états du fil, sans mensonge", () => {
     expect(envoi?.detail).toContain("already confirmed");
   });
 
-  test("le lanceur qui LÈVE donne un échec `inconnu`", async () => {
+  test("le lanceur qui LÈVE donne un état `inconnu`, jamais un échec", async () => {
+    /*
+      ⚠️ **Une exception réseau ne prouve pas que le message n'est pas parti.**
+      Elle s'affichait en ROUGE (`failed`), c'est-à-dire comme un échec certain —
+      la bulle rouge observée sur un message réellement arrivé sur le Mac.
+      `inconnu` est un état du contrat (B05), il s'affiche en orange, avec le
+      renvoi possible et son avertissement de doublon.
+    */
     const lance = lanceurQuiLeve("réseau coupé");
     const { avance, planifie } = planificateurManuel();
     const magasin = creeMagasinEnvois(lance, planifie);
@@ -215,7 +222,7 @@ describe("T058 — les états du fil, sans mensonge", () => {
     avance(DELAI_ENVOI_MS);
     await souffle();
     const envoi = magasin.liste("w1:p1")[0];
-    expect(envoi?.state).toBe("failed");
+    expect(envoi?.state).toBe("uncertain");
     expect(envoi?.failureState).toBe("inconnu");
     expect(envoi?.detail).toContain("réseau coupé");
   });
@@ -288,5 +295,67 @@ describe("le SSE résout un envoi incertain — sans délai", () => {
     await new Promise((resoudre) => setTimeout(resoudre, 0));
     expect(magasin.resoutParEvenement("w2:p2")).toBe(0);
     expect(magasin.liste("w1:p1").find((candidat) => candidat.id === id)?.state).toBe("uncertain");
+  });
+});
+
+describe("une panne non prouvée n'est pas un échec certain", () => {
+  /**
+   * ⚠️ **Le défaut tel qu'il a été vu à l'écran.** Message envoyé depuis la PWA :
+   * bulle **rouge** immédiate (donc « échec »), alors que le texte était bien
+   * parti sur la session du Mac. Les trois natures de panne du contrat (B05) ont
+   * été confondues à l'affichage : `attente` et `inconnu` ne prouvent rien,
+   * seul `erreur` est un échec.
+   */
+  test("`attente` (délai dépassé) s'affiche comme incertain", async () => {
+    const magasin = creeMagasinEnvois(
+      async () => ({ kind: "failed", message: "pas de réponse à temps", state: "attente" }),
+      planificateurImmediat(),
+    );
+    const id = magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "bonjour" });
+    await new Promise((resoudre) => setTimeout(resoudre, 0));
+    const envoi = magasin.liste("w1:p1").find((candidat) => candidat.id === id);
+    expect(envoi?.state).toBe("uncertain");
+    expect(envoi?.failureState).toBe("attente");
+  });
+
+  test("`inconnu` (transport muet) s'affiche comme incertain", async () => {
+    const magasin = creeMagasinEnvois(
+      async () => ({ kind: "failed", message: "réponse illisible", state: "inconnu" }),
+      planificateurImmediat(),
+    );
+    const id = magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "bonjour" });
+    await new Promise((resoudre) => setTimeout(resoudre, 0));
+    expect(magasin.liste("w1:p1").find((candidat) => candidat.id === id)?.state).toBe("uncertain");
+  });
+
+  test("`erreur` (refus amont) reste un échec", async () => {
+    const magasin = creeMagasinEnvois(
+      async () => ({ kind: "failed", message: "refusé", state: "erreur" }),
+      planificateurImmediat(),
+    );
+    const id = magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "bonjour" });
+    await new Promise((resoudre) => setTimeout(resoudre, 0));
+    expect(magasin.liste("w1:p1").find((candidat) => candidat.id === id)?.state).toBe("failed");
+  });
+});
+
+describe("la preuve du fil prime sur l'état de l'envoi", () => {
+  /**
+   * ⚠️ **Deux affichages du même message.** `oublie` refusait tout état autre que
+   * `delivered` : un envoi resté `uncertain` (réponse muette du serveur) gardait
+   * sa bulle optimiste alors que son texte était **déjà dans le fil** — le
+   * message apparaissait deux fois, la bulle continuant d'annoncer « non
+   * confirmé » devant la preuve.
+   */
+  test("un envoi incertain s'oublie quand la session porte son texte", async () => {
+    const magasin = creeMagasinEnvois(
+      async () => ({ kind: "failed", message: "pas de réponse", state: "inconnu" }),
+      planificateurImmediat(),
+    );
+    const id = magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "bonjour" });
+    await new Promise((resoudre) => setTimeout(resoudre, 0));
+    expect(magasin.liste("w1:p1").find((candidat) => candidat.id === id)?.state).toBe("uncertain");
+    magasin.oublie(id);
+    expect(magasin.liste("w1:p1")).toHaveLength(0);
   });
 });

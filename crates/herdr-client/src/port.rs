@@ -184,13 +184,31 @@ pub fn ecran_depuis(
     }
 }
 
-/// La preuve d'un prompt : **l'empreinte confirmée doit être la nôtre** (C05).
+/// La preuve d'un prompt — **la confirmation MESURÉE, pas une empreinte
+/// inventée**.
 ///
-/// ⚠️ Un `result` objet **vide** (`{}`) n'est pas une confirmation : Herdr
-/// confirme en renvoyant l'empreinte demandée. Sans elle, l'état réel est
-/// inconnu — et on ne prétend pas l'inverse.
+/// ⚠️ **Ce défaut rendait rouge un message pourtant arrivé.**
+/// Herdr confirme un envoi par `result.type = "agent_prompted"` (mesuré, E1 :
+/// `result.type` = `agent_prompted`, 618 ms, texte visible dans la TUI). Il
+/// **n'existe aucun champ `fingerprint`** dans la réponse : l'empreinte est
+/// NOTRE identifiant de livraison, calculé côté serveur, que Herdr n'a jamais
+/// vu. Exiger qu'elle soit renvoyée ne pouvait donc **jamais** réussir : tout
+/// envoi littéral tombait en « non prouvé », le service le refusait, et la PWA
+/// affichait un échec rouge pendant que le message partait réellement.
+///
+/// Trois cas, dans cet ordre :
+/// 1. `type == "agent_prompted"` → confirmé (la preuve du serveur) ;
+/// 2. une `fingerprint` qui est la nôtre → confirmé (compatibilité si Herdr en
+///    expose un jour une) ;
+/// 3. une empreinte étrangère, ou rien → **inconnu**, jamais un échec.
 #[must_use]
 pub fn preuve_de_prompt(valeur: &serde_json::Value, demandee: &str) -> PromptEvidence {
+    let genre = valeur.get("type").and_then(serde_json::Value::as_str);
+    if genre == Some("agent_prompted") {
+        return PromptEvidence::Confirmed {
+            fingerprint: domain::ids::DeliveryFingerprint::from(demandee.to_string()),
+        };
+    }
     let confirmee = valeur
         .get("fingerprint")
         .and_then(serde_json::Value::as_str)

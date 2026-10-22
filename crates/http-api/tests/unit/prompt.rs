@@ -292,3 +292,36 @@ fn erreur(corps: &Value) -> String {
         .unwrap_or_else(|| panic!("error"))
         .to_string()
 }
+
+/// Un envoi **non prouvé** est un `200 unknown`, jamais un échec.
+///
+/// ⚠️ **Le défaut rapporté, reproduit ici.** Herdr confirme par
+/// `result.type = "agent_prompted"` et **n'expose aucune empreinte**. Le service
+/// traduisait « pas de preuve » en `502`, et la PWA affichait une bulle **rouge**
+/// pendant que le message partait réellement — visible sur la session du Mac.
+/// `unknown` est un état du contrat (A02), pas un refus.
+#[tokio::test(flavor = "multi_thread")]
+async fn prompt_sans_preuve_repond_200_inconnu_jamais_502() {
+    let faux = herdr_avec_agent(AgentStatus::Working);
+    faux.repond_prompt(PromptEvidence::Unknown {
+        detail: String::from("réponse sans empreinte : envoi non prouvé"),
+        partial: vec![
+            domain::ports::PartialStep::LiteralTextWritten,
+            domain::ports::PartialStep::EnterSequenceSent,
+        ],
+    });
+    let (services, _) = services(faux, Default::default(), Default::default());
+    let (statut, corps) = envoie_post(
+        routeur(services, vec![]),
+        "/api/agents/w1:p1/prompt",
+        corps_texte("bonjour"),
+    )
+    .await;
+    assert_eq!(
+        statut,
+        StatusCode::OK,
+        "un envoi non prouvé n'est pas une panne serveur"
+    );
+    assert_eq!(corps["confirmation"], "unknown");
+    assert_eq!(corps["status"], "sent");
+}

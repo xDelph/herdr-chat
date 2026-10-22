@@ -278,17 +278,24 @@ fn le_discriminateur_de_succès_est_exigé() {
         Mutex::new(None),
     );
     let envoieur = EnvoieurPrompt::nouveau();
+    /*
+      ⚠️ **Un « inconnu » n'est PAS un échec** — il ne l'a jamais été pour le
+      contrat (A02 : `confirmed | unknown`). Le service le refusait (`502`), et
+      la PWA affichait un échec rouge pour un message réellement parti : c'est
+      exactement le défaut rapporté, mesuré sur un envoi réel.
+    */
     match envoieur.envoie(&port, &cible(), "le texte", false) {
-        Err(RefusEnvoi::NonConfirme { detail, .. }) => {
-            assert!(
-                detail.contains("empreinte-étrangère"),
-                "le détail dit : {detail}"
-            );
-        }
-        Err(refus) => panic!("non confirmé attendu : {refus}"),
-        Ok(envoi) => panic!("une empreinte étrangère ne confirme pas : {envoi:?}"),
+        Ok(envoi) => assert_eq!(
+            envoi.confirmation,
+            Confirmation::Inconnu,
+            "une empreinte étrangère ne confirme pas"
+        ),
+        Err(refus) => panic!("un inconnu n'est pas un refus : {refus}"),
     }
-    assert!(envoieur.suivi() == 0, "rien d'enregistré");
+    assert!(
+        envoieur.suivi() == 0,
+        "RIEN d'enregistré : un inconnu ne doit pas verrouiller la déduplication"
+    );
 }
 
 #[test]

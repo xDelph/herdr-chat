@@ -249,3 +249,26 @@ fn une_preuve_de_lancement_nomme_le_pane() {
         autre => panic!("un lancement réussi est `Started` : {autre:?}"),
     }
 }
+
+/// La confirmation d'un prompt : **la forme MESURÉE sur le socket**.
+///
+/// ⚠️ Herdr répond `result.type = "agent_prompted"` (E1, mesuré : 618 ms, texte
+/// visible dans la TUI) et **n'a aucune empreinte à renvoyer** — l'empreinte est
+/// notre identifiant de livraison, calculé côté serveur, qu'Herdr n'a jamais vu.
+/// Exiger un `fingerprint` faisait donc échouer **tout** envoi littéral : la PWA
+/// affichait un échec rouge pendant que le message partait réellement.
+#[test]
+fn un_agent_prompted_est_une_confirmation() {
+    let preuve = preuve_de_prompt(&json!({ "type": "agent_prompted" }), "abc");
+    match preuve {
+        PromptEvidence::Confirmed { fingerprint } => assert_eq!(fingerprint.as_str(), "abc"),
+        autre => panic!("`agent_prompted` est la preuve du serveur : {autre:?}"),
+    }
+}
+
+/// Sans `agent_prompted` ni empreinte, l'état est **inconnu** — jamais un échec.
+#[test]
+fn une_reponse_muette_reste_inconnue_et_n_echoue_pas() {
+    let preuve = preuve_de_prompt(&json!({}), "abc");
+    assert!(matches!(preuve, PromptEvidence::Unknown { .. }));
+}
