@@ -18,7 +18,7 @@ import { FENETRE_DEMARRAGE_MS, etatLecture } from "../etats.ts";
 import { ProjectDetail } from "../ProjectDetail.tsx";
 import { ProjectPicker } from "../ProjectPicker.tsx";
 import { parseRoute, routeToHash } from "../routing.ts";
-import { groupesDe } from "../sections.ts";
+import { ORDRE_LABEL, groupesDe } from "../sections.ts";
 import { retenirGroupement } from "../preferences.ts";
 import { ConversationRow } from "../ConversationRow.tsx";
 import { SectionTitle } from "../SectionTitle.tsx";
@@ -28,13 +28,32 @@ import { BandeauMiseAJour } from "../BandeauMiseAJour.tsx";
 import { miseAJourEnAttente } from "../mise-a-jour.ts";
 import { motion, AnimatePresence } from "./motion.tsx";
 import { Skeleton } from "../Skeleton.tsx";
-import { reportError } from "../api.ts";
+import { TrustRequiredError, launchAgent, reportError } from "../api.ts";
+import type { TrustRequired } from "../api.ts";
+import type { LaunchChoice } from "../launch.ts";
+import { TrustCard } from "../TrustCard.tsx";
 import { HerdrClientLive } from "./services/HerdrClientLive.ts";
 import { createEventStream } from "./services/EventStream.ts";
 import { refreshLoop } from "./services/Refresh.ts";
 import { createStateRef } from "./state.ts";
 import type { AppState } from "./state.ts";
 import { useSubscriptionRef } from "./useSubscriptionRef.ts";
+
+/**
+ * L'état de connexion, dit en un mot — le même vocabulaire que la v1.
+ *
+ * ⚠️ **Ce n'est pas décoratif** : le shell v2 affichait `connected` en dur
+ * (`sr-only`), donc annonçait une connexion même flux coupé. Un état qu'on ne
+ * peut pas vérifier ne doit pas être affiché — ici il est calculé.
+ */
+type Connexion = "live" | "reconnexion" | "hors-ligne" | "inconnu";
+
+const LIBELLE_CONNEXION: Record<Connexion, string> = {
+  live: "connected",
+  reconnexion: "reconnecting",
+  "hors-ligne": "offline",
+  inconnu: "unknown status",
+};
 
 const useViewport = (): void => {
   const coquille = useRef({ hauteur: 0, haut: 0 });
@@ -65,14 +84,22 @@ const useViewport = (): void => {
   }, []);
 };
 
-const useHashRoute = (): [AppState["route"], (next: AppState["route"]) => void] => {
-  const [route, setRoute] = useState<AppState["route"]>(() => parseRoute(window.location.hash));
+/**
+ * La route vit dans le **fragment d'URL** — une seule source, partageable.
+ *
+ * ⚠️ `AppState.route` a été retiré : il doublonnait la route sans jamais être lu
+ * (le vrai propriétaire est le hash, et c'est ce qui rend un lien ouvrable).
+ */
+type Route = ReturnType<typeof parseRoute>;
+
+const useHashRoute = (): [Route, (next: Route) => void] => {
+  const [route, setRoute] = useState<Route>(() => parseRoute(window.location.hash));
   useEffect(() => {
     const onChange = () => setRoute(parseRoute(window.location.hash));
     window.addEventListener("hashchange", onChange);
     return () => window.removeEventListener("hashchange", onChange);
   }, []);
-  const navigate = useCallback((next: AppState["route"]) => {
+  const navigate = useCallback((next: Route) => {
     const hash = routeToHash(next);
     const doNavigate = () => {
       if (window.location.hash !== hash) window.location.hash = hash;
@@ -273,6 +300,19 @@ export const AppShell = () => {
     };
   }, [refresh, updateState]);
 
+  /*
+    ⚠️ **La recherche et l'ordre sont revenus.** Le shell v2 les avait perdus en
+    remplaçant `App.tsx` : la liste se triait toujours « récent », et filtrer
+    vingt conversations demandait de faire défiler. La recherche porte sur ce que
+    la ligne affiche DÉJÀ (agent, dernier message, modèle, nom) : aucune requête
+    en plus, ces champs arrivent avec la liste.
+  */
+  const [recherche, setRecherche] = useState("");
+  const ordre = useSubscriptionRef(stateRef, (s) => s.ordre);
+  const [launching, setLaunching] = useState<string | null>(null);
+  const [launchError, setLaunchError] = useState<string | null>(null);
+  const [trustRequest, setTrustRequest] = useState<TrustRequired | null>(null);
+
   const agents = useMemo(() => overview?.agents ?? [], [overview]);
 
   useEffect(() => {
@@ -325,15 +365,91 @@ export const AppShell = () => {
     void refresh();
   }, [refresh]);
 
+  /**
+   * L'état de connexion affiché — calculé, jamais supposé.
+   */
+  const connexion: Connexion =
+    etat.phase === "erreur" || etat.phase === "hors-ligne"
+      ? "hors-ligne"
+      : etat.phase === "reconnexion"
+        ? "reconnexion"
+        : live === "live"
+          ? "live"
+          : "inconnu";
+
+  /**
+   * L'horloge des lignes.
+   *
+   * ⚠️ **Sans elle, « il y a 2 min » se fige au chargement.** `maintenant` était
+   * dans l'état mais n'était jamais réécrit : les âges relatifs restaient ceux de
+   * l'ouverture, indéfiniment. On la met à jour à chaque lecture (elle suit la
+   * veille) et par une horloge de 30 s au repos.
+   */
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      updateState((s) => ({ ...s, maintenant: Date.now() }));
+    }, 30_000);
+    return () => window.clearInterval(timer);
+  }, [updateState]);
+
+  const lancer = useCallback(
+    (workspaceId: string, kind: string, choice: LaunchChoice) => {
+      void (async () => {
+        setLaunching(workspaceId);
+        setLaunchError(null);
+        setTrustRequest(null);
+        try {
+          const demarre = await launchAgent(workspaceId, kind, choice);
+          navigate({ kind: "agent", paneId: demarre.paneId });
+          await refresh();
+        } catch (cause: unknown) {
+          // L'invite de confiance a son propre affichage : elle n'est pas une erreur.
+          if (cause instanceof TrustRequiredError) {
+            setTrustRequest(cause.request);
+          } else {
+            const message = cause instanceof Error ? cause.message : String(cause);
+            setLaunchError(message);
+            reportError("failed to launch an agent", { kind, message, workspaceId });
+          }
+        } finally {
+          setLaunching(null);
+        }
+      })();
+    },
+    [navigate, refresh],
+  );
+
   const projetDe = useCallback(
     (workspaceId: string): string =>
       overview?.workspaces.find((w) => w.workspaceId === workspaceId)?.label ?? "Workspace",
     [overview],
   );
 
+  const conversationsFiltrees = useMemo(() => {
+    const terme = recherche.trim().toLowerCase();
+    if (terme.length === 0) return conversations;
+    return conversations.filter((conversation) =>
+      [conversation.agent, conversation.lastPrompt, conversation.model, conversation.name]
+        .filter((champ): champ is string => typeof champ === "string")
+        .some((champ) => champ.toLowerCase().includes(terme)),
+    );
+  }, [conversations, recherche]);
+
   const groupes = useMemo(
-    () => groupesDe(conversations, "recent", groupement, projetDe),
-    [conversations, groupement, projetDe],
+    () => groupesDe(conversationsFiltrees, ordre, groupement, projetDe),
+    [conversationsFiltrees, ordre, groupement, projetDe],
+  );
+
+  /**
+   * Le libellé d'onglet d'un pane — vide quand Herdr n'en donne pas, ou quand il
+   * est purement numérique (« – 3 » n'apprend rien).
+   */
+  const ongletDe = useCallback(
+    (paneId: string): string => {
+      const label = agents.find((candidat) => candidat.paneId === paneId)?.tabLabel ?? null;
+      return label === null || /^\d+$/.test(label.trim()) ? "" : label;
+    },
+    [agents],
   );
 
   // --- Render ---
@@ -396,12 +512,8 @@ export const AppShell = () => {
           workspace={workspace}
           agents={projetAgents}
           kinds={kinds}
-          launching={false}
-          onLaunch={(_wsId, _kind, _choice) => {
-            void _wsId;
-            void _kind;
-            void _choice;
-          }}
+          launching={launching === route.workspaceId}
+          onLaunch={lancer}
           onOpenAgent={(paneId) => navigate({ kind: "agent", paneId })}
           back={() => navigate({ kind: "liste" })}
         />
@@ -411,53 +523,121 @@ export const AppShell = () => {
 
   return (
     <div className="app">
+      {/*
+        L'en-tête de la v1, rétabli : titre, **recherche**, **état de connexion
+        réel**, réglages. Le shell v2 n'avait que le titre et un `connected` écrit
+        en dur — il annonçait donc une connexion même flux coupé.
+      */}
       <header className="topbar">
         <h1>Conversations</h1>
-        <span className="sr-only">connected</span>
-        <button
-          onClick={() => updateState((s) => ({ ...s, reglagesOuverts: true }))}
-          aria-label="Settings"
-        >
-          ⚙
-        </button>
+        <div className="topbar__droite">
+          {/*
+            ⚠️ La recherche apparaît au-delà de six conversations : en dessous,
+            elle prendrait la place du titre pour filtrer trois lignes.
+          */}
+          {conversations.length > 6 ? (
+            <label className="topbar__recherche">
+              <span className="sr-only">Search conversations</span>
+              <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+                <circle cx="11" cy="11" r="6.5" stroke="currentColor" strokeWidth="1.8" />
+                <path
+                  d="m16 16 4 4"
+                  stroke="currentColor"
+                  strokeWidth="1.8"
+                  strokeLinecap="round"
+                />
+              </svg>
+              <input
+                autoComplete="off"
+                onChange={(evenement) => setRecherche(evenement.target.value)}
+                placeholder="Search"
+                type="search"
+                value={recherche}
+              />
+            </label>
+          ) : null}
+          <span className={`point point--${connexion}`} aria-hidden="true" />
+          <span className="sr-only">Herdr {LIBELLE_CONNEXION[connexion]}</span>
+          <button
+            className="ghost topbar__engrenage"
+            onClick={() => updateState((s) => ({ ...s, reglagesOuverts: true }))}
+            aria-label="Settings"
+            type="button"
+          >
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none">
+              <circle cx="12" cy="12" r="3.75" stroke="currentColor" strokeWidth="1.8" />
+              <path
+                d="M12 4.5v2m0 11v2m7.5-7.5h-2m-11 0h-2m12.3-5.3-1.4 1.4m-7.8 7.8-1.4 1.4m10.6 0-1.4-1.4M6.5 6.5 5.1 5.1"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeWidth="1.5"
+              />
+            </svg>
+          </button>
+        </div>
       </header>
+      {launchError === null ? null : <Notice ton="erreur">{launchError}</Notice>}
+      {trustRequest === null ? null : (
+        <TrustCard onDone={() => setTrustRequest(null)} request={trustRequest} />
+      )}
       <main className="screen screen--liste">
         <BandeauEtat etat={etat} libelleVide="No conversations" onReessayer={reessayer} />
         {chargement && conversations.length === 0 ? (
           <Skeleton lignes={5} />
         ) : (
-          <div className="conversations">
-            <AnimatePresence>
-              {groupes.map((groupe) => (
-                <motion.section
-                  key={groupe.cle}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  initial={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                >
-                  <SectionTitle count={groupe.conversations.length}>{groupe.titre}</SectionTitle>
-                  {groupe.conversations.map((c) => (
-                    <motion.div
-                      key={c.paneId}
-                      animate={{ opacity: 1, y: 0 }}
-                      exit={{ opacity: 0, y: -8 }}
-                      initial={{ opacity: 0, y: 8 }}
-                      transition={{ duration: 0.15 }}
-                    >
-                      <ConversationRow
-                        conversation={c}
-                        projet={projetDe(c.workspaceId)}
-                        onglet=""
-                        maintenant={maintenant}
-                        onOpen={(paneId) => navigate({ kind: "agent", paneId })}
-                      />
-                    </motion.div>
-                  ))}
-                </motion.section>
-              ))}
-            </AnimatePresence>
-          </div>
+          <>
+            {/*
+            ⚠️ **Le tri est revenu.** Le shell v2 n'avait plus que « récent » :
+            `ordre` vivait dans l'état mais n'était lu par personne. Le bouton est
+            le même qu'en v1 — deux états, un geste, la place d'une icône.
+          */}
+            <div className="ordre">
+              <button
+                aria-label={ordre === "nom" ? "Sort by date" : "Sort by name"}
+                aria-pressed={ordre === "nom"}
+                className="ordre__bascule"
+                onClick={() =>
+                  updateState((s) => ({ ...s, ordre: s.ordre === "recent" ? "nom" : "recent" }))
+                }
+                title={ORDRE_LABEL[ordre]}
+                type="button"
+              >
+                <span aria-hidden="true">{ordre === "nom" ? "A→Z" : "⏱"}</span>
+              </button>
+            </div>
+            <div className="conversations">
+              <AnimatePresence>
+                {groupes.map((groupe) => (
+                  <motion.section
+                    key={groupe.cle}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    initial={{ opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    <SectionTitle count={groupe.conversations.length}>{groupe.titre}</SectionTitle>
+                    {groupe.conversations.map((c) => (
+                      <motion.div
+                        key={c.paneId}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -8 }}
+                        initial={{ opacity: 0, y: 8 }}
+                        transition={{ duration: 0.15 }}
+                      >
+                        <ConversationRow
+                          conversation={c}
+                          projet={projetDe(c.workspaceId)}
+                          onglet={ongletDe(c.paneId)}
+                          maintenant={maintenant}
+                          onOpen={(paneId) => navigate({ kind: "agent", paneId })}
+                        />
+                      </motion.div>
+                    ))}
+                  </motion.section>
+                ))}
+              </AnimatePresence>
+            </div>
+          </>
         )}
       </main>
       {route.kind === "liste" ? (
@@ -484,7 +664,7 @@ export const AppShell = () => {
             <SettingsSheet
               health={health}
               onClose={() => updateState((s) => ({ ...s, reglagesOuverts: false }))}
-              sansSession={0}
+              sansSession={overview?.withoutSession ?? 0}
               groupement={groupement}
               onGroupement={(g) => {
                 updateState((s) => ({ ...s, groupement: g }));
@@ -498,7 +678,10 @@ export const AppShell = () => {
       {projetChoisi ? (
         <ProjectPicker
           onClose={() => updateState((s) => ({ ...s, projetChoisi: false }))}
-          onPick={() => updateState((s) => ({ ...s, projetChoisi: false }))}
+          onPick={(workspaceId) => {
+            updateState((s) => ({ ...s, projetChoisi: false }));
+            navigate({ kind: "projet", workspaceId });
+          }}
           workspaces={overview?.workspaces ?? []}
         />
       ) : null}

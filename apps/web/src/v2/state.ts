@@ -9,13 +9,12 @@ import type { Effect } from "effect";
 import { SubscriptionRef } from "effect";
 import type { Overview, Health, InstalledKind, AgentView } from "../api.ts";
 import type { ConversationSummary } from "@herdr-remote/shared";
-import type { Route } from "../routing.ts";
+import { lireGroupement } from "../preferences.ts";
 import type { Groupement } from "../preferences.ts";
 import type { Ordre } from "../sections.ts";
 
 /** L'état global, immuable par construction. */
 export interface AppState {
-  readonly route: Route;
   readonly overview: Overview | null;
   readonly health: Health | null;
   readonly conversations: ReadonlyArray<ConversationSummary>;
@@ -40,7 +39,13 @@ export const initialState: AppState = {
   conversations: [],
   dernierSucces: null,
   error: null,
-  groupement: "statut",
+  /*
+    ⚠️ **La préférence ENREGISTRÉE, pas une valeur par défaut.** La v2 repartait
+    sur « statut » à chaque ouverture : le choix de regroupement de l'utilisateur
+    était bien écrit dans `localStorage` (`retenirGroupement`) mais **jamais
+    relu**, donc perdu à chaque rechargement.
+  */
+  groupement: lireGroupement(),
   health: null,
   kinds: [],
   live: "down",
@@ -50,7 +55,6 @@ export const initialState: AppState = {
   overview: null,
   projetChoisi: false,
   reglagesOuverts: false,
-  route: { kind: "liste" },
 };
 
 /** Crée le ref d'état. À appeler une fois dans `AppShell`. */

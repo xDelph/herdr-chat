@@ -2721,3 +2721,30 @@ Quatre causes distinctes, toutes vérifiées :
 - `PortHerdr` gardait **un seul client derrière un seul `Mutex`**, alors que chaque demande ouvre sa propre connexion (Herdr sert une requête par connexion) : les workers parallèles se bloquaient sur le verrou. Le port prête désormais un client (réserve), et les écrans se lisent en parallèle borné (`MAX_ECRANS_LUS = 16`).
 
 Mesure après correction : `/api/conversations` **0,154 s** à froid, **4 ms** à chaud. Captures headless : 20 conversations sur `localhost:8793`, `…:8443` et `…:8790` ; réglages « Herdr reachable : yes », « Readable conversations : all » ; plus aucun bandeau de mise à jour.
+
+### La v2 avait perdu la recherche, le tri, le lancement et l'horloge des lignes
+
+**Constat.** En auditant le shell v2 contre la v1 (`git show 17a479c^:apps/web/src/App.tsx`), cinq capacités avaient disparu dans la réécriture — pas par choix, par omission :
+
+| Perdu en v2 | Constat mesuré |
+|---|---|
+| **Recherche** | absente de l'en-tête ; filtrer vingt conversations demandait de faire défiler |
+| **Tri** | `ordre` vivait dans l'état mais `groupesDe(…, "recent", …)` était figé : le bouton avait disparu |
+| **Lancement d'agent** | `onLaunch={(_wsId, _kind, _choice) => { void … }}` — **rien** ; `launching={false}` en dur |
+| **Choix de projet** | `onPick` fermait la feuille sans naviguer : « + New agent » ne menait nulle part |
+| **Horloge des lignes** | `maintenant` n'était jamais réécrit : « il y a 2 min » restait figé à l'ouverture |
+| **État de connexion** | `<span className="sr-only">connected</span>` en dur — annonçait une connexion même flux coupé |
+| **Compteur sans session** | `sansSession={0}` : les réglages affirmaient « 0 » sans rien mesurer |
+| **Préférence de regroupement** | `groupement: "statut"` en dur ; `lireGroupement()` jamais relu, donc le choix écrit dans `localStorage` était perdu à chaque rechargement |
+
+**Correction** : les huit sont rétablis depuis la v1, à l'identique. Vérifié au navigateur (393×852) :
+
+```
+recherche « opencode » : 11 lignes -> 3
+tri A→Z               : ordre des lignes changé
+état de connexion     : .point--live (calculé)
+« + New agent »       : feuille « Where should the agent run? » (11 projets)
+choix d'un projet     : #/projet/w3, écran projet rendu
+```
+
+**Deux fausses alertes de ma part, corrigées par la mesure** — à noter pour ne pas les rechercher une troisième fois : `.conv__onglet` reste vide parce que Herdr ne publie que des libellés **numériques** (`1`, `2`…) que `useful_label` écarte à raison ; et « aucune feuille » venait de mon sélecteur (`.feuille` au lieu de `.sheet`), pas du code.

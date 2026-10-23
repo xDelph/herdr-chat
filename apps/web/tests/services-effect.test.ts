@@ -62,6 +62,10 @@ describe("State service", () => {
     expect(initialState.chargement).toBe(true);
     expect(initialState.conversations).toEqual([]);
     expect(initialState.overview).toBeNull();
-    expect(initialState.route).toEqual({ kind: "liste" });
+    /*
+      ⚠️ `route` a quitté l'état : le fragment d'URL en est le seul propriétaire
+      (c'est ce qui rend un lien ouvrable), et le champ doublonnait sans être lu.
+    */
+    expect("route" in initialState).toBe(false);
   });
 });
