@@ -5,7 +5,7 @@
 
 use domain::ids::PaneId;
 use std::collections::HashMap;
-use std::sync::{Arc, Condvar, Mutex};
+use std::sync::{Arc, Condvar, LazyLock, Mutex};
 
 /// La capacité d'une file de pane — 8 opérations en attente (mesuré T034).
 pub const FILE_PANE_MAX: usize = 8;
@@ -23,6 +23,30 @@ struct FilePane {
 #[derive(Default)]
 pub struct Tourniquet {
     files: Mutex<HashMap<String, Arc<FilePane>>>,
+}
+
+/// Le tourniquet **du démon** : UN seul pour toutes les commandes — prompt,
+/// réponse à une question, confiance, arrêt, focus.
+///
+/// ⚠️ **Il existait, testé, et personne ne passait par lui.** Un double tap
+/// envoyait deux fois (les deux requêtes passaient la déduplication avant que
+/// la première soit confirmée), et un prompt pouvait s'entrelacer avec une
+/// réponse de question sur le même pane (texte tapé au milieu d'un choix). Il
+/// est partagé parce que l'exclusion porte sur le PANE, quelle que soit la
+/// commande — une instance par service n'exclurait rien entre services.
+pub fn partage() -> &'static Tourniquet {
+    static PARTAGE: LazyLock<Tourniquet> = LazyLock::new(Tourniquet::nouveau);
+    &PARTAGE
+}
+
+/// Le texte d'une saturation, tel que le client le lit : rien n'a été fait,
+/// et il peut réessayer.
+#[must_use]
+pub fn detail_saturation(pane: &PaneId) -> String {
+    format!(
+        "{FILE_PANE_MAX} operations are already queued on {}: nothing was sent, retry in a moment",
+        pane.as_str()
+    )
 }
 
 /// L'erreur d'admission — la saturation est nommée.
