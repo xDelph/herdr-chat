@@ -227,11 +227,68 @@ pub struct InfoPane {
     pub workspace_id: Option<String>,
 }
 
+/// Un onglet du snapshot (`TabInfo`, mesuré par le fil TS).
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct InfoTab {
+    pub tab_id: String,
+    pub workspace_id: String,
+    /// `null` mesuré : Herdr n'a pas de libellé choisi pour cet onglet.
+    pub label: Option<String>,
+    pub number: u64,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent_status: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub pane_count: Option<u64>,
+}
+
+/// Le rectangle d'un pane dans sa disposition, en cellules de terminal.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct RectDisposition {
+    pub x: i64,
+    pub y: i64,
+    pub width: i64,
+    pub height: i64,
+}
+
+/// Un pane dans la disposition de son onglet.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct PaneDisposition {
+    pub pane_id: String,
+    pub focused: bool,
+    pub rect: RectDisposition,
+}
+
+/// La disposition d'un onglet (`layouts[]`). `splits` et `zoomed` existent
+/// côté Herdr et ne sont pas décrits : on ne déclare que ce qu'on lit.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct InfoDisposition {
+    pub tab_id: String,
+    pub workspace_id: String,
+    pub focused_pane_id: String,
+    pub panes: Vec<PaneDisposition>,
+}
+
 /// La photo complète du fil (`session.snapshot` — l'enveloppe porte
 /// protocol + version, mesuré).
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
 pub struct PhotoSession {
     pub agents: Vec<InfoAgent>,
+    /// ⚠️ **Portés par `session.snapshot`** (PROTOCOL §2.4 : `tabs[]`,
+    /// `layouts[]`). Ils n'étaient pas décodés : numéro d'onglet, libellé et
+    /// rang de pane restaient `null` pour tous les agents. Absents du fil =
+    /// `None` (jamais un vide inventé).
+    #[serde(
+        default,
+        deserialize_with = "presence_refus_null",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub tabs: Option<Vec<InfoTab>>,
+    #[serde(
+        default,
+        deserialize_with = "presence_refus_null",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub layouts: Option<Vec<InfoDisposition>>,
     #[serde(
         default,
         deserialize_with = "presence_refus_null",
