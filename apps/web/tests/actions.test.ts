@@ -426,3 +426,50 @@ describe("points 2b — la fusion couvre aussi les pensées", () => {
     expect(lignes.map((ligne) => ligne.kind)).toEqual(["commands", "texte", "commands"]);
   });
 });
+
+const shellClaude = (id: string, command: string, output: string): RenderedMessage => ({
+  at: null,
+  blocks: [
+    {
+      cancelled: false,
+      command,
+      exitCode: null,
+      kind: "bashExecution",
+      output,
+      truncated: false,
+    },
+  ],
+  id,
+  meta: {},
+  role: "bashExecution",
+  text: `${command}\n${output}`,
+});
+
+describe("mode shell de Claude", () => {
+  test("la commande et sa sortie, écrites sur deux lignes, font un seul bloc", () => {
+    const lignes = lignesDeTravail([
+      shellClaude("m1", "git status", ""),
+      shellClaude("m2", "", "propre"),
+    ]);
+    expect(lignes).toHaveLength(1);
+    const ligne = lignes[0];
+    expect(ligne?.kind).toBe("action");
+    if (ligne?.kind === "action") {
+      expect(ligne.details).toEqual([
+        {
+          cancelled: false,
+          command: "git status",
+          exitCode: null,
+          kind: "bashExecution",
+          output: "propre",
+          truncated: false,
+        },
+      ]);
+    }
+  });
+
+  test("deux commandes Pi complètes ne fusionnent pas", () => {
+    const lignes = lignesDeTravail([shellClaude("m1", "ls", "a"), shellClaude("m2", "pwd", "/")]);
+    expect(lignes).toHaveLength(2);
+  });
+});

@@ -236,3 +236,72 @@ fn les_images_arrivent_dans_la_forme_commune() {
     let contenu = serde_json::to_string(&ligne.message.content).unwrap_or_default();
     assert!(contenu.contains("\"mimeType\":\"image/png\""), "{contenu}");
 }
+
+#[test]
+fn le_mode_shell_devient_une_execution_et_jamais_une_demande() {
+    // Forme mesurée (Claude Code 2.1.310) : deux lignes `user` consécutives,
+    // la commande puis sa sortie. Aucune ne doit compter comme une demande.
+    use sessions::agents::claude::ligne_claude_vers_pi;
+    let entree = json!({
+        "type": "user", "uuid": "u1", "timestamp": "2026-10-24T20:05:16.675Z",
+        "message": { "role": "user",
+                     "content": "<bash-input> ls -la && git status</bash-input>" }
+    });
+    let sortie = json!({
+        "type": "user", "uuid": "u2", "parentUuid": "u1",
+        "timestamp": "2026-10-24T20:05:16.982Z",
+        "message": { "role": "user",
+                     "content": "<bash-stdout>✓ Done\n✓ Done</bash-stdout><bash-stderr>attention</bash-stderr>" }
+    });
+    let commande =
+        ligne_claude_vers_pi(&entree).unwrap_or_else(|| panic!("la commande est une ligne"));
+    assert_eq!(commande.message.role.as_deref(), Some("bashExecution"));
+    assert_eq!(
+        commande.message.command.as_deref(),
+        Some("ls -la && git status")
+    );
+    assert_eq!(commande.message.output.as_deref(), Some(""));
+    assert_eq!(
+        commande.message.exit_code, None,
+        "le code n'est écrit nulle part"
+    );
+    assert_eq!(commande.id.as_deref(), Some("claude:u1"));
+    let resultat =
+        ligne_claude_vers_pi(&sortie).unwrap_or_else(|| panic!("la sortie est une ligne"));
+    assert_eq!(resultat.message.role.as_deref(), Some("bashExecution"));
+    assert_eq!(resultat.message.command.as_deref(), Some(""));
+    assert_eq!(
+        resultat.message.output.as_deref(),
+        Some("✓ Done\n✓ Done\nattention"),
+        "stdout puis stderr"
+    );
+    // Une demande ordinaire reste une demande.
+    let demande = json!({
+        "type": "user", "uuid": "u3",
+        "message": { "role": "user", "content": "explique <bash-input> dans la doc" }
+    });
+    assert_eq!(
+        ligne_claude_vers_pi(&demande)
+            .and_then(|ligne| ligne.message.role)
+            .as_deref(),
+        Some("user")
+    );
+}
+
+#[test]
+fn la_sortie_shell_vide_ou_en_erreur_seule_reste_lisible() {
+    use sessions::agents::claude::execution_shell;
+    let seule_erreur = json!({
+        "type": "user", "uuid": "u4",
+        "message": { "role": "user",
+                     "content": "<bash-stdout></bash-stdout><bash-stderr>psql: error</bash-stderr>" }
+    });
+    let ligne = execution_shell(&seule_erreur).unwrap_or_else(|| panic!("sortie"));
+    assert_eq!(ligne.message.output.as_deref(), Some("psql: error"));
+    // Un assistant qui cite la balise n'est pas une commande.
+    let assistant = json!({
+        "type": "assistant", "uuid": "u5",
+        "message": { "role": "assistant", "content": "<bash-input>ls</bash-input>" }
+    });
+    assert!(execution_shell(&assistant).is_none());
+}

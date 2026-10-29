@@ -605,6 +605,25 @@ export const lignesDeTravail = (
         continue;
       }
       if (block.kind === "bashExecution") {
+        /*
+          ⚠️ **Le mode shell de Claude (`!commande`) écrit deux lignes** : la
+          commande (sortie vide), puis la sortie (commande vide). Le démon les
+          traduit une à une ; elles sont réunies ici en UN bloc shell, sinon
+          la sortie apparaissait comme une commande sans nom.
+        */
+        const precedente = lignes.at(-1);
+        const commande = precedente?.kind === "action" ? precedente.details[0] : undefined;
+        if (
+          block.command === "" &&
+          precedente?.kind === "action" &&
+          precedente.details.length === 1 &&
+          commande?.kind === "bashExecution" &&
+          commande.command !== "" &&
+          commande.output === ""
+        ) {
+          precedente.details[0] = { ...commande, output: block.output, truncated: block.truncated };
+          continue;
+        }
         lignes.push({
           action: {
             cible: block.command.split("\n")[0] ?? null,
