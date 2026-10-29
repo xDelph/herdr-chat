@@ -22,40 +22,70 @@ use domain::ids::AgentKind;
 use std::sync::Arc;
 
 /// Les types installés ET lisibles — la liste du menu.
+///
+/// ⚠️ **`state` et `label` sont ceux d'Herdr** (`integration.list`), comme
+/// le fil (`state: integration.state`, `label: integration.label`). Le
+/// handler écrivait `state: "current"` pour tout le monde et la commande en
+/// guise de libellé : une valeur inventée, présentée comme mesurée (H08).
+/// La LISTE reste celle du lancement (C16) ; l'état et le libellé viennent
+/// de la mesure, et un type dont l'état n'a pas été mesuré n'est pas
+/// complété : la réponse est un 502 nommé.
 async fn types_sur_place(
     axum::extract::State(services): axum::extract::State<Arc<Services>>,
 ) -> axum::response::Response {
-    match services.types.installes() {
-        Ok(inventaire) => {
-            let kinds = types_lancables(&inventaire)
-                .into_iter()
-                .map(|type_lancable| InstalledKind {
-                    // Le `kind` que `agent.start` attend (la commande quand
-                    // elle est au vocabulaire, sinon la cible).
-                    kind: type_lancable.kind.clone(),
-                    // Le libellé est la commande : c'est ce que l'utilisateur
-                    // reconnaît dans Herdr.
-                    label: type_lancable.commande.clone(),
-                    // Tout type offert est utilisable — un type dont l'état
-                    // n'est pas utilisable n'est pas offert du tout.
-                    state: String::from("current"),
-                })
-                .collect();
-            (
-                axum::http::StatusCode::OK,
-                axum::Json(InstalledKindsResponse { kinds }),
-            )
-                .into_response()
-        }
+    let inventaire = match services.types.installes() {
+        Ok(inventaire) => inventaire,
         // Sans liste fiable : 502 nommé, jamais une liste devinée.
-        Err(erreur) => crate::handlers::repondre_erreur(
-            RouteId::TypesInstalles,
-            &ErreurDomaine::amont_injoignable(format!(
-                "agent types unavailable: {}",
-                erreur.detail()
-            )),
-        ),
+        Err(erreur) => {
+            return crate::handlers::repondre_erreur(
+                RouteId::TypesInstalles,
+                &ErreurDomaine::amont_injoignable(format!(
+                    "agent types unavailable: {}",
+                    erreur.detail()
+                )),
+            );
+        }
+    };
+    let mesures = match services.catalogue.installed().await {
+        Ok(mesures) => mesures,
+        Err(cause) => {
+            return crate::handlers::repondre_erreur(
+                RouteId::TypesInstalles,
+                &ErreurDomaine::amont_injoignable(format!(
+                    "agent types unavailable: {}",
+                    cause.description()
+                )),
+            );
+        }
+    };
+    let mut kinds = Vec::new();
+    for type_lancable in types_lancables(&inventaire) {
+        let Some(mesure) = mesures
+            .iter()
+            .find(|mesure| mesure.kind.as_str() == type_lancable.kind)
+        else {
+            return crate::handlers::repondre_erreur(
+                RouteId::TypesInstalles,
+                &ErreurDomaine::amont_malforme(format!(
+                    "agent types unavailable: no measured state for “{}”",
+                    type_lancable.kind
+                )),
+            );
+        };
+        kinds.push(InstalledKind {
+            // Le `kind` que `agent.start` attend (la commande quand elle est
+            // au vocabulaire, sinon la cible).
+            kind: type_lancable.kind.clone(),
+            // Le libellé et l'état d'Herdr, tels quels.
+            label: mesure.label.clone(),
+            state: mesure.state.clone(),
+        });
     }
+    (
+        axum::http::StatusCode::OK,
+        axum::Json(InstalledKindsResponse { kinds }),
+    )
+        .into_response()
 }
 
 /// Le catalogue d'un type — un catalogue indisponible reste une VALEUR.

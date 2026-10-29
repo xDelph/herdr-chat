@@ -124,6 +124,10 @@ pub fn routeur(services: Arc<Services>, origines: Vec<String>) -> Router<()> {
         // va aux assets de la PWA (T054) — jamais du HTML sur `/api`.
         .fallback(handlers::assets_router::statique)
         .with_state(services)
+        // La sortie de CHAQUE réponse : `no-store` sur l'API (O07) quand le
+        // handler n'a rien dit, et toute réponse ≥ 400 tracée avec sa route
+        // et sa cause. Sous la compression : le corps lu est en clair.
+        .layer(middleware::from_fn(sortie_api))
         // ⚠️ **La compression s'applique à la fin de la chaîne** (donc aux
         // assets ET au JSON) et se décide sur `Accept-Encoding` : un client qui
         // n'envoie rien reçoit du brut, jamais un corps qu'il ne sait pas lire.
@@ -242,4 +246,105 @@ fn methode_non_autorisee_avec(allow: &str) -> Response {
         axum::Json(serde_json::json!({ "error": message })),
     )
         .into_response()
+}
+
+/// La politique de cache de l'API (O07) : une réponse JSON de l'API n'est
+/// jamais mise en cache — ni par le navigateur, ni par un intermédiaire.
+pub const CACHE_API: &str = "no-store";
+
+/// Le corps d'erreur lu pour la trace — borné : une erreur est un petit JSON.
+const CORPS_ERREUR_MAX: usize = 64 * 1024;
+
+/// La cause d'une réponse d'erreur, telle que le client la lit : `error`
+/// (+ `hint`) d'un `ApiErrorResponse`, `detail` d'un prompt raté, sinon le
+/// texte brut (H15) — plafonnée à 300 caractères.
+///
+/// ⚠️ Jamais le texte d'un prompt : seuls les champs d'erreur sont lus, et
+/// aucun ne recopie la demande.
+#[must_use]
+pub fn cause_de_reponse(corps: &[u8]) -> String {
+    let texte = match serde_json::from_slice::<serde_json::Value>(corps) {
+        Ok(valeur) => {
+            let champ = |nom: &str| {
+                valeur
+                    .get(nom)
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::to_string)
+            };
+            match (champ("error").or_else(|| champ("detail")), champ("hint")) {
+                (Some(erreur), Some(indice)) => format!("{erreur} — {indice}"),
+                (Some(erreur), None) => erreur,
+                (None, _) => valeur.to_string(),
+            }
+        }
+        Err(_) => String::from_utf8_lossy(corps).trim().to_string(),
+    };
+    if texte.is_empty() {
+        return String::from("(corps vide)");
+    }
+    texte.chars().take(300).collect()
+}
+
+/// La couche de sortie : `Cache-Control: no-store` sur `/api/*` quand le
+/// handler n'en a pas posé, et la trace des réponses ≥ 400.
+///
+/// ⚠️ **Une erreur servie sans trace est une erreur cachée.** Le fil
+/// journalisait toute réponse ≥ 400 (S10) ; ici chacune sort sur `stderr`
+/// (`tracing`) avec la méthode, la route (le gabarit quand il est connu,
+/// jamais un corps de requête) et la cause lue dans le corps rendu.
+async fn sortie_api(demande: Request, suivant: Next) -> Response {
+    let methode = demande.method().clone();
+    let chemin = demande.uri().path().to_string();
+    let route = demande
+        .extensions()
+        .get::<axum::extract::MatchedPath>()
+        .map_or_else(|| chemin.clone(), |gabarit| gabarit.as_str().to_string());
+    let mut reponse = suivant.run(demande).await;
+    let est_api = chemin.starts_with("/api/");
+    if est_api
+        && !reponse
+            .headers()
+            .contains_key(axum::http::header::CACHE_CONTROL)
+    {
+        reponse.headers_mut().insert(
+            axum::http::header::CACHE_CONTROL,
+            axum::http::HeaderValue::from_static(CACHE_API),
+        );
+    }
+    let statut = reponse.status();
+    if statut.as_u16() < 400 {
+        return reponse;
+    }
+    // Hors API (assets) : le statut suffit, le corps n'est pas relu.
+    if !est_api {
+        tracing::warn!("{methode} {route} → {}", statut.as_u16());
+        return reponse;
+    }
+    let (parties, corps) = reponse.into_parts();
+    match axum::body::to_bytes(corps, CORPS_ERREUR_MAX).await {
+        Ok(octets) => {
+            tracing::warn!(
+                "{methode} {route} → {} : {}",
+                statut.as_u16(),
+                cause_de_reponse(&octets)
+            );
+            Response::from_parts(parties, Body::from(octets))
+        }
+        // Un corps d'erreur illisible ou démesuré : la trace le dit, et le
+        // client reçoit un 500 nommé plutôt qu'un corps tronqué en silence.
+        Err(cause) => {
+            tracing::warn!(
+                "{methode} {route} → {} : corps d'erreur illisible ({cause})",
+                statut.as_u16()
+            );
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                [(axum::http::header::CACHE_CONTROL, CACHE_API)],
+                axum::Json(serde_json::json!({
+                    "error": format!("error body unreadable ({}): {cause}", statut.as_u16())
+                })),
+            )
+                .into_response()
+        }
+    }
 }
