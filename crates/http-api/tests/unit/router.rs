@@ -120,27 +120,95 @@ async fn routes_read_branchees_t052() {
     }
 }
 
-/// Les mutations qui restent en attente de handler (T052) répondent 501
-/// NOMÉ — jamais un 200 inventé.
-#[tokio::test(flavor = "multi_thread")]
-async fn routes_mutation_en_attente_501_avec_origine() {
-    for chemin in [] as [&str; 0] {
-        let reponse = envoie(
-            "POST",
-            chemin,
-            &[
-                ("origin", "http://localhost"),
-                ("content-type", "application/json"),
-            ],
-            br#"{}"#.to_vec(),
-        )
-        .await;
-        assert_eq!(
-            reponse.status(),
-            StatusCode::NOT_IMPLEMENTED,
-            "{chemin} — la garde passe, le handler manque : 501"
-        );
+/// Le chemin concret d'un gabarit du manifeste, avec ses paramètres requis.
+fn chemin_concret(route: &contracts::registry::Route) -> String {
+    let mut chemin = route
+        .chemin
+        .replace("{paneId}", "w1:p1")
+        .replace("{workspaceId}", "w1")
+        .replace("{kind}", "pi");
+    let requis: Vec<String> = route
+        .entree
+        .requete
+        .iter()
+        .filter(|parametre| parametre.requis)
+        .map(|parametre| format!("{}=/projets/atelier/notes.txt", parametre.nom))
+        .collect();
+    if !requis.is_empty() {
+        chemin.push('?');
+        chemin.push_str(&requis.join("&"));
     }
+    chemin
+}
+
+/// Les routes du manifeste que le routeur composé ne sert PAS : 501 (handler
+/// absent), 405 (méthode absente) ou le repli JSON « route inconnue ».
+///
+/// ⚠️ La liste vient du **manifeste**, jamais d'un tableau écrit à la main :
+/// l'ancienne version de ce test bouclait sur un tableau vide et ne pouvait
+/// donc jamais échouer (audit T064).
+async fn routes_non_servies(routes: &[contracts::registry::Route]) -> Vec<String> {
+    let mut manquantes = Vec::new();
+    for route in routes {
+        let chemin = chemin_concret(route);
+        let (methode, entetes): (&str, &[(&str, &str)]) = match route.methode {
+            contracts::registry::Methode::Get => ("GET", &[]),
+            contracts::registry::Methode::Post => (
+                "POST",
+                &[
+                    ("origin", "http://localhost"),
+                    ("content-type", "application/json"),
+                ],
+            ),
+        };
+        let reponse = envoie(methode, &chemin, entetes, br#"{}"#.to_vec()).await;
+        let statut = reponse.status();
+        if statut == StatusCode::NOT_IMPLEMENTED || statut == StatusCode::METHOD_NOT_ALLOWED {
+            manquantes.push(format!("{methode} {chemin} → {statut}"));
+            continue;
+        }
+        if statut == StatusCode::NOT_FOUND {
+            // Un 404 de handler (agent absent) est une réponse servie ; le
+            // repli « route inconnue » ne l'est pas. Les flux SSE ne sont
+            // jamais lus ici (ils ne finissent pas).
+            let octets = axum::body::to_bytes(reponse.into_body(), 64 * 1024)
+                .await
+                .unwrap_or_else(|cause| panic!("corps lu : {cause:?}"));
+            let corps: serde_json::Value = serde_json::from_slice(&octets).unwrap_or_default();
+            if corps["error"] == "route inconnue" {
+                manquantes.push(format!("{methode} {chemin} → repli route inconnue"));
+            }
+        }
+    }
+    manquantes
+}
+
+/// Toutes les routes du manifeste (H01–H19) sont servies par le routeur
+/// composé : aucune ne répond 501, 405 ou « route inconnue ».
+#[tokio::test(flavor = "multi_thread")]
+async fn toutes_les_routes_du_manifeste_sont_servies() {
+    let routes = contracts::registry::ROUTES;
+    // La boucle n'est jamais vide : un manifeste vidé ferait passer ce test
+    // sans rien vérifier.
+    assert_eq!(routes.len(), 19, "le manifeste a changé de taille");
+    let manquantes = routes_non_servies(&routes).await;
+    assert!(
+        manquantes.is_empty(),
+        "routes non servies : {manquantes:#?}"
+    );
+}
+
+/// La vérification précédente sait échouer : une route semée dans un
+/// manifeste factice, absente du routeur, est rapportée.
+#[tokio::test(flavor = "multi_thread")]
+async fn une_route_absente_du_routeur_est_rapportee() {
+    let mut semee = *contracts::registry::entree_de(contracts::registry::RouteId::Sante);
+    semee.chemin = "/api/route-semee-absente";
+    let mut post_semee = *contracts::registry::entree_de(contracts::registry::RouteId::Prompt);
+    post_semee.chemin = "/api/agents/{paneId}/route-semee";
+    let manquantes = routes_non_servies(&[semee, post_semee]).await;
+    assert_eq!(manquantes.len(), 2, "{manquantes:#?}");
+    assert!(manquantes[0].contains("/api/route-semee-absente"));
 }
 
 /// La lecture sur une route de lecture : GET et HEAD, pas le reste.

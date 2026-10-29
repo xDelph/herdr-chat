@@ -3,21 +3,40 @@
 //!   cargo run --locked -p xtask -- verify            # all doors
 //!   cargo run --locked -p xtask -- verify-layout     # structure door only
 //!   cargo run --locked -p xtask -- graph             # member graph door only
+//!   cargo run --locked -p xtask -- coverage          # parity matrix (T064)
+//!   cargo run --locked -p xtask -- final-gate        # verify + bun + release build (T069)
+//!   cargo run --locked -p xtask -- fixture-daemon    # herdrchat on fake Herdr (T067)
+//!   cargo run --locked -p xtask -- release [--target <triple>]   # T066
 //!
 //! Optional `--root <dir>` runs the doors against another checkout (used by
 //! synthetic probes that prove each door fails; probes are removed after).
 
-const USAGE: &str =
-    "usage: cargo xtask [--root <dir>] <verify|verify-layout|graph|contracts|bench|release>";
+const USAGE: &str = "usage: cargo xtask [--root <dir>] <verify|verify-layout|graph|coverage|contracts|bench|fixture-daemon|release|final-gate>";
 
-/// Lit `compatibility/coverage.json` et vérifie les preuves (T064).
-fn coverage_report(root: &std::path::Path) -> Result<xtask::coverage::Rapport, String> {
-    let chemin = root.join("compatibility/coverage.json");
-    let texte = std::fs::read_to_string(&chemin)
-        .map_err(|cause| format!("lecture de {} : {cause}", chemin.display()))?;
-    let document: serde_json::Value = serde_json::from_str(&texte)
-        .map_err(|cause| format!("{} n'est pas du JSON : {cause}", chemin.display()))?;
-    xtask::coverage::verifie_document(root, &document)
+/// Lit `compatibility/coverage.json`, vérifie les preuves (T064) et imprime
+/// le rapport : résumé, défauts, entrées non prouvées avec leur écart, et les
+/// items à re-marquer après intégration des autres lots.
+fn coverage_report(root: &std::path::Path) -> Result<(), String> {
+    let rapport = xtask::coverage::porte(root)?;
+    println!("{}", rapport.resume());
+    for defaut in &rapport.defauts {
+        eprintln!("  défaut : {defaut}");
+    }
+    for (id, statut, taches, ecart) in &rapport.restantes {
+        println!("  {statut} : {id} (tâches {}) — {ecart}", taches.join(", "));
+    }
+    let texte = std::fs::read_to_string(root.join("compatibility/coverage.json"))
+        .map_err(|cause| format!("coverage.json : {cause}"))?;
+    let document: serde_json::Value =
+        serde_json::from_str(&texte).map_err(|cause| format!("coverage.json : {cause}"))?;
+    for item in xtask::coverage::a_remarquer(&document) {
+        println!("  à re-marquer après intégration : {item}");
+    }
+    if rapport.est_coherent() {
+        Ok(())
+    } else {
+        Err(String::from("couverture : preuves incohérentes"))
+    }
 }
 
 fn main() {
@@ -63,6 +82,7 @@ fn main() {
     };
     let outcome = match command.as_str() {
         "verify" => xtask::run::verify(&root).map(|_| ()),
+        "final-gate" => xtask::run::final_gate(&root),
         "verify-layout" => match xtask::run::verify_layout(&root) {
             Ok(report) => {
                 println!("{}", report.exit_details());
@@ -74,23 +94,7 @@ fn main() {
             }
             Err(e) => Err(e),
         },
-        "coverage" => match coverage_report(&root) {
-            Ok(rapport) => {
-                println!("{}", rapport.resume());
-                for defaut in &rapport.defauts {
-                    eprintln!("  défaut : {defaut}");
-                }
-                for (id, taches) in &rapport.restantes {
-                    println!("  en attente : {id} (tâches {})", taches.join(", "));
-                }
-                if rapport.est_coherent() {
-                    Ok(())
-                } else {
-                    Err(String::from("couverture : preuves incohérentes"))
-                }
-            }
-            Err(e) => Err(e),
-        },
+        "coverage" => coverage_report(&root),
         "graph" => match xtask::run::graph_check(&root) {
             Ok(order) => {
                 println!("graphe conforme (ordre: {})", order.join(" "));
@@ -115,6 +119,7 @@ fn main() {
             }
         },
         "bench" => xtask::bench::entree(&root, &positional[1..]),
+        "fixture-daemon" => xtask::bench::sert_fixture(&root, &positional[1..]),
         "release" => xtask::release::entree(&root, &positional[1..]),
         other => {
             eprintln!("sous-commande inconnue: {other}\n{USAGE}");
