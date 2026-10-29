@@ -156,3 +156,18 @@ export const heureDe = (iso: string | null | undefined): string | null => {
   if (Number.isNaN(date.getTime())) return null;
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 };
+
+/**
+ * Un aperçu d'une ligne, **sans la syntaxe Markdown** : la liste montre
+ * « Baseline (what the code…) », pas « ## Baseline » ni « ```ts ».
+ *
+ * Seule la ponctuation de mise en forme est retirée ; les mots restent.
+ */
+export const apercuTexte = (markdown: string): string =>
+  markdown
+    .replace(/```[\w-]*/g, " ")
+    .replace(/^\s{0,3}(?:#{1,6}|[-*+]|\d+[.)]|>)\s+/gm, "")
+    .replace(/(\*\*|__|`)/g, "")
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();

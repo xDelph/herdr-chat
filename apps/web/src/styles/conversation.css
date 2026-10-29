@@ -502,6 +502,9 @@
   padding: 2px 0;
   min-width: 0;
 }
+.travail > span {
+  white-space: nowrap;
+}
 .travail__sep {
   color: var(--ink-3);
 }

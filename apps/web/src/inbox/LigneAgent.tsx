@@ -13,12 +13,12 @@
  */
 import { memo } from "react";
 import type { ConversationSummary } from "@herdr-remote/shared";
-import { chrono, quand } from "../libelles.ts";
+import { apercuTexte, chrono, quand } from "../libelles.ts";
 import { routeToHash } from "../routing.ts";
 import { Etat, FormeEtat, Marque } from "../ui/atomes.tsx";
 
 const apercu = (conversation: ConversationSummary): string =>
-  (conversation.preview ?? conversation.lastPrompt ?? "").replace(/\s+/g, " ").trim();
+  apercuTexte(conversation.preview ?? conversation.lastPrompt ?? "");
 
 export const LigneAgent = memo(
   ({

@@ -77,7 +77,8 @@ export const EnTete = memo(
     };
 
     const reglages = [
-      projet,
+      // Le projet n'est répété que s'il n'est pas déjà le titre.
+      titre === projet ? undefined : projet,
       modele,
       reflexion === undefined ? undefined : libelleReflexion(reflexion),
     ].filter((morceau): morceau is string => morceau !== undefined && morceau.length > 0);

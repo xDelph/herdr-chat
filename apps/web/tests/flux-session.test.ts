@@ -154,6 +154,20 @@ describe("ouverture : queue puis flux", () => {
     expect(suivi.vue().entries[1]?.raw).toContain("début et fin");
   });
 
+  test("un événement reçu vaut ouverture (mandataire qui retient les en-têtes)", async () => {
+    const { flux, suivi } = monte({ lit: async () => page({ entries: [demande("u1")] }) });
+    suivi.demarre();
+    await attend();
+    expect(suivi.vue().transport).toBe("aucun");
+    flux[0]?.emet("entries", { caughtUp: true, cursor: "c2", entries: [entree("a1")] });
+    expect(suivi.vue().transport).toBe("flux");
+    // Une erreur ensuite n'est plus un échec d'ouverture : pas de repli.
+    flux[0]?.emet("error");
+    flux[0]?.emet("error");
+    flux[0]?.emet("error");
+    expect(suivi.vue().transport).toBe("flux");
+  });
+
   test("rejouer le même événement ne duplique rien", async () => {
     const { flux, suivi } = monte({ lit: async () => page({ entries: [demande("u1")] }) });
     suivi.demarre();

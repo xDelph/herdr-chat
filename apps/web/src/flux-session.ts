@@ -298,15 +298,24 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
     source = courante;
     const actuelle = (): boolean => !ferme && source === courante;
 
-    courante.addEventListener("open", () => {
-      if (!actuelle()) return;
+    /*
+      ⚠️ Un événement reçu prouve aussi que le flux est ouvert : certains
+      mandataires (le proxy de développement de Vite, mesuré) retiennent les
+      en-têtes jusqu'au premier octet du corps, et `open` n'arrive qu'avec lui.
+    */
+    const marqueOuvert = (): void => {
+      if (ouvert) return;
       ouvert = true;
       echecsFlux = 0;
       publie({ transport: "flux" });
+    };
+    courante.addEventListener("open", () => {
+      if (actuelle()) marqueOuvert();
     });
 
     courante.addEventListener("entries", (evenement) => {
       if (!actuelle()) return;
+      marqueOuvert();
       const lu = Option.getOrUndefined(decodeEntries(lireJson(evenement.data)));
       if (lu === undefined) {
         // Un événement illisible ne se devine pas : on le dit, et on relit par
@@ -326,6 +335,7 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
 
     courante.addEventListener("reset", (evenement) => {
       if (!actuelle()) return;
+      marqueOuvert();
       const page = Option.getOrUndefined(decodeReset(lireJson(evenement.data)));
       if (page === undefined) {
         publie({ avertissement: "Événement « reset » illisible — relecture de la session." });

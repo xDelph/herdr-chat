@@ -82,3 +82,12 @@ describe("le rendu tient sur les autres formes", () => {
     expect(html).toContain("const a = 1;");
   });
 });
+
+describe("une liste peut contenir des blocs", () => {
+  test("une sous-liste est rendue en liste, pas en texte brut", () => {
+    const html = rendre("1. **Sauvegardes**\n   - Rapatrier\n   - Basculer\n2. Fin\n");
+    expect((html.match(/<ul/g) ?? []).length).toBe(1);
+    expect(html).toContain("<li>Rapatrier</li>");
+    expect(html).not.toContain("- Basculer");
+  });
+});

@@ -3,7 +3,15 @@
  */
 import { describe, expect, test } from "bun:test";
 import { ecritLectures, estNonLue, litLectures, noteLecture } from "../src/lectures.ts";
-import { chrono, heureDe, jetons, marqueAgent, quand, titrePropre } from "../src/libelles.ts";
+import {
+  apercuTexte,
+  chrono,
+  heureDe,
+  jetons,
+  marqueAgent,
+  quand,
+  titrePropre,
+} from "../src/libelles.ts";
 import type { Stockage } from "../src/memoire-defilement.ts";
 
 const stockage = (): Stockage & { readonly valeurs: Map<string, string> } => {
@@ -87,5 +95,18 @@ describe("libellés", () => {
     expect(jetons(850)).toBe("850");
     expect(jetons(0)).toBe("");
     expect(heureDe("pas une date")).toBeNull();
+  });
+});
+
+describe("aperçu sans syntaxe", () => {
+  test("titres, gras, code et puces disparaissent, les mots restent", () => {
+    expect(apercuTexte("## Baseline (what **the** code does)")).toBe(
+      "Baseline (what the code does)",
+    );
+    expect(apercuTexte("```ts\n// src/utils/salesforce.ts\nexport const g")).toBe(
+      "// src/utils/salesforce.ts export const g",
+    );
+    expect(apercuTexte("- **Re**lu le `main.rs`")).toBe("Relu le main.rs");
+    expect(apercuTexte("voir [la doc](https://x)")).toBe("voir la doc");
   });
 });
