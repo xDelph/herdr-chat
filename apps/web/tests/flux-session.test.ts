@@ -19,8 +19,12 @@ import {
   FERME,
   FILET_REPLI_MS,
   type LitSession,
+  RETOUR_FLUX_MS,
+  SILENCE_MAX_MS,
   type SourceDEvenements,
   urlDuFlux,
+  VEILLE_MS,
+  type VerdictSonde,
 } from "../src/flux-session.ts";
 
 const entree = (id: string, texte = id): SessionEntry => ({
@@ -60,6 +64,7 @@ class FauxFlux implements SourceDEvenements {
     this.readyState = FERME;
   }
   emet(type: string, data?: unknown): void {
+    if (type === "open") this.readyState = 1;
     for (const ecouteur of this.ecouteurs.get(type) ?? []) {
       ecouteur({
         data: typeof data === "string" || data === undefined ? data : JSON.stringify(data),
@@ -95,6 +100,8 @@ const monte = (options: {
   readonly lit: LitSession;
   readonly flux?: boolean;
   readonly indisponible?: (cause: string) => void;
+  readonly sonde?: (url: string) => Promise<VerdictSonde>;
+  readonly maintenant?: () => number;
 }) => {
   const flux: FauxFlux[] = [];
   const horloge = planificateur();
@@ -103,6 +110,8 @@ const monte = (options: {
     contientDemande: (entries) => entries.some((e) => e.raw.includes('"role":"user"')),
     fluxIndisponible: options.indisponible,
     lit: options.lit,
+    maintenant: options.maintenant,
+    sonde: options.sonde,
     ouvreFlux:
       options.flux === false
         ? null
@@ -234,6 +243,8 @@ describe("repli : le démon ne sert pas encore le flux", () => {
     const causes: string[] = [];
     const { flux, horloge, suivi } = monte({
       indisponible: (cause) => causes.push(cause),
+      // La sonde prouve que la ROUTE manque : là seulement, on le déclare.
+      sonde: async () => ({ detail: "route inconnue", nature: "route-absente" }),
       lit: async (_p, options) => {
         lectures.push(options);
         return lectures.length === 1
@@ -266,6 +277,68 @@ describe("repli : le démon ne sert pas encore le flux", () => {
     horloge.avance(FILET_REPLI_MS);
     await attend();
     expect(lectures).toHaveLength(4);
+  });
+
+  test("un pane refusé (404 `no_source`) reste LOCAL : le direct des autres ne tombe pas", async () => {
+    /*
+      ⚠️ Le défaut (P1) : un pane inconnu ou mort passait le DÉMON entier en
+      « flux indisponible » cinq minutes — toutes les conversations perdaient
+      le direct, et l'en-tête affirmait que le démon ne servait pas le flux.
+    */
+    const causes: string[] = [];
+    const { flux, suivi } = monte({
+      indisponible: (cause) => causes.push(cause),
+      lit: async () => page({ entries: [demande("u1")] }),
+      sonde: async () => ({ detail: "aucune source pour ce pane", nature: "pane" }),
+    });
+    suivi.demarre();
+    await attend();
+    const source = flux[0];
+    if (source === undefined) throw new Error("flux attendu");
+    source.readyState = FERME;
+    source.emet("error");
+    await attend();
+    await attend();
+    expect(suivi.vue().transport).toBe("repli");
+    expect(causes).toHaveLength(0);
+    expect(suivi.vue().causeRepli).toContain("aucune source pour ce pane");
+  });
+
+  test("sans sonde, rien n'est déclaré au reste de l'application", async () => {
+    const causes: string[] = [];
+    const { flux, suivi } = monte({
+      indisponible: (cause) => causes.push(cause),
+      lit: async () => page({ entries: [demande("u1")] }),
+    });
+    suivi.demarre();
+    await attend();
+    const source = flux[0];
+    if (source === undefined) throw new Error("flux attendu");
+    source.readyState = FERME;
+    source.emet("error");
+    await attend();
+    expect(suivi.vue().transport).toBe("repli");
+    expect(causes).toHaveLength(0);
+  });
+
+  test("un échec passager retente le flux plus tard", async () => {
+    const { flux, horloge, suivi } = monte({
+      lit: async () => page({ entries: [demande("u1")] }),
+      sonde: async () => ({ detail: null, nature: "passager" }),
+    });
+    suivi.demarre();
+    await attend();
+    const source = flux[0];
+    if (source === undefined) throw new Error("flux attendu");
+    source.readyState = FERME;
+    source.emet("error");
+    await attend();
+    await attend();
+    expect(flux).toHaveLength(1);
+    horloge.avance(RETOUR_FLUX_MS);
+    expect(flux).toHaveLength(2);
+    flux[1]?.emet("open");
+    expect(suivi.vue().transport).toBe("flux");
   });
 
   test("trois erreurs sans ouverture suffisent aussi", async () => {
@@ -306,6 +379,93 @@ describe("repli : le démon ne sert pas encore le flux", () => {
     await attend();
     expect(flux).toHaveLength(0);
     expect(suivi.vue().transport).toBe("repli");
+  });
+});
+
+describe("un flux muet n'est pas un flux vivant", () => {
+  test("au retour au premier plan, un flux qui n'est plus ouvert est recréé", async () => {
+    let lectures = 0;
+    const { flux, suivi } = monte({
+      lit: async () => {
+        lectures += 1;
+        return page({ cursor: `c${String(lectures)}`, entries: [demande("u1")] });
+      },
+    });
+    suivi.demarre();
+    await attend();
+    flux[0]?.emet("open");
+    // iOS a suspendu la page : le flux est fermé sans erreur visible.
+    if (flux[0] !== undefined) flux[0].readyState = FERME;
+    suivi.reveille();
+    await attend();
+    expect(lectures).toBe(2);
+    expect(flux).toHaveLength(2);
+    expect(flux[0]?.ferme).toBe(true);
+  });
+
+  test("au retour, un flux toujours ouvert est gardé — mais on rattrape par HTTP", async () => {
+    let lectures = 0;
+    const { flux, suivi } = monte({
+      lit: async () => {
+        lectures += 1;
+        return page({ entries: [demande("u1")] });
+      },
+    });
+    suivi.demarre();
+    await attend();
+    flux[0]?.emet("open");
+    suivi.reveille();
+    await attend();
+    expect(lectures).toBe(2);
+    expect(flux).toHaveLength(1);
+  });
+
+  test("après 45 s de silence, une lecture témoin qui apporte du neuf recrée le flux", async () => {
+    let maintenant = 0;
+    let lectures = 0;
+    const { flux, horloge, suivi } = monte({
+      lit: async (_p, options) => {
+        lectures += 1;
+        return "cursor" in options && options.cursor !== undefined
+          ? page({ cursor: "c9", entries: [entree("manque")], incremental: true })
+          : page({ cursor: "c1", entries: [demande("u1")] });
+      },
+      maintenant: () => maintenant,
+    });
+    suivi.demarre();
+    await attend();
+    flux[0]?.emet("open");
+    // Silence plus court que le seuil : la veille ne lit rien.
+    maintenant = SILENCE_MAX_MS - 1;
+    horloge.avance(VEILLE_MS);
+    await attend();
+    expect(lectures).toBe(1);
+    // Au-delà : la lecture témoin rapporte une ligne que le flux a manquée.
+    maintenant = SILENCE_MAX_MS + 1;
+    horloge.avance(VEILLE_MS);
+    await attend();
+    expect(lectures).toBe(2);
+    expect(suivi.vue().entries.map((e) => e.id)).toEqual(["u1", "manque"]);
+    expect(flux).toHaveLength(2);
+    expect(flux[1]?.url).toBe(urlDuFlux("w1:p1", "c9"));
+  });
+
+  test("un silence sans manque ne fait pas reconnecter (conversation au repos)", async () => {
+    let maintenant = 0;
+    const { flux, horloge, suivi } = monte({
+      lit: async (_p, options) =>
+        "cursor" in options && options.cursor !== undefined
+          ? page({ cursor: "c1", entries: [], incremental: true })
+          : page({ cursor: "c1", entries: [demande("u1")] }),
+      maintenant: () => maintenant,
+    });
+    suivi.demarre();
+    await attend();
+    flux[0]?.emet("open");
+    maintenant = SILENCE_MAX_MS + 1;
+    horloge.avance(VEILLE_MS);
+    await attend();
+    expect(flux).toHaveLength(1);
   });
 });
 

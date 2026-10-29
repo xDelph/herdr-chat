@@ -59,6 +59,10 @@ export { planifie };
  * ⚠️ Un démon qui ne le sert pas répond 404 : inutile de le redemander à chaque
  * ouverture de conversation. On le note cinq minutes, puis on réessaie — le
  * démon a pu être mis à jour entre-temps.
+ *
+ * ⚠️ **Noté seulement sur preuve de route absente** (`sondeFluxSession`) : un
+ * pane inconnu ou sans source répond aussi 404, et coupait le direct de toutes
+ * les conversations pendant cinq minutes.
  */
 let fluxIndisponibleJusqua = 0;
 let causeFluxIndisponible: string | null = null;

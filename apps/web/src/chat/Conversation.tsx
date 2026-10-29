@@ -215,6 +215,7 @@ export const Conversation = ({
         reflexion={conversation?.thinking ?? reglages.reflexion}
         status={status}
         transport={vue.transport}
+        causeRepli={vue.causeRepli}
         inactif={disparu}
         nombreFichiers={fichiers === null ? null : fichiers.length}
         onRetour={onRetour}

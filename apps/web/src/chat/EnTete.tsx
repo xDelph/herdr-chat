@@ -18,7 +18,7 @@ import { Icone } from "../ui/Icone.tsx";
 const TRANSPORT: Record<Transport, string> = {
   aucun: "Contenu : pas de lecture en cours",
   flux: "Contenu : flux en direct",
-  repli: "Contenu : relecture sur signal (le démon ne sert pas le flux en direct)",
+  repli: "Contenu : relecture sur signal",
 };
 
 export const EnTete = memo(
@@ -30,6 +30,7 @@ export const EnTete = memo(
     reflexion,
     status,
     transport,
+    causeRepli = null,
     inactif = false,
     nombreFichiers,
     onRetour,
@@ -44,6 +45,8 @@ export const EnTete = memo(
     readonly reflexion: string | undefined;
     readonly status: AgentStatus;
     readonly transport: Transport;
+    /** Pourquoi ce pane est en repli — dite telle quelle, jamais devinée. */
+    readonly causeRepli?: string | null;
     /** Le pane n'existe plus : les gestes qui lui écrivent sont désactivés. */
     readonly inactif?: boolean;
     readonly nombreFichiers: number | null;
@@ -134,7 +137,10 @@ export const EnTete = memo(
                 <Icone nom="file" petite />
                 Fichiers modifiés{nombreFichiers === null ? "" : ` (${String(nombreFichiers)})`}
               </button>
-              <p className="menu__info">{TRANSPORT[transport]}</p>
+              <p className="menu__info">
+                {TRANSPORT[transport]}
+                {transport === "repli" && causeRepli !== null ? ` (${causeRepli})` : ""}
+              </p>
             </div>
           ) : null}
         </div>

@@ -476,6 +476,65 @@ export const stopAgent = async (paneId: string): Promise<StopAgentResponse> => {
   return lu;
 };
 
+/** Ce qu'une sonde du flux de session a appris (`flux-session.ts`). */
+export interface VerdictSondeFlux {
+  readonly nature: "route-absente" | "pane" | "passager";
+  readonly detail: string | null;
+}
+
+/**
+ * Qualifie un flux de session qui n'a pas pu s'ouvrir, par une requête HTTP
+ * sur la même URL — `EventSource` ne dit jamais pourquoi il échoue.
+ *
+ * ⚠️ **Le corps tranche, pas le statut seul.** Un `404` JSON portant une erreur
+ * de domaine (pane inconnu, `no_source`) est un problème de **ce** pane ; un
+ * `404 route inconnue`, un `405`, une réponse non JSON ou la page HTML que le
+ * démon TS sert en `200` pour toute adresse inconnue disent que la **route**
+ * manque. Un flux qui répond (`text/event-stream`) ou un `503` (plafond de
+ * flux) est passager. Le corps d'un flux n'est jamais lu : la requête est
+ * abandonnée dès les en-têtes.
+ */
+export const sondeFluxSession = async (url: string): Promise<VerdictSondeFlux> => {
+  const arret = new AbortController();
+  const minuterie = setTimeout(() => arret.abort(), 5_000);
+  try {
+    const reponse = await fetch(url, {
+      headers: { accept: "text/event-stream" },
+      signal: arret.signal,
+    });
+    const type = reponse.headers.get("content-type") ?? "";
+    if (reponse.ok) {
+      return type.includes("text/event-stream")
+        ? { detail: null, nature: "passager" }
+        : {
+            detail: `réponse ${type.length > 0 ? type : "sans type"} au lieu d'un flux`,
+            nature: "route-absente",
+          };
+    }
+    let corps: unknown;
+    try {
+      corps = JSON.parse(await reponse.text());
+    } catch {
+      corps = undefined;
+    }
+    const erreur = decodeError(corps);
+    if (reponse.status === 404 || reponse.status === 405) {
+      if (reponse.status === 405 || erreur === undefined || erreur.error === "route inconnue") {
+        return { detail: erreur?.error ?? null, nature: "route-absente" };
+      }
+      return { detail: erreur.error, nature: "pane" };
+    }
+    if (reponse.status >= 500) return { detail: erreur?.error ?? null, nature: "passager" };
+    return { detail: erreur?.error ?? `HTTP ${String(reponse.status)}`, nature: "pane" };
+  } catch {
+    return { detail: null, nature: "passager" };
+  } finally {
+    clearTimeout(minuterie);
+    // Un flux qui a répondu ne doit pas rester ouvert : la sonde n'en lit rien.
+    arret.abort();
+  }
+};
+
 /**
  * Ouvre le flux d'événements.
  *
