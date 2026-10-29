@@ -764,37 +764,49 @@ pub fn ouvre_un_tour(entree: &EntreeLu) -> bool {
         && !entree.en_cours_de_tour
 }
 
-/// Une tâche de fond tournait-elle à cet instant ? (Une tâche sans fin
-/// connue tourne encore ; une tâche « inconnue » est bornée par sa dernière
-/// activité.)
-fn tache_en_cours_a(taches: &[TacheDeFond], instant: u64) -> bool {
-    taches.iter().any(|tache| {
-        let Some(debut) = tache.debut else {
-            return false;
-        };
-        let fin = match tache.statut {
-            StatutTache::EnCours => tache.fin.unwrap_or(u64::MAX),
-            _ => tache.fin.or(tache.derniere_activite).unwrap_or(debut),
-        };
-        debut <= instant && instant <= fin
-    })
+/// Le lancement le plus ancien des tâches de fond qui tournaient à cet
+/// instant — `None` si aucune ne tournait. (Une tâche sans fin connue tourne
+/// encore ; une tâche « inconnue » est bornée par sa dernière activité.)
+fn tache_en_cours_a(taches: &[TacheDeFond], instant: u64) -> Option<u64> {
+    taches
+        .iter()
+        .filter_map(|tache| {
+            let debut = tache.debut?;
+            let fin = match tache.statut {
+                StatutTache::EnCours => tache.fin.unwrap_or(u64::MAX),
+                _ => tache.fin.or(tache.derniere_activite).unwrap_or(debut),
+            };
+            (debut <= instant && instant <= fin).then_some(debut)
+        })
+        .min()
 }
 
-/// L'instant de la demande qui a ouvert le travail en cours — absent s'il
-/// n'est pas daté (jamais l'heure courante).
+/// L'instant où a commencé le travail en cours — absent s'il n'est pas daté
+/// (jamais l'heure courante).
 ///
 /// ⚠️ Une demande envoyée pendant qu'une tâche de fond tournait ne commence
-/// pas un nouveau travail : l'agent n'avait pas fini. On remonte jusqu'à une
-/// demande faite sans tâche en cours ; à défaut, la plus ancienne vue.
+/// pas un nouveau travail : l'agent n'avait pas fini. Le début recule alors
+/// au moins jusqu'au lancement de cette tâche, et continue vers une demande
+/// antérieure faite sans tâche en cours. Si la fenêtre lue n'en contient pas,
+/// le lancement de la tâche est la borne connue — jamais une demande plus
+/// récente.
 fn debut_du_tour(entrees: &[EntreeLu], taches: &[TacheDeFond]) -> Option<u64> {
     let mut retenue: Option<u64> = None;
+    let mut borne = u64::MAX;
     for entree in entrees.iter().rev().filter(|entree| ouvre_un_tour(entree)) {
         let Some(instant) = entree.horodatage else {
             continue;
         };
+        if instant > borne {
+            continue;
+        }
         retenue = Some(instant);
-        if !tache_en_cours_a(taches, instant) {
-            break;
+        match tache_en_cours_a(taches, instant) {
+            None => break,
+            Some(lancement) => {
+                borne = lancement;
+                retenue = Some(lancement);
+            }
         }
     }
     retenue
