@@ -16,6 +16,7 @@ import { lireGroupement, retenirGroupement, type Groupement } from "../preferenc
 import { estAdresseDOnglet, HOME } from "../routing.ts";
 import { useDonnees, useHauteurVisible, useRoute } from "./hooks.ts";
 import { Notifications } from "../ui/Notifications.tsx";
+import { PleinEcran } from "../ui/PleinEcran.tsx";
 import { envois, magasin } from "./services.ts";
 
 /**
@@ -135,6 +136,7 @@ export const App = () => {
     <div className="app" data-vue={route.kind === "agent" ? "agent" : "liste"}>
       <div className="barre-etat" aria-hidden="true" />
       <Notifications />
+      <PleinEcran />
       <Boite
         donnees={donnees}
         lectures={lectures}

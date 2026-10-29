@@ -184,6 +184,16 @@ svg.i.s {
 .marque--devin {
   background: var(--b-devin);
 }
+/* Le vrai logo : une tuile sombre fixe, dans les deux thèmes. */
+.marque--logo {
+  background: #1b1f27;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.marque--logo svg {
+  width: 78%;
+  height: 78%;
+  display: block;
+}
 
 /* ---------- états : forme + couleur ---------- */
 .etat {
@@ -626,4 +636,74 @@ svg.i.s {
   .notif {
     animation: none;
   }
+}
+
+/* ---------- image plein écran ---------- */
+.plein-ecran {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: #000;
+  color: #fff;
+  display: grid;
+}
+.plein-ecran__fond {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: none;
+  padding: 0;
+}
+.plein-ecran__cadre {
+  position: relative;
+  overflow: auto;
+  overscroll-behavior: contain;
+  display: grid;
+  place-items: center;
+  padding: calc(var(--haut-sur) + 56px) 0 calc(var(--bas-sur) + 16px);
+  pointer-events: none;
+}
+.plein-ecran__image {
+  pointer-events: auto;
+  border: 0;
+  padding: 0;
+  background: none;
+  cursor: zoom-in;
+}
+.plein-ecran__image img {
+  display: block;
+  max-width: 100vw;
+  max-height: calc(var(--hauteur-app, 100dvh) - var(--haut-sur) - var(--bas-sur) - 72px);
+  object-fit: contain;
+}
+.plein-ecran--reelle .plein-ecran__cadre {
+  place-items: start;
+  pointer-events: auto;
+}
+.plein-ecran--reelle .plein-ecran__image {
+  cursor: zoom-out;
+}
+.plein-ecran--reelle .plein-ecran__image img {
+  max-width: none;
+  max-height: none;
+}
+.plein-ecran__fermer {
+  position: absolute;
+  top: calc(var(--haut-sur) + 8px);
+  right: 12px;
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.16);
+  color: #fff;
 }

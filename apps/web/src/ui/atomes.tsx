@@ -9,18 +9,37 @@
 import { memo, type ReactNode } from "react";
 import type { AgentStatus } from "@herdr-remote/shared";
 import { LIBELLE_STATUT, marqueAgent } from "../libelles.ts";
+import { LOGOS } from "../logos.tsx";
 import { Icone } from "./Icone.tsx";
 
+/**
+ * La marque d'un agent : son **vrai logo** (`logos.tsx`, provenance documentée),
+ * sur une tuile sombre dans les deux thèmes — trois marques publient une
+ * variante blanche pour fond sombre, qui disparaîtrait sur le thème clair. Un
+ * agent sans logo connu garde ses lettres.
+ *
+ * ⚠️ Régression corrigée : la réécriture avait remplacé les logos (rétablis le
+ * 2026-10-16, e37235c) par des carrés à lettres.
+ */
 export const Marque = memo(
   ({ kind, petite = false }: { readonly kind: string | null; readonly petite?: boolean }) => {
     const marque = marqueAgent(kind);
+    const logo = kind === null ? undefined : LOGOS[kind];
     return (
       <span
-        className={`marque marque--${marque.famille}${petite ? " marque--petite" : ""}`}
+        className={`marque marque--${marque.famille}${logo === undefined ? "" : " marque--logo"}${
+          petite ? " marque--petite" : ""
+        }`}
         title={marque.nom}
         aria-hidden="true"
       >
-        {marque.lettres}
+        {logo === undefined ? (
+          marque.lettres
+        ) : (
+          <svg viewBox="0 0 24 24" focusable="false">
+            {logo}
+          </svg>
+        )}
       </span>
     );
   },

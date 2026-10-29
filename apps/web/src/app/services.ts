@@ -20,6 +20,7 @@ import { creeActionsLocales } from "../actions-locales.ts";
 import { creeMagasinDonnees } from "../donnees.ts";
 import { creeMagasinEnvois, planificateurReel } from "../envois.ts";
 import { creeMagasinNotifications } from "../notifications-ecran.ts";
+import { creeMagasinPleinEcran } from "../plein-ecran.ts";
 import type { SourceDEvenements } from "../flux-session.ts";
 
 const planifie = (action: () => void, delai: number): (() => void) => {
@@ -45,6 +46,9 @@ export const envois = creeMagasinEnvois((pane, text) => sendPrompt(pane, text), 
 export const actions = creeActionsLocales();
 
 /** Les notifications en haut de l'écran — l'issue des gestes ponctuels. */
+/** L'image ouverte en plein écran. */
+export const pleinEcran = creeMagasinPleinEcran();
+
 export const notifications = creeMagasinNotifications((action, delai) => planifie(action, delai));
 
 export { planifie };

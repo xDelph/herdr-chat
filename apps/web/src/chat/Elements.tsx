@@ -11,6 +11,7 @@ import type { Block, Item, RenderedMessage } from "../blocks.ts";
 import { heureDe } from "../libelles.ts";
 import { Markdown } from "../Markdown.tsx";
 import { GroupeOutils } from "./Outils.tsx";
+import { pleinEcran } from "../app/services.ts";
 
 const JOURS = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
 
@@ -30,59 +31,42 @@ export const repereDe = (iso: string | null, maintenant: number): string | null 
   return `${JOURS[date.getDay()] ?? ""} ${jj}/${mm} · ${heure}`;
 };
 
-const ImageCitee = ({
-  source,
-  libelle,
-  onOuvrir,
-}: {
-  readonly source: string;
-  readonly libelle: string;
-  readonly onOuvrir: () => void;
-}) => {
+const ImageCitee = ({ source, libelle }: { readonly source: string; readonly libelle: string }) => {
   const [rate, setRate] = useState(false);
   if (rate) return <p className="discret">Image indisponible : {libelle}</p>;
   return (
-    <button type="button" className="fil__vignette" onClick={onOuvrir}>
+    <button
+      type="button"
+      className="fil__vignette"
+      onClick={() => pleinEcran.ouvre({ legende: libelle, source })}
+    >
       <img src={source} alt={libelle} loading="lazy" onError={() => setRate(true)} />
       <span className="mono">{libelle}</span>
     </button>
   );
 };
 
-const BlocProse = ({
-  block,
-  onOuvrirFichier,
-}: {
-  readonly block: Block;
-  readonly onOuvrirFichier: (chemin: string) => void;
-}) => {
+const BlocProse = ({ block }: { readonly block: Block }) => {
   switch (block.kind) {
     case "text":
       return <Markdown source={block.text} />;
-    case "image":
+    case "image": {
+      const source = `data:${block.mimeType};base64,${block.data}`;
       return (
-        <img
-          className="fil__image"
-          src={`data:${block.mimeType};base64,${block.data}`}
-          alt="Pièce jointe"
-        />
+        <button
+          type="button"
+          className="fil__vignette"
+          onClick={() => pleinEcran.ouvre({ legende: "Pièce jointe", source })}
+          aria-label="Afficher la pièce jointe en plein écran"
+        >
+          <img src={source} alt="Pièce jointe" />
+        </button>
       );
+    }
     case "imagePath":
-      return (
-        <ImageCitee
-          source={fileUrl(block.path)}
-          libelle={block.path}
-          onOuvrir={() => onOuvrirFichier(block.path)}
-        />
-      );
+      return <ImageCitee source={fileUrl(block.path)} libelle={block.path} />;
     case "imageUrl":
-      return (
-        <ImageCitee
-          source={block.url}
-          libelle={block.url}
-          onOuvrir={() => onOuvrirFichier(block.url)}
-        />
-      );
+      return <ImageCitee source={block.url} libelle={block.url} />;
     default:
       return null;
   }
@@ -91,11 +75,9 @@ const BlocProse = ({
 const Demande = ({
   message,
   maintenant,
-  onOuvrirFichier,
 }: {
   readonly message: RenderedMessage;
   readonly maintenant: number;
-  readonly onOuvrirFichier: (chemin: string) => void;
 }) => {
   const repere = repereDe(message.at, maintenant);
   const texte = message.blocks
@@ -111,7 +93,7 @@ const Demande = ({
           .filter((block) => block.kind !== "text")
           .map((block, index) => (
             // oxlint-disable-next-line react/no-array-index-key -- blocs sans identifiant
-            <BlocProse key={index} block={block} onOuvrirFichier={onOuvrirFichier} />
+            <BlocProse key={index} block={block} />
           ))}
       </div>
     </>
@@ -149,7 +131,7 @@ export const ElementFil = memo(
     if (message.role === "user") {
       return (
         <div className="fil__el fil__el--moi">
-          <Demande message={message} maintenant={maintenant} onOuvrirFichier={onOuvrirFichier} />
+          <Demande message={message} maintenant={maintenant} />
         </div>
       );
     }
@@ -157,7 +139,7 @@ export const ElementFil = memo(
       <div className="fil__el agent">
         {message.blocks.map((block, index) => (
           // oxlint-disable-next-line react/no-array-index-key -- blocs sans identifiant
-          <BlocProse key={index} block={block} onOuvrirFichier={onOuvrirFichier} />
+          <BlocProse key={index} block={block} />
         ))}
       </div>
     );

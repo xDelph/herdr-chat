@@ -29,6 +29,7 @@ import {
 } from "../blocks.ts";
 import { Markdown } from "../Markdown.tsx";
 import { Icone } from "../ui/Icone.tsx";
+import { pleinEcran } from "../app/services.ts";
 
 const LIGNES_SORTIE = 60;
 const LIGNES_DIFF = 80;
@@ -113,14 +114,20 @@ const DetailBloc = ({ block }: { readonly block: Block }) => {
       return (
         <>
           <Sortie texte={block.text} erreur={block.isError} />
-          {block.images.map((image) => (
-            <img
-              key={`${image.mimeType}:${image.data.slice(0, 32)}`}
-              className="fil__image"
-              src={`data:${image.mimeType};base64,${image.data}`}
-              alt="Rendu de l'outil"
-            />
-          ))}
+          {block.images.map((image) => {
+            const source = `data:${image.mimeType};base64,${image.data}`;
+            return (
+              <button
+                type="button"
+                key={`${image.mimeType}:${image.data.slice(0, 32)}`}
+                className="fil__vignette"
+                onClick={() => pleinEcran.ouvre({ legende: "Rendu de l'outil", source })}
+                aria-label="Afficher en plein écran"
+              >
+                <img src={source} alt="Rendu de l'outil" />
+              </button>
+            );
+          })}
         </>
       );
     case "bashExecution":
@@ -370,8 +377,13 @@ export const GroupeOutils = memo(
                 type="button"
                 key={`${image.mimeType}:${image.data.slice(0, 32)}:${String(image.data.length)}`}
                 className="outils__apercu"
-                onClick={() => setManuel(true)}
-                aria-label="Ouvrir le détail des actions"
+                onClick={() =>
+                  pleinEcran.ouvre({
+                    legende: "Rendu d’un outil",
+                    source: `data:${image.mimeType};base64,${image.data}`,
+                  })
+                }
+                aria-label="Afficher en plein écran"
               >
                 <img src={`data:${image.mimeType};base64,${image.data}`} alt="Rendu d’un outil" />
               </button>
