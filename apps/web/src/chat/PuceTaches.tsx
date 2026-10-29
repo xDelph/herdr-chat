@@ -24,12 +24,13 @@ export const PuceTaches = memo(
         type="button"
         className={enCours ? "puce-taches puce-taches--en-cours" : "puce-taches"}
         onClick={onOuvrir}
-        aria-label={`${enCours ? nombreDeTaches(compte.enCours) : nombreDeTaches(compte.total)} — see details`}
+        aria-label={`${enCours ? `${nombreDeTaches(compte.enCours)} running` : nombreDeTaches(compte.total)} — see details`}
+        title={enCours ? `${nombreDeTaches(compte.enCours)} running` : nombreDeTaches(compte.total)}
       >
         {enCours ? <span className="spin" aria-hidden="true" /> : <Icone nom="brain" petite />}
-        <span className="num">
-          {enCours ? nombreDeTaches(compte.enCours) : nombreDeTaches(compte.total)}
-        </span>
+        {/* Compacte : l'icône et le nombre ; le libellé entier est pour le
+            lecteur d'écran (le titre du chat n'était plus lisible). */}
+        <span className="num">{String(enCours ? compte.enCours : compte.total)}</span>
       </button>
     );
   },
