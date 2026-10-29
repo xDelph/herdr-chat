@@ -16,6 +16,7 @@ import { Option, Schema } from "effect";
 // Import **local** : `export type { X } from "…"` ne crée aucune liaison ici.
 import type { InstalledKind, RecentImage } from "@herdr-remote/shared";
 import {
+  AgentFocusedResponse,
   ApiErrorResponse,
   HealthResponse,
   InstalledKindsResponse,
@@ -109,14 +110,14 @@ export const answerTrust = async (paneId: string, accept: boolean): Promise<Trus
     const failure = decodeError(payload);
     return {
       accepted: false,
-      detail: failure?.error ?? `failed (${String(response.status)})`,
+      detail: failure?.error ?? `échec (${String(response.status)})`,
       state: "inconnu",
     };
   }
   const decoded = decoderOf(TrustResolvedResponse)(payload);
   if (decoded === undefined) {
     // Réponse illisible : on ne la lit pas comme un refus, ni comme un accord.
-    return { accepted: false, detail: "unreadable response", state: "inconnu" };
+    return { accepted: false, detail: "réponse illisible", state: "inconnu" };
   }
   return {
     accepted: decoded.accepted,
@@ -183,12 +184,12 @@ export const launchAgent = async (
   }
   if (!response.ok) {
     const failure = decodeError(payload);
-    throw new Error(failure?.error ?? `failed (${String(response.status)})`);
+    throw new Error(failure?.error ?? `échec (${String(response.status)})`);
   }
 
   const decoded = decoderOf(LaunchAgentResponse)(payload);
   if (decoded === undefined) {
-    throw new Error("unexpected response shape: launch");
+    throw new Error("forme de réponse inattendue : lancement");
   }
   return decoded;
 };
@@ -247,7 +248,7 @@ const readJson = async (response: Response): Promise<unknown> => {
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error(`unreadable response (${response.status})`);
+    throw new Error(`réponse illisible (${response.status})`);
   }
 };
 
@@ -259,7 +260,7 @@ const request = async (path: string, init?: RequestInit): Promise<unknown> => {
   const payload = await readJson(response);
   if (!response.ok) {
     const failure = decodeError(payload);
-    throw new Error(failure?.error ?? `failed (${response.status})`);
+    throw new Error(failure?.error ?? `échec (${response.status})`);
   }
   return payload;
 };
@@ -273,7 +274,7 @@ const decoded = async <A>(
   const payload = await request(path);
   const value = decodePayload(payload);
   if (value === undefined) {
-    throw new Error(`unexpected response shape: ${label}`);
+    throw new Error(`forme de réponse inattendue : ${label}`);
   }
   return value;
 };
@@ -327,7 +328,7 @@ export const fetchSession = (
 export const fetchAgentKinds = async (): Promise<ReadonlyArray<InstalledKind>> => {
   const payload = await request("/api/agents/kinds");
   const kinds = decoderOf(InstalledKindsResponse)(payload);
-  if (kinds === undefined) throw new Error("unexpected response shape: agent kinds");
+  if (kinds === undefined) throw new Error("forme de réponse inattendue : types d'agents");
   return kinds.kinds;
 };
 
@@ -335,7 +336,7 @@ export const fetchAgentKinds = async (): Promise<ReadonlyArray<InstalledKind>> =
 export const fetchRecentImages = async (): Promise<ReadonlyArray<RecentImage>> => {
   const payload = await request("/api/images");
   const images = decoderOf(RecentImagesResponse)(payload);
-  if (images === undefined) throw new Error("unexpected response shape: images");
+  if (images === undefined) throw new Error("forme de réponse inattendue : images");
   return images.images;
 };
 
@@ -390,7 +391,7 @@ export const sendPrompt = async (paneId: string, text: string): Promise<SendResu
     return {
       kind: "failed",
       message: expire
-        ? "Herdr did not answer in time — the message may have been delivered."
+        ? "Herdr n'a pas répondu à temps — le message est peut-être parti."
         : cause instanceof Error
           ? cause.message
           : String(cause),
@@ -404,7 +405,7 @@ export const sendPrompt = async (paneId: string, text: string): Promise<SendResu
   } catch {
     return {
       kind: "failed",
-      message: `unreadable response (${response.status})`,
+      message: `réponse illisible (${response.status})`,
       state: "inconnu",
     };
   }
@@ -436,7 +437,7 @@ export const sendPrompt = async (paneId: string, text: string): Promise<SendResu
   const failure = decodeError(payload);
   return {
     kind: "failed",
-    message: failure?.error ?? `failed (${response.status})`,
+    message: failure?.error ?? `échec (${response.status})`,
     state: "inconnu",
   };
 };
@@ -632,7 +633,7 @@ export const answerQuestion = async (
     payload = await readJson(response);
   } catch {
     return {
-      detail: `unreadable response (${response.status})`,
+      detail: `réponse illisible (${response.status})`,
       state: "refusee",
     };
   }
@@ -642,9 +643,9 @@ export const answerQuestion = async (
     const message =
       typeof payload === "object" && payload !== null && "error" in payload
         ? String((payload as { error?: unknown }).error)
-        : `failed (${response.status})`;
+        : `échec (${response.status})`;
     return {
-      detail: message.length > 0 ? message : `failed (${response.status})`,
+      detail: message.length > 0 ? message : `échec (${response.status})`,
       state: "refusee",
     };
   }
@@ -653,33 +654,36 @@ export const answerQuestion = async (
   const valeur = Option.getOrUndefined(decode(payload));
   return valeur === undefined
     ? {
-        detail: "unreadable response: the state could not be read",
+        detail: "réponse illisible : l'état n'a pas pu être lu",
         state: "refusee",
       }
     : { detail: valeur.detail, state: valeur.state };
 };
 
 /**
- * Acquitte la réponse d'un agent en posant le focus sur son pane.
+ * Montre le pane sur le Mac (`POST /focus`) — **geste explicite uniquement**.
  *
- * ⚠️ **C'est le focus qui acquitte, et rien d'autre.** `agent.view.set` répond
- * `{active: true}` sans changer le statut — mesuré deux fois. Sans cet appel,
- * la liste garde « terminé » pour une réponse qu'on vient de lire.
+ * ⚠️ L'effet est réel sur le Mac : le pane prend le focus dans Herdr, et un
+ * agent `done` passe `idle`. Ce n'était pas un geste mais un effet de bord de
+ * la lecture (défilement d'une conversation terminée) : lire sur le téléphone
+ * volait le clavier du Mac. Il n'est plus appelé que par le menu « Afficher sur
+ * le Mac ».
  *
- * ⚠️ L'effet est réel sur le Mac : le pane prend le focus dans Herdr. C'est le
- * prix de l'acquittement, et il n'y a pas d'autre chemin.
- *
- * ⚠️ Ne lève **jamais** : l'acquittement est un confort d'affichage, il ne doit
- * pas empêcher d'ouvrir une conversation.
+ * ⚠️ **Lève sur un échec**, avec la cause : un focus qui n'a pas eu lieu ne se
+ * présente pas comme fait.
  */
-export const focusAgent = async (paneId: string): Promise<void> => {
-  try {
-    await fetch(`/api/agents/${encodeURIComponent(paneId)}/focus`, {
-      body: JSON.stringify({}),
-      headers: { "content-type": "application/json" },
-      method: "POST",
-    });
-  } catch {
-    // Volontairement muet : voir le commentaire ci-dessus.
+export const focusAgent = async (paneId: string): Promise<AgentFocusedResponse> => {
+  const response = await fetch(`/api/agents/${encodeURIComponent(paneId)}/focus`, {
+    body: JSON.stringify({}),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const payload = await readJson(response);
+  if (!response.ok) {
+    throw new Error(decodeError(payload)?.error ?? `échec (${String(response.status)})`);
   }
+  const lu = decoderOf(AgentFocusedResponse)(payload);
+  if (lu === undefined) throw new Error("forme de réponse inattendue : focus");
+  if (!lu.focused) throw new Error("Herdr n'a pas appliqué le focus");
+  return lu;
 };

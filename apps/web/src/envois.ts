@@ -140,7 +140,7 @@ export const creeMagasinEnvois = (lance: Lanceur, planifie: Planificateur): Maga
       const resultat = await lance(pane, text);
       if (resultat.kind === "suppressed") {
         remplace(id, {
-          detail: `Herdr had already confirmed an identical send: ${resultat.reason}`,
+          detail: `Herdr avait déjà confirmé un envoi identique : ${resultat.reason}`,
           state: "delivered",
         });
         return;
@@ -149,8 +149,8 @@ export const creeMagasinEnvois = (lance: Lanceur, planifie: Planificateur): Maga
         remplace(id, {
           detail:
             resultat.confirmation === "confirmed"
-              ? "Herdr confirmed that it received the message."
-              : "Herdr did not confirm whether it received the message.",
+              ? "Herdr a confirmé la réception du message."
+              : "Herdr n'a pas confirmé la réception du message.",
           state: resultat.confirmation === "confirmed" ? "delivered" : "uncertain",
         });
         return;
@@ -189,7 +189,7 @@ export const creeMagasinEnvois = (lance: Lanceur, planifie: Planificateur): Maga
       // ne devient pas un succès parce qu'un autre prompt est passé.
       if (envoi.state !== "sending" && envoi.state !== "uncertain") continue;
       remplace(id, {
-        detail: "Herdr published the prompt for this pane.",
+        detail: "Herdr a publié la remise du message pour ce pane.",
         state: "delivered",
       });
       resolus += 1;

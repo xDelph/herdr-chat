@@ -1,108 +1,99 @@
 /**
- * Contrastes du thème — **mesurés**, pas estimés (U03).
- *
- * Le tableau des règles impose 4,5:1 pour le texte normal. Ces tests calculent
- * la luminance relative de chaque couple couleur/fond réellement utilisé et
- * échouent si l'un passe sous le minimum — ou sous la marge déclarée dans
- * `styles.css`.
+ * Contrastes des jetons — **mesurés** (WCAG 2.1), dans les deux palettes.
  *
  * ⚠️ Une valeur estimée à l'œil ne protège rien. Ces nombres viennent de la
- * formule WCAG 2.1, appliquée aux tokens du thème : si quelqu'un change
- * `--muted`, le test tombe ici, pas dans le rapport d'un utilisateur.
+ * formule, appliquée aux jetons réellement écrits dans `styles/tokens.css` : si
+ * quelqu'un éclaircit `--ink-3`, le test tombe ici, pas dans le rapport d'un
+ * utilisateur.
  *
- * ⚠️ **Les trois thèmes y passent, et c'est tout l'intérêt.** Le lecteur de token
- * prenait la **première** déclaration du fichier : avec un thème vert et un thème
- * rouge ajoutés après `:root`, il n'aurait jamais lu qu'un seul jeu de couleurs —
- * et les deux autres auraient été déclarés conformes sans avoir été mesurés une
- * seule fois.
+ * ⚠️ Les deux palettes y passent : la sombre est lue dans son propre bloc
+ * (`:root[data-theme="dark"]`), et le test vérifie que le bloc
+ * `prefers-color-scheme` porte exactement les mêmes valeurs — deux copies de la
+ * même palette divergent toujours, sauf si quelque chose les compare.
  */
 import { describe, expect, test } from "bun:test";
-import { MINIMUM, ratio, token, tokenDuTheme } from "../src/contraste.ts";
-import { PASTILLE, THEMES, THEME_DEFAUT, type Theme } from "../src/preferences.ts";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
-/**
- * Les couples *texte/fond* réellement utilisés, par leur rôle.
- *
- * ⚠️ Les trois derniers — `ok`, `warn`, `err` — ne viennent **jamais** du thème :
- * ce sont les couleurs de sens, partagées. Le test les remesure quand même pour
- * chaque thème, parce que le fond sous elles, lui, change.
- */
-const COUPLES: ReadonlyArray<readonly [string, string, string]> = [
-  ["text / bg", "text", "bg"],
-  ["text / surface", "text", "surface"],
-  ["text / surface-2", "text", "surface-2"],
-  ["muted / bg", "muted", "bg"],
-  ["muted / surface", "muted", "surface"],
-  ["muted / surface-2", "muted", "surface-2"],
-  ["accent / bg", "accent", "bg"],
-  ["accent / surface-2", "accent", "surface-2"],
-  ["ok / surface", "ok", "surface"],
-  ["warn / surface", "warn", "surface"],
-  ["err / surface", "err", "surface"],
+const css = readFileSync(
+  join(import.meta.dir, "..", "src", "styles", "tokens.css"),
+  "utf8",
+).replace(/\/\*[\s\S]*?\*\//g, "");
+
+const blocApres = (selecteur: string): string => {
+  const debut = css.indexOf(selecteur);
+  if (debut < 0) throw new Error(`bloc absent : ${selecteur}`);
+  const ouvrante = css.indexOf("{", debut);
+  const fermante = css.indexOf("}", ouvrante);
+  return css.slice(ouvrante + 1, fermante);
+};
+
+const lireJetons = (bloc: string): Map<string, string> => {
+  const jetons = new Map<string, string>();
+  for (const trouve of bloc.matchAll(/--([\w-]+):\s*([^;]+);/g)) {
+    if (trouve[1] !== undefined && trouve[2] !== undefined) jetons.set(trouve[1], trouve[2].trim());
+  }
+  return jetons;
+};
+
+const clair = lireJetons(blocApres(":root {"));
+const sombre = new Map([...clair, ...lireJetons(blocApres(':root[data-theme="dark"]'))]);
+const sombreSysteme = lireJetons(blocApres(':root:not([data-theme="light"])'));
+
+const luminance = (hex: string): number => {
+  const valeur = hex.replace("#", "");
+  const canal = (rang: number): number => {
+    const c = Number.parseInt(valeur.slice(rang, rang + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * canal(0) + 0.7152 * canal(2) + 0.0722 * canal(4);
+};
+
+const ratio = (a: string, b: string): number => {
+  const la = luminance(a);
+  const lb = luminance(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+};
+
+/** Les couples texte/fond réellement utilisés par l'interface. */
+const COUPLES: ReadonlyArray<readonly [string, string]> = [
+  ["ink", "ground"],
+  ["ink", "surface"],
+  ["ink-2", "surface"],
+  ["ink-2", "surface-2"],
+  ["ink-3", "ground"],
+  ["ink-3", "surface"],
+  ["ink-3", "surface-2"],
+  ["attn", "surface"],
+  ["attn", "attn-fill"],
+  ["work", "surface"],
+  ["work", "work-fill"],
+  ["ok", "surface"],
+  ["ok", "ok-fill"],
+  ["err", "surface"],
+  ["err", "err-fill"],
+  ["on-primary", "primary"],
 ];
 
-/** Mesure d'un couple, dans un thème donné. */
-const mesure = (theme: Theme, premier: string, fond: string): number =>
-  ratio(tokenDuTheme(premier, theme), tokenDuTheme(fond, theme));
+const MINIMUM = 4.5;
 
-/**
- * Toutes les mesures, à plat.
- *
- * ⚠️ Une ligne par couple et par thème, plutôt qu'une boucle dans un seul test :
- * le nom du couple fautif se lit alors dans le **titre** du test qui échoue, et
- * pas seulement dans la trace.
- */
-const MESURES: ReadonlyArray<readonly [string, number]> = THEMES.flatMap((theme) =>
-  COUPLES.map(([etiquette, premier, fond]): readonly [string, number] => [
-    `${theme} · ${etiquette}`,
-    mesure(theme, premier, fond),
-  ]),
-);
-
-describe("U03 — contrastes du thème", () => {
-  test.each(MESURES)("%s dépasse le minimum", (_nom, valeur) => {
-    expect(valeur).toBeGreaterThanOrEqual(MINIMUM);
+describe.each([
+  ["clair", clair],
+  ["sombre", sombre],
+] as const)("palette %s", (_nom, palette) => {
+  test.each(COUPLES)("%s sur %s ≥ 4,5:1", (texte, fond) => {
+    const a = palette.get(texte);
+    const b = palette.get(fond);
+    if (a === undefined || b === undefined) throw new Error(`jeton absent : ${texte} / ${fond}`);
+    expect(ratio(a, b)).toBeGreaterThanOrEqual(MINIMUM);
   });
+});
 
-  test("le couple le plus faible, tous thèmes confondus, est la marge déclarée", () => {
-    /*
-      ⚠️ La marge annoncée dans `styles.css` doit être le **pire cas réel** — pas
-      celui du thème de base. Mesurer le bleu seul laisserait le vert et le rouge
-      passer sous la marge annoncée sans que rien ne le dise, et le commentaire du
-      thème mentirait.
-    */
-    const pire = Math.min(...MESURES.map(([, valeur]) => valeur));
-    const annoncee = Number.parseFloat(token("contrast-min"));
-
-    expect(pire).toBeCloseTo(annoncee, 1);
-  });
-
-  test("le thème de base est bien celui écrit sur `:root`", () => {
-    // Si `THEME_DEFAUT` désignait un thème ayant son propre bloc, la palette de
-    // `:root` ne serait plus celle qu'on applique en l'absence d'attribut.
-    expect(tokenDuTheme("accent", THEME_DEFAUT)).toBe(token("accent"));
-  });
-
-  test("chaque thème a une pastille déclarée dans le CSS", () => {
-    // Le type `Record<Theme, string>` le garantit à la compilation ; ce test
-    // couvre le cas d'un objet non typé, et surtout l'oubli du token dans le CSS.
-    for (const theme of THEMES) {
-      expect(token(PASTILLE[theme]).length).toBeGreaterThan(0);
-    }
-  });
-
-  test("la pastille de chaque thème montre l'accent de CE thème", () => {
-    /*
-      ⚠️ Les pastilles sont les seules couleurs recopiées du fichier — c'est
-      inévitable, le CSS ne sait pas référencer « l'accent du thème vert » quand
-      c'est le bleu qui est actif. Une recopie non vérifiée diverge : la pastille
-      annoncerait une couleur que le thème n'applique pas, et on choisirait autre
-      chose que ce qu'on croit choisir.
-    */
-    for (const theme of THEMES) {
-      expect(`${theme} : ${token(PASTILLE[theme])}`).toBe(
-        `${theme} : ${tokenDuTheme("accent", theme)}`,
-      );
+describe("les deux copies de la palette sombre sont identiques", () => {
+  test("le bloc système et le bloc forcé portent les mêmes valeurs", () => {
+    expect(sombreSysteme.size).toBeGreaterThan(10);
+    for (const [nom, valeur] of sombreSysteme) {
+      expect(`${nom}: ${sombre.get(nom) ?? "absent"}`).toBe(`${nom}: ${valeur}`);
     }
   });
 });

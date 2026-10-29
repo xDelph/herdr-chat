@@ -141,7 +141,7 @@ describe("U06 — l'envoi est bloqué, et la cause est dite", () => {
       thinking: "high",
     });
     expect(verdict.envoyable).toBe(false);
-    if (!verdict.envoyable) expect(verdict.raison).toContain("requires a model");
+    if (!verdict.envoyable) expect(verdict.raison).toContain("exige un modèle");
   });
 
   test("modèle absent du catalogue : bloqué, et le motif est vérifiable", () => {
@@ -153,7 +153,7 @@ describe("U06 — l'envoi est bloqué, et la cause est dite", () => {
     });
     expect(verdict.envoyable).toBe(false);
     // C'est exactement le symptôme du filtre mal utilisé comme sélection.
-    if (!verdict.envoyable) expect(verdict.raison).toContain("2 verified models");
+    if (!verdict.envoyable) expect(verdict.raison).toContain("2 modèles vérifiés");
   });
 
   test("catalogue illisible : bloqué plutôt que d'envoyer un identifiant inventé", () => {
@@ -175,10 +175,10 @@ describe("U06 — l'envoi est bloqué, et la cause est dite", () => {
       thinking: "",
     });
     expect(verdict.envoyable).toBe(false);
-    if (!verdict.envoyable) expect(verdict.raison).toContain("no verified model");
+    if (!verdict.envoyable) expect(verdict.raison).toContain("aucun modèle vérifié");
   });
 
-  test("modèle sans no reasoning level déclaré : le refus le dit", () => {
+  test("modèle sans niveau de réflexion déclaré : le refus le dit", () => {
     const verdict = verifierLancement({
       catalog: catalogue("pi", [modele("muet")]),
       kind: "pi",
@@ -186,7 +186,7 @@ describe("U06 — l'envoi est bloqué, et la cause est dite", () => {
       thinking: "high",
     });
     expect(verdict.envoyable).toBe(false);
-    if (!verdict.envoyable) expect(verdict.raison).toContain("no reasoning level");
+    if (!verdict.envoyable) expect(verdict.raison).toContain("aucun niveau de réflexion");
   });
 });
 
@@ -218,44 +218,31 @@ describe("U06 — la liste affichée reste utilisable", () => {
  * porte-là — c'est elle qui se rouvre au premier refour.
  */
 describe("U06 — la feuille ne rejoue pas le défaut", () => {
-  const feuille = readFileSync(join(import.meta.dir, "..", "src", "LaunchSheet.tsx"), "utf8");
+  const feuille = readFileSync(
+    join(import.meta.dir, "..", "src", "feuilles", "Lancement.tsx"),
+    "utf8",
+  );
 
   test("le champ de filtre écrit dans le filtre, jamais dans le modèle", () => {
-    const champ = feuille.slice(feuille.indexOf('id="launch-filtre"'));
-    const fin = champ.indexOf("/>");
-    const gestionnaire = champ.slice(0, fin < 0 ? undefined : fin);
-    expect(gestionnaire).toContain("setFiltre(event.currentTarget.value)");
-    expect(gestionnaire).not.toContain("setModel(");
+    const champ = feuille.slice(feuille.indexOf('aria-label="Filtrer les modèles"'));
+    const gestionnaire = champ.slice(0, champ.indexOf("/>"));
+    expect(gestionnaire).toContain("setFiltre(evenement.target.value)");
+    expect(gestionnaire).not.toContain("setModele(");
   });
 
-  test("la liste déroulante reçoit la liste filtrée", () => {
-    // Le composant doit passer par `modelesVisibles`, pas re-filtrer lui-même :
-    // deux filtres, c'est deux règles, et elles divergent.
-    expect(feuille).toContain("modelesVisibles(catalog, filtre)");
+  test("la liste reçoit la liste filtrée par `modelesVisibles`", () => {
+    expect(feuille).toContain("modelesVisibles(catalogue, filtre)");
   });
 
-  test("le verdict décide du bouton, pas la seule présence des choix", () => {
-    const bouton = feuille.slice(
-      Math.max(feuille.lastIndexOf("<button"), feuille.lastIndexOf("<motion.button")),
-    );
-    expect(bouton).toContain("disabled={!verdict.envoyable || launching");
+  test("le verdict décide du bouton", () => {
+    expect(feuille).toContain('disabled={!verdict.envoyable || lancement === "en-cours"');
   });
 
   test("changer de type remet modèle et niveau à zéro", () => {
-    const gestionnaire = feuille.slice(feuille.indexOf("const onKind = useCallback"));
-    const fin = gestionnaire.indexOf("[]);");
-    for (const attendu of ['setFiltre("")', 'setModel("")', 'setThinking("")']) {
-      expect(gestionnaire.slice(0, fin)).toContain(attendu);
-    }
-  });
-
-  test("aucune feuille ne subsiste hors de la feuille de lancement", () => {
-    // Deux endroits pour les mêmes choix, c'est le contrat qui diverge : le
-    // second finit toujours par ne plus être à jour.
-    for (const fichier of ["App.tsx", "ProjectDetail.tsx"]) {
-      const texte = readFileSync(join(import.meta.dir, "..", "src", fichier), "utf8");
-      expect(texte).not.toContain("modelesVisibles");
-      expect(texte).not.toContain("fetchModelCatalog");
+    const gestionnaire = feuille.slice(feuille.indexOf("const choisirKind"));
+    const corps = gestionnaire.slice(0, gestionnaire.indexOf("};"));
+    for (const attendu of ['setFiltre("")', 'setModele("")', 'setReflexion("")']) {
+      expect(corps).toContain(attendu);
     }
   });
 });

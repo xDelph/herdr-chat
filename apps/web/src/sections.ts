@@ -27,9 +27,9 @@ export type Section = (typeof SECTIONS)[number];
 
 /** Libellés exacts, utilisés par l'interface. */
 export const SECTION_LABEL: Record<Section, string> = {
-  "a-traiter": "Needs attention",
-  "en-cours": "In progress",
-  recents: "Recent",
+  "a-traiter": "Attend une décision",
+  "en-cours": "En cours",
+  recents: "Récents",
 };
 
 /**
@@ -46,13 +46,16 @@ export const sectionOf = (status: AgentStatus): Section => {
     case "working":
       return "en-cours";
     /*
-      ⚠️ **`done` est une réponse qu'on n'a PAS vue.** La laisser dans
-      « Recent » enterrait la seule information qui compte au téléphone :
-      « quelqu'un a fini et attend que je lise ». `idle`, lui, est déjà lu —
-      c'est toute la différence, et elle est mesurée par le statut de l'agent.
+      ⚠️ **`done` rejoint les récents, marqué non lu** (maquette « Boîte de
+      réception », 2026-10-29). « Attend une décision » ne contient plus que ce
+      qui se **tranche** depuis la liste — question, confiance, saisie. Une
+      réponse terminée se *lit* : elle vit en tête des récents (tri par date),
+      avec son point « non lu » tant qu'on ne l'a pas ouverte ici
+      (`lectures.ts`). Avant, la mélanger aux décisions noyait les vraies
+      questions sous des réponses à lire.
     */
     case "done":
-      return "a-traiter";
+      return "recents";
     case "idle":
     case "unknown":
       return "recents";
@@ -101,8 +104,8 @@ export type Ordre = (typeof ORDRES)[number];
 
 /** Libellés exacts, utilisés par le sélecteur. */
 export const ORDRE_LABEL: Record<Ordre, string> = {
-  recent: "Most recent",
-  nom: "By name",
+  recent: "Plus récent",
+  nom: "Par nom",
 };
 
 /**

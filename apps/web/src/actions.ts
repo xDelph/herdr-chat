@@ -621,6 +621,45 @@ export const lignesDeTravail = (
         });
         continue;
       }
+      if (block.kind === "subagent") {
+        lignes.push({
+          action: {
+            cible: `${block.mode} · ${String(block.results.length)}`,
+            delta: null,
+            estFichier: false,
+            icone: "brain",
+            pluriel: "Sous-agents",
+            singulier: "Sous-agents",
+          },
+          cle,
+          details: [block],
+          enEchec: block.results.some((resultat) => resultat.errorMessage !== null),
+          kind: "action",
+        });
+        continue;
+      }
+      if (block.kind === "compaction") {
+        // ⚠️ Un résumé de contexte n'est pas un outil, mais c'est un repère : le
+        // perdre ferait croire à un fil continu là où l'agent a oublié le début.
+        lignes.push({
+          action: {
+            cible:
+              block.tokensBefore === null
+                ? null
+                : `${block.tokensBefore.toLocaleString("fr-FR")} jetons avant`,
+            delta: null,
+            estFichier: false,
+            icone: "result",
+            pluriel: "Contexte résumé",
+            singulier: "Contexte résumé",
+          },
+          cle,
+          details: [block],
+          enEchec: false,
+          kind: "action",
+        });
+        continue;
+      }
       if (block.kind === "thinking") {
         lignes.push({
           action: ACTION_REFLEXION,

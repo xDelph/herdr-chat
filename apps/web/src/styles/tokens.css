@@ -1,0 +1,109 @@
+/*
+  Jetons de design — la SEULE palette de l'application.
+
+  Couleur = état. Le reste est encre sur papier : l'œil ne s'arrête que sur ce
+  qui attend. Aucune couleur d'accent : le bouton principal est à l'encre ;
+  l'orange (à toi) et le bleu (travaille) ne signalent qu'un état.
+
+  Thème : `prefers-color-scheme` décide par défaut ; `data-theme="light|dark"`
+  sur <html> est une surcharge manuelle (Réglages → Thème).
+
+  Polices : IBM Plex si elle est installée sur l'appareil, sinon la police
+  système (SF Pro / SF Mono sur iPhone). Aucune police n'est téléchargée : la
+  PWA installée ne dépend d'aucun service tiers.
+*/
+:root {
+  --ground: #f1f2f4;
+  --surface: #ffffff;
+  --surface-2: #f7f8f9;
+  --ink: #14161b;
+  --ink-2: #464c58;
+  --ink-3: #636a77;
+  --line: #e1e3e8;
+  --attn: #a84e07;
+  --attn-fill: #fff3e3;
+  --attn-line: #f2c88e;
+  --work: #1d4ed8;
+  --work-fill: #ecf1ff;
+  --ok: #157a3a;
+  --ok-fill: #e8f6ec;
+  --err: #b42318;
+  --err-fill: #fdecea;
+  --primary: #14161b;
+  --on-primary: #ffffff;
+  --scrim: rgba(20, 22, 27, 0.38);
+  --ombre: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --ombre-haute: 0 -12px 32px rgba(0, 0, 0, 0.18);
+  --b-claude: #c2603a;
+  --b-codex: #2b2f36;
+  --b-pi: #5a4fcf;
+  --b-oc: #3a3a3a;
+  --b-devin: #1f6feb;
+  --b-inconnu: #636a77;
+
+  --font-ui:
+    "IBM Plex Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --r-s: 8px;
+  --r-m: 12px;
+  --r-l: 16px;
+  --cible: 44px;
+  --haut-sur: env(safe-area-inset-top, 0px);
+  --bas-sur: env(safe-area-inset-bottom, 0px);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ground: #0c0e12;
+    --surface: #15181e;
+    --surface-2: #1b1f27;
+    --ink: #e8eaee;
+    --ink-2: #b4bac5;
+    --ink-3: #8e95a2;
+    --line: #262b35;
+    --attn: #f4a63a;
+    --attn-fill: #2a1e0b;
+    --attn-line: #5a4015;
+    --work: #82aaff;
+    --work-fill: #14213d;
+    --ok: #5bd38a;
+    --ok-fill: #0f281a;
+    --err: #ff8a80;
+    --err-fill: #301513;
+    --primary: #e8eaee;
+    --on-primary: #0c0e12;
+    --scrim: rgba(0, 0, 0, 0.55);
+    --ombre: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --b-codex: #4a505c;
+    --b-oc: #4a505c;
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ground: #0c0e12;
+  --surface: #15181e;
+  --surface-2: #1b1f27;
+  --ink: #e8eaee;
+  --ink-2: #b4bac5;
+  --ink-3: #8e95a2;
+  --line: #262b35;
+  --attn: #f4a63a;
+  --attn-fill: #2a1e0b;
+  --attn-line: #5a4015;
+  --work: #82aaff;
+  --work-fill: #14213d;
+  --ok: #5bd38a;
+  --ok-fill: #0f281a;
+  --err: #ff8a80;
+  --err-fill: #301513;
+  --primary: #e8eaee;
+  --on-primary: #0c0e12;
+  --scrim: rgba(0, 0, 0, 0.55);
+  --ombre: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --b-codex: #4a505c;
+  --b-oc: #4a505c;
+  color-scheme: dark;
+}
