@@ -7,7 +7,7 @@
 class HerdrChat < Formula
   desc "Drive Herdr and its coding agents from your phone (single Rust binary)"
   homepage "https://github.com/xDelph/herdr-chat"
-  version "0.2.1"
+  version "0.2.2"
   license "PolyForm-Noncommercial-1.0.0"
 
   on_macos do
