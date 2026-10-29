@@ -7,8 +7,8 @@
  * GET /session?before    → l'historique, à la demande
  * ```
  *
- * ⚠️ **Le flux n'existe pas encore partout.** Les démons d'aujourd'hui répondent
- * `404` sur `/stream` (mesuré : `{"error":"route inconnue"}`). Un `EventSource`
+ * ⚠️ **Le flux n'existe pas partout.** Le démon TS répond `404` sur `/stream`
+ * (mesuré : `{"error":"route inconnue"}`) ; le démon Rust le sert (H19). Un `EventSource`
  * qui reçoit une erreur HTTP passe en `CLOSED` et ne réessaie pas : on bascule
  * alors sur le **repli** — le mécanisme actuel, `session_changed` sur le flux
  * global puis `GET /session?cursor=` — et l'écran fonctionne contre les deux.
@@ -22,29 +22,15 @@
  * injecté, donc vérifiable avec des doubles.
  */
 import { Option, Schema } from "effect";
-import { SessionEntry, SessionResponse } from "@herdr-remote/shared";
+import type { SessionEntry } from "@herdr-remote/shared";
+import { SessionResponse, SessionStreamEntries, SessionStreamGone } from "@herdr-remote/shared";
 import { fusionnerEntrees } from "./messages.ts";
 import { decideAffichage, mentionLecturePartielle } from "./session-vue.ts";
 
 type Entree = typeof SessionEntry.Type;
 type Page = typeof SessionResponse.Type;
 
-/**
- * Les charges du flux de session.
- *
- * ⚠️ **Composées des schémas du contrat, pas recopiées.** `SessionStreamEntries`
- * et `SessionStreamGone` ne sont pas encore exportés par le contrat généré (le
- * démon qui les sert est en cours d'écriture) : on les construit ici à partir de
- * `SessionEntry`, la seule forme d'entrée que le client connaisse. Le jour où le
- * contrat les publie, ces deux déclarations se remplacent par un import.
- */
-const SessionStreamEntries = Schema.Struct({
-  caughtUp: Schema.Boolean,
-  cursor: Schema.String,
-  entries: Schema.Array(SessionEntry),
-});
-const SessionStreamGone = Schema.Struct({ reason: Schema.String });
-
+/** Les charges du flux de session : celles du contrat généré (H19). */
 const decodeEntries = Schema.decodeUnknownOption(SessionStreamEntries);
 const decodeReset = Schema.decodeUnknownOption(SessionResponse);
 const decodeGone = Schema.decodeUnknownOption(SessionStreamGone);
