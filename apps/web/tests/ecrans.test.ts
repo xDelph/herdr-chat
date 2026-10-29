@@ -111,7 +111,7 @@ describe("un envoi non confirmé n'est jamais affiché comme envoyé", () => {
   test("incertain : dit qu'il n'est pas confirmé, propose de renvoyer", () => {
     const html = envois([envoi({ state: "uncertain" })]);
     expect(html).toContain("Delivery not confirmed by Herdr");
-    expect(html).toContain("Resend");
+    expect(html).toContain("Send again");
     expect(html).not.toContain("Delivered to Herdr");
   });
 
@@ -122,12 +122,12 @@ describe("un envoi non confirmé n'est jamais affiché comme envoyé", () => {
 
   test("transport muet : le renvoi est signalé comme un doublon possible", () => {
     const html = envois([envoi({ detail: "x", failureState: "inconnu", state: "uncertain" })]);
-    expect(html).toContain("may duplicate");
+    expect(html).toContain("may arrive twice");
   });
 
   test("envoyé sans confirmation : le renvoi dit aussi le doublon possible", () => {
     const html = envois([envoi({ failureState: null, state: "uncertain" })]);
-    expect(html).toContain("Resend (may duplicate)");
+    expect(html).toContain("Send again (may arrive twice)");
     expect(html).not.toContain(">Retry<");
   });
 

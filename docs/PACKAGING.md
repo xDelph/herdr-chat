@@ -113,7 +113,7 @@ Ce qui a changé, et pourquoi la forme B est maintenant possible :
 | Cibles | une (arborescence) | macOS arm64 (`macos-15`), macOS x86_64 (`macos-15-intel`), Linux x86_64 (`ubuntu-22.04`), Linux aarch64 (`ubuntu-22.04-arm`) — chacune construite ET exécutée sur son runner natif |
 | Workflow | `release.yml` (retiré) | `.github/workflows/release-rust.yml` : portes (`xtask verify`, `xtask coverage`, `bun run verify`) → binaires → release GitHub sur étiquette `v*` |
 | Formule | `xDelph/homebrew-herdr-chat` (publiée) | gabarit `packaging/herdr-chat.rb` (non publié : URL/empreintes à remplir depuis la release) |
-| Service macOS | `brew services` (bloc `service` + `PATH` pour trouver `bun`) | `brew services` (aucun `PATH` requis) **ou** LaunchAgent `packaging/dev.herdr.chat.plist` |
+| Service macOS | `brew services` (bloc `service` + `PATH` pour trouver `bun`) | `brew services` (bloc `service` + `PATH` pour trouver `git`, `tailscale` et les CLI d'agents ; journal `$(brew --prefix)/var/log/herdr-chat.log`) **ou** LaunchAgent `packaging/dev.herdr.chat.plist` |
 | Service Linux | — | `packaging/herdr-chat.service` (systemd utilisateur) |
 
 Les variables d'environnement sont **inchangées** (`HERDR_REMOTE_*`,
@@ -121,9 +121,14 @@ Les variables d'environnement sont **inchangées** (`HERDR_REMOTE_*`,
 binaire sans changer de configuration. Le magasin push garde le même chemin
 par défaut (`~/.herdr-remote/push.json`).
 
-Les deux pièges mesurés de la forme A (`bun install` après `prefix.install`,
-`PATH` du bloc `service`) **disparaissent** : il n'y a plus de `node_modules`
-ni d'interpréteur à trouver.
+Le premier piège de la forme A (`bun install` après `prefix.install`)
+**disparaît** : il n'y a plus de `node_modules`. Le second **reste**, pour une
+autre raison : le binaire n'a plus d'interpréteur à trouver, mais il lance
+`git`, `tailscale` et les CLI des agents (`pi --list-models`, `codex debug
+models`, `claude`) par leur nom. Sous launchd (`/usr/bin:/bin`), un agent
+installé hors de Homebrew n'avait plus de catalogue. Le bloc `service` donne
+donc un `PATH` (Homebrew, `~/.local/bin`, `~/.bun/bin`, système), un journal,
+et la formule le dit dans ses `caveats` (2026-10-29).
 
 Rien n'est publié ni basculé par ce dépôt : la procédure, les contrôles et le
 retour arrière sont dans [`BASCULE.md`](BASCULE.md) et attendent une

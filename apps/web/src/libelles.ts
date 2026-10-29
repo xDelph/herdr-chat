@@ -117,6 +117,17 @@ export const quand = (instant: number, maintenant: number): string => {
   return `${MOIS[date.getMonth()] ?? ""} ${String(date.getDate())}`;
 };
 
+/**
+ * La version de l'app, lisible : `0.2.0 · built Oct 29, 18:01` (heure locale).
+ * Un horodatage illisible n'est pas réinventé : la version seule.
+ */
+export const versionDeLApp = (version: string, construiteA: string): string => {
+  const date = new Date(construiteA);
+  if (Number.isNaN(date.getTime())) return version;
+  const heure = `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+  return `${version} · built ${MOIS[date.getMonth()] ?? ""} ${String(date.getDate())}, ${heure}`;
+};
+
 /** Un chronomètre : `0:38`, `4:05`, `1:02:03`. */
 export const chrono = (ms: number): string => {
   const total = Math.max(0, Math.floor(ms / 1000));

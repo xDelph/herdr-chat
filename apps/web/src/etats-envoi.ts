@@ -54,7 +54,7 @@ export const expliquerEchec = (etat: EtatEchecAffiche, message: string): Explica
         texte: `No response from Herdr — delivery unknown.${suite}`,
         // Le risque est dans le libellé : c'est précisément ce que l'écran ne
         // peut pas trancher, donc l'utilisateur décide en le sachant.
-        action: "Resend (may duplicate)",
+        action: "Send again (may arrive twice)",
       };
     case "hors-ligne":
       return {

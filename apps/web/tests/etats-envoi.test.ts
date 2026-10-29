@@ -37,7 +37,7 @@ describe("U08 — les trois échecs se distinguent", () => {
     // ⚠️ Le texte et le bouton disent la même chose : la bulle montrait un
     // bouton pendant que le texte annonçait « aucune action ». Le renvoi existe,
     // et il nomme le doublon possible.
-    expect(e.action).toBe("Resend (may duplicate)");
+    expect(e.action).toBe("Send again (may arrive twice)");
   });
 
   test("hors ligne : rien n'est parti, et le texte ne dit pas « à temps »", () => {

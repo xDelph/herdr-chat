@@ -52,6 +52,11 @@ const Direct = memo(
     readonly maintenant: number;
     readonly enLigne: boolean;
   }) => {
+    // Le démon répond, mais Herdr non : ce n'est ni « Connecting » ni le
+    // réseau — c'est Herdr, et on le nomme.
+    if (enLigne && donnees.health?.herdr.reachable === false) {
+      return <span className="direct direct--coupe">Herdr offline</span>;
+    }
     const etat = etatConnexion({
       dernierSucces: donnees.dernierSucces,
       depuisOuverture: maintenant - OUVERTURE,
@@ -121,7 +126,12 @@ export const Boite = ({
       conversation.status === "working" &&
       (conversation.tourDebut !== undefined || debutsTravail.has(conversation.paneId)),
   );
-  const maintenant = useMaintenant(cachee ? null : chronometres ? 1_000 : 30_000);
+  // ⚠️ Et tant qu'aucune lecture n'a réussi : la fenêtre de démarrage (5 s)
+  // doit se FERMER à l'heure. À la demi-minute, « Connecting to the daemon… »
+  // restait affiché 30 s alors que la vraie cause était déjà connue.
+  const maintenant = useMaintenant(
+    cachee ? null : chronometres || donnees.dernierSucces === null ? 1_000 : 30_000,
+  );
   const enLigne = useEnLigne();
   // Les temps relatifs (« 25 min ») n'ont pas besoin de la seconde : les lignes
   // qui ne portent pas de chronomètre ne se redessinent qu'à la demi-minute.
@@ -173,6 +183,8 @@ export const Boite = ({
     total: conversations?.length ?? 0,
   });
   const total = duProjet.length;
+  /** Le démon répond, Herdr non — une seule explication remplace les autres. */
+  const herdrInjoignable = donnees.health?.herdr.reachable === false;
 
   return (
     <section className="boite" aria-label="Agents">
@@ -241,13 +253,39 @@ export const Boite = ({
           <span className="discret num">
             {recherche.trim().length > 0
               ? `${String(filtrees.length)} of ${String(total)}`
-              : `${String(total)} agent${total > 1 ? "s" : ""}`}
+              : `${String(total)} agent${total === 1 ? "" : "s"}`}
           </span>
         </span>
       </div>
 
       <div className="boite__liste">
-        {etat.phase === "hors-ligne" ? (
+        {herdrInjoignable ? (
+          <Avis ton="attention" annonce="statut">
+            <div className="avis__corps">
+              <p>
+                <strong>Can't reach Herdr on the Mac.</strong> Start Herdr there — this list fills
+                in by itself once it answers.
+              </p>
+              {donnees.erreurs.overview === null ? null : (
+                <p className="avis__detail">Cause: {donnees.erreurs.overview}</p>
+              )}
+              {donnees.health?.herdr.socket === undefined ? null : (
+                <p className="avis__detail mono">{donnees.health.herdr.socket}</p>
+              )}
+              <p>
+                <button
+                  type="button"
+                  className="lien lien--avis"
+                  disabled={donnees.chargement}
+                  onClick={onReessayer}
+                >
+                  {donnees.chargement ? "Checking…" : "Check again"}
+                </button>
+              </p>
+            </div>
+          </Avis>
+        ) : null}
+        {etat.phase === "hors-ligne" && !herdrInjoignable ? (
           <Avis ton="attention" annonce="statut">
             Offline — last read at {heureLue(etat.dernierSucces) ?? "?"} ·{" "}
             {donnees.erreurs.conversations}{" "}
@@ -261,7 +299,7 @@ export const Boite = ({
             </button>
           </Avis>
         ) : null}
-        {etat.phase === "erreur" ? (
+        {etat.phase === "erreur" && !herdrInjoignable ? (
           <Avis ton="erreur" annonce="alerte">
             Unreadable list: {etat.cause}{" "}
             <button
@@ -274,10 +312,10 @@ export const Boite = ({
             </button>
           </Avis>
         ) : null}
-        {donnees.erreurs.overview !== null && etat.phase !== "erreur" ? (
+        {donnees.erreurs.overview !== null && etat.phase !== "erreur" && !herdrInjoignable ? (
           <Avis ton="attention">Unreadable projects: {donnees.erreurs.overview}</Avis>
         ) : null}
-        {etat.phase === "chargement" ? (
+        {etat.phase === "chargement" && !herdrInjoignable ? (
           <output className="boite__vide">
             {maintenant - OUVERTURE < FENETRE_DEMARRAGE_MS
               ? "Connecting to the daemon…"

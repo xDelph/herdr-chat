@@ -206,3 +206,51 @@ describe("nouvelle version", () => {
     expect(magasin.nouvelle()).toBe(false);
   });
 });
+
+const injoignable = (): string =>
+  rendu(
+    createElement(Boite, {
+      donnees: {
+        ...donnees([]),
+        conversations: [],
+        dernierSucces: null,
+        erreurs: {
+          conversations: "failed (503)",
+          health: null,
+          overview: "transport: No such file or directory (os error 2)",
+        },
+        health: {
+          herdr: { reachable: false, socket: "/Users/x/.config/herdr/herdr.sock" },
+          ok: false,
+          uptimeMs: 1_000,
+        },
+        overview: null,
+      },
+      groupement: "statut",
+      lectures: new Map(),
+      onGroupement: () => undefined,
+      onLancer: () => undefined,
+      onOrdre: () => undefined,
+      onReessayer: () => undefined,
+      onReglages: () => undefined,
+      ordre: "recent",
+      paneCourant: null,
+      projet: null,
+    }),
+  );
+
+describe("Herdr injoignable : une seule explication, la vraie", () => {
+  test("Herdr est nommé, avec sa cause et son socket — ni « Connecting » ni « Unreadable »", () => {
+    const html = injoignable();
+    expect(html).toContain("Can't reach Herdr on the Mac.");
+    expect(html).toContain("No such file or directory");
+    expect(html).toContain("/Users/x/.config/herdr/herdr.sock");
+    expect(html).toContain("Herdr offline");
+    expect(html).not.toContain("Connecting");
+    expect(html).not.toContain("Unreadable");
+  });
+
+  test("zéro se dit au pluriel", () => {
+    expect(injoignable()).toContain("0 agents");
+  });
+});

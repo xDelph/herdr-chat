@@ -49,7 +49,7 @@ export const explicationDe = (envoi: Envoi, travaille: boolean): Explication => 
         ? {
             // Herdr a pris le message sans confirmer la remise : renvoyer peut
             // doubler, et le bouton le dit.
-            action: "Resend (may duplicate)",
+            action: "Send again (may arrive twice)",
             texte: "Delivery not confirmed by Herdr — the message may have arrived.",
           }
         : expliquerEchec(envoi.failureState, envoi.detail ?? "");

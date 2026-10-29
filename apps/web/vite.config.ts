@@ -2,6 +2,14 @@ import react from "@vitejs/plugin-react";
 import { backendPort } from "@herdr-remote/shared";
 import { defineConfig } from "vite";
 import { visualizer } from "rollup-plugin-visualizer";
+import { readFileSync } from "node:fs";
+
+/** La version du produit — celle du `package.json` racine, la même que le démon. */
+const paquet: unknown = JSON.parse(
+  readFileSync(new URL("../../package.json", import.meta.url), "utf8"),
+);
+const VERSION: unknown =
+  typeof paquet === "object" && paquet !== null ? Reflect.get(paquet, "version") : undefined;
 
 /*
   ⚠️ **Plus de vite-plugin-pwa, plus d'identifiant de build dans index.html.**
@@ -18,6 +26,7 @@ export default defineConfig({
   define: {
     // Affiché dans les réglages pour le diagnostic — n'influe sur aucun cache.
     __HERDR_PWA_BUILD_ID__: JSON.stringify(new Date().toISOString()),
+    __HERDR_PWA_VERSION__: JSON.stringify(typeof VERSION === "string" ? VERSION : "unknown"),
   },
   plugins: [react(), visualizer({ filename: "dist/stats.html", open: false })],
   server: {

@@ -17,9 +17,9 @@ import { Icone } from "../ui/Icone.tsx";
 import { PuceTaches } from "./PuceTaches.tsx";
 
 const TRANSPORT: Record<Transport, string> = {
-  aucun: "Content: not reading",
-  flux: "Content: live stream",
-  repli: "Content: reread on signal",
+  aucun: "Updates: not connected",
+  flux: "Updates: live",
+  repli: "Updates: refreshed on change (live stream unavailable)",
 };
 
 export const EnTete = memo(

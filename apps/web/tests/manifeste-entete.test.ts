@@ -71,3 +71,30 @@ describe("en-tête", () => {
     expect(html).toContain('aria-expanded="false"');
   });
 });
+
+/** Largeur et hauteur d'un PNG — lues dans son en-tête IHDR. */
+const dimensionsPng = (chemin: string): readonly [number, number] => {
+  const octets = readFileSync(chemin);
+  return [octets.readUInt32BE(16), octets.readUInt32BE(20)];
+};
+
+describe("écrans de démarrage iOS", () => {
+  const html = readFileSync(join(racine, "index.html"), "utf8");
+  const balises = [
+    ...html.matchAll(
+      /href="\/splash\/(splash-\d+x\d+\.png)"\s+media="\(device-width: (\d+)px\) and \(device-height: (\d+)px\) and \(-webkit-device-pixel-ratio: (\d)\) and \(orientation: (portrait|landscape)\)"/g,
+    ),
+  ];
+
+  test("iPhone et iPad, sans quoi iOS lance la PWA sur un écran blanc", () => {
+    expect(balises.length).toBeGreaterThanOrEqual(20);
+  });
+
+  test("chaque image existe, aux dimensions exactes que sa requête annonce", () => {
+    for (const [, fichier, largeur, hauteur, ratio, orientation] of balises) {
+      const [l, h] = dimensionsPng(join(racine, "public/splash", fichier ?? ""));
+      const attendu = [Number(largeur) * Number(ratio), Number(hauteur) * Number(ratio)];
+      expect([l, h]).toEqual(orientation === "landscape" ? attendu.toReversed() : attendu);
+    }
+  });
+});

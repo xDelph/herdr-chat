@@ -10,6 +10,7 @@ import {
   heureDe,
   jetons,
   marqueAgent,
+  versionDeLApp,
   quand,
   titrePropre,
 } from "../src/libelles.ts";
@@ -129,5 +130,16 @@ describe("aperçu sans syntaxe", () => {
     );
     expect(apercuTexte("- **Re**lu le `main.rs`")).toBe("Relu le main.rs");
     expect(apercuTexte("voir [la doc](https://x)")).toBe("voir la doc");
+  });
+});
+
+describe("la version de l'app", () => {
+  test("lisible, à l'heure locale", () => {
+    const iso = new Date(2026, 9, 29, 18, 1).toISOString();
+    expect(versionDeLApp("0.2.0", iso)).toBe("0.2.0 · built Oct 29, 18:01");
+  });
+
+  test("un horodatage illisible n'est pas réinventé", () => {
+    expect(versionDeLApp("0.2.0", "pas une date")).toBe("0.2.0");
   });
 });

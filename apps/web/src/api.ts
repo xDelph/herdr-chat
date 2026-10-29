@@ -277,7 +277,12 @@ const readJson = async (response: Response): Promise<unknown> => {
  */
 export const DELAI_LECTURE_MS = 10_000;
 
-const request = async (path: string, init?: RequestInit): Promise<unknown> => {
+const request = async (
+  path: string,
+  init?: RequestInit,
+  /** Statuts non-2xx dont le corps EST le contrat (H01 : 503 `HealthResponse`). */
+  corpsDuContrat: ReadonlyArray<number> = [],
+): Promise<unknown> => {
   let response: Response;
   try {
     response = await fetch(path, {
@@ -297,7 +302,7 @@ const request = async (path: string, init?: RequestInit): Promise<unknown> => {
     });
   }
   const payload = await readJson(response);
-  if (!response.ok) {
+  if (!response.ok && !corpsDuContrat.includes(response.status)) {
     const failure = decodeError(payload);
     throw new Error(
       failure === undefined ? `failed (${String(response.status)})` : erreurLisible(failure.error),
@@ -311,8 +316,9 @@ const decoded = async <A>(
   path: string,
   decodePayload: (payload: unknown) => A | undefined,
   label: string,
+  corpsDuContrat: ReadonlyArray<number> = [],
 ): Promise<A> => {
-  const payload = await request(path);
+  const payload = await request(path, undefined, corpsDuContrat);
   const value = decodePayload(payload);
   if (value === undefined) {
     throw new Error(`unexpected response shape: ${label}`);
@@ -320,7 +326,13 @@ const decoded = async <A>(
   return value;
 };
 
-export const fetchHealth = () => decoded("/api/health", decoderOf(HealthSchema), "health");
+/**
+ * H01 — la santé. ⚠️ Le 503 porte la MÊME forme (`ok:false`, `reachable:false`) :
+ * c'est précisément la réponse qui dit « Herdr injoignable ». La traiter comme
+ * une erreur la jetait, et la liste affichait « Unreadable list: failed (503) »
+ * au lieu de nommer Herdr.
+ */
+export const fetchHealth = () => decoded("/api/health", decoderOf(HealthSchema), "health", [503]);
 
 /**
  * Lignes de la liste des conversations (U17).

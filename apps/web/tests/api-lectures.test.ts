@@ -6,7 +6,7 @@
  * - les erreurs connues du démon sont traduites, la cause brute reste.
  */
 import { afterEach, describe, expect, test } from "bun:test";
-import { fetchSession, sendPrompt, sondeFluxSession } from "../src/api.ts";
+import { fetchHealth, fetchSession, sendPrompt, sondeFluxSession } from "../src/api.ts";
 import { erreurLisible } from "../src/erreurs-demon.ts";
 
 const original = globalThis.fetch;
@@ -149,5 +149,27 @@ describe("les erreurs du démon, en français (P2)", () => {
       if (enLigne === undefined) Reflect.deleteProperty(globalThis, "navigator");
       else Object.defineProperty(globalThis, "navigator", enLigne);
     }
+  });
+});
+
+describe("santé : le 503 est une réponse, pas une panne (H01)", () => {
+  test("Herdr injoignable se lit, au lieu de « failed (503) »", async () => {
+    repond(
+      JSON.stringify({
+        herdr: { reachable: false, socket: "/s/herdr.sock" },
+        ok: false,
+        uptimeMs: 1,
+      }),
+      503,
+      "application/json",
+    );
+    const sante = await fetchHealth();
+    expect(sante.ok).toBe(false);
+    expect(sante.herdr.reachable).toBe(false);
+  });
+
+  test("un autre échec reste une erreur nommée", async () => {
+    repond(JSON.stringify({ error: "boom" }), 500, "application/json");
+    await expect(fetchHealth()).rejects.toThrow("boom");
   });
 });

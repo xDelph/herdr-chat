@@ -28,7 +28,7 @@ import {
   type StyleMarque,
   type Theme,
 } from "../preferences.ts";
-import { dureeLongue } from "../libelles.ts";
+import { dureeLongue, versionDeLApp } from "../libelles.ts";
 import { Avis } from "../ui/atomes.tsx";
 import { Feuille } from "../ui/Feuille.tsx";
 
@@ -224,7 +224,9 @@ export const Reglages = ({
                 : `${String(overview.withoutSession)} agent(s) without a readable session`}
           </dd>
           <dt>App version</dt>
-          <dd className="mono">{__HERDR_PWA_BUILD_ID__}</dd>
+          <dd title={__HERDR_PWA_BUILD_ID__}>
+            {versionDeLApp(__HERDR_PWA_VERSION__, __HERDR_PWA_BUILD_ID__)}
+          </dd>
         </dl>
       </fieldset>
       <p className="discret">

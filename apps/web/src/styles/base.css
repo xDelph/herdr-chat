@@ -437,6 +437,19 @@ svg.i.s {
   align-items: flex-start;
   overflow-wrap: anywhere;
 }
+/* Un avis à plusieurs lignes (cause, détail, action) : en colonne. */
+.avis__corps {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.avis__corps p {
+  margin: 0;
+}
+.avis__detail {
+  font-size: 12px;
+  opacity: 0.85;
+}
 .avis--erreur {
   background: var(--err-fill);
   border-color: transparent;
