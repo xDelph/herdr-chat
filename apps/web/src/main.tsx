@@ -15,6 +15,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app/App.tsx";
 import { reportError } from "./api.ts";
+import { ecouteNavigationWorker } from "./navigation-worker.ts";
 import {
   lireStyleMarque,
   lireTheme,
@@ -38,6 +39,11 @@ window
   .addEventListener("change", rafraichirCouleurDeBarre);
 
 if ("serviceWorker" in navigator) {
+  // Après un appui sur une notification, le worker peut demander d'ouvrir une
+  // conversation : le fragment change, le routage suit (`hashchange`).
+  ecouteNavigationWorker(navigator.serviceWorker, (hash) => {
+    if (window.location.hash !== hash) window.location.hash = hash;
+  });
   void (async () => {
     try {
       await navigator.serviceWorker.register("/sw.js", { scope: "/" });
