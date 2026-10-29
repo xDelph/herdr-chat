@@ -96,6 +96,9 @@ pub struct LitSessionsViaPort {
     /// besoin (opencode ≠ devin). Sans elle, toutes les sessions SQLite
     /// échouaient — constaté sur le vrai démon.
     pub familles: Arc<Mutex<HashMap<String, application::noyau::AgentKind>>>,
+    /// La demande qui a ouvert le tour, retenue par source — voir
+    /// [`MemoireOuvertures`].
+    pub ouvertures: Arc<Mutex<MemoireOuvertures>>,
     /// Les tâches de fond de Claude (sous-agents, commandes en fond) — le
     /// lecteur garde l'état incrémental de chaque session, borné.
     pub taches: Arc<sessions::agents::claude::taches::LecteurTaches>,
@@ -198,6 +201,54 @@ impl CacheFenetres {
 
 /// Le nombre de fenêtres plus anciennes qu'un résumé peut remonter (D19).
 pub const FENETRES_REMONTEE: usize = 32;
+
+/// La remontée **unique** qui cherche la demande ouvrant le tour quand la
+/// remontée ordinaire ne l'a pas trouvée : 512 fenêtres, 32 Mio au plus.
+pub const FENETRES_OUVERTURE: usize = 512;
+
+/// ⚠️ **La demande qui a lancé le travail, retenue par source.**
+///
+/// Retour du 2026-10-29 : la ligne de liste doit montrer la demande qui a
+/// lancé le travail. Mesuré sur une vraie session Claude de 22,8 Mo : tous
+/// les messages suivants étaient arrivés EN PLEIN TOUR, et la dernière
+/// ouverture était à 10 Mo de la fin — hors de portée des
+/// [`FENETRES_REMONTEE`] (2 Mio).
+///
+/// Relire 10 Mo à chaque requête n'est pas une option : l'ouverture trouvée
+/// est retenue avec la taille du fichier à cet instant. Un fichier de session
+/// ne fait que grandir ; tant que ce qui s'est ajouté depuis tient dans la
+/// fenêtre lue (et qu'elle n'y a pas trouvé d'ouverture plus récente), la
+/// demande retenue est encore la dernière. Sinon (fichier raccourci, ou plus
+/// d'une fenêtre ajoutée), on remonte à nouveau — jamais une demande devinée.
+#[derive(Default)]
+pub struct MemoireOuvertures {
+    ordre: std::collections::VecDeque<String>,
+    entrees: HashMap<String, (u64, Option<EntreeLu>)>,
+}
+
+impl MemoireOuvertures {
+    /// L'ouverture retenue, **si elle vaut encore** pour un fichier de
+    /// `octets` octets : `Some(None)` dit « aucune ouverture dans la session ».
+    #[must_use]
+    pub fn lit(&self, cle: &str, octets: u64) -> Option<Option<EntreeLu>> {
+        let (connus, entree) = self.entrees.get(cle)?;
+        (octets >= *connus && octets - *connus <= u64::from(FENETRE_RESUME_OCTETS))
+            .then(|| entree.clone())
+    }
+
+    /// Retient l'ouverture valable pour un fichier de `octets` octets.
+    pub fn pose(&mut self, cle: &str, octets: u64, entree: Option<EntreeLu>) {
+        if !self.entrees.contains_key(cle) {
+            self.ordre.push_back(cle.to_string());
+            while self.ordre.len() > CAPACITE_FENETRES {
+                if let Some(ancienne) = self.ordre.pop_front() {
+                    self.entrees.remove(&ancienne);
+                }
+            }
+        }
+        self.entrees.insert(cle.to_string(), (octets, entree));
+    }
+}
 
 /// Ce qui manque encore au résumé d'une fenêtre : la dernière demande, le
 /// dernier mot de l'agent, le modèle en vigueur.
@@ -303,6 +354,79 @@ impl LitSessionsViaPort {
             }
             avant = plus.previous_cursor.clone().filter(|_| plus.has_more);
             fenetres += 1;
+        }
+    }
+}
+
+impl LitSessionsViaPort {
+    /// La plus récente demande ouvrant un tour, en remontant au plus
+    /// [`FENETRES_OUVERTURE`] fenêtres — `None` si la session n'en a pas.
+    fn cherche_ouverture(
+        &self,
+        demande: &SessionPageRequest,
+        page: &application::sessions_types::SessionPage,
+    ) -> Option<EntreeLu> {
+        let mut avant = page.previous_cursor.clone().filter(|_| page.has_more);
+        for _ in 0..FENETRES_OUVERTURE {
+            let curseur = avant.take()?;
+            let mut ancienne = demande.clone();
+            ancienne.cursor = None;
+            ancienne.previous_cursor = Some(curseur);
+            let mut futur = self.port.page(ancienne);
+            let Ok(SessionPageOutcome::Page(plus)) = attend_session(&mut futur) else {
+                return None;
+            };
+            if let Some(entree) = plus
+                .entries
+                .iter()
+                .rev()
+                .map(entree_lue)
+                .find(application::conversations::ouvre_un_tour)
+            {
+                return Some(entree);
+            }
+            avant = plus.previous_cursor.clone().filter(|_| plus.has_more);
+        }
+        None
+    }
+
+    /// Complète les entrées de la demande qui a ouvert le tour, par la
+    /// mémoire ou par une remontée profonde — voir [`MemoireOuvertures`].
+    fn complete_ouverture(
+        &self,
+        cle: &str,
+        octets: u64,
+        demande: &SessionPageRequest,
+        page: &application::sessions_types::SessionPage,
+        entrees: &mut Vec<EntreeLu>,
+    ) {
+        let mut memoire = self
+            .ouvertures
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some(entree) = entrees
+            .iter()
+            .rev()
+            .find(|entree| application::conversations::ouvre_un_tour(entree))
+        {
+            memoire.pose(cle, octets, Some(entree.clone()));
+            return;
+        }
+        let retenue = match memoire.lit(cle, octets) {
+            Some(retenue) => retenue,
+            None => {
+                drop(memoire);
+                let trouvee = self.cherche_ouverture(demande, page);
+                memoire = self
+                    .ouvertures
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner);
+                trouvee
+            }
+        };
+        memoire.pose(cle, octets, retenue.clone());
+        if let Some(entree) = retenue {
+            entrees.insert(0, entree);
         }
     }
 }
@@ -445,6 +569,9 @@ impl LitSessions for LitSessionsViaPort {
             SessionPageOutcome::Page(page) | SessionPageOutcome::Vide(page) => {
                 let mut entrees: Vec<EntreeLu> = page.entries.iter().map(entree_lue).collect();
                 self.remonte(&demande, &page, &mut entrees);
+                if let Some(signature) = signature {
+                    self.complete_ouverture(&cle, signature.octets, &demande, &page, &mut entrees);
+                }
                 if let Some(signature) = signature {
                     self.fenetres
                         .lock()

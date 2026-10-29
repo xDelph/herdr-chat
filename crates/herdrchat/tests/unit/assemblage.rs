@@ -95,6 +95,7 @@ fn port(
 ) -> LitSessionsViaPort {
     LitSessionsViaPort {
         port: Arc::new(Compteur { lectures, lignes }),
+        ouvertures: Arc::default(),
         familles: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         fenetres: Arc::new(std::sync::Mutex::new(CacheFenetres::default())),
         taches: Arc::new(sessions::agents::claude::taches::LecteurTaches::nouveau(
@@ -308,6 +309,7 @@ fn la_derniere_demande_est_retrouvee_au_dela_de_la_fenetre() {
     };
     let lecteur = LitSessionsViaPort {
         port: Arc::new(sessions::port::PortSessions::nouveau(racines)),
+        ouvertures: Arc::default(),
         familles: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         fenetres: Arc::new(std::sync::Mutex::new(CacheFenetres::default())),
         taches: Arc::new(sessions::agents::claude::taches::LecteurTaches::nouveau(
@@ -337,6 +339,79 @@ fn la_derniere_demande_est_retrouvee_au_dela_de_la_fenetre() {
         "on ne garde que ce qui manquait : {}",
         entrees.len()
     );
+    let _ = std::fs::remove_dir_all(&dossier);
+}
+
+#[test]
+fn la_demande_qui_a_ouvert_le_tour_est_retrouvee_meme_tres_loin() {
+    // Mesuré le 2026-10-29 : une session Claude dont la dernière ouverture
+    // était à 10 Mo de la fin, tout le reste arrivé en plein tour. Ici : une
+    // ouverture, ~2,4 Mo de sortie (au-delà des 32 fenêtres de remontée),
+    // puis une demande glissée en plein tour.
+    let dossier = racine("soutien-assemblage-ouverture");
+    let chemin = dossier.join("session.jsonl");
+    let mut contenu = String::new();
+    contenu.push_str(r#"{"type":"message","id":"u1","timestamp":"2026-10-29T10:00:01Z","message":{"role":"user","content":"corrige les feuilles iPad"}}"#);
+    contenu.push('\n');
+    let sortie = "y".repeat(4000);
+    for n in 0..600 {
+        contenu.push_str(&format!(
+            r#"{{"type":"message","id":"t{n}","timestamp":"2026-10-29T10:01:00Z","message":{{"role":"toolResult","content":"{sortie}"}}}}"#
+        ));
+        contenu.push('\n');
+    }
+    contenu.push_str(r#"{"type":"message","id":"u2","timestamp":"2026-10-29T10:02:00Z","message":{"role":"user","content":"et l'en-tête aussi","details":{"midTurn":true}}}"#);
+    contenu.push('\n');
+    std::fs::write(&chemin, &contenu).unwrap_or_else(|cause| panic!("écriture : {cause}"));
+    let racines = sessions::resolver::Racines {
+        pi_sessions: dossier.clone(),
+        codex_sessions: dossier.join("codex"),
+        codex_home: dossier.join("codex-home"),
+        claude_projects: dossier.join("claude"),
+        opencode_db: dossier.join("opencode.db"),
+        devin_db: dossier.join("devin.db"),
+    };
+    let lecteur = LitSessionsViaPort {
+        port: Arc::new(sessions::port::PortSessions::nouveau(racines)),
+        ouvertures: Arc::default(),
+        familles: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+        fenetres: Arc::new(std::sync::Mutex::new(CacheFenetres::default())),
+        taches: Arc::new(sessions::agents::claude::taches::LecteurTaches::nouveau(
+            std::env::temp_dir().join("herdrchat-taches-absentes"),
+        )),
+    };
+    let pane = PaneId::from(String::from("w1:p1"));
+    let lis = || {
+        lecteur
+            .fenetre(&pane, &source(&chemin.display().to_string()))
+            .unwrap_or_else(|cause| panic!("fenêtre : {}", cause.cause))
+    };
+    let ouverture = |entrees: &[application::conversations::EntreeLu]| {
+        entrees
+            .iter()
+            .rev()
+            .find(|entree| application::conversations::ouvre_un_tour(entree))
+            .and_then(|entree| entree.texte.clone())
+    };
+    assert_eq!(
+        ouverture(&lis()).as_deref(),
+        Some("corrige les feuilles iPad")
+    );
+
+    // Le fichier grandit d'une ligne sans ouverture : la mémoire sert.
+    contenu.push_str(r#"{"type":"message","id":"a1","timestamp":"2026-10-29T10:03:00Z","message":{"role":"assistant","content":"je regarde"}}"#);
+    contenu.push('\n');
+    std::fs::write(&chemin, &contenu).unwrap_or_else(|cause| panic!("écriture : {cause}"));
+    assert_eq!(
+        ouverture(&lis()).as_deref(),
+        Some("corrige les feuilles iPad")
+    );
+
+    // Une nouvelle ouverture l'emporte.
+    contenu.push_str(r#"{"type":"message","id":"u3","timestamp":"2026-10-29T10:04:00Z","message":{"role":"user","content":"nouvelle demande"}}"#);
+    contenu.push('\n');
+    std::fs::write(&chemin, &contenu).unwrap_or_else(|cause| panic!("écriture : {cause}"));
+    assert_eq!(ouverture(&lis()).as_deref(), Some("nouvelle demande"));
     let _ = std::fs::remove_dir_all(&dossier);
 }
 
@@ -508,6 +583,7 @@ fn les_taches_ne_sont_lues_que_pour_une_session_claude() {
     }
     let lecteur = LitSessionsViaPort {
         port: Arc::new(Resout(session.display().to_string())),
+        ouvertures: Arc::default(),
         familles: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         fenetres: Arc::new(std::sync::Mutex::new(CacheFenetres::default())),
         taches: Arc::new(sessions::agents::claude::taches::LecteurTaches::nouveau(
@@ -620,6 +696,7 @@ fn la_remontee_cherche_le_fournisseur_des_familles_qui_l_ecrivent() {
                 ancienne: ancienne.clone(),
                 lectures: Arc::clone(&lectures),
             }),
+            ouvertures: Arc::default(),
             familles: Arc::new(std::sync::Mutex::new(std::collections::HashMap::from([(
                 String::from("/sessions/s.jsonl"),
                 domain::ids::AgentKind::from(String::from(famille)),
@@ -717,6 +794,7 @@ fn un_modele_entre_chevrons_n_est_jamais_lu_comme_un_modele() {
     let base = chemin.display().to_string();
     let lecteur = LitSessionsViaPort {
         port: Arc::new(sessions::port::PortSessions::nouveau(racines)),
+        ouvertures: Arc::default(),
         familles: Arc::new(std::sync::Mutex::new(std::collections::HashMap::from([(
             base.clone(),
             domain::ids::AgentKind::from(String::from("claude")),

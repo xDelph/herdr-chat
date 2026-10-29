@@ -131,6 +131,7 @@ async fn demarre(config: &Config) -> Result<(), String> {
         }),
         lit_sessions: Arc::new(herdrchat::assemblage::LitSessionsViaPort {
             port: Arc::clone(&port_sessions),
+            ouvertures: Arc::default(),
             familles: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
             fenetres: Arc::new(std::sync::Mutex::new(
                 herdrchat::assemblage::CacheFenetres::default(),
