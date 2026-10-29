@@ -21,6 +21,14 @@ struct FauxHerdr {
     ecoute: UnixListener,
 }
 
+impl Drop for FauxHerdr {
+    fn drop(&mut self) {
+        if let Some(racine) = self.chemin.parent() {
+            let _ = std::fs::remove_dir_all(racine);
+        }
+    }
+}
+
 impl FauxHerdr {
     fn nouveau(prefixe: &str) -> Self {
         let racine = std::env::temp_dir().join(format!(
@@ -28,6 +36,13 @@ impl FauxHerdr {
             std::process::id(),
             NONCE.fetch_add(1, Ordering::SeqCst)
         ));
+        // ⚠️ Un dossier résiduel d'un ancien processus au même PID (recyclé
+        // sous charge, 2 085 restes mesurés) faisait échouer ce test au hasard :
+        // il est retiré avant de recréer. Le nom reste court — un chemin de
+        // socket Unix est limité à 104 octets sur macOS.
+        if racine.exists() {
+            let _ = std::fs::remove_dir_all(&racine);
+        }
         match std::fs::create_dir(&racine) {
             Ok(()) => (),
             Err(cause) => panic!("racine refusée : {cause}"),
