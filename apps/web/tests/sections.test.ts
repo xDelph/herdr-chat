@@ -51,7 +51,8 @@ describe("U04 — un pane apparaît une fois", () => {
     expect(sectionOf("blocked")).toBe("a-traiter");
     expect(sectionOf("working")).toBe("en-cours");
     expect(sectionOf("idle")).toBe("recents");
-    expect(sectionOf("done")).toBe("a-traiter");
+    // `done` se lit (point « non lu » des récents), il ne se tranche pas.
+    expect(sectionOf("done")).toBe("recents");
     expect(sectionOf("unknown")).toBe("recents");
   });
 
@@ -75,11 +76,11 @@ describe("U04 — un pane apparaît une fois", () => {
     ]);
     const total = entrees.reduce((somme, entree) => somme + entree.conversations.length, 0);
     expect(total).toBe(5);
-    // `blocked` ET `done` demandent une action ; `working` progresse ; `idle`
-    // et `unknown` sont rangés.
-    expect(countOf(entrees, "a-traiter")).toBe(2);
+    // `blocked` attend une décision ; `working` progresse ; `idle`, `done` et
+    // `unknown` se lisent dans les récents.
+    expect(countOf(entrees, "a-traiter")).toBe(1);
     expect(countOf(entrees, "en-cours")).toBe(1);
-    expect(countOf(entrees, "recents")).toBe(2);
+    expect(countOf(entrees, "recents")).toBe(3);
   });
 });
 
@@ -190,7 +191,7 @@ describe("U04 — structure et libellés", () => {
       conversation change de section.
 
       Le coût s'est révélé plus grand que le bénéfice. Un titre de section
-      **promet du contenu** : « Needs attention » suivi de rien fait chercher ce
+      **promet du contenu** : « Attend une décision » suivi de rien fait chercher ce
       qui manque, et use le mot pour le jour où il compte vraiment. Le saut de
       mise en page, lui, ne concerne que le haut d'une liste courte.
     */
@@ -210,9 +211,9 @@ describe("U04 — structure et libellés", () => {
   });
 
   test("chaque section a un libellé exact", () => {
-    expect(SECTION_LABEL["a-traiter"]).toBe("Needs attention");
-    expect(SECTION_LABEL["en-cours"]).toBe("In progress");
-    expect(SECTION_LABEL["recents"]).toBe("Recent");
+    expect(SECTION_LABEL["a-traiter"]).toBe("Attend une décision");
+    expect(SECTION_LABEL["en-cours"]).toBe("En cours");
+    expect(SECTION_LABEL["recents"]).toBe("Récents");
   });
 
   test("la réponse est stable à conversation identique", () => {
@@ -226,15 +227,15 @@ describe("U04 — structure et libellés", () => {
 });
 
 describe("une section vide ne s'affiche pas", () => {
-  test("sans agent bloqué, « Needs attention » disparaît", () => {
-    // ⚠️ Un titre de section promet du contenu. « Needs attention » suivi de
+  test("sans agent bloqué, « Attend une décision » disparaît", () => {
+    // ⚠️ Un titre de section promet du contenu. « Attend une décision » suivi de
     // rien fait chercher ce qui manque, et use le mot pour le jour où il compte.
     const sections = sectionConversations([ligne("w1:p1", "idle", 1_000)], "recent");
 
     expect(sections.map((entree) => entree.cle)).toEqual(["recents"]);
   });
 
-  test("sans agent au travail, « In progress » disparaît", () => {
+  test("sans agent au travail, « En cours » disparaît", () => {
     const sections = sectionConversations([ligne("w1:p1", "blocked", 1_000)], "recent");
 
     expect(sections.map((entree) => entree.cle)).toEqual(["a-traiter"]);
@@ -433,7 +434,7 @@ describe("U18 — le dispatcher ne dérive pas", () => {
     // n'a plus de table à consulter.
     expect(
       groupesDe([ligne("w1:p1", "blocked", 1_000)], "recent", "statut", nomDeProjet)[0]?.titre,
-    ).toBe("Needs attention");
+    ).toBe("Attend une décision");
   });
 });
 
@@ -465,24 +466,22 @@ describe("U18 — l'attention passe avant le rangement", () => {
     // `blocked` avant `working` : un agent bloqué demande une action, un agent
     // qui travaille n'en demande pas.
     expect(groupes.map((g) => g.cle)).toEqual(["a-traiter", "en-cours", "w2", "w1"]);
-    expect(groupes[0]?.titre).toBe("Needs attention");
-    expect(groupes[1]?.titre).toBe("In progress");
+    expect(groupes[0]?.titre).toBe("Attend une décision");
+    expect(groupes[1]?.titre).toBe("En cours");
   });
 
   test("le groupe d'un projet ne contient QUE ses agents au repos", () => {
     // ⚠️ C'est tout l'objet de la correction : `w1:p1` et `w1:p2` sont en haut,
     // pas ici. Les y remettre les rendrait trouvables à deux endroits.
-    // `w2:p2` est `done` : une réponse pas vue → « Needs attention », pas le
-    // groupe du projet. `w1:p1` (blocked) et `w1:p2` (working) sont en haut.
+    // `w2:p2` est `done` : une réponse à lire, rangée avec son projet (marquée
+    // non lue par l'écran). `w1:p1` (blocked) et `w1:p2` (working) sont en haut.
     expect(dans(groupes, "w1")).toEqual(["w1:p3"]);
-    expect(dans(groupes, "w2")).toEqual(["w2:p1"]);
+    expect(dans(groupes, "w2")).toEqual(["w2:p1", "w2:p2"]);
   });
 
   test("l'attention n'est pas découpée par projet", () => {
-    // `done` rejoint `blocked` : les deux attendent une action de l'utilisateur.
-    // Ordonné par date décroissante dans la section : `w2:p2` (3 000) avant
-    // `w1:p1` (1 000).
-    expect(dans(groupes, "a-traiter")).toEqual(["w2:p2", "w1:p1"]);
+    // Seul `blocked` attend une décision ; `done` se lit dans son projet.
+    expect(dans(groupes, "a-traiter")).toEqual(["w1:p1"]);
     expect(dans(groupes, "en-cours")).toEqual(["w1:p2"]);
   });
 

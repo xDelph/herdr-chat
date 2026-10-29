@@ -12,12 +12,31 @@
  * inchangés — on ne traduit pas un identifiant.
  */
 import type { Block, RenderedMessage } from "./blocks.ts";
-import { commandTextOf, patchFilesOf } from "./blocks.ts";
+import { cheminDe, commandTextOf, editionsDe, patchFilesOf } from "./blocks.ts";
+
+/**
+ * Les pictogrammes d'action — des **clés**, pas des glyphes.
+ *
+ * ⚠️ Les glyphes texte (`🖥`, `✎`, `▤`) se rendaient différemment selon la
+ * police et la plateforme, et un émoji en couleur criait plus fort que la
+ * réponse. L'interface dessine chaque clé en SVG, au trait, dans la couleur du
+ * texte.
+ */
+export type IconeAction =
+  | "term"
+  | "edit"
+  | "file"
+  | "find"
+  | "web"
+  | "brain"
+  | "delete"
+  | "result"
+  | "dot";
 
 /** Ce qu'un appel devient à l'écran. */
 export interface Action {
-  /** Symbole affiché devant la ligne. */
-  readonly icone: string;
+  /** Pictogramme affiché devant la ligne. */
+  readonly icone: IconeAction;
   /** Verbe au participe, pour un résumé de groupe : « Fichiers modifiés ». */
   readonly pluriel: string;
   /** Verbe au singulier : « Fichier modifié ». */
@@ -57,10 +76,6 @@ export interface Delta {
 const lignesDeTexte = (valeur: unknown): number =>
   typeof valeur === "string" && valeur.length > 0 ? valeur.split("\n").length : 0;
 
-/** Objet exploitable par clé, sans supposer sa forme. */
-const estObjet = (valeur: unknown): valeur is Record<string, unknown> =>
-  typeof valeur === "object" && valeur !== null && !Array.isArray(valeur);
-
 export const deltaDe = (nom: string, args: Readonly<Record<string, unknown>>): Delta | null => {
   const minuscule = nom.trim().toLowerCase();
   if (["exec", "exec_command", "apply_patch"].includes(minuscule)) {
@@ -85,16 +100,13 @@ export const deltaDe = (nom: string, args: Readonly<Record<string, unknown>>): D
     if (typeof contenu !== "string") return null;
     return { added: lignesDeTexte(contenu), removed: 0 };
   }
-  if (minuscule !== "edit") return null;
+  if (minuscule !== "edit" && minuscule !== "multiedit") return null;
 
-  const edites = args["edits"];
-  if (!Array.isArray(edites)) return null;
   let added = 0;
   let removed = 0;
-  for (const edition of edites) {
-    if (!estObjet(edition)) continue;
-    added += lignesDeTexte(edition["newText"]);
-    removed += lignesDeTexte(edition["oldText"]);
+  for (const edition of editionsDe(args)) {
+    added += lignesDeTexte(edition.newText);
+    removed += lignesDeTexte(edition.oldText);
   }
   return added === 0 && removed === 0 ? null : { added, removed };
 };
@@ -102,81 +114,50 @@ export const deltaDe = (nom: string, args: Readonly<Record<string, unknown>>): D
 /** Familles d'actions, dans l'ordre d'apparition du résumé. */
 type Famille = "edition" | "suppression" | "shell" | "lecture" | "recherche" | "autre";
 
-const FAMILLES: Record<
-  string,
-  { famille: Famille; icone: string; singulier: string; pluriel: string }
-> = {
-  bash: {
-    famille: "shell",
-    icone: "🖥",
-    pluriel: "Ran commands",
-    singulier: "Ran",
-  },
-  shell: {
-    famille: "shell",
-    icone: "🖥",
-    pluriel: "Ran commands",
-    singulier: "Ran",
-  },
-  exec: {
-    famille: "shell",
-    icone: "🖥",
-    pluriel: "Ran commands",
-    singulier: "Ran",
-  },
-  exec_command: {
-    famille: "shell",
-    icone: "🖥",
-    pluriel: "Ran commands",
-    singulier: "Ran",
-  },
-  js: {
-    famille: "shell",
-    icone: "⌘",
-    pluriel: "Scripts ran",
-    singulier: "Script ran",
-  },
-  edit: {
-    famille: "edition",
-    icone: "✎",
-    pluriel: "Edits",
-    singulier: "Edit",
-  },
-  write: {
-    famille: "edition",
-    icone: "✎",
-    pluriel: "Create files",
-    singulier: "Create",
-  },
-  read: {
-    famille: "lecture",
-    icone: "▤",
-    pluriel: "Files read",
-    singulier: "File read",
-  },
-  grep: {
-    famille: "recherche",
-    icone: "⌕",
-    pluriel: "Searches",
-    singulier: "Search",
-  },
-  glob: {
-    famille: "recherche",
-    icone: "⌕",
-    pluriel: "Searches",
-    singulier: "Search",
-  },
-  webfetch: {
-    famille: "recherche",
-    icone: "⊕",
-    pluriel: "Pages read",
-    singulier: "Page read",
-  },
+interface Modele {
+  readonly famille: Famille;
+  readonly icone: IconeAction;
+  readonly singulier: string;
+  readonly pluriel: string;
+}
+
+const SHELL: Modele = {
+  famille: "shell",
+  icone: "term",
+  pluriel: "Commandes lancées",
+  singulier: "Lancé",
+};
+const EDITION: Modele = {
+  famille: "edition",
+  icone: "edit",
+  pluriel: "Fichiers modifiés",
+  singulier: "Modifié",
+};
+const RECHERCHE: Modele = {
+  famille: "recherche",
+  icone: "find",
+  pluriel: "Recherches",
+  singulier: "Cherché",
+};
+
+const FAMILLES: Record<string, Modele> = {
+  bash: SHELL,
+  shell: SHELL,
+  exec: SHELL,
+  exec_command: SHELL,
+  js: { famille: "shell", icone: "term", pluriel: "Scripts lancés", singulier: "Script lancé" },
+  edit: EDITION,
+  multiedit: EDITION,
+  write: { famille: "edition", icone: "edit", pluriel: "Fichiers créés", singulier: "Créé" },
+  read: { famille: "lecture", icone: "file", pluriel: "Fichiers lus", singulier: "Lu" },
+  grep: RECHERCHE,
+  glob: RECHERCHE,
+  webfetch: { famille: "recherche", icone: "web", pluriel: "Pages lues", singulier: "Page lue" },
   websearch: {
     famille: "recherche",
-    icone: "⌕",
-    pluriel: "Web searches",
-    singulier: "Web search",
+    icone: "web",
+    pluriel: "Recherches web",
+    singulier: "Recherche web",
   },
 };
 
@@ -212,23 +193,20 @@ export const actionDe = (nom: string, args: Readonly<Record<string, unknown>>): 
     if (patches.length > 0) {
       const kinds = new Set(patches.map((patch) => patch.kind));
       const delta = deltaDe(minuscule, args);
+      const seul = kinds.size === 1;
       const singulier =
-        kinds.size === 1 && kinds.has("add")
-          ? "Create"
-          : kinds.size === 1 && kinds.has("delete")
-            ? "Delete"
-            : "Edit";
+        seul && kinds.has("add") ? "Créé" : seul && kinds.has("delete") ? "Supprimé" : "Modifié";
       const pluriel =
-        kinds.size === 1 && kinds.has("add")
-          ? "Create files"
-          : kinds.size === 1 && kinds.has("delete")
-            ? "Delete files"
-            : "Edits";
+        seul && kinds.has("add")
+          ? "Fichiers créés"
+          : seul && kinds.has("delete")
+            ? "Fichiers supprimés"
+            : "Fichiers modifiés";
       return {
         cible: patches.length === 1 ? (patches[0]?.path ?? null) : null,
         delta,
         estFichier: true,
-        icone: "✎",
+        icone: "edit",
         pluriel,
         singulier: patches.length === 1 ? singulier : pluriel,
       };
@@ -237,17 +215,17 @@ export const actionDe = (nom: string, args: Readonly<Record<string, unknown>>): 
 
   if (NOMS_SUPPRESSION.has(minuscule)) {
     return {
-      cible: chaine(args, "path") ?? chaine(args, "file"),
+      cible: cheminDe(args),
       delta: null,
       estFichier: true,
-      icone: "✕",
-      pluriel: "Delete files",
-      singulier: "Delete",
+      icone: "delete",
+      pluriel: "Fichiers supprimés",
+      singulier: "Supprimé",
     };
   }
 
   const connu = FAMILLES[minuscule];
-  const chemin = chaine(args, "path") ?? chaine(args, "file");
+  const chemin = cheminDe(args);
   const titre = chaine(args, "title") ?? chaine(args, "description");
   // Une commande se reconnaît à sa première ligne ; une recherche à son motif.
   const commande =
@@ -257,21 +235,28 @@ export const actionDe = (nom: string, args: Readonly<Record<string, unknown>>): 
       ? args["argv"].join(" ")
       : null) ??
     chaine(args, "code");
-  const cible = connu?.famille === "shell" ? (commande?.split("\n")[0] ?? null) : chemin;
+  const motif = chaine(args, "pattern") ?? chaine(args, "query") ?? chaine(args, "url");
 
   if (connu === undefined) {
     return {
-      cible: cible ?? chaine(args, "query") ?? chaine(args, "code")?.split("\n")[0] ?? titre,
+      cible: commande?.split("\n")[0] ?? chemin ?? motif ?? null,
       delta: null,
       estFichier: false,
-      icone: "•",
+      icone: "dot",
       pluriel: "Actions",
-      singulier: "Action",
+      singulier: nom.trim().length > 0 ? nom.trim() : "Action",
     };
   }
 
+  const cible =
+    connu.famille === "shell"
+      ? (commande?.split("\n")[0] ?? null)
+      : connu.famille === "recherche"
+        ? (motif ?? chemin)
+        : (chemin ?? motif);
+
   return {
-    cible: cible ?? chaine(args, "query"),
+    cible,
     delta: deltaDe(minuscule, args),
     estFichier: connu.famille === "edition" || connu.famille === "lecture",
     icone: connu.icone,
@@ -324,8 +309,8 @@ const titreDeGroupe = (ligne: LigneCommande): string | undefined => {
     la même réflexion sans être le même objet, et une comparaison par référence
     la laisserait hors du groupe.
   */
-  if (ligne.action.pluriel === ACTION_REFLEXION.pluriel) return "Thinking";
-  if (estCommande(ligne)) return "Ran commands";
+  if (ligne.action.pluriel === ACTION_REFLEXION.pluriel) return "Réflexion";
+  if (estCommande(ligne)) return "Commandes lancées";
   return undefined;
 };
 
@@ -387,7 +372,7 @@ export const resumeDuGroupe = (noms: ReadonlyArray<string>): string => {
   return (
     ORDRE.filter((famille) => familles.has(famille))
       .map((famille) => {
-        if (famille === "suppression") return "Files deleted";
+        if (famille === "suppression") return "Fichiers supprimés";
         const modele = Object.values(FAMILLES).find((entree) => entree.famille === famille);
         return modele?.pluriel ?? "Actions";
       })
@@ -568,9 +553,9 @@ const ACTION_REFLEXION: Action = {
   cible: null,
   delta: null,
   estFichier: false,
-  icone: "✻",
-  pluriel: "Thinking",
-  singulier: "Thinking",
+  icone: "brain",
+  pluriel: "Réflexion",
+  singulier: "Réflexion",
 };
 
 /**
@@ -625,9 +610,48 @@ export const lignesDeTravail = (
             cible: block.command.split("\n")[0] ?? null,
             delta: null,
             estFichier: false,
-            icone: "🖥",
-            pluriel: "Ran commands",
-            singulier: "Ran",
+            icone: "term",
+            pluriel: "Commandes lancées",
+            singulier: "Lancé",
+          },
+          cle,
+          details: [block],
+          enEchec: false,
+          kind: "action",
+        });
+        continue;
+      }
+      if (block.kind === "subagent") {
+        lignes.push({
+          action: {
+            cible: `${block.mode} · ${String(block.results.length)}`,
+            delta: null,
+            estFichier: false,
+            icone: "brain",
+            pluriel: "Sous-agents",
+            singulier: "Sous-agents",
+          },
+          cle,
+          details: [block],
+          enEchec: block.results.some((resultat) => resultat.errorMessage !== null),
+          kind: "action",
+        });
+        continue;
+      }
+      if (block.kind === "compaction") {
+        // ⚠️ Un résumé de contexte n'est pas un outil, mais c'est un repère : le
+        // perdre ferait croire à un fil continu là où l'agent a oublié le début.
+        lignes.push({
+          action: {
+            cible:
+              block.tokensBefore === null
+                ? null
+                : `${block.tokensBefore.toLocaleString("fr-FR")} jetons avant`,
+            delta: null,
+            estFichier: false,
+            icone: "result",
+            pluriel: "Contexte résumé",
+            singulier: "Contexte résumé",
           },
           cle,
           details: [block],
@@ -664,9 +688,9 @@ export const lignesDeTravail = (
                 cible: block.toolName.length > 0 ? block.toolName : null,
                 delta: null,
                 estFichier: false,
-                icone: "▤",
-                pluriel: "Results",
-                singulier: "Failed result",
+                icone: "result",
+                pluriel: "Résultats",
+                singulier: "Échec",
               },
               cle: `${cle}:echec`,
               details: [block],
@@ -680,7 +704,11 @@ export const lignesDeTravail = (
         // lui, il devient sa propre ligne : ne rien afficher perdrait la
         // sortie.
         const derniere = lignes.at(-1);
-        if (derniere !== undefined && derniere.kind === "action" && derniere.action.icone !== "✻") {
+        if (
+          derniere !== undefined &&
+          derniere.kind === "action" &&
+          derniere.action.icone !== "brain"
+        ) {
           derniere.details.push(block);
           continue;
         }
@@ -689,9 +717,9 @@ export const lignesDeTravail = (
             cible: block.toolName.length > 0 ? block.toolName : null,
             delta: null,
             estFichier: false,
-            icone: "▤",
-            pluriel: "Results",
-            singulier: "Result",
+            icone: "result",
+            pluriel: "Résultats",
+            singulier: "Résultat",
           },
           cle,
           details: [block],
@@ -728,18 +756,18 @@ export const actionDeBloc = (block: Block): Action => {
         cible: block.command.split("\n")[0] ?? null,
         delta: null,
         estFichier: false,
-        icone: "🖥",
-        pluriel: "Ran commands",
-        singulier: "Ran",
+        icone: "term",
+        pluriel: "Commandes lancées",
+        singulier: "Lancé",
       };
     case "toolResult":
       return {
         cible: block.toolName.length > 0 ? block.toolName : null,
         delta: null,
         estFichier: false,
-        icone: "▤",
-        pluriel: "Results",
-        singulier: "Result",
+        icone: "result",
+        pluriel: "Résultats",
+        singulier: "Résultat",
       };
     default:
       // Les blocs qui ne sont pas du travail — texte, image, compaction — ne
@@ -748,7 +776,7 @@ export const actionDeBloc = (block: Block): Action => {
         cible: null,
         delta: null,
         estFichier: false,
-        icone: "•",
+        icone: "dot",
         pluriel: "Actions",
         singulier: "Action",
       };

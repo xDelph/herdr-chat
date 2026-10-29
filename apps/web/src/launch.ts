@@ -17,6 +17,10 @@
  * à un agent qui le refusera.
  */
 import type { AgentModel, ModelCatalog } from "./api.ts";
+import { libelleReflexion } from "./libelles.ts";
+
+/** Libellé lisible d'un niveau de raisonnement (français). */
+export const levelLabel = libelleReflexion;
 
 /** Au-delà, la liste déroulante devient inutilisable à la main. */
 export const MAX_MODELES_AFFICHES = 200;
@@ -46,30 +50,6 @@ export interface LaunchChoice {
 export type VerdictLancement =
   | { readonly envoyable: true; readonly choix: LaunchChoice }
   | { readonly envoyable: false; readonly raison: string };
-
-/** Libellé lisible d'un niveau de raisonnement. */
-export const levelLabel = (level: string): string => {
-  switch (level) {
-    case "off":
-      return "off";
-    case "minimal":
-      return "minimal";
-    case "low":
-      return "low";
-    case "medium":
-      return "medium";
-    case "high":
-      return "high";
-    case "xhigh":
-      return "extra high";
-    case "max":
-      return "maximum";
-    case "ultra":
-      return "ultra";
-    default:
-      return level;
-  }
-};
 
 /**
  * Modèles correspondant à un filtre — **sans toucher à la sélection**.
@@ -139,14 +119,14 @@ export const verifierLancement = ({
     return {
       envoyable: false,
       raison:
-        "Thinking level requires a model because supported levels depend on the selected model.",
+        "Un niveau de réflexion exige un modèle : les niveaux acceptés dépendent du modèle choisi.",
     };
   }
 
   if (catalog === null) {
     return {
       envoyable: false,
-      raison: `unreadable ${kind} catalog: “${model}” cannot be verified.`,
+      raison: `catalogue de ${kind} illisible : « ${model} » ne peut pas être vérifié.`,
     };
   }
 
@@ -157,8 +137,8 @@ export const verifierLancement = ({
       envoyable: false,
       raison:
         nombre === 0
-          ? `no verified model for ${catalog.kind}: “${model}” cannot be confirmed.`
-          : `“${model}” is not among the ${nombre} verified models of ${catalog.kind}.`,
+          ? `aucun modèle vérifié pour ${catalog.kind} : « ${model} » ne peut pas être confirmé.`
+          : `« ${model} » ne fait pas partie des ${nombre} modèles vérifiés de ${catalog.kind}.`,
     };
   }
 
@@ -168,7 +148,7 @@ export const verifierLancement = ({
       envoyable: false,
       raison:
         acceptes.length === 0
-          ? `“${model}” declares no reasoning level.`
+          ? `« ${model} » ne déclare aucun niveau de réflexion.`
           : `« ${thinking} » n'est pas un niveau de « ${model} » (${acceptes.join(", ")}).`,
     };
   }

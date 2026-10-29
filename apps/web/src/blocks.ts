@@ -264,6 +264,62 @@ export const commandTextOf = (args: Readonly<Record<string, unknown>>): string |
   return undefined;
 };
 
+/**
+ * Chemin de fichier d'un appel, **quelle que soit l'orthographe de l'agent**.
+ *
+ * ⚠️ Les arguments arrivent tels que l'agent les a écrits : Pi dit `path`,
+ * Claude `file_path`, opencode `filePath`. Ne lire que `path` laissait toutes les
+ * éditions de Claude et d'opencode sans cible — « Modifié » sur rien.
+ */
+export const cheminDe = (args: Readonly<Record<string, unknown>>): string | null => {
+  for (const cle of ["path", "file_path", "filePath", "file"] as const) {
+    const valeur = args[cle];
+    if (typeof valeur === "string" && valeur.trim().length > 0) return valeur.trim();
+  }
+  return null;
+};
+
+const texteOuVide = (valeur: unknown): string => (typeof valeur === "string" ? valeur : "");
+
+/** Une édition lue dans un objet, sous les trois orthographes connues. */
+const editionDe = (
+  objet: Readonly<Record<string, unknown>>,
+): { readonly oldText: string; readonly newText: string } | null => {
+  const oldText = objet["oldText"] ?? objet["old_string"] ?? objet["oldString"];
+  const newText = objet["newText"] ?? objet["new_string"] ?? objet["newString"];
+  if (oldText === undefined && newText === undefined) return null;
+  return { newText: texteOuVide(newText), oldText: texteOuVide(oldText) };
+};
+
+/**
+ * Les éditions d'un appel `edit`, toutes orthographes confondues.
+ *
+ * Pi range ses éditions dans `edits[]` ; Claude met une édition à plat
+ * (`old_string`/`new_string`) ou plusieurs dans `edits[]` (`MultiEdit`) ;
+ * opencode écrit `oldString`/`newString`. Une forme inconnue ne produit rien —
+ * jamais une édition inventée.
+ */
+export const editionsDe = (
+  args: Readonly<Record<string, unknown>>,
+): ReadonlyArray<{ readonly oldText: string; readonly newText: string }> => {
+  const editions: Array<{ readonly oldText: string; readonly newText: string }> = [];
+  const aPlat = editionDe(args);
+  if (aPlat !== null) editions.push(aPlat);
+  const liste = args["edits"];
+  if (Array.isArray(liste)) {
+    for (const element of liste) {
+      if (typeof element !== "object" || element === null || Array.isArray(element)) continue;
+      const lue = editionDe(
+        Option.getOrUndefined(
+          Schema.decodeUnknownOption(Schema.Record(Schema.String, Schema.Unknown))(element),
+        ) ?? {},
+      );
+      if (lue !== null) editions.push(lue);
+    }
+  }
+  return editions;
+};
+
 /** Découpe un `apply_patch` Codex en changements de fichiers mesurables. */
 export const patchFilesOf = (command: string): ReadonlyArray<PatchFileChange> => {
   if (!command.includes("*** Begin Patch")) return [];
@@ -766,47 +822,90 @@ export const blockToText = (block: Block): string => {
   }
 };
 
+/**
+ * Mémoire du décodage, **par objet d'entrée**.
+ *
+ * ⚠️ **Pourquoi.** Une entrée de session ne change jamais sans changer d'objet :
+ * la fusion par identifiant (`fusionnerEntrees`) garde l'objet d'une ligne
+ * inchangée et pose un nouvel objet pour une ligne réécrite. Décoder une ligne
+ * (un `JSON.parse` et un schéma) n'a donc lieu **qu'une fois par objet**, au lieu
+ * d'une fois par ligne et par delta — la différence entre 2 000 analyses à chaque
+ * événement du flux et une seule.
+ *
+ * Le second cache garde l'identité d'un message enrichi de ses jetons : sans lui,
+ * la fusion des jetons produirait un objet neuf à chaque passage, et la ligne
+ * correspondante se redessinerait pour rien.
+ */
+export interface MemoMessages {
+  readonly parEntree: WeakMap<object, RenderedMessage | null>;
+  readonly jetons: WeakMap<RenderedMessage, Map<string, RenderedMessage>>;
+  readonly usages: WeakMap<object, number | null>;
+}
+
+export const creeMemoMessages = (): MemoMessages => ({
+  jetons: new WeakMap(),
+  parEntree: new WeakMap(),
+  usages: new WeakMap(),
+});
+
+/** Jetons d'un enregistrement d'usage codex, ou `null` s'il est illisible. */
+const jetonsDUsage = (raw: string): number | null => {
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    if (typeof parsed !== "object" || parsed === null) return null;
+    const payload = Reflect.get(parsed, "payload");
+    if (typeof payload !== "object" || payload === null) return null;
+    const turn = Reflect.get(payload, "turn_token_usage");
+    const usage = Reflect.get(payload, "usage");
+    const total =
+      typeof turn === "object" && turn !== null ? Reflect.get(turn, "total_tokens") : undefined;
+    const fallback =
+      typeof usage === "object" && usage !== null ? Reflect.get(usage, "total_tokens") : undefined;
+    const tokens = typeof total === "number" ? total : fallback;
+    return typeof tokens === "number" && tokens > 0 ? tokens : null;
+  } catch {
+    // Un enregistrement d'usage illisible ne doit pas faire perdre le fil.
+    return null;
+  }
+};
+
 /** Transforme les entrées d'une session en messages affichables. */
 export const toMessages = (
   entries: ReadonlyArray<{
     readonly id?: string | undefined;
     readonly raw: string;
+    readonly timestamp?: string | undefined;
     readonly type: string;
   }>,
+  memo: MemoMessages = creeMemoMessages(),
 ): ReadonlyArray<RenderedMessage> =>
   entries.reduce<RenderedMessage[]>((messages, entry) => {
     if (entry.type === "token_usage_record") {
-      try {
-        const parsed: unknown = JSON.parse(entry.raw);
-        if (typeof parsed === "object" && parsed !== null) {
-          const payload = Reflect.get(parsed, "payload");
-          if (typeof payload === "object" && payload !== null) {
-            const turn = Reflect.get(payload, "turn_token_usage");
-            const usage = Reflect.get(payload, "usage");
-            const total =
-              typeof turn === "object" && turn !== null
-                ? Reflect.get(turn, "total_tokens")
-                : undefined;
-            const fallback =
-              typeof usage === "object" && usage !== null
-                ? Reflect.get(usage, "total_tokens")
-                : undefined;
-            const last = messages.at(-1);
-            const tokens = typeof total === "number" ? total : fallback;
-            if (last?.role === "assistant" && typeof tokens === "number" && tokens > 0) {
-              messages[messages.length - 1] = {
-                ...last,
-                meta: { ...last.meta, tokens: String(tokens) },
-              };
-            }
-          }
+      let tokens = memo.usages.get(entry);
+      if (tokens === undefined) {
+        tokens = jetonsDUsage(entry.raw);
+        memo.usages.set(entry, tokens);
+      }
+      const last = messages.at(-1);
+      if (last?.role === "assistant" && tokens !== null) {
+        const cle = String(tokens);
+        const parJeton = memo.jetons.get(last) ?? new Map<string, RenderedMessage>();
+        let enrichi = parJeton.get(cle);
+        if (enrichi === undefined) {
+          enrichi = { ...last, meta: { ...last.meta, tokens: cle } };
+          parJeton.set(cle, enrichi);
+          memo.jetons.set(last, parJeton);
         }
-      } catch {
-        // Un enregistrement d'usage illisible ne doit pas faire perdre le fil.
+        messages[messages.length - 1] = enrichi;
       }
       return messages;
     }
-    const message = toRenderedMessage(entry);
+    let decode = memo.parEntree.get(entry);
+    if (decode === undefined) {
+      decode = toRenderedMessage(entry) ?? null;
+      memo.parEntree.set(entry, decode);
+    }
+    const message = decode ?? undefined;
     if (message !== undefined) {
       // Codex may record the same text in an event and a response item. Keep
       // one copy when adjacent records for the same role match.
@@ -993,7 +1092,39 @@ const calculeItems = (
   // mais `toItems` reste appelé avec lui et un changement de valeur doit
   // recalculer (le statut `working` peut coïncider avec une nouvelle prose).
   _lastTurnInProgress = false,
-): ReadonlyArray<Item> => {
+): ReadonlyArray<Item> => toursDe(messages).flatMap((tour) => itemsDuTour(tour));
+
+/**
+ * Découpe les messages en **tours** : une demande et tout ce qui la suit.
+ *
+ * ⚠️ Les messages qui précèdent la première demande forment leur propre tour
+ * (une page d'historique peut commencer au milieu d'un travail). Le découpage
+ * ne dépend que des rôles : deux appels sur le même tableau donnent les mêmes
+ * tours, ce qui rend le cache par tour (`creeGroupeur`) exact.
+ */
+export const toursDe = (
+  messages: ReadonlyArray<RenderedMessage>,
+): ReadonlyArray<ReadonlyArray<RenderedMessage>> => {
+  const tours: RenderedMessage[][] = [];
+  let courant: RenderedMessage[] = [];
+  for (const message of messages) {
+    if (message.role === "user" && courant.length > 0) {
+      tours.push(courant);
+      courant = [];
+    }
+    courant.push(message);
+  }
+  if (courant.length > 0) tours.push(courant);
+  return tours;
+};
+
+/**
+ * Les éléments d'**un** tour — la règle de découpage, appliquée à un tour seul.
+ *
+ * C'est exactement le calcul historique, restreint à un tour : il ne lit rien en
+ * dehors de lui, et c'est ce qui permet de ne recalculer que le tour qui change.
+ */
+export const itemsDuTour = (messages: ReadonlyArray<RenderedMessage>): ReadonlyArray<Item> => {
   const items: Item[] = [];
   let tour: RenderedMessage[] = [];
 
@@ -1219,36 +1350,23 @@ const calculeFichiers = (messages: ReadonlyArray<RenderedMessage>): ReadonlyArra
         continue;
       }
 
-      const path = block.arguments["path"];
-      if (typeof path !== "string") continue;
-      if (block.name !== "edit" && block.name !== "write") continue;
+      const path = cheminDe(block.arguments);
+      if (path === null) continue;
+      const nom = block.name.toLowerCase();
+      if (nom !== "edit" && nom !== "write" && nom !== "multiedit") continue;
 
       const entry = byPath.get(path) ?? { added: 0, edits: [], removed: 0 };
 
-      if (block.name === "write") {
+      if (nom === "write") {
         // Une écriture complète : tout le contenu est ajouté.
         const content = block.arguments["content"];
         entry.added += typeof content === "string" ? content.split("\n").length : 0;
       }
 
-      const rawEdits = block.arguments["edits"];
-      if (Array.isArray(rawEdits)) {
-        for (const raw of rawEdits) {
-          const decoded = Option.getOrUndefined(
-            Schema.decodeUnknownOption(
-              Schema.Struct({
-                newText: Schema.optional(Schema.String),
-                oldText: Schema.optional(Schema.String),
-              }),
-            )(raw),
-          );
-          if (decoded === undefined) continue;
-          const oldText = decoded.oldText ?? "";
-          const newText = decoded.newText ?? "";
-          entry.edits.push({ newText, oldText });
-          entry.removed += oldText.length === 0 ? 0 : oldText.split("\n").length;
-          entry.added += newText.length === 0 ? 0 : newText.split("\n").length;
-        }
+      for (const { newText, oldText } of editionsDe(block.arguments)) {
+        entry.edits.push({ newText, oldText });
+        entry.removed += oldText.length === 0 ? 0 : oldText.split("\n").length;
+        entry.added += newText.length === 0 ? 0 : newText.split("\n").length;
       }
 
       byPath.set(path, entry);

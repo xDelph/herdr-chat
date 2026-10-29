@@ -16,9 +16,7 @@ const subscriptionRequest = async (body: unknown): Promise<void> => {
   });
   if (!response.ok) {
     const detail = await response.text();
-    throw new Error(
-      detail || `Could not update notification settings (${String(response.status)})`,
-    );
+    throw new Error(detail || `Réglage des notifications refusé (${String(response.status)})`);
   }
 };
 
@@ -36,7 +34,8 @@ export const currentPushSubscription = async (): Promise<PushSubscription | null
 };
 
 export const enablePushNotifications = async (): Promise<void> => {
-  if (!pushSupported) throw new Error("This browser does not support push notifications.");
+  if (!pushSupported)
+    throw new Error("Ce navigateur ne prend pas en charge les notifications push.");
   const permission =
     Notification.permission === "default"
       ? await Notification.requestPermission()
@@ -44,15 +43,15 @@ export const enablePushNotifications = async (): Promise<void> => {
   if (permission !== "granted") {
     throw new Error(
       permission === "denied"
-        ? "Notifications are blocked in browser settings."
-        : "Notification permission was not granted.",
+        ? "Les notifications sont bloquées dans les réglages du navigateur."
+        : "La permission de notifier n'a pas été accordée.",
     );
   }
 
   const registration = await navigator.serviceWorker.getRegistration();
   if (registration === undefined) {
     throw new Error(
-      "No service worker is registered. Install the PWA from the Share menu first, then try again.",
+      "Aucun service worker n'est enregistré. Installez d'abord l'app depuis le menu Partager, puis réessayez.",
     );
   }
 
@@ -66,10 +65,10 @@ export const enablePushNotifications = async (): Promise<void> => {
     cache: "no-store",
   });
   if (!keyResponse.ok) {
-    throw new Error((await keyResponse.text()) || "Could not configure push notifications.");
+    throw new Error((await keyResponse.text()) || "Clé de notification indisponible.");
   }
   const key = (await keyResponse.text()).trim();
-  if (key.length === 0) throw new Error("The push notification key is missing.");
+  if (key.length === 0) throw new Error("La clé de notification est vide.");
 
   const subscription = await registration.pushManager.subscribe({
     applicationServerKey: applicationServerKey(key),
@@ -88,6 +87,8 @@ export const disablePushNotifications = async (): Promise<void> => {
   if (subscription === null) return;
   await subscriptionRequest({ unsubscribe: subscription.endpoint });
   if (!(await subscription.unsubscribe())) {
-    throw new Error("The server subscription was removed, but this browser could not unsubscribe.");
+    throw new Error(
+      "L'abonnement a été retiré du serveur, mais ce navigateur n'a pas pu se désabonner.",
+    );
   }
 };

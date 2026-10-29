@@ -183,12 +183,16 @@ const blocks = (tokens: Tokens.Generic[], keyPrefix: string): ReactNode[] =>
         const items = tokenList(token["items"]);
         const rendered = items.map((item, itemIndex) => (
           <li key={`${stableKey(item, `${key}-${String(itemIndex)}`)}:${String(itemIndex)}`}>
-            {inline(item["tokens"], `${key}-${itemIndex}`)}
-            {item["tokens"] === undefined ? String(item["text"] ?? "") : null}
+            {/* ⚠️ Un élément de liste peut contenir des BLOCS (sous-liste, code) :
+                les rendre en ligne imprimait « - Faire la bascule » en texte brut. */}
+            {item["tokens"] === undefined
+              ? String(item["text"] ?? "")
+              : blocks(tokenList(item["tokens"]), `${key}-${String(itemIndex)}`)}
           </li>
         ));
+        const debut = typeof token["start"] === "number" ? token["start"] : undefined;
         return ordered ? (
-          <ol key={key} className="md-list">
+          <ol key={key} className="md-list" start={debut}>
             {rendered}
           </ol>
         ) : (
@@ -231,6 +235,15 @@ const blocks = (tokens: Tokens.Generic[], keyPrefix: string): ReactNode[] =>
           </div>
         );
       }
+      case "text":
+        // Texte nu d'un élément de liste serrée : en ligne, sans paragraphe.
+        return (
+          <Fragment key={key}>
+            {token["tokens"] === undefined
+              ? String(token["text"] ?? "")
+              : inline(tokenList(token["tokens"]), key)}
+          </Fragment>
+        );
       case "hr":
         return <hr key={key} className="md-hr" />;
       case "space":

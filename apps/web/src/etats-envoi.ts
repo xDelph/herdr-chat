@@ -35,19 +35,19 @@ export const expliquerEchec = (
   switch (etat) {
     case "attente":
       return {
-        texte: `Herdr did not confirm in time — the message may have been sent. ${message}`,
+        texte: `Herdr n'a pas confirmé à temps — le message est peut-être parti. ${message}`,
         // Renvoyer plutôt que retaper : la saisie est encore là, et Herdr
         // ignorera un doublon identique.
-        action: "Retry",
+        action: "Réessayer",
       };
     case "erreur":
       return {
-        texte: `Send rejected — ${message}`,
-        action: "Edit message",
+        texte: `Envoi refusé — ${message}`,
+        action: "Modifier le message",
       };
     case "inconnu":
       return {
-        texte: `No response from Herdr — delivery status unknown. ${message}`,
+        texte: `Aucune réponse d'Herdr — remise inconnue. ${message}`,
         // Aucune action : renvoyer pourrait doubler le message, et c'est
         // précisément ce que l'écran ne peut pas trancher.
         action: null,
@@ -60,7 +60,7 @@ export const expliquerEchec = (
     se voir, pas disparaître en silence.
   */
   return {
-    texte: `Send failed in an unknown state: ${String(etat)}`,
+    texte: `Envoi en échec, état inconnu : ${String(etat)}`,
     action: null,
   };
 };
@@ -74,12 +74,12 @@ export const expliquerEchec = (
  */
 export const expliquerEnvoi = (confirmation: "confirmed" | "unknown"): Explication =>
   confirmation === "confirmed"
-    ? { texte: "Sent and confirmed by Herdr", action: null }
-    : { texte: "Sent, but delivery is unconfirmed", action: null };
+    ? { texte: "Envoyé, remise confirmée par Herdr", action: null }
+    : { texte: "Envoyé, remise non confirmée", action: null };
 
 /** Un double envoi supprimé : un état **normal**, jamais une alerte rouge. */
 export const expliquerSuppression = (raison: string): Explication => ({
-  texte: `Duplicate send prevented — ${raison}`,
+  texte: `Doublon évité — ${raison}`,
   action: null,
 });
 
@@ -104,7 +104,8 @@ export type IssueConfiance = {
  * codex l'étiquette `2. Quit`, claude `No, exit`. « Deny » seul laissait croire
  * à un « non, mais je continue ». Le libellé porte donc la conséquence.
  */
-export const libelleRefus = (kind: string | null): string => `Deny and quit ${kind ?? "the agent"}`;
+export const libelleRefus = (kind: string | null): string =>
+  `Refuser et arrêter ${kind ?? "l'agent"}`;
 
 export const expliquerConfiance = (state: string): IssueConfiance => {
   switch (state) {
@@ -112,7 +113,7 @@ export const expliquerConfiance = (state: string): IssueConfiance => {
       // Seule issue favorable : la permission est écrite, l'agent démarre.
       return {
         resolue: true,
-        texte: "Folder access approved — the agent can start",
+        texte: "Accès au dossier accordé — l'agent peut démarrer",
       };
     case "refusee":
       /*
@@ -125,23 +126,23 @@ export const expliquerConfiance = (state: string): IssueConfiance => {
       */
       return {
         resolue: true,
-        texte: "Folder access denied — nothing was written, and the agent quit",
+        texte: "Accès refusé — rien n'a été écrit, et l'agent s'est arrêté",
       };
     case "transmise":
       return {
         resolue: false,
-        texte: "Decision sent — Herdr has not confirmed it yet.",
+        texte: "Décision transmise — Herdr ne l'a pas encore confirmée.",
       };
     case "inconnu":
       // Le transport n'a rien dit. Ni Herdr n'a dit oui, ni non.
       return {
         resolue: false,
-        texte: "Herdr has not confirmed the decision — status unknown",
+        texte: "Herdr n'a pas confirmé la décision — état inconnu",
       };
     case "non-applicable":
       return {
         resolue: true,
-        texte: "No folder access decision is needed for this agent",
+        texte: "Aucune décision d'accès n'est nécessaire pour cet agent",
       };
     default:
       /*
@@ -151,7 +152,7 @@ export const expliquerConfiance = (state: string): IssueConfiance => {
       */
       return {
         resolue: false,
-        texte: `Folder access decision in an unknown state: ${state}`,
+        texte: `Décision d'accès dans un état inconnu : ${state}`,
       };
   }
 };

@@ -189,7 +189,7 @@ describe("T058 — les états du fil, sans mensonge", () => {
     await souffle();
     const envoi = magasin.liste("w1:p1")[0];
     expect(envoi?.state).toBe("uncertain");
-    expect(envoi?.detail).toContain("did not confirm");
+    expect(envoi?.detail).toContain("pas confirmé");
   });
 
   test("un double supprimé est un succès assumé, pas une erreur", async () => {
@@ -204,7 +204,7 @@ describe("T058 — les états du fil, sans mensonge", () => {
     await souffle();
     const envoi = magasin.liste("w1:p1")[0];
     expect(envoi?.state).toBe("delivered");
-    expect(envoi?.detail).toContain("already confirmed");
+    expect(envoi?.detail).toContain("déjà confirmé");
   });
 
   test("le lanceur qui LÈVE donne un état `inconnu`, jamais un échec", async () => {

@@ -68,7 +68,7 @@ export const decideAffichage = <E>(etat: {
   if (page.reset) {
     return {
       genre: "garde-et-previens",
-      raison: page.cause ?? "the session was reset but nothing could be read from it",
+      raison: page.cause ?? "la session a été réinitialisée mais rien n'a pu y être lu",
     };
   }
   // Une lecture vide **sans** reset : rien de neuf, on ne touche à rien et on ne
@@ -88,4 +88,4 @@ export const gardeLeFilMalgréErreur = (affiches: number): boolean => affiches >
 
 /** Le libellé de l'avertissement, quand la lecture est incomplète. */
 export const mentionLecturePartielle = (raison: string): string =>
-  `Showing the last known messages — the session could not be read (${raison}).`;
+  `Derniers messages connus — la session n'a pas pu être lue (${raison}).`;
