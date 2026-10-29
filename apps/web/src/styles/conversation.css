@@ -147,20 +147,7 @@
   margin-bottom: -14px;
 }
 .fil__el {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 96px;
   min-width: 0;
-}
-/*
-  ⚠️ **Ce qui bouge reste rendu normalement.** WebKit bride le rendu dans un
-  sous-arbre `content-visibility: auto` : le spinner de « x actions en cours »
-  ne tournait qu'à une image sur trois ou quatre, alors que celui de la ligne
-  de travail (hors du fil) tournait bien. L'économie vaut pour l'historique,
-  pas pour l'élément vivant.
-*/
-.fil__el:last-child,
-.fil__el:has(.spin) {
-  content-visibility: visible;
 }
 .fil__el--moi {
   display: flex;
@@ -192,23 +179,31 @@
 .fil__vide p {
   margin: 6px 0 0;
 }
-.fil__nouveaux {
+.fil__bas {
   position: absolute;
   bottom: 12px;
-  left: 50%;
-  transform: translateX(-50%);
+  right: 16px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 6px;
-  min-height: 36px;
-  padding: 0 14px;
+  min-width: 44px;
+  height: 44px;
+  padding: 0 12px;
   border-radius: 999px;
   border: 1px solid var(--line);
   background: var(--surface);
   color: var(--ink);
   font-size: 13px;
   font-weight: 500;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+  box-shadow: 0 6px 20px -10px rgba(0, 0, 0, 0.35);
+  z-index: 2;
+}
+.fil__bas--nouveaux {
+  right: 50%;
+  transform: translateX(50%);
+  border-color: var(--work);
+  color: var(--work);
 }
 .fil__image {
   max-width: 100%;

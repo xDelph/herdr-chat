@@ -15,9 +15,20 @@
  * ⚠️ **Défiler ne touche pas au Mac.** L'ancien fil posait le focus Herdr
  * (`POST /focus`) après un défilement : lire volait le clavier du bureau.
  *
- * ⚠️ **Fils longs.** Chaque élément porte `content-visibility: auto` : le
- * navigateur ne met en page que ce qui est à l'écran, et la mémoïsation par
- * élément fait qu'un delta ne redessine que le tour qui bouge.
+ * ⚠️ **Remonter le fil ne doit pas saccader.** Safari n'ajuste pas la position
+ * de défilement quand le contenu AU-DESSUS change de taille (pas de « scroll
+ * anchoring »). Deux sources de sauts sont donc fermées :
+ *
+ * - plus de `content-visibility: auto` sur les éléments : chaque élément qui
+ *   entrait à l'écran remplaçait sa hauteur estimée (96 px) par la vraie, et
+ *   tout le contenu sautait à chaque message ;
+ * - l'historique ne s'insère pas pendant un défilement : la page plus ancienne
+ *   est demandée quand le défilement s'arrête, et la correction de position se
+ *   mesure à l'insertion (hauteur du dernier rendu, position actuelle) — jamais
+ *   contre l'inertie d'iOS avec une mesure périmée.
+ *
+ * La mémoïsation par élément fait qu'un delta ne redessine que le tour qui bouge
+ * (l'historique est chargé par pages : le DOM reste borné).
  */
 import {
   memo,
@@ -54,6 +65,9 @@ const debutDuJour = (): number => {
   const maintenant = new Date();
   return new Date(maintenant.getFullYear(), maintenant.getMonth(), maintenant.getDate()).getTime();
 };
+
+/** Sans défilement depuis ce délai, l'utilisateur ne fait plus défiler. */
+const REPOS_DEFILEMENT_MS = 160;
 
 /** Pose la dernière demande en haut de la vue. */
 const versDerniereDemande = (conteneur: HTMLElement): void => {
@@ -98,11 +112,14 @@ export const Fil = memo(
     const suitBas = useRef(true);
     const poseFaite = useRef(false);
     const statutVu = useRef<AgentStatus | null>(null);
-    const mesurePrepend = useRef<{ readonly hauteur: number; readonly scroll: number } | null>(
-      null,
-    );
+    // La hauteur du contenu au DERNIER rendu : la base de la correction quand
+    // l'historique s'insère en haut.
+    const hauteurRendue = useRef(0);
+    const dernierDefilement = useRef(0);
+    const relance = useRef<number | undefined>(undefined);
     const enregistrement = useRef<number | undefined>(undefined);
     const [nouveaux, setNouveaux] = useState(false);
+    const [loinDuBas, setLoinDuBas] = useState(false);
     const jour = debutDuJour();
     const dernier = items.at(-1);
 
@@ -161,29 +178,47 @@ export const Fil = memo(
       }
     }, [status]);
 
-    // 5. L'historique ajouté en haut ne fait pas sauter la lecture.
+    // 5. L'historique ajouté en haut ne fait pas sauter la lecture : la vue
+    //    garde le même message sous les yeux. `overflow-anchor: none` sur le
+    //    fil — le navigateur ne corrige rien de lui-même, nous seuls le faisons,
+    //    donc pareil sur Safari et Chrome.
     useLayoutEffect(() => {
       const element = conteneur.current;
-      const mesure = mesurePrepend.current;
-      if (element === null || mesure === null) return;
-      mesurePrepend.current = null;
+      if (element === null || hauteurRendue.current === 0) return;
       element.scrollTop = positionApresPrepend({
         hauteurApres: element.scrollHeight,
-        hauteurAvant: mesure.hauteur,
-        scrollAvant: mesure.scroll,
+        hauteurAvant: hauteurRendue.current,
+        scrollAvant: element.scrollTop,
       });
     }, [vue.ajoutsEnHaut]);
-    useEffect(() => {
-      if (!vue.chargementAncien) mesurePrepend.current = null;
-    }, [vue.chargementAncien]);
+    // Après CHAQUE rendu : la hauteur de référence de la prochaine insertion.
+    useLayoutEffect(() => {
+      const element = conteneur.current;
+      if (element !== null) hauteurRendue.current = element.scrollHeight;
+    });
 
     const chargeAncien = useCallback(() => {
       const element = conteneur.current;
       if (suivi === null || element === null) return;
       if (vue.precedent === null || vue.chargementAncien) return;
-      mesurePrepend.current = { hauteur: element.scrollHeight, scroll: element.scrollTop };
       void suivi.chargePlusAncien();
     }, [suivi, vue.chargementAncien, vue.precedent]);
+
+    // L'historique se demande au repos : insérer une page pendant l'inertie
+    // d'iOS obligeait à corriger la position en plein mouvement — l'à-coup.
+    const demandeAncien = useCallback(() => {
+      if (relance.current !== undefined) window.clearTimeout(relance.current);
+      const essaie = (): void => {
+        const attente = REPOS_DEFILEMENT_MS - (Date.now() - dernierDefilement.current);
+        if (attente <= 0) {
+          relance.current = undefined;
+          chargeAncien();
+          return;
+        }
+        relance.current = window.setTimeout(essaie, attente);
+      };
+      essaie();
+    }, [chargeAncien]);
 
     // 6. Le repère du haut déclenche l'historique.
     useEffect(() => {
@@ -192,17 +227,20 @@ export const Fil = memo(
       if (element === null || repere === null || vue.precedent === null) return undefined;
       const observateur = new IntersectionObserver(
         (entrees) => {
-          if (poseFaite.current && entrees.some((entree) => entree.isIntersecting)) chargeAncien();
+          if (poseFaite.current && entrees.some((entree) => entree.isIntersecting)) {
+            demandeAncien();
+          }
         },
         { root: element, rootMargin: `${String(SEUIL_PREMIERES_LIGNES_PX)}px 0px 0px 0px` },
       );
       observateur.observe(repere);
       return () => observateur.disconnect();
-    }, [chargeAncien, vue.precedent]);
+    }, [demandeAncien, vue.precedent]);
 
     useEffect(
       () => () => {
         if (enregistrement.current !== undefined) window.clearTimeout(enregistrement.current);
+        if (relance.current !== undefined) window.clearTimeout(relance.current);
       },
       [],
     );
@@ -210,7 +248,9 @@ export const Fil = memo(
     const surDefilement = useCallback(() => {
       const element = conteneur.current;
       if (element === null || !poseFaite.current) return;
+      dernierDefilement.current = Date.now();
       suitBas.current = suitLeBas(element);
+      setLoinDuBas(!suitBas.current);
       if (suitBas.current) setNouveaux(false);
       const position = positionAffichee({
         clientHeight: element.clientHeight,
@@ -228,9 +268,10 @@ export const Fil = memo(
     const versLeBas = useCallback(() => {
       const element = conteneur.current;
       if (element === null) return;
-      element.scrollTop = element.scrollHeight;
+      element.scrollTo({ behavior: "smooth", top: element.scrollHeight });
       suitBas.current = true;
       setNouveaux(false);
+      setLoinDuBas(false);
     }, []);
 
     return (
@@ -287,10 +328,22 @@ export const Fil = memo(
             {children}
           </div>
         </div>
-        {nouveaux ? (
-          <button type="button" className="fil__nouveaux" onClick={versLeBas}>
-            Nouveaux messages
-            <Icone nom="down" petite />
+        {/*
+          Le retour aux derniers messages : visible dès qu'on n'est plus en bas
+          (pas seulement quand du neuf arrive) ; il dit « Nouveaux messages »
+          quand il y en a.
+        */}
+        {loinDuBas || nouveaux ? (
+          <button
+            type="button"
+            className={nouveaux ? "fil__bas fil__bas--nouveaux" : "fil__bas"}
+            onClick={versLeBas}
+            aria-label={
+              nouveaux ? "Nouveaux messages — aller en bas" : "Aller aux derniers messages"
+            }
+          >
+            {nouveaux ? <span>Nouveaux messages</span> : null}
+            <Icone nom="down" petite={nouveaux} />
           </button>
         ) : null}
       </div>
