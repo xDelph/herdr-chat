@@ -2377,6 +2377,25 @@
         "title": "OverviewResponse",
         "type": "object"
       },
+      "PresenceRequest": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "La présence d'un appareil (`PresenceRequest`, H23) : l'app est au premier\nplan (`visible: true`) ou vient de le quitter — l'endpoint push nomme\nl'appareil, qui n'est alors pas notifié.",
+        "properties": {
+          "endpoint": {
+            "type": "string"
+          },
+          "visible": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "endpoint",
+          "visible"
+        ],
+        "title": "PresenceRequest",
+        "type": "object"
+      },
       "PromptDelivered": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "description": "La confirmation d'un prompt livré (`event: prompt`, mesuré —\n`{ paneId, confirmation, fingerprint, status }`, la charge étant la\nréponse `PromptSentResponse` complétée du pane).",
@@ -4756,6 +4775,88 @@
               }
             },
             "description": "Réponse 415 — garde partagée des POST (CURRENT.md §2)"
+          }
+        }
+      }
+    },
+    "/api/notifications/presence": {
+      "post": {
+        "operationId": "h23-presence",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "Corps JSON — PresenceRequest",
+              "schema": {
+                "$ref": "#/components/schemas/PresenceRequest"
+              },
+              "x-octets-max": null
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Réponse 204 — sans corps"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 400 — ApiErrorResponse"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 403 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 405 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 413 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 415 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 503 — ApiErrorResponse"
           }
         }
       }

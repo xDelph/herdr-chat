@@ -130,6 +130,10 @@ pub fn routeur(services: Arc<Services>, origines: Vec<String>) -> Router<()> {
             "/api/notifications/subscriptions",
             post(handlers::push::abonnements),
         )
+        .route(
+            "/api/notifications/presence",
+            post(handlers::push::presence),
+        )
         // La garde partagée de TOUTES les mutations : origine, Content-Type,
         // taille déclarée — avant toute action.
         .route_layer(middleware::from_fn_with_state(origines, garde_mutation));

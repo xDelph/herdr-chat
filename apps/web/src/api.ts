@@ -872,6 +872,22 @@ export const answerQuestion = async (
  * présente pas comme fait.
  */
 /**
+ * H23 — l'app est au premier plan sur cet appareil (ou vient de le quitter).
+ * `keepalive` : le départ doit partir même si la page gèle juste après.
+ */
+export const signalePresence = async (endpoint: string, visible: boolean): Promise<void> => {
+  const response = await fetch("/api/notifications/presence", {
+    body: JSON.stringify({ endpoint, visible }),
+    headers: { "content-type": "application/json" },
+    keepalive: true,
+    method: "POST",
+  });
+  if (!response.ok) {
+    throw new Error(erreurDe(await readJson(response), response.status));
+  }
+};
+
+/**
  * H22 — note qu'une conversation a été lue, pour TOUS les appareils. Le démon
  * garde l'instant le plus récent (une lecture ne recule jamais) et ne touche
  * jamais Herdr.

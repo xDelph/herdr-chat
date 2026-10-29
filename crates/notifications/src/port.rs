@@ -9,6 +9,7 @@
 //! - remise acceptée → `Delivered`, sans preuve → `Unknown` (jamais « envoyé »).
 
 use crate::delivery::{ErreurLivraison, LivraisonPush, TTL_LIVRAISON};
+use crate::presence::PresenceAppareils;
 use crate::store::{AbonnementPush, ClefsAbonnement, ErreurStore, GardienDeStore};
 use crate::webpush::LivraisonWebPush;
 use domain::errors::PortError;
@@ -22,6 +23,8 @@ use std::sync::Arc;
 pub struct PortNotifications {
     store: Arc<GardienDeStore>,
     livraison: Arc<dyn LivraisonPush>,
+    /// Les appareils au premier plan (H23) — partagé avec le notifieur.
+    presence: Arc<PresenceAppareils>,
 }
 
 impl PortNotifications {
@@ -32,14 +35,28 @@ impl PortNotifications {
     /// et `deliver` répond `Unknown` avec la cause, jamais un faux succès.
     pub fn nouveau(store: Arc<GardienDeStore>, sujet: String) -> Self {
         let livraison = livraison_reelle(&store, sujet);
-        Self { livraison, store }
+        Self {
+            livraison,
+            store,
+            presence: Arc::new(PresenceAppareils::nouvelle()),
+        }
     }
 
     /// Compose le port avec une livraison injectée — pour les tests, sans
     /// réseau.
     #[must_use]
     pub fn avec_livraison(store: Arc<GardienDeStore>, livraison: Arc<dyn LivraisonPush>) -> Self {
-        Self { livraison, store }
+        Self {
+            livraison,
+            store,
+            presence: Arc::new(PresenceAppareils::nouvelle()),
+        }
+    }
+
+    /// Le registre de présence, à partager avec le notifieur (H23).
+    #[must_use]
+    pub fn presence(&self) -> Arc<PresenceAppareils> {
+        Arc::clone(&self.presence)
     }
 }
 
@@ -124,6 +141,14 @@ impl NotificationPort for PortNotifications {
                 // Un magasin illisible est une PANNE, pas « pas de clé ».
                 Err(erreur) => Err(erreur_de_port(&erreur)),
             }
+        })
+    }
+
+    fn presence(&self, endpoint: String, visible: bool) -> PortFuture<'_, ()> {
+        Box::pin(async move {
+            self.presence
+                .marque(&endpoint, visible, std::time::Instant::now());
+            Ok(())
         })
     }
 

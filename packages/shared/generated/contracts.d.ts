@@ -1,5 +1,5 @@
 // Généré par `cargo xtask contracts export` — ne pas éditer.
-// Source : contracts.schema.json (71 définitions).
+// Source : contracts.schema.json (72 définitions).
 
 /**
  * Un focus appliqué (`AgentFocusedResponse`).
@@ -1589,6 +1589,16 @@ export interface OverviewResponse {
     tabCount: number;
     workspaceId: string;
   }[];
+}
+
+/**
+ * La présence d'un appareil (`PresenceRequest`, H23) : l'app est au premier
+ * plan (`visible: true`) ou vient de le quitter — l'endpoint push nomme
+ * l'appareil, qui n'est alors pas notifié.
+ */
+export interface PresenceRequest {
+  endpoint: string;
+  visible: boolean;
 }
 
 /**

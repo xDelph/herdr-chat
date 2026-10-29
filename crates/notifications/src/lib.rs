@@ -6,6 +6,7 @@ pub mod delivery;
 pub mod notifieur;
 pub mod payload;
 pub mod port;
+pub mod presence;
 pub mod store;
 pub mod vapid;
 pub mod webpush;

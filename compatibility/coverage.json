@@ -460,6 +460,22 @@
       ]
     },
     {
+      "id": "H23",
+      "deliverTasks": [
+        "lot-presence"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests (présence d'un appareil, push écarté)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/push.rs",
+        "crates/notifications/tests/unit/notifieur.rs"
+      ],
+      "unitTests": [
+        "crates/notifications/tests/unit/presence.rs"
+      ]
+    },
+    {
       "id": "D01",
       "deliverTasks": [
         "T005",

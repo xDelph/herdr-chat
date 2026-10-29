@@ -15,6 +15,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app/App.tsx";
 import { reportError } from "./api.ts";
+import { presence } from "./app/services.ts";
 import { ecouteNavigationWorker, reprendNavigation } from "./navigation-worker.ts";
 import {
   lireStyleMarque,
@@ -60,10 +61,17 @@ const repriseAuReveil = () => {
   for (const delai of [400, 1_200]) window.setTimeout(() => void reprend(), delai);
 };
 
+/** La présence de cet appareil suit sa visibilité (H23). */
+const suitPresence = () => void presence.surVisibilite();
+
 if ("serviceWorker" in navigator) {
   // Après un appui sur une notification, le worker peut demander d'ouvrir une
   // conversation : le fragment change, le routage suit (`hashchange`).
   ecouteNavigationWorker(navigator.serviceWorker, vaVers);
+  // Au premier plan, cet appareil n'est pas notifié (H23).
+  suitPresence();
+  document.addEventListener("visibilitychange", suitPresence);
+  window.addEventListener("pagehide", suitPresence);
   repriseAuReveil();
   document.addEventListener("visibilitychange", repriseAuReveil);
   window.addEventListener("pageshow", repriseAuReveil);

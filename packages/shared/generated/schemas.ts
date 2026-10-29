@@ -1,5 +1,5 @@
 // Généré par `cargo xtask contracts export` — ne pas éditer.
-// Source : contracts.schema.json (71 définitions).
+// Source : contracts.schema.json (72 définitions).
 // Schemas Effect : le client décode avec EUX, comme le serveur sérialise avec le contrat.
 import { Schema } from "effect";
 
@@ -493,6 +493,13 @@ export const OverviewResponse = Schema.Struct({
 })),
 });
 export type OverviewResponse = typeof OverviewResponse.Type;
+
+/** La présence d'un appareil (`PresenceRequest`, H23) : l'app est au premier */
+export const PresenceRequest = Schema.Struct({
+  "endpoint": Schema.String,
+  "visible": Schema.Boolean,
+});
+export type PresenceRequest = typeof PresenceRequest.Type;
 
 /** La confirmation d'un prompt livré (`event: prompt`, mesuré — */
 export const PromptDelivered = Schema.Struct({

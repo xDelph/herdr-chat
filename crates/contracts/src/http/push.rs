@@ -10,6 +10,16 @@ pub struct UnsubscribeRequest {
     pub unsubscribe: String,
 }
 
+/// La présence d'un appareil (`PresenceRequest`, H23) : l'app est au premier
+/// plan (`visible: true`) ou vient de le quitter — l'endpoint push nomme
+/// l'appareil, qui n'est alors pas notifié.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct PresenceRequest {
+    pub endpoint: String,
+    pub visible: bool,
+}
+
 /// Les deux clefs d'identité d'un abonnement (inline mesuré) — `auth` puis
 /// `p256dh`, orthographe exacte du fil.
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]

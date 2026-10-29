@@ -49,6 +49,8 @@ struct Interieur {
     abonnes: Vec<String>,
     /// Les désabonnements reçus, dans l'ordre.
     desabonnes: Vec<String>,
+    /// Les présences reçues (endpoint, visible), dans l'ordre (H23).
+    presences: Vec<(String, bool)>,
     /// La panne d'écriture du magasin d'abonnements (abonner/désabonner).
     abonnement_panne: Option<PortError>,
 }
@@ -112,6 +114,16 @@ impl PuitsPushFaux {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .abonnes
+            .clone()
+    }
+
+    /// Les présences reçues (endpoint, visible), dans l'ordre d'arrivée.
+    #[must_use]
+    pub fn presences(&self) -> Vec<(String, bool)> {
+        self.interieur
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .presences
             .clone()
     }
 
@@ -179,6 +191,17 @@ impl NotificationPort for PuitsPushFaux {
                 return Err(panne.clone());
             }
             interieur.abonnes.push(subscription.endpoint);
+            Ok(())
+        })
+    }
+
+    fn presence(&self, endpoint: String, visible: bool) -> PortFuture<'_, ()> {
+        Box::pin(async move {
+            self.interieur
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .presences
+                .push((endpoint, visible));
             Ok(())
         })
     }

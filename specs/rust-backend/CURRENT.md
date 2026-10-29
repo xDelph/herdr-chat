@@ -21,7 +21,7 @@ No TLS server, account system, public deployment mode, background job service, o
 
 ## 2. HTTP surface: all 18 registered paths
 
-> Démon Rust : 22 routes (H19–H22 ajoutées) et quelques statuts corrigés — voir [§9](#9-écarts-du-démon-rust-état-au-2026-10-29). Le tableau ci-dessous reste la photographie du fil TS.
+> Démon Rust : 23 routes (H19–H23 ajoutées) et quelques statuts corrigés — voir [§9](#9-écarts-du-démon-rust-état-au-2026-10-29). Le tableau ci-dessous reste la photographie du fil TS.
 
 `Api.ts` returns the authoritative route table. The table below gives intended methods. All eight mutation handlers explicitly reject non-POST methods with 405 and `Allow: POST`. The ten read handlers do not enforce GET themselves: Bun's route map binds them by path, without a method map. There is no public raw terminal, arbitrary shell, model-update, workspace-create, session-write, or agent-delete endpoint. Model/thinking changes during a session use the ordinary prompt pathway from the webapp.
 
@@ -356,6 +356,7 @@ Les sections 1 à 8 photographient le fil TS (commit de base). Cette section dit
 | H20 | GET `/api/agents/:paneId/taches` | aucune | 200 `BackgroundTasksResponse` `{paneId, supported, tasks[]}` — `supported:false` = capacité absente (famille sans tâches de fond), jamais une liste vide inventée | 404 pane inconnu ou sans session ; 502 lecture en panne |
 | H21 | GET `/api/agents/:paneId/taches/:id/session` | `tail?`, `cursor?`, `before?` comme H04 | 200 `SessionResponse` de la transcription de la tâche | 404 tâche inconnue ou sans transcription ; 403 chemin de transcription hors des racines ; 422 résultat invalide ; autres statuts comme H04 |
 | H22 | POST `/api/agents/:paneId/read` | `MarkReadRequest` `{at: number}` (ms epoch) | 200 `MarkReadResponse` `{paneId, readAt}` — `readAt` ne recule jamais (une lecture plus ancienne rend la connue) ; la lecture est partagée entre tous les appareils, persistée dans `HERDR_REMOTE_READS_STORE` (défaut : `reads.json` à côté du magasin push) ; ne touche jamais Herdr | 400 corps invalide ; gardes POST partagées ; une panne de persistance est journalisée (`warn`), la lecture vaut en mémoire |
+| H23 | POST `/api/notifications/presence` | `PresenceRequest` `{endpoint: string, visible: boolean}` | 204 sans corps — l'appareil (son endpoint push) a l'app au premier plan : il n'est pas notifié tant que sa présence vit (battement 10 s, oubli à 25 s, départ explicite `visible:false`) ; les autres appareils le sont toujours | 400 corps invalide ; 503 Web Push absent ; gardes POST partagées |
 
 `BackgroundTask` : `id`, `kind` (`agent` \| `commande`), `status` (`en_cours` \| `terminee` \| `echouee` \| `arretee` \| `inconnu` — sans fin écrite ni activité depuis 30 min, une tâche est `inconnu`, jamais `en_cours`), `transcript` (booléen), et, quand la source les porte : `description`, `agentType`, `startedAt`, `endedAt`, `lastActivity`, `summary`.
 

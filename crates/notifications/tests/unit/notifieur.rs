@@ -137,3 +137,48 @@ async fn un_store_illisible_est_une_cause_nommee() {
         Err(ErreurNotification::Store(_))
     ));
 }
+
+/// H23 — l'appareil où l'app est au premier plan n'est pas notifié ; les
+/// autres le sont toujours. Retour du 2026-10-29 : « je suis dans l'app, et je
+/// reçois quand même la notif ».
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn l_appareil_au_premier_plan_n_est_pas_notifie() {
+    use notifications::presence::PresenceAppareils;
+    let service = Arc::new(FauxService::default());
+    let gardien = store();
+    for endpoint in [
+        "https://push.example/telephone",
+        "https://push.example/ipad",
+    ] {
+        gardien
+            .abonne(&abonnement(endpoint))
+            .unwrap_or_else(|erreur| panic!("abonnement : {erreur:?}"));
+    }
+    let presence = Arc::new(PresenceAppareils::nouvelle());
+    presence.marque(
+        "https://push.example/telephone",
+        true,
+        std::time::Instant::now(),
+    );
+    let notifieur =
+        Notifieur::nouveau(service.clone(), gardien).avec_presence(Arc::clone(&presence));
+    let payload = payload_de_notification("pixel", Some("w1:p1"), StatutDeFin::Fini);
+    assert_eq!(notifieur.notifie(&payload).ok(), Some(1));
+    service.attend(1).await;
+    assert_eq!(
+        service
+            .envois()
+            .into_iter()
+            .map(|(endpoint, _)| endpoint)
+            .collect::<Vec<_>>(),
+        vec![String::from("https://push.example/ipad")]
+    );
+
+    // Il quitte l'app : il est de nouveau notifié.
+    presence.marque(
+        "https://push.example/telephone",
+        false,
+        std::time::Instant::now(),
+    );
+    assert_eq!(notifieur.notifie(&payload).ok(), Some(2));
+}

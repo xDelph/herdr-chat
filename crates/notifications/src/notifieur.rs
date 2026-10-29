@@ -15,6 +15,7 @@
 
 use crate::delivery::{LivraisonPush, Livreur, RefusFile, TravailLivraison};
 use crate::payload::PayloadNotification;
+use crate::presence::PresenceAppareils;
 use crate::store::{ErreurStore, GardienDeStore};
 use std::sync::Arc;
 
@@ -57,6 +58,8 @@ pub fn texte_de_notification(payload: &PayloadNotification) -> String {
 pub struct Notifieur {
     store: Arc<GardienDeStore>,
     livreur: Livreur,
+    /// Les appareils au premier plan : ils ne sont pas notifiés (H23).
+    presence: Arc<PresenceAppareils>,
 }
 
 impl Notifieur {
@@ -67,23 +70,45 @@ impl Notifieur {
     #[must_use]
     pub fn nouveau(livraison: Arc<dyn LivraisonPush>, store: Arc<GardienDeStore>) -> Self {
         let livreur = Livreur::nouveau(livraison, Arc::clone(&store));
-        Self { store, livreur }
+        Self {
+            store,
+            livreur,
+            presence: Arc::new(PresenceAppareils::nouvelle()),
+        }
     }
 
     /// Le notifieur sur un livreur déjà composé (délai raccourci des tests).
     #[must_use]
     pub fn avec_livreur(livreur: Livreur, store: Arc<GardienDeStore>) -> Self {
-        Self { store, livreur }
+        Self {
+            store,
+            livreur,
+            presence: Arc::new(PresenceAppareils::nouvelle()),
+        }
     }
 
-    /// Enfile la notification vers TOUS les abonnements courants — rend le
-    /// nombre d'abonnements visés (0 : personne n'est abonné, rien n'est
-    /// enfilé). Ne bloque jamais sur le réseau.
+    /// Partage le registre de présence du port (H23) : l'appareil où l'app
+    /// est au premier plan n'est pas notifié.
+    #[must_use]
+    pub fn avec_presence(mut self, presence: Arc<PresenceAppareils>) -> Self {
+        self.presence = presence;
+        self
+    }
+
+    /// Enfile la notification vers les abonnements courants, sauf les
+    /// appareils où l'app est au premier plan — rend le nombre d'abonnements
+    /// visés (0 : personne à prévenir, rien n'est enfilé). Ne bloque jamais
+    /// sur le réseau.
     pub fn notifie(&self, payload: &PayloadNotification) -> Result<usize, ErreurNotification> {
-        let abonnements = self
+        let maintenant = std::time::Instant::now();
+        let abonnements: Vec<_> = self
             .store
             .abonnements()
-            .map_err(ErreurNotification::Store)?;
+            .map_err(ErreurNotification::Store)?
+            .into_iter()
+            // L'appareil qui regarde déjà l'app n'a pas besoin d'être prévenu.
+            .filter(|abonnement| !self.presence.est_present(&abonnement.endpoint, maintenant))
+            .collect();
         if abonnements.is_empty() {
             return Ok(0);
         }

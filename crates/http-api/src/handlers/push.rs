@@ -16,7 +16,9 @@ use crate::corps::CorpsBorne;
 use crate::services::Services;
 use axum::http::header::{CACHE_CONTROL, CONTENT_TYPE};
 use axum::response::IntoResponse;
-use contracts::http::push::{PushBody, SubscribeRequest, UnsubscribeRequest, endpoint_en_https};
+use contracts::http::push::{
+    PresenceRequest, PushBody, SubscribeRequest, UnsubscribeRequest, endpoint_en_https,
+};
 use contracts::registry::RouteId;
 use domain::errors::ErreurDomaine;
 use domain::errors::PortError;
@@ -123,6 +125,37 @@ pub async fn abonnements(
                 ),
             }
         }
+    }
+}
+
+/// `POST /api/notifications/presence` (H23) — l'app est au premier plan sur
+/// cet appareil (ou vient de le quitter) : il n'est pas notifié tant qu'il
+/// est là. Les autres appareils le sont toujours.
+pub async fn presence(
+    axum::extract::State(services): axum::extract::State<Arc<Services>>,
+    corps: CorpsBorne,
+) -> axum::response::Response {
+    let Some(port) = services.notifications.as_ref() else {
+        return (
+            axum::http::StatusCode::SERVICE_UNAVAILABLE,
+            axum::Json(serde_json::json!({ "error": "Web Push is unavailable" })),
+        )
+            .into_response();
+    };
+    let Ok(PresenceRequest { endpoint, visible }) =
+        serde_json::from_slice::<PresenceRequest>(&corps.octets)
+    else {
+        return (
+            axum::http::StatusCode::BAD_REQUEST,
+            axum::Json(serde_json::json!({
+                "error": "invalid body: `endpoint` (string) and `visible` (boolean) required"
+            })),
+        )
+            .into_response();
+    };
+    match port.presence(endpoint, visible).await {
+        Ok(()) => acquittement(),
+        Err(cause) => repondre_panne(RouteId::Presence, "Could not record presence", &cause),
     }
 }
 

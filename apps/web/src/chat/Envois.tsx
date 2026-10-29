@@ -120,11 +120,17 @@ export const Envois = memo(
                     {renvoi}
                   </button>
                 )}
-                {envoi.state === "suppressed" ? (
+                {/*
+                  ⚠️ Toute bulle qui n'est plus en cours se ferme (retour du
+                  2026-10-29) : une réponse tapée dans une invite n'apparaît
+                  jamais dans la session comme une demande, et « Delivery not
+                  confirmed » restait collé en bas de l'écran, sans issue.
+                */}
+                {envoi.state === "queued" || envoi.state === "sending" ? null : (
                   <button type="button" onClick={() => envois.oublie(envoi.id)}>
                     Dismiss
                   </button>
-                ) : null}
+                )}
                 {envoi.state === "failed" || envoi.state === "suppressed" ? (
                   <button
                     type="button"

@@ -15,6 +15,7 @@ import {
   fetchOverview,
   markRead,
   openEventStream,
+  signalePresence,
   reportError,
   sendPrompt,
 } from "../api.ts";
@@ -25,6 +26,7 @@ import { creeJournal } from "../journal.ts";
 import { creeMagasinNotifications } from "../notifications-ecran.ts";
 import { creeMagasinPleinEcran } from "../plein-ecran.ts";
 import { creeMagasinVersion } from "../nouvelle-version.ts";
+import { creePresence } from "../presence.ts";
 import type { SourceDEvenements } from "../flux-session.ts";
 
 const planifie = (action: () => void, delai: number): (() => void) => {
@@ -139,3 +141,23 @@ const partage = async (paneId: string, instant: number): Promise<void> => {
 export const partageLecture = (paneId: string, instant: number): void => {
   void partage(paneId, instant);
 };
+
+/**
+ * La présence de cet appareil (H23) : au premier plan, il n'est pas notifié.
+ * Sans worker ou sans abonnement push, l'endpoint est `null` : rien ne part.
+ */
+export const presence = creePresence({
+  endpoint: async () => {
+    if (!("serviceWorker" in navigator)) return null;
+    const enregistrement = await navigator.serviceWorker.getRegistration();
+    const abonnement = await enregistrement?.pushManager.getSubscription();
+    return abonnement?.endpoint ?? null;
+  },
+  envoie: signalePresence,
+  repete: (action, intervalle) => {
+    const minuterie = window.setInterval(action, intervalle);
+    return () => window.clearInterval(minuterie);
+  },
+  signale: (cause) => journal("presence not sent", { message: cause }),
+  visible: () => document.visibilityState === "visible",
+});

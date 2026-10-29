@@ -125,6 +125,15 @@ describe("un envoi non confirmé n'est jamais affiché comme envoyé", () => {
     expect(html).toContain("may arrive twice");
   });
 
+  test("toute bulle réglée se ferme — jamais collée en bas de l'écran", () => {
+    for (const state of ["uncertain", "failed", "delivered", "suppressed"] as const) {
+      expect(envois([envoi({ failureState: null, state })])).toContain(">Dismiss<");
+    }
+    for (const state of ["queued", "sending"] as const) {
+      expect(envois([envoi({ failureState: null, state })])).not.toContain(">Dismiss<");
+    }
+  });
+
   test("envoyé sans confirmation : le renvoi dit aussi le doublon possible", () => {
     const html = envois([envoi({ failureState: null, state: "uncertain" })]);
     expect(html).toContain("Send again (may arrive twice)");

@@ -1,4 +1,4 @@
-//! Le registre typé des **22 routes** — le manifeste unique (TECH §5).
+//! Le registre typé des **23 routes** — le manifeste unique (TECH §5).
 //!
 //! ⚠️ **Ni table à la main dans le routeur, ni table à la main dans
 //! l'export.** Le routeur (T050+) s'enregistre depuis ici, l'export OpenAPI
@@ -30,7 +30,7 @@ pub enum Politique {
     Mutation,
 }
 
-/// Les 22 routes, nommées — l'ordre du manifeste suit H01…H22.
+/// Les 23 routes, nommées — l'ordre du manifeste suit H01…H23.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum RouteId {
@@ -80,6 +80,9 @@ pub enum RouteId {
     /// H22 — `POST /api/agents/{paneId}/read` (lecture partagée entre les
     /// appareils).
     Lecture,
+    /// H23 — `POST /api/notifications/presence` (l'app au premier plan sur
+    /// un appareil : il n'est pas notifié).
+    Presence,
 }
 
 /// La forme d'une réponse — le Content-Type est un fait du manifeste, pas
@@ -193,9 +196,9 @@ const fn json(statut: u16, schema: &'static str) -> Variante {
     }
 }
 
-/// Le manifeste complet — 22 entrées, dans l'ordre H01…H22, formes et
+/// Le manifeste complet — 23 entrées, dans l'ordre H01…H23, formes et
 /// statuts exacts de CURRENT.md §2.
-pub const ROUTES: [Route; 22] = [
+pub const ROUTES: [Route; 23] = [
     Route {
         id: RouteId::Sante,
         methode: Methode::Get,
@@ -652,6 +655,29 @@ pub const ROUTES: [Route; 22] = [
             }),
         },
         variantes: &[json(200, "MarkReadResponse"), json(400, "ApiErrorResponse")],
+    },
+    Route {
+        id: RouteId::Presence,
+        methode: Methode::Post,
+        chemin: "/api/notifications/presence",
+        politique: Politique::Mutation,
+        entree: Entree {
+            chemin: &[],
+            requete: &[],
+            entete: &[],
+            corps: Some(Corps::Json {
+                schema: "PresenceRequest",
+                octets_max: None,
+            }),
+        },
+        variantes: &[
+            Variante {
+                statut: 204,
+                forme: Forme::Vide,
+            },
+            json(400, "ApiErrorResponse"),
+            json(503, "ApiErrorResponse"),
+        ],
     },
 ];
 

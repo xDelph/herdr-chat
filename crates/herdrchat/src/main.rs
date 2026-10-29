@@ -102,10 +102,12 @@ async fn demarre(config: &Config) -> Result<(), String> {
         Arc::clone(&store_push),
         Arc::clone(&livraison),
     ));
-    let notifieur = Arc::new(notifications::notifieur::Notifieur::nouveau(
-        livraison,
-        Arc::clone(&store_push),
-    ));
+    // La présence (H23) : le port l'enregistre, le notifieur l'écarte — le
+    // MÊME registre, sinon l'appareil au premier plan serait encore notifié.
+    let notifieur = Arc::new(
+        notifications::notifieur::Notifieur::nouveau(livraison, Arc::clone(&store_push))
+            .avec_presence(notifications.presence()),
+    );
     // 5) Les sessions : les racines de la configuration, lues par les
     //    lecteurs par famille.
     let port_sessions: Arc<dyn application::ports::SessionPort> = Arc::new(

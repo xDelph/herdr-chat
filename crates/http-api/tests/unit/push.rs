@@ -268,3 +268,71 @@ async fn abonnement_500_ecriture_ratee() {
         "{message}"
     );
 }
+
+/// H23 — la présence d'un appareil est notée, 204 sans corps.
+#[tokio::test(flavor = "multi_thread")]
+async fn presence_204_notee() {
+    let (partage, puits) = puits();
+    let services = services_retouches(HerdrFaux::nouveau(), move |services| {
+        services.notifications = Some(partage);
+    });
+    for visible in [true, false] {
+        let corps = json!({ "endpoint": "https://push.example/ep-1", "visible": visible })
+            .to_string()
+            .into_bytes();
+        let (statut, reponse) = envoie_post(
+            routeur(services.clone(), vec![]),
+            "/api/notifications/presence",
+            corps,
+        )
+        .await;
+        assert_eq!(statut, StatusCode::NO_CONTENT);
+        assert_eq!(reponse, serde_json::Value::Null);
+    }
+    assert_eq!(
+        puits.presences(),
+        vec![
+            (String::from("https://push.example/ep-1"), true),
+            (String::from("https://push.example/ep-1"), false),
+        ]
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn presence_400_corps_invalide() {
+    let (partage, puits) = puits();
+    let services = services_retouches(HerdrFaux::nouveau(), move |services| {
+        services.notifications = Some(partage);
+    });
+    let (statut, reponse) = envoie_post(
+        routeur(services, vec![]),
+        "/api/notifications/presence",
+        json!({ "endpoint": "https://push.example/ep-1" })
+            .to_string()
+            .into_bytes(),
+    )
+    .await;
+    assert_eq!(statut, StatusCode::BAD_REQUEST);
+    assert!(
+        reponse["error"]
+            .as_str()
+            .is_some_and(|message| message.contains("`visible`")),
+        "{reponse}"
+    );
+    assert!(puits.presences().is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn presence_503_sans_service() {
+    let (services, _) = services(HerdrFaux::nouveau(), Default::default(), Default::default());
+    let (statut, reponse) = envoie_post(
+        routeur(services, vec![]),
+        "/api/notifications/presence",
+        json!({ "endpoint": "https://push.example/ep-1", "visible": true })
+            .to_string()
+            .into_bytes(),
+    )
+    .await;
+    assert_eq!(statut, StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(reponse["error"], "Web Push is unavailable");
+}

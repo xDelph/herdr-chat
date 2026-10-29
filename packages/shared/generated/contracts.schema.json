@@ -2376,6 +2376,25 @@
       "title": "OverviewResponse",
       "type": "object"
     },
+    "PresenceRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "La présence d'un appareil (`PresenceRequest`, H23) : l'app est au premier\nplan (`visible: true`) ou vient de le quitter — l'endpoint push nomme\nl'appareil, qui n'est alors pas notifié.",
+      "properties": {
+        "endpoint": {
+          "type": "string"
+        },
+        "visible": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "endpoint",
+        "visible"
+      ],
+      "title": "PresenceRequest",
+      "type": "object"
+    },
     "PromptDelivered": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",
       "description": "La confirmation d'un prompt livré (`event: prompt`, mesuré —\n`{ paneId, confirmation, fingerprint, status }`, la charge étant la\nréponse `PromptSentResponse` complétée du pane).",

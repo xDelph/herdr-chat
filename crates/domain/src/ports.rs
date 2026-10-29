@@ -312,6 +312,9 @@ pub trait NotificationPort: Send + Sync {
     fn subscribe(&self, subscription: BrowserSubscription) -> PortFuture<'_, ()>;
     /// Retire un abonnement par endpoint — sans effet s'il est inconnu.
     fn unsubscribe(&self, endpoint: String) -> PortFuture<'_, ()>;
+    /// Note qu'un appareil (son endpoint) a l'app au premier plan, ou l'a
+    /// quittée (H23) : un appareil présent n'est pas notifié.
+    fn presence(&self, endpoint: String, visible: bool) -> PortFuture<'_, ()>;
     /// Remet un payload à un abonnement navigateur. `Ok` = accepté par le
     /// service push ; toute incertitude passe par [`DeliveryOutcome::Unknown`]
     /// — jamais « envoyé » sans preuve (A02).

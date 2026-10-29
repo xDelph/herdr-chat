@@ -4,6 +4,7 @@ pub(crate) mod delivery;
 pub(crate) mod notifieur;
 pub(crate) mod payload;
 pub(crate) mod port;
+pub(crate) mod presence;
 pub(crate) mod store;
 pub(crate) mod vapid;
 pub(crate) mod webpush;

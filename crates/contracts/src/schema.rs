@@ -240,6 +240,10 @@ pub fn definitions() -> Vec<(&'static str, Value)> {
             "UnsubscribeRequest",
             schema_de::<crate::http::push::UnsubscribeRequest>(),
         ),
+        (
+            "PresenceRequest",
+            schema_de::<crate::http::push::PresenceRequest>(),
+        ),
         ("PushBody", schema_de::<crate::http::push::PushBody>()),
         (
             "SubscriptionKeys",
