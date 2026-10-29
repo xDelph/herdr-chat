@@ -15,7 +15,7 @@ import { stockageNavigateur } from "../memoire-defilement.ts";
 import { lireGroupement, retenirGroupement, type Groupement } from "../preferences.ts";
 import { retiens } from "../pane-ouvert.ts";
 import { estAdresseDOnglet, HOME } from "../routing.ts";
-import { useDonnees, useHauteurVisible, useRoute } from "./hooks.ts";
+import { useDonnees, useEtroit, useHauteurVisible, useRoute } from "./hooks.ts";
 import { Notifications } from "../ui/Notifications.tsx";
 import { PleinEcran } from "../ui/PleinEcran.tsx";
 import { envois, magasin } from "./services.ts";
@@ -48,6 +48,7 @@ export const App = () => {
   useHauteurVisible();
   const donnees = useDonnees();
   const [route, navigue] = useRoute();
+  const etroit = useEtroit();
   const [groupement, setGroupement] = useState<Groupement>(lireGroupement);
   const [lectures, setLectures] = useState<Lectures>(() => litLectures(stockageNavigateur()));
   const [feuille, setFeuille] = useState<FeuilleApp>(null);
@@ -157,7 +158,9 @@ export const App = () => {
         onGroupement={changeGroupement}
         onLancer={() => setFeuille({ genre: "lancement" })}
         onReglages={() => setFeuille({ genre: "reglages" })}
+        onReessayer={() => void magasin.rafraichit()}
         paneCourant={paneOuvert}
+        cachee={etroit && paneOuvert !== null}
       />
       {paneOuvert === null ? (
         <div className="vide-large">

@@ -14,11 +14,13 @@ import {
   fetchHealth,
   fetchOverview,
   openEventStream,
+  reportError,
   sendPrompt,
 } from "../api.ts";
 import { creeActionsLocales } from "../actions-locales.ts";
 import { creeMagasinDonnees } from "../donnees.ts";
-import { creeMagasinEnvois, planificateurReel } from "../envois.ts";
+import { creeMagasinEnvois, planificateurReel, type Lanceur } from "../envois.ts";
+import { creeJournal } from "../journal.ts";
 import { creeMagasinNotifications } from "../notifications-ecran.ts";
 import { creeMagasinPleinEcran } from "../plein-ecran.ts";
 import type { SourceDEvenements } from "../flux-session.ts";
@@ -27,6 +29,9 @@ const planifie = (action: () => void, delai: number): (() => void) => {
   const minuterie = window.setTimeout(action, delai);
   return () => window.clearTimeout(minuterie);
 };
+
+/** Les pannes vues ici partent au journal du démon — une fois par fenêtre. */
+export const journal = creeJournal(reportError);
 
 export const magasin = creeMagasinDonnees({
   lectures: {
@@ -38,10 +43,28 @@ export const magasin = creeMagasinDonnees({
   maintenant: () => Date.now(),
   ouvreEvenements: openEventStream,
   planifie,
+  signale: journal,
   visible: () => document.visibilityState === "visible",
 });
 
-export const envois = creeMagasinEnvois((pane, text) => sendPrompt(pane, text), planificateurReel);
+/** L'envoi réel — un échec part au journal (sans le texte : c'est du contenu). */
+const lanceur: Lanceur = async (pane, text) => {
+  try {
+    const resultat = await sendPrompt(pane, text);
+    if (resultat.kind === "failed") {
+      journal("envoi en échec", { message: resultat.message, pane, state: resultat.state });
+    }
+    return resultat;
+  } catch (cause) {
+    journal("envoi en échec", {
+      message: cause instanceof Error ? cause.message : String(cause),
+      pane,
+    });
+    throw cause;
+  }
+};
+
+export const envois = creeMagasinEnvois(lanceur, planificateurReel);
 
 export const actions = creeActionsLocales();
 

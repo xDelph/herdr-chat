@@ -16,3 +16,49 @@
   font-size: 11px;
   color: var(--ink-3);
 }
+
+/* La connexion dans la conversation : compacte, sous l'en-tête. */
+.bandeau-connexion {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 0;
+  padding: 6px 16px;
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+}
+.bandeau-connexion .spin {
+  width: 10px;
+  height: 10px;
+  vertical-align: -1px;
+}
+.bandeau-connexion--hors-ligne {
+  color: var(--attn);
+  background: var(--attn-fill);
+}
+.bandeau-connexion__action {
+  flex: none;
+  padding: 4px 0;
+  font-size: 12px;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+/* Grand écran : la liste et son indicateur restent visibles. */
+@media (min-width: 900px) {
+  .bandeau-connexion {
+    display: none;
+  }
+}
+
+/* « Réessayer » dans un avis de la liste. */
+.lien--avis {
+  padding: 2px 0;
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}

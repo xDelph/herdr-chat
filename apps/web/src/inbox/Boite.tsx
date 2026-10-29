@@ -10,7 +10,8 @@
  */
 import { memo, useDeferredValue, useMemo, useState } from "react";
 import type { ConversationSummary } from "@herdr-remote/shared";
-import { useMaintenant } from "../app/hooks.ts";
+import { useEnLigne, useMaintenant } from "../app/hooks.ts";
+import { etatConnexion, LIBELLE_CONNEXION } from "../connexion.ts";
 import type { EtatDonnees } from "../donnees.ts";
 import { etatLecture, FENETRE_DEMARRAGE_MS, heureLue } from "../etats.ts";
 import { estNonLue, type Lectures } from "../lectures.ts";
@@ -40,27 +41,37 @@ const botteDe = (conversation: ConversationSummary, projet: string): string =>
     .toLowerCase();
 
 const Direct = memo(
-  ({ donnees, maintenant }: { readonly donnees: EtatDonnees; readonly maintenant: number }) => {
-    const etat = etatLecture({
-      chargement: donnees.chargement,
-      depuisOuverture: maintenant - OUVERTURE,
+  ({
+    donnees,
+    maintenant,
+    enLigne,
+  }: {
+    readonly donnees: EtatDonnees;
+    readonly maintenant: number;
+    readonly enLigne: boolean;
+  }) => {
+    const etat = etatConnexion({
       dernierSucces: donnees.dernierSucces,
+      depuisOuverture: maintenant - OUVERTURE,
+      direct: donnees.direct,
+      enLigne,
       erreur: donnees.erreurs.conversations,
-      live: donnees.direct === "live",
-      total: donnees.conversations?.length ?? 0,
     });
-    if (etat.phase === "pret" || (etat.phase === "vide" && donnees.direct === "live")) {
+    if (etat.phase === "direct") {
       return (
         <span className="direct">
           <span className="point" aria-hidden="true" />
-          En direct
+          {LIBELLE_CONNEXION.direct}
         </span>
       );
     }
-    if (etat.phase === "hors-ligne" || etat.phase === "erreur") {
-      return <span className="direct direct--coupe">Hors ligne</span>;
-    }
-    return <span className="direct direct--attente">Connexion…</span>;
+    return (
+      <span
+        className={etat.phase === "hors-ligne" ? "direct direct--coupe" : "direct direct--attente"}
+      >
+        {LIBELLE_CONNEXION[etat.phase]}
+      </span>
+    );
   },
 );
 Direct.displayName = "Direct";
@@ -72,7 +83,9 @@ export const Boite = ({
   onGroupement,
   onLancer,
   onReglages,
+  onReessayer,
   paneCourant,
+  cachee = false,
 }: {
   readonly donnees: EtatDonnees;
   readonly lectures: Lectures;
@@ -80,7 +93,14 @@ export const Boite = ({
   readonly onGroupement: (suivant: Groupement) => void;
   readonly onLancer: () => void;
   readonly onReglages: () => void;
+  /** Relire tout de suite (liste en erreur ou hors ligne). */
+  readonly onReessayer: () => void;
   readonly paneCourant: string | null;
+  /**
+   * La liste est cachée (téléphone, conversation ouverte) : ses horloges se
+   * taisent. Elle se redessinait chaque seconde derrière le chat.
+   */
+  readonly cachee?: boolean;
 }) => {
   const [recherche, setRecherche] = useState("");
   const rechercheDifferee = useDeferredValue(recherche);
@@ -90,7 +110,8 @@ export const Boite = ({
   const chronometres = (conversations ?? []).some(
     (conversation) => conversation.status === "working" && debutsTravail.has(conversation.paneId),
   );
-  const maintenant = useMaintenant(chronometres ? 1_000 : 30_000);
+  const maintenant = useMaintenant(cachee ? null : chronometres ? 1_000 : 30_000);
+  const enLigne = useEnLigne();
   // Les temps relatifs (« 25 min ») n'ont pas besoin de la seconde : les lignes
   // qui ne portent pas de chronomètre ne se redessinent qu'à la demi-minute.
   const demiMinute = Math.floor(maintenant / 30_000) * 30_000;
@@ -138,7 +159,7 @@ export const Boite = ({
     <section className="boite" aria-label="Agents">
       <header className="boite__haut">
         <h1>Agents</h1>
-        <Direct donnees={donnees} maintenant={maintenant} />
+        <Direct donnees={donnees} maintenant={maintenant} enLigne={enLigne} />
         <button
           type="button"
           className="bouton-icone"
@@ -185,12 +206,28 @@ export const Boite = ({
         {etat.phase === "hors-ligne" ? (
           <Avis ton="attention" annonce="statut">
             Hors ligne — dernière lecture à {heureLue(etat.dernierSucces) ?? "?"} ·{" "}
-            {donnees.erreurs.conversations}
+            {donnees.erreurs.conversations}{" "}
+            <button
+              type="button"
+              className="lien lien--avis"
+              disabled={donnees.chargement}
+              onClick={onReessayer}
+            >
+              {donnees.chargement ? "Lecture…" : "Réessayer"}
+            </button>
           </Avis>
         ) : null}
         {etat.phase === "erreur" ? (
           <Avis ton="erreur" annonce="alerte">
-            Liste illisible : {etat.cause}
+            Liste illisible : {etat.cause}{" "}
+            <button
+              type="button"
+              className="lien lien--avis"
+              disabled={donnees.chargement}
+              onClick={onReessayer}
+            >
+              {donnees.chargement ? "Lecture…" : "Réessayer"}
+            </button>
           </Avis>
         ) : null}
         {donnees.erreurs.overview !== null && etat.phase !== "erreur" ? (

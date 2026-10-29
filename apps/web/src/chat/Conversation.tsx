@@ -18,6 +18,7 @@ import { creeTranscripteur, tourEnCours } from "../transcript.ts";
 import { marqueAgent, premierNonVide, titrePropre } from "../libelles.ts";
 import { presenceDuPane, raisonSansEnvoi } from "../pane-ouvert.ts";
 import { Avis } from "../ui/atomes.tsx";
+import { BandeauConnexion } from "./BandeauConnexion.tsx";
 import { Fichiers } from "../feuilles/Fichiers.tsx";
 import { Modele } from "../feuilles/Modele.tsx";
 import { Visionneuse } from "../feuilles/Visionneuse.tsx";
@@ -223,6 +224,7 @@ export const Conversation = ({
         onModele={() => setFeuille({ genre: "modele" })}
         onFichiers={() => setFeuille({ genre: "fichiers" })}
       />
+      <BandeauConnexion />
       <Voisins agents={voisins} courant={paneId} />
       {disparu ? (
         <Avis ton="attention" annonce="statut">

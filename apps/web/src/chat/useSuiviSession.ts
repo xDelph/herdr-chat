@@ -9,7 +9,13 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 import { fetchSession, sondeFluxSession } from "../api.ts";
 import { creeSuiviSession, type SuiviSession, type VueSession } from "../flux-session.ts";
 import { contientDemande } from "../transcript.ts";
-import { magasin, noteFluxIndisponible, ouvreurDeFlux, planifie } from "../app/services.ts";
+import {
+  journal,
+  magasin,
+  noteFluxIndisponible,
+  ouvreurDeFlux,
+  planifie,
+} from "../app/services.ts";
 
 const VUE_VIDE: VueSession = {
   ajoutsEnHaut: 0,
@@ -51,6 +57,7 @@ export const useSuiviSession = (
       ouvreFlux: ouvreurDeFlux(),
       paneId,
       planifie,
+      signale: journal,
       sonde: sondeFluxSession,
       visible: () => document.visibilityState === "visible",
     });

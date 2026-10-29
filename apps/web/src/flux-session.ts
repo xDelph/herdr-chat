@@ -142,6 +142,8 @@ export interface DependancesSuivi {
    * absente sans preuve.
    */
   readonly sonde?: (url: string) => Promise<VerdictSonde>;
+  /** Journalise une lecture de session ratée (dédoublonné par l'appelant). */
+  readonly signale?: (message: string, detail?: unknown) => void;
   /** L'horloge — injectée pour la veille. */
   readonly maintenant?: () => number;
   /** La page est-elle visible ? La veille ne travaille pas pour un écran caché. */
@@ -275,6 +277,7 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
 
   const echecDeLecture = (cause: unknown): void => {
     const texte = message(cause);
+    deps.signale?.("lecture de session en échec", { cause: texte, paneId: deps.paneId });
     // Un fil déjà affiché reste affiché : l'erreur dit qu'on n'a pas pu lire
     // *maintenant*, pas que la conversation n'existe plus (session-vue.ts).
     publie(

@@ -83,6 +83,8 @@ export interface DependancesDonnees {
   readonly visible: () => boolean;
   readonly maintenant: () => number;
   readonly delaiRegroupement?: number;
+  /** Journalise une lecture ratée (dédoublonné par l'appelant). */
+  readonly signale?: (message: string, detail?: unknown) => void;
 }
 
 export interface MagasinDonnees {
@@ -146,6 +148,14 @@ export const creeMagasinDonnees = (deps: DependancesDonnees): MagasinDonnees => 
     // liste ne revient jamais en arrière.
     if (resultat.generation <= generationAppliquee) return;
     generationAppliquee = resultat.generation;
+    // Une barre rouge disparaît au rechargement ; le journal du démon, non.
+    for (const [ressource, issue] of [
+      ["overview", resultat.overview],
+      ["health", resultat.health],
+      ["conversations", resultat.conversations],
+    ] as const) {
+      if (!issue.ok) deps.signale?.(`lecture ${ressource} en échec`, { cause: issue.cause });
+    }
     publie({
       conversations: resultat.conversations.ok
         ? resultat.conversations.valeur.conversations
