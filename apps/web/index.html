@@ -1,23 +1,20 @@
 <!doctype html>
-<html lang="en">
+<html lang="fr">
   <head>
     <meta charset="utf-8" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content"
     />
-    <meta name="theme-color" content="#0b1220" />
-    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
-    <meta http-equiv="Pragma" content="no-cache" />
-    <meta http-equiv="Expires" content="0" />
+    <meta name="theme-color" content="#f1f2f4" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="Herdr Chat" />
     <link rel="icon" href="/favicon.png" type="image/png" />
     <!--
       ⚠️ iOS n'utilise PAS le manifest pour l'icône d'accueil : sans cette
-      balise, la PWA installée garde une vignette blanche même avec un manifest
-      correct. C'est la seule ligne qui compte pour l'iPhone.
+      balise, la PWA installée garde une vignette blanche.
     -->
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -25,59 +22,6 @@
   </head>
   <body>
     <div id="root"></div>
-    <script>
-      // Build-version cache control: transparent cache invalidation.
-      // Runs synchronously to unregister old service workers before they
-      // can intercept requests.
-      (function () {
-        var buildId = "__BUILD_ID__";
-        var stored = null;
-        try {
-          stored = localStorage.getItem("herdr-build-id");
-        } catch (e) {}
-        if (stored !== null && stored !== buildId) {
-          // New build detected: unregister ALL service workers synchronously
-          // and clear caches, then reload.
-          if (navigator.serviceWorker) {
-            navigator.serviceWorker
-              .getRegistrations()
-              .then(function (regs) {
-                return Promise.all(
-                  regs.map(function (r) {
-                    return r.unregister();
-                  }),
-                );
-              })
-              .then(function () {
-                return caches.keys();
-              })
-              .then(function (keys) {
-                return Promise.all(
-                  keys.map(function (k) {
-                    return caches.delete(k);
-                  }),
-                );
-              })
-              .then(function () {
-                try {
-                  localStorage.setItem("herdr-build-id", buildId);
-                } catch (e) {}
-                window.location.reload();
-              })
-              .catch(function () {
-                try {
-                  localStorage.setItem("herdr-build-id", buildId);
-                } catch (e) {}
-                window.location.reload();
-              });
-            return; // Don't load the app until cache is cleared
-          }
-        }
-        try {
-          localStorage.setItem("herdr-build-id", buildId);
-        } catch (e) {}
-      })();
-    </script>
-    <script type="module" src="/src/main.tsx?v=__BUILD_ID__"></script>
+    <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
