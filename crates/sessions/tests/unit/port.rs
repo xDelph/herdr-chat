@@ -35,6 +35,7 @@ fn dossier() -> PathBuf {
 
 fn racines(racine: &Path) -> Racines {
     Racines {
+        pi_sessions: racine.to_path_buf(),
         claude_projects: racine.join("claude"),
         codex_home: racine.join("codex-home"),
         codex_sessions: racine.join("codex-sessions"),
@@ -299,5 +300,71 @@ fn un_entete_illisible_ne_fait_pas_echouer_lenrichissement() {
     let metadonnees = attend(port.metadata(source_fichier(&absent)))
         .unwrap_or_else(|cause| panic!("métadonnées : {cause:?}"));
     assert!(metadonnees.model.is_none());
+    let _ = std::fs::remove_dir_all(&racine);
+}
+
+#[test]
+fn un_chemin_publie_hors_des_racines_n_est_jamais_lu() {
+    // Herdr est un service externe : un chemin annoncé hors des racines de
+    // sessions (S03) est refusé avec sa cause, jamais servi.
+    let racine = dossier();
+    let dehors = dossier();
+    let chemin = dehors.join("secret.jsonl");
+    ecrit_session(&chemin);
+    let port = PortSessions::nouveau(racines(&racine));
+    let issue = attend(port.page(SessionPageRequest {
+        source: source_fichier(&chemin),
+        cursor: None,
+        previous_cursor: None,
+        limit: 512 * 1024,
+    }))
+    .unwrap_or_else(|cause| panic!("page : {cause:?}"));
+    match issue {
+        SessionPageOutcome::Invalide { detail } => {
+            assert!(detail.contains("outside"), "la cause est dite : {detail}");
+        }
+        autre => panic!("un chemin hors racine est refusé : {autre:?}"),
+    }
+    let _ = std::fs::remove_dir_all(&racine);
+    let _ = std::fs::remove_dir_all(&dehors);
+}
+
+#[test]
+fn une_session_codex_est_servie_dans_la_forme_commune() {
+    let racine = dossier();
+    let chemin = racine.join("codex-sessions/2026/10/15/rollout-x-abc.jsonl");
+    std::fs::create_dir_all(chemin.parent().unwrap_or(&racine))
+        .unwrap_or_else(|cause| panic!("dossier : {cause}"));
+    std::fs::write(
+        &chemin,
+        concat!(
+            r#"{"timestamp":"2026-10-15T10:00:00.000Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"corrige le test"}]}}"#,
+            "\n",
+            r#"{"timestamp":"2026-10-15T10:00:02.000Z","type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"fait"}]}}"#,
+            "\n"
+        ),
+    )
+    .unwrap_or_else(|cause| panic!("écriture : {cause}"));
+    let port = PortSessions::nouveau(racines(&racine));
+    let mut source = source_fichier(&chemin);
+    source.family = Some(domain::ids::AgentKind::from(String::from("codex")));
+    let issue = attend(port.page(SessionPageRequest {
+        source,
+        cursor: None,
+        previous_cursor: None,
+        limit: 512 * 1024,
+    }))
+    .unwrap_or_else(|cause| panic!("page : {cause:?}"));
+    let SessionPageOutcome::Page(page) = issue else {
+        panic!("une page pleine : {issue:?}");
+    };
+    assert_eq!(page.entries.len(), 2);
+    assert!(page.entries.iter().all(|entree| entree.kind == "message"));
+    assert!(
+        page.entries[0].raw.contains("\"role\":\"user\"")
+            && page.entries[0].raw.contains("corrige le test"),
+        "la demande est lisible dans la forme commune : {}",
+        page.entries[0].raw
+    );
     let _ = std::fs::remove_dir_all(&racine);
 }

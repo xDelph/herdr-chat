@@ -181,9 +181,10 @@ pub fn lire_derniere(
     identifiant: &str,
     limite: u32,
 ) -> Result<PageOpencode, String> {
+    let lues = limite.saturating_add(1);
     let sql = format!(
         "SELECT id, type, seq, time_created, data FROM session_message \
-         WHERE session_id = ?1 ORDER BY seq DESC LIMIT {limite}"
+         WHERE session_id = ?1 ORDER BY seq DESC LIMIT {lues}"
     );
     let lignes = lignes_de(ouvrier, &sql, &[identifiant])?;
     let has_more = (lignes.len() as u32) > limite;
@@ -245,12 +246,13 @@ pub fn lire_avant(
     avant: i64,
     limite: u32,
 ) -> Result<PageOpencode, String> {
+    let lues = limite.saturating_add(1);
     let sql = format!(
         "SELECT id, type, seq, time_created, data FROM session_message \
-         WHERE session_id = ?1 AND seq < ?2 ORDER BY seq DESC LIMIT {limite}"
+         WHERE session_id = ?1 AND seq < ?2 ORDER BY seq DESC LIMIT {lues}"
     );
     let lignes = lignes_de(ouvrier, &sql, &[identifiant, &avant.to_string()])?;
-    let has_more = (lignes.len() as u32) >= limite;
+    let has_more = (lignes.len() as u32) > limite;
     let gardees: Vec<&LigneBase> = lignes.iter().take(limite as usize).collect();
     let entrees: Vec<EntreeBrute> = gardees
         .iter()

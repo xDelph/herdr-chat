@@ -99,25 +99,30 @@ pub fn page_arriere(
         mesuree.taille
     };
     let debut = identite_curseur.min(mesuree.taille);
-    // On lit TOUT depuis le début borné (les fichiers de session tiennent
-    // dans la mémoire du test ; une vraie pagination arrière par la FIN
-    // viendra avec le bornage T025 si le corpus l'exige)…
-    let (cadres, _) = framing::cadres_depuis(&mut fichier, 0, usize::MAX)?;
-    // On garde les cadres dont le DÉPART est avant le curseur, en remontant
-    // jusqu'à la cible consommée.
-    let avant_debut: Vec<&Cadre> = cadres.iter().filter(|cadre| cadre.depart < debut).collect();
-    let mut retenus: Vec<&Cadre> = Vec::new();
-    let mut somme = 0_usize;
-    for cadre in avant_debut.iter().rev() {
-        if somme + cadre.consomme as usize > cible_octets && !retenus.is_empty() {
-            break;
+    // ⚠️ **On lit À REBOURS, par fenêtre, jamais depuis l'octet 0.** La
+    // version précédente relisait tout le fichier à chaque page d'historique :
+    // un rollout de 200 Mo coûtait 200 Mo alloués par « charger plus ». La
+    // fenêtre `[debut - cible, debut)` est alignée sur le premier début de
+    // ligne qu'elle contient ; si aucune ligne complète n'y tient (une ligne
+    // plus grande que la cible), la fenêtre double jusqu'au début du fichier.
+    let mut fenetre = (cible_octets.max(1)) as u64;
+    let rendus: Vec<Cadre> = loop {
+        let depart_brut = debut.saturating_sub(fenetre);
+        let depart = framing::prochain_debut_de_ligne(&mut fichier, depart_brut)?.min(debut);
+        if depart < debut {
+            let longueur = usize::try_from(debut - depart).unwrap_or(usize::MAX);
+            let (cadres, _) = framing::cadres_depuis(&mut fichier, depart, longueur)?;
+            break cadres
+                .into_iter()
+                .filter(|cadre| cadre.depart < debut)
+                .collect();
         }
-        somme += cadre.consomme as usize;
-        retenus.push(cadre);
-    }
-    retenus.reverse();
-    let rendus: Vec<Cadre> = retenus.into_iter().cloned().collect();
-    let nouveau_depart = rendus.first().map(|cadre| cadre.depart).unwrap_or(0);
+        if depart_brut == 0 {
+            break Vec::new();
+        }
+        fenetre = fenetre.saturating_mul(2);
+    };
+    let nouveau_depart = rendus.first().map_or(debut, |cadre| cadre.depart);
     Ok(PageArriere {
         cadres: rendus,
         curseur: CurseurFichier {

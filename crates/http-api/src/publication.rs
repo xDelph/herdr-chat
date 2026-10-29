@@ -47,6 +47,21 @@ pub struct APublier {
 /// **seul** — l'inverse serait un `agent_status` inventé.
 #[must_use]
 pub fn evenements_de_changement(changement: &Changement) -> Vec<APublier> {
+    let session_changee = || APublier {
+        genre: GENRE_SESSION_CHANGED,
+        donnees: serialise(&SessionChanged {
+            pane_id: changement.pane_id.as_str().to_string(),
+            // La révision est OPAQUE : aucun chemin ne traverse le flux
+            // (TECH §7), et deux observations identiques sont coalescées
+            // par le veilleur — rien à publier.
+            source_revision: changement.revision_apres.clone(),
+        }),
+    };
+    // Un changement de CONTENU seul : la session, rien d'autre — un
+    // `agent_status` de→vers identiques serait un état inventé.
+    if changement.genre == GenreDeChangement::Contenu {
+        return vec![session_changee()];
+    }
     let mut evenements = vec![APublier {
         genre: GENRE_AGENT_STATUS,
         donnees: serialise(&AgentStatusChanged {
@@ -59,6 +74,9 @@ pub fn evenements_de_changement(changement: &Changement) -> Vec<APublier> {
                 GenreDeChangement::Apparu => ChangeKind::Appeared,
                 GenreDeChangement::Statut => ChangeKind::Status,
                 GenreDeChangement::Disparu => ChangeKind::Disappeared,
+                // Traité plus haut : un changement de contenu ne parle pas
+                // d'état. Si jamais il arrivait ici, c'est un statut.
+                GenreDeChangement::Contenu => ChangeKind::Status,
             },
             pane_id: changement.pane_id.as_str().to_string(),
             // Le fil tel quel : `gone` pour un agent disparu (pas un état).
@@ -69,16 +87,7 @@ pub fn evenements_de_changement(changement: &Changement) -> Vec<APublier> {
         }),
     }];
     if changement.source_change() {
-        evenements.push(APublier {
-            genre: GENRE_SESSION_CHANGED,
-            donnees: serialise(&SessionChanged {
-                pane_id: changement.pane_id.as_str().to_string(),
-                // La révision est OPAQUE : aucun chemin ne traverse le flux
-                // (TECH §7), et deux observations identiques sont coalescées
-                // par le veilleur — rien à publier.
-                source_revision: changement.revision_apres.clone(),
-            }),
-        });
+        evenements.push(session_changee());
     }
     evenements
 }

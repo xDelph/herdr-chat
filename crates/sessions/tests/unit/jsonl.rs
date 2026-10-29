@@ -364,6 +364,69 @@ fn la_page_arriere_rend_le_passé_et_ou_le_reprendre() {
 }
 
 #[test]
+fn la_remontee_complete_ne_perd_ni_ne_duplique_meme_une_ligne_geante() {
+    // Une ligne plus grande que la fenêtre au milieu : la fenêtre doit
+    // s'élargir pour la rendre entière, sans relire depuis l'octet 0 à
+    // chaque page et sans sauter les lignes voisines.
+    let atelier = ouvre_atelier("soutien-jsonl-remontee", r#"{"n":1}"#);
+    for n in 2..=40 {
+        if n == 20 {
+            let geante = "x".repeat(300);
+            ajoute(
+                &atelier.fichier,
+                &format!("{{\"n\":{n},\"g\":\"{geante}\"}}\n"),
+            );
+        } else {
+            ajoute(&atelier.fichier, &format!("{{\"n\":{n}}}\n"));
+        }
+    }
+    let identite = match identity::identite_de(&atelier.fichier) {
+        Ok(identite) => identite,
+        Err(cause) => panic!("identité refusée : {cause}"),
+    };
+    let mut curseur = CurseurFichier {
+        dev: identite.curseur.dev,
+        ino: identite.curseur.ino,
+        offset: identite.taille,
+    };
+    let mut vus: Vec<String> = Vec::new();
+    for _ in 0..200 {
+        let page = match page_arriere(&atelier.fichier, &curseur, 40) {
+            Ok(page) => page,
+            Err(cause) => panic!("page arrière refusée : {cause}"),
+        };
+        if page.cadres.is_empty() {
+            break;
+        }
+        assert!(page.curseur.offset < curseur.offset, "chaque page recule");
+        let mut lignes: Vec<String> = page.cadres.iter().map(|cadre| cadre.brut.clone()).collect();
+        lignes.append(&mut vus);
+        vus = lignes;
+        curseur = page.curseur;
+    }
+    assert!(
+        curseur.offset == 0,
+        "la remontée atteint le début : {}",
+        curseur.offset
+    );
+    let numeros: Vec<u32> = vus
+        .iter()
+        .map(|ligne| {
+            let valeur: serde_json::Value = match serde_json::from_str(ligne) {
+                Ok(valeur) => valeur,
+                Err(cause) => panic!("ligne coupée ({cause}) : {ligne}"),
+            };
+            valeur["n"].as_u64().map_or(0, |n| n as u32)
+        })
+        .collect();
+    let attendus: Vec<u32> = (1..=40).collect();
+    assert!(
+        numeros == attendus,
+        "toutes les lignes, une fois, dans l'ordre : {numeros:?}"
+    );
+}
+
+#[test]
 fn len_tete_de_session_se_lit_une_fois() {
     let atelier = ouvre_atelier("soutien-jsonl-entete", r#"{"type":"session","cwd":"/p"}"#);
     match history::en_tete(&atelier.fichier) {

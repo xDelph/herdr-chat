@@ -107,6 +107,24 @@ fn les_requetes_mesurees_passent_par_l_ouvrier() {
         page.dernier_seq
     );
     assert!(!page.has_more);
+    // Une page plus petite que la session DIT qu'il en reste : la requête lit
+    // une ligne de plus que la limite (sans cela `has_more` était toujours
+    // faux et « charger plus » n'apparaissait jamais).
+    let partielle = match lire_derniere(&ouvrier, SESSION, 2) {
+        Ok(page) => page,
+        Err(cause) => panic!("dernière page refusée : {cause}"),
+    };
+    assert!(
+        partielle.entrees.len() == 2,
+        "deux lignes : {}",
+        partielle.entrees.len()
+    );
+    assert!(partielle.has_more, "il reste une ligne plus ancienne");
+    assert!(
+        partielle.premier_seq == 2,
+        "la plus ancienne gardée : {}",
+        partielle.premier_seq
+    );
 }
 
 #[test]

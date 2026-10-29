@@ -240,12 +240,16 @@ fn les_valeurs_par_defaut_sont_exactes() {
         Path::new("/foyer/.config/herdr/herdr.sock")
     );
     assert_eq!(
-        config.session_roots,
-        vec![
-            Path::new("/foyer/.pi/agent/sessions"),
-            Path::new("/foyer/.codex/sessions"),
-            Path::new("/foyer/.claude/projects"),
-        ]
+        config.session_roots.pi,
+        Path::new("/foyer/.pi/agent/sessions")
+    );
+    assert_eq!(
+        config.session_roots.codex,
+        Path::new("/foyer/.codex/sessions")
+    );
+    assert_eq!(
+        config.session_roots.claude,
+        Path::new("/foyer/.claude/projects")
     );
     assert_eq!(config.port, PORT_DEFAUT);
     assert_eq!(config.hostname, "127.0.0.1");
@@ -496,4 +500,19 @@ fn une_sortie_illisible_de_la_cli_ne_fait_pas_tomber_le_demarrage() {
         }
     }
     assert_eq!(origines_tailscale_avec(PORT, &Bruit), Vec::<String>::new());
+}
+
+#[test]
+fn chaque_famille_recoit_sa_propre_racine_de_sessions() {
+    // La composition prenait `session_roots.first()` pour Claude : la racine
+    // Pi. Toutes les sessions Claude étaient « absentes ».
+    let config = configue(&mut env_dep());
+    let racines = herdrchat::assemblage::racines_de_sessions(&config);
+    assert_eq!(racines.pi_sessions, Path::new("/foyer/.pi/agent/sessions"));
+    assert_eq!(
+        racines.claude_projects,
+        Path::new("/foyer/.claude/projects")
+    );
+    assert_eq!(racines.codex_sessions, Path::new("/foyer/.codex/sessions"));
+    assert_eq!(racines.codex_home, Path::new("/foyer/.codex"));
 }

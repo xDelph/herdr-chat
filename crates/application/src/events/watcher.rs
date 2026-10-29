@@ -158,6 +158,10 @@ pub enum GenreDeChangement {
     Statut,
     /// L'agent n'est plus dans le parc.
     Disparu,
+    /// Seul le **contenu** de la source a changé (le fichier grandit, la base
+    /// est réécrite) : l'agent travaille, son titre et son statut ne bougent
+    /// pas. Ne produit que `session_changed`, jamais un `agent_status`.
+    Contenu,
 }
 
 /// La cible d'un changement : un état réel, ou la disparition (« gone » —
@@ -201,6 +205,7 @@ pub struct TourDeVeille {
 
 struct EntreePrecedente {
     signature: String,
+    revision: String,
     statut: AgentStatus,
     vue: AgentView,
 }
@@ -232,10 +237,12 @@ impl Veilleur {
 
         for agent in &agents {
             let signature = signature_de(agent);
+            let revision = revision_de(agent);
             suivantes.insert(
                 agent.pane_id.clone(),
                 EntreePrecedente {
                     signature: signature.clone(),
+                    revision: revision.clone(),
                     statut: agent.status,
                     vue: agent.clone(),
                 },
@@ -255,7 +262,7 @@ impl Veilleur {
                             // absente : une apparition avec source change
                             // bien la révision.
                             revision_avant: revision_absente(),
-                            revision_apres: revision_de(agent),
+                            revision_apres: revision.clone(),
                         });
                     }
                 }
@@ -266,8 +273,26 @@ impl Veilleur {
                         a: CibleDeChangement::Statut(agent.status),
                         genre: GenreDeChangement::Statut,
                         disparu: None,
-                        revision_avant: revision_de(&ancienne.vue),
-                        revision_apres: revision_de(agent),
+                        revision_avant: ancienne.revision.clone(),
+                        revision_apres: revision,
+                    });
+                }
+                /*
+                  ⚠️ **Le cas qui manquait : l'agent travaille.** Pendant un long
+                  tour, statut et titre restent identiques — la signature aussi.
+                  Seule la révision (taille + mtime de la source) bouge. Sans ce
+                  bras, aucun `session_changed` ne partait et la PWA attendait sa
+                  relecture de secours (15 s) pour voir la suite.
+                */
+                Some(ancienne) if ancienne.revision != revision => {
+                    changements.push(Changement {
+                        pane_id: agent.pane_id.clone(),
+                        de: Some(ancienne.statut),
+                        a: CibleDeChangement::Statut(agent.status),
+                        genre: GenreDeChangement::Contenu,
+                        disparu: None,
+                        revision_avant: ancienne.revision.clone(),
+                        revision_apres: revision,
                     });
                 }
                 Some(_) => {}
@@ -285,7 +310,7 @@ impl Veilleur {
                     disparu: connue.map(|entree| entree.vue.clone()),
                     // La source s'éteint avec l'agent : révision d'absence.
                     revision_avant: connue
-                        .map_or_else(revision_absente, |entree| revision_de(&entree.vue)),
+                        .map_or_else(revision_absente, |entree| entree.revision.clone()),
                     revision_apres: revision_absente(),
                 });
             }

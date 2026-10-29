@@ -10,6 +10,7 @@ pub(crate) mod codecs;
 pub(crate) mod cursor;
 pub(crate) mod jsonl;
 pub(crate) mod metadata;
+pub(crate) mod normalisation;
 pub(crate) mod path_policy;
 pub(crate) mod pipeline;
 pub(crate) mod port;

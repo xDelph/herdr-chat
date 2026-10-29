@@ -39,15 +39,30 @@ pub struct ErreurConfig {
     pub detail: String,
 }
 
+/// Les racines de sessions des trois familles qui écrivent des fichiers.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct RacinesDeSessions {
+    /// `PI_SESSIONS_ROOT`.
+    pub pi: PathBuf,
+    /// `CODEX_SESSION_ROOT` — les `rollout-*.jsonl`, pas `CODEX_HOME`.
+    pub codex: PathBuf,
+    /// `CLAUDE_PROJECTS_ROOT`.
+    pub claude: PathBuf,
+}
+
 /// La configuration — **immuable** : aucun setter, chaque valeur figée à la
 /// lecture. Les 17 variables de CURRENT §8.
 #[derive(Clone, Debug)]
 pub struct Config {
     /// Chemin du socket de l'API Herdr (couche A).
     pub herdr_socket_path: PathBuf,
-    /// Racines des sessions — Pi, Codex, Claude. Jamais devinées par
-    /// projet : Herdr fournit le chemin.
-    pub session_roots: Vec<PathBuf>,
+    /// Racines des sessions — Pi, Codex, Claude, **nommées**. Jamais
+    /// devinées par projet : Herdr fournit le chemin.
+    ///
+    /// ⚠️ C'était un `Vec` positionnel : la composition prenait `first()`
+    /// pour Claude et recevait la racine Pi — toutes les sessions Claude
+    /// étaient introuvables. Un champ nommé rend l'erreur impossible.
+    pub session_roots: RacinesDeSessions,
     /// Le port d'écoute — strictement décimal, 1..65535 (C10).
     pub port: u16,
     /// L'hôte d'écoute : `[IP_ADDRESS]` par défaut, sinon une adresse du
@@ -166,23 +181,23 @@ pub fn config_depuis_avec(
 
     Ok(Config {
         herdr_socket_path: PathBuf::from(socket_path),
-        session_roots: vec![
-            PathBuf::from(env.get("PI_SESSIONS_ROOT").cloned().unwrap_or_else(|| {
+        session_roots: RacinesDeSessions {
+            pi: PathBuf::from(env.get("PI_SESSIONS_ROOT").cloned().unwrap_or_else(|| {
                 home.join(".pi/agent/sessions")
                     .to_string_lossy()
                     .into_owned()
             })),
-            PathBuf::from(
+            codex: PathBuf::from(
                 env.get("CODEX_SESSION_ROOT")
                     .cloned()
                     .unwrap_or_else(|| home.join(".codex/sessions").to_string_lossy().into_owned()),
             ),
-            PathBuf::from(
+            claude: PathBuf::from(
                 env.get("CLAUDE_PROJECTS_ROOT").cloned().unwrap_or_else(|| {
                     home.join(".claude/projects").to_string_lossy().into_owned()
                 }),
             ),
-        ],
+        },
         port,
         hostname: bind,
         opencode_db_path: PathBuf::from(env.get("OPENCODE_DB").cloned().unwrap_or_else(|| {

@@ -121,7 +121,8 @@ pub fn lire_derniere(
     identifiant: &str,
     limite: u32,
 ) -> Result<PageOpencode, String> {
-    let sql = format!("{COLONNES} WHERE session_id = ?1 ORDER BY row_id DESC LIMIT {limite}");
+    let lues = limite.saturating_add(1);
+    let sql = format!("{COLONNES} WHERE session_id = ?1 ORDER BY row_id DESC LIMIT {lues}");
     let rendues = ouvrier
         .interroge(&sql, &[identifiant])
         .map_err(|cause| cause.to_string())?;
@@ -186,13 +187,14 @@ pub fn lire_avant(
     avant: i64,
     limite: u32,
 ) -> Result<PageOpencode, String> {
+    let lues = limite.saturating_add(1);
     let sql = format!(
-        "{COLONNES} WHERE session_id = ?1 AND row_id < ?2 ORDER BY row_id DESC LIMIT {limite}"
+        "{COLONNES} WHERE session_id = ?1 AND row_id < ?2 ORDER BY row_id DESC LIMIT {lues}"
     );
     let rendues = ouvrier
         .interroge(&sql, &[identifiant, &avant.to_string()])
         .map_err(|cause| cause.to_string())?;
-    let has_more = (rendues.len() as u32) >= limite;
+    let has_more = (rendues.len() as u32) > limite;
     let gardees: Vec<&crate::storage::sqlite::worker::Ligne> =
         rendues.iter().take(limite as usize).collect();
     let mut entrees: Vec<EntreeBrute> = Vec::new();

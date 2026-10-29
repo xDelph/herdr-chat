@@ -249,3 +249,86 @@ fn une_signature_differente_est_un_defaut_de_cache() {
     );
     let _ = std::fs::remove_dir_all(&racine);
 }
+
+#[test]
+fn l_horodatage_d_une_ligne_est_celui_du_jour_ecrit() {
+    // La copie locale de la conversion datait chaque ligne du lendemain.
+    let entree = SessionEntry {
+        kind: String::from("message"),
+        id: Some(String::from("m1")),
+        parent_id: None,
+        raw: String::from(r#"{"type":"message","message":{"role":"user","content":"x"}}"#),
+        timestamp: Some(String::from("2026-10-29T12:55:21.154Z")),
+    };
+    let lue = herdrchat::assemblage::entree_lue(&entree);
+    assert_eq!(lue.horodatage, Some(1_793_278_521_154));
+    let mars = SessionEntry {
+        timestamp: Some(String::from("2024-03-01T00:00:00Z")),
+        ..entree
+    };
+    assert_eq!(
+        herdrchat::assemblage::entree_lue(&mars).horodatage,
+        Some(1_709_251_200_000),
+        "le lendemain d'un 29 février"
+    );
+}
+
+#[test]
+fn la_derniere_demande_est_retrouvee_au_dela_de_la_fenetre() {
+    // Une demande, puis plus de 64 Kio de sortie d'outil : la fenêtre de
+    // résumé ne contient plus la demande. Le résumé doit remonter le fil.
+    let dossier = racine("soutien-assemblage-remontee");
+    let chemin = dossier.join("session.jsonl");
+    let mut contenu = String::new();
+    contenu.push_str(
+        r#"{"type":"model_change","modelId":"opus-test","timestamp":"2026-10-29T10:00:00Z"}"#,
+    );
+    contenu.push('\n');
+    contenu.push_str(r#"{"type":"message","id":"u1","timestamp":"2026-10-29T10:00:01Z","message":{"role":"user","content":"corrige la racine claude"}}"#);
+    contenu.push('\n');
+    let sortie = "y".repeat(4000);
+    for n in 0..40 {
+        contenu.push_str(&format!(
+            r#"{{"type":"message","id":"t{n}","timestamp":"2026-10-29T10:01:00Z","message":{{"role":"toolResult","content":"{sortie}"}}}}"#
+        ));
+        contenu.push('\n');
+    }
+    std::fs::write(&chemin, contenu).unwrap_or_else(|cause| panic!("écriture : {cause}"));
+    let racines = sessions::resolver::Racines {
+        pi_sessions: dossier.clone(),
+        codex_sessions: dossier.join("codex"),
+        codex_home: dossier.join("codex-home"),
+        claude_projects: dossier.join("claude"),
+        opencode_db: dossier.join("opencode.db"),
+        devin_db: dossier.join("devin.db"),
+    };
+    let lecteur = LitSessionsViaPort {
+        port: Arc::new(sessions::port::PortSessions::nouveau(racines)),
+        familles: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+        fenetres: Arc::new(std::sync::Mutex::new(CacheFenetres::default())),
+    };
+    let entrees = lecteur
+        .fenetre(
+            &PaneId::from(String::from("w1:p1")),
+            &source(&chemin.display().to_string()),
+        )
+        .unwrap_or_else(|cause| panic!("fenêtre : {}", cause.cause));
+    assert!(
+        entrees
+            .iter()
+            .any(|entree| entree.texte.as_deref() == Some("corrige la racine claude")),
+        "la demande lointaine est retrouvée"
+    );
+    assert!(
+        entrees
+            .iter()
+            .any(|entree| entree.modele.as_deref() == Some("opus-test")),
+        "le modèle d'un model_change lointain est retrouvé"
+    );
+    assert!(
+        entrees.len() < 40,
+        "on ne garde que ce qui manquait : {}",
+        entrees.len()
+    );
+    let _ = std::fs::remove_dir_all(&dossier);
+}

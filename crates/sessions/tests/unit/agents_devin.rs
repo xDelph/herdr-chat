@@ -98,6 +98,19 @@ fn les_requetes_passent_par_l_ouvrier_et_le_system_est_écarré() {
     );
     assert!(page.entrees[2].genre == "message" && page.entrees[2].brut.contains("SWE-1.6"));
     assert!(page.premier_seq == 1 && page.dernier_seq == 3);
+    let partielle = match lire_derniere(&ouvrier, "burly-stop", 2) {
+        Ok(page) => page,
+        Err(cause) => panic!("dernière page refusée : {cause}"),
+    };
+    assert!(
+        partielle.entrees.len() == 2,
+        "deux lignes : {}",
+        partielle.entrees.len()
+    );
+    assert!(
+        partielle.has_more,
+        "il reste une ligne plus ancienne (limite + 1 lue)"
+    );
 }
 
 #[test]

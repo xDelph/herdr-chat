@@ -157,6 +157,92 @@ impl CacheFenetres {
     }
 }
 
+/// Le nombre de fenêtres plus anciennes qu'un résumé peut remonter (D19).
+pub const FENETRES_REMONTEE: usize = 32;
+
+/// Ce qui manque encore au résumé d'une fenêtre : la dernière demande, le
+/// dernier mot de l'agent, le modèle en vigueur.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct Manques {
+    demande: bool,
+    reponse: bool,
+    modele: bool,
+}
+
+impl Manques {
+    fn de(entrees: &[EntreeLu]) -> Self {
+        Self {
+            demande: !entrees.iter().any(est_demande),
+            reponse: !entrees.iter().any(est_reponse),
+            modele: !entrees.iter().any(declare_un_modele),
+        }
+    }
+
+    fn aucun(self) -> bool {
+        !self.demande && !self.reponse && !self.modele
+    }
+}
+
+fn est_demande(entree: &EntreeLu) -> bool {
+    entree.role == RoleDeSession::User && entree.texte.as_deref().is_some_and(|t| !t.is_empty())
+}
+
+fn est_reponse(entree: &EntreeLu) -> bool {
+    entree.role == RoleDeSession::Assistant
+        && (entree.texte.as_deref().is_some_and(|t| !t.is_empty()) || entree.outil.is_some())
+}
+
+fn declare_un_modele(entree: &EntreeLu) -> bool {
+    entree.modele.is_some()
+}
+
+impl LitSessionsViaPort {
+    /// ⚠️ **Remonter le fil, borné, pour ce que la fenêtre n'a pas.** Une
+    /// session Claude réelle portait 94 % de comptabilité : 64 Kio ne
+    /// contenaient aucune demande, et la ligne de liste n'avait ni dernière
+    /// demande ni aperçu. On remonte au plus [`FENETRES_REMONTEE`] fenêtres et
+    /// on ne garde, de chacune, que la plus récente entrée de chaque manque :
+    /// le résumé reste petit en mémoire, et la plus récente vaut toujours.
+    fn remonte(
+        &self,
+        demande: &SessionPageRequest,
+        page: &application::sessions_types::SessionPage,
+        entrees: &mut Vec<EntreeLu>,
+    ) {
+        let mut manques = Manques::de(entrees);
+        let mut avant = page.previous_cursor.clone().filter(|_| page.has_more);
+        let mut fenetres = 0;
+        while !manques.aucun() && fenetres < FENETRES_REMONTEE {
+            let Some(curseur) = avant.take() else { break };
+            let mut ancienne = demande.clone();
+            ancienne.cursor = None;
+            ancienne.previous_cursor = Some(curseur);
+            let mut futur = self.port.page(ancienne);
+            let Ok(SessionPageOutcome::Page(plus)) = attend_session(&mut futur) else {
+                break;
+            };
+            let lues: Vec<EntreeLu> = plus.entries.iter().map(entree_lue).collect();
+            let mut retenues: Vec<EntreeLu> = Vec::new();
+            for (manque, critere) in [
+                (manques.demande, est_demande as fn(&EntreeLu) -> bool),
+                (manques.reponse, est_reponse),
+                (manques.modele, declare_un_modele),
+            ] {
+                if manque && let Some(entree) = lues.iter().rev().find(|entree| critere(entree)) {
+                    retenues.push(entree.clone());
+                }
+            }
+            if !retenues.is_empty() {
+                retenues.extend(std::mem::take(entrees));
+                *entrees = retenues;
+                manques = Manques::de(entrees);
+            }
+            avant = plus.previous_cursor.clone().filter(|_| plus.has_more);
+            fenetres += 1;
+        }
+    }
+}
+
 impl ResoutSessions for LitSessionsViaPort {
     fn source_de(&self, agent: &AgentObservation) -> Option<SourceDeSession> {
         let source = source_de_port(self.port.as_ref(), agent)?;
@@ -220,14 +306,15 @@ impl LitSessions for LitSessionsViaPort {
         {
             return Ok(entrees);
         }
-        let mut futur = self.port.page(demande);
+        let mut futur = self.port.page(demande.clone());
         let issue = attend_session(&mut futur).map_err(|cause| ErreurDeLecture {
             benin: false,
             cause: cause.message_sur(),
         })?;
         match issue {
             SessionPageOutcome::Page(page) | SessionPageOutcome::Vide(page) => {
-                let entrees: Vec<EntreeLu> = page.entries.iter().map(entree_lue).collect();
+                let mut entrees: Vec<EntreeLu> = page.entries.iter().map(entree_lue).collect();
+                self.remonte(&demande, &page, &mut entrees);
                 if let Some(signature) = signature {
                     self.fenetres
                         .lock()
@@ -288,8 +375,11 @@ pub fn entree_lue(entree: &application::sessions_types::SessionEntry) -> EntreeL
         genre,
         texte,
         outil,
+        // Un message déclare `message.model` ; une ligne de changement
+        // (`model_change`) déclare `modelId` à la racine — les deux comptent.
         modele: message
             .and_then(|m| m.get("model"))
+            .or_else(|| valeur.get("modelId"))
             .and_then(serde_json::Value::as_str)
             .map(str::to_string),
         fournisseur: message
@@ -330,30 +420,27 @@ fn texte_de_contenu(contenu: &serde_json::Value) -> Option<String> {
 
 /// Un horodatage ISO → millisecondes. Une forme illisible reste **absente**,
 /// jamais remplacée par l'heure courante.
+///
+/// ⚠️ Une seule conversion de date dans le produit (`sessions::metadata`) : la
+/// copie qui vivait ici oubliait le `- 1` du jour de l'année et datait chaque
+/// conversation du **lendemain** (mesuré : +86 400 000 ms sur toutes les
+/// lignes de la liste).
 fn horodatage_ms(iso: &str) -> Option<u64> {
-    // `YYYY-MM-DDTHH:MM:SS(.sss)?Z` — la forme des sessions.
-    let (date, reste) = iso.split_once('T')?;
-    let mut parts = date.split('-');
-    let annee: i64 = parts.next()?.parse().ok()?;
-    let mois: i64 = parts.next()?.parse().ok()?;
-    let jour: i64 = parts.next()?.parse().ok()?;
-    let heure_part = reste.trim_end_matches('Z');
-    let mut hms = heure_part.split(':');
-    let heures: i64 = hms.next()?.parse().ok()?;
-    let minutes: i64 = hms.next()?.parse().ok()?;
-    let secondes: f64 = hms.next()?.parse().ok()?;
-    // Jours depuis l'époque (algorithme civil inverse).
-    let y = annee - i64::from(mois <= 2);
-    let epoque = y.div_euclid(400);
-    let y_epoque = y - epoque * 400;
-    let mois_epoque = if mois > 2 { mois - 3 } else { mois + 9 };
-    let jours = epoque * 146_097 + (153 * mois_epoque + 2) / 5 + 365 * y_epoque + y_epoque / 4
-        - y_epoque / 100
-        + jour
-        - 719_468;
-    let ms =
-        jours * 86_400_000 + heures * 3_600_000 + minutes * 60_000 + (secondes * 1000.0) as i64;
-    u64::try_from(ms).ok()
+    sessions::metadata::iso_vers_ms(iso).and_then(|ms| u64::try_from(ms).ok())
+}
+
+/// Les racines de sessions du résolveur, depuis la configuration — **nommées**
+/// des deux côtés : aucune position dans une liste ne décide d'une famille.
+#[must_use]
+pub fn racines_de_sessions(config: &crate::config::Config) -> sessions::resolver::Racines {
+    sessions::resolver::Racines {
+        pi_sessions: config.session_roots.pi.clone(),
+        claude_projects: config.session_roots.claude.clone(),
+        codex_home: config.codex_home.clone(),
+        codex_sessions: config.session_roots.codex.clone(),
+        devin_db: config.devin_db_path.clone(),
+        opencode_db: config.opencode_db_path.clone(),
+    }
 }
 
 /// La liste des types lançables, lue sur le port de catalogues.

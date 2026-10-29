@@ -83,17 +83,7 @@ async fn demarre(config: &Config) -> Result<(), String> {
     // 5) Les sessions : les racines de la configuration, lues par les
     //    lecteurs par famille.
     let port_sessions: Arc<dyn application::ports::SessionPort> = Arc::new(
-        sessions::port::PortSessions::nouveau(sessions::resolver::Racines {
-            claude_projects: config
-                .session_roots
-                .first()
-                .cloned()
-                .unwrap_or_else(|| config.codex_home.clone()),
-            codex_home: config.codex_home.clone(),
-            codex_sessions: config.codex_home.clone(),
-            devin_db: config.devin_db_path.clone(),
-            opencode_db: config.opencode_db_path.clone(),
-        }),
+        sessions::port::PortSessions::nouveau(herdrchat::assemblage::racines_de_sessions(config)),
     );
 
     // 6) Les Services du routeur : les ports entrent, le monde sort.

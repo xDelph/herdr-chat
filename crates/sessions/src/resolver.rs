@@ -14,8 +14,9 @@
 //!
 //! ⚠️ **Le cache positif/négatif s'invalide par la base elle-même** : la
 //! validité d'une entrée (trouvée OU pas trouvée) est le couple
-//! (mtime, taille) du fichier d'index — l'ajout d'une session change la base,
-//! donc un cache négatif s'invalide et la nouvelle session est **visible**.
+//! (mtime, taille) de chaque base d'index ET de son `-wal` — l'ajout d'une
+//! session change l'un des deux, donc un cache négatif s'invalide et la
+//! nouvelle session est **visible**.
 
 use crate::storage::sqlite::worker::Ouvrier;
 use serde_json::Value;
@@ -69,6 +70,9 @@ impl Emplacement {
 /// Les racines injectées du résolveur.
 #[derive(Clone, Debug)]
 pub struct Racines {
+    /// `PI_SESSIONS_ROOT` — Herdr publie le chemin des sessions Pi ; la
+    /// racine sert au garde de lecture (S03), jamais à chercher.
+    pub pi_sessions: PathBuf,
     /// `CODEX_SESSION_ROOT` — les fichiers `rollout-*-{id}.jsonl`.
     pub codex_sessions: PathBuf,
     /// `CODEX_HOME` — les bases d'index `state_*.sqlite`.
@@ -83,7 +87,33 @@ pub struct Racines {
 
 struct EntreeCache {
     chemin: Option<PathBuf>,
-    validite: (SystemTime, u64),
+    validite: Vec<(SystemTime, u64)>,
+}
+
+/// La validité du cache d'index codex : (mtime, taille) de **chaque base**
+/// `state_N.sqlite` **et de son journal `-wal`**.
+///
+/// ⚠️ Elle lisait les métadonnées du **dossier** `CODEX_HOME` : l'insertion
+/// d'une ligne dans une base ne change pas le mtime du dossier, et un fil pas
+/// encore indexé restait « introuvable » en cache jusqu'à ce qu'un fichier
+/// soit créé ou supprimé à côté. En mode WAL, la base principale ne bouge
+/// qu'au checkpoint : c'est le `-wal` qui grandit.
+fn validite_index_codex(codex_home: &Path) -> Vec<(SystemTime, u64)> {
+    let mesure = |chemin: &Path| match fs::metadata(chemin) {
+        Ok(meta) => (
+            meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
+            meta.len(),
+        ),
+        Err(_) => (SystemTime::UNIX_EPOCH, 0),
+    };
+    bases_codex(codex_home)
+        .iter()
+        .flat_map(|base| {
+            let mut wal = base.clone().into_os_string();
+            wal.push("-wal");
+            [mesure(base), mesure(Path::new(&wal))]
+        })
+        .collect()
 }
 
 /// Le résolveur — cache positif/négatif invalidable en mémoire.
@@ -251,13 +281,7 @@ pub fn chemin_codex_par_nom(resolveur: &Resolveur, nom: &str, cwd: &str) -> Opti
         return None;
     }
     let cle = (nom.to_string(), cwd.to_string());
-    let validite = match fs::metadata(&resolveur.racines.codex_home) {
-        Ok(meta) => (
-            meta.modified().unwrap_or(SystemTime::UNIX_EPOCH),
-            meta.len(),
-        ),
-        Err(_) => (SystemTime::UNIX_EPOCH, 0),
-    };
+    let validite = validite_index_codex(&resolveur.racines.codex_home);
     if let Ok(cache) = resolveur.cache.lock()
         && let Some(entree) = cache.get(&cle)
         && entree.validite == validite

@@ -658,3 +658,56 @@ fn la_revision_ne_bouge_pas_sans_ecriture() {
     );
     let _ = std::fs::remove_dir_all(&racine);
 }
+
+#[test]
+fn un_agent_qui_ecrit_sans_changer_de_titre_publie_un_changement_de_contenu() {
+    // ⚠️ La révision suivait déjà le contenu, mais le tour de veille ne la
+    // regardait qu'après un changement de SIGNATURE (statut, titre…). Un
+    // agent qui travaille longtemps garde la même signature : aucun
+    // `session_changed` ne partait. Ce test passe par `tick`, pas par
+    // `revision_de` seul.
+    let racine = std::env::temp_dir().join(format!("contenu-tick-{}", std::process::id()));
+    let _ = std::fs::create_dir_all(&racine);
+    let chemin = racine.join("s.jsonl");
+    let _ = std::fs::write(&chemin, b"{\"n\":1}\n");
+    let mut agent = vue("w1:p1", AgentStatus::Working, "titre", "/projet");
+    agent.session_path = Some(chemin.to_string_lossy().to_string());
+    let veilleur = Veilleur::nouveau();
+    let _ = veilleur.tick(vec![agent.clone()]);
+    let calme = veilleur.tick(vec![agent.clone()]);
+    assert!(
+        calme.changements.is_empty(),
+        "rien n'a bougé : rien à publier"
+    );
+
+    let mut fichier = std::fs::OpenOptions::new()
+        .append(true)
+        .open(&chemin)
+        .unwrap_or_else(|cause| panic!("ouverture : {cause}"));
+    use std::io::Write as _;
+    fichier
+        .write_all(b"{\"n\":2,\"plus\":\"long\"}\n")
+        .unwrap_or_else(|cause| panic!("ecriture : {cause}"));
+    drop(fichier);
+
+    let tour = veilleur.tick(vec![agent.clone()]);
+    assert_eq!(
+        tour.changements.len(),
+        1,
+        "un changement : {:?}",
+        tour.changements
+    );
+    let changement = &tour.changements[0];
+    assert_eq!(changement.genre, GenreDeChangement::Contenu);
+    assert!(changement.source_change(), "la source a changé");
+    assert!(
+        !faut_notifier(changement.de, changement.a),
+        "écrire n'est pas une fin de tour"
+    );
+    let suivant = veilleur.tick(vec![agent]);
+    assert!(
+        suivant.changements.is_empty(),
+        "la même révision n'est publiée qu'une fois"
+    );
+    let _ = std::fs::remove_dir_all(&racine);
+}

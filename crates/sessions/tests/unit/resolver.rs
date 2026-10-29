@@ -38,6 +38,7 @@ fn racines_fake() -> Racines {
         }
     }
     Racines {
+        pi_sessions: racine.join("pi-sessions"),
         codex_sessions: racine.join("codex-sessions"),
         codex_home: racine.join("codex-home"),
         claude_projects: racine.join("claude-projects"),
@@ -167,6 +168,51 @@ fn le_cache_négatif_s_invalide_quand_la_base_bouge() {
         Ok(()) => (),
         Err(cause) => panic!("schéma refusé : {cause}"),
     }
+    let resolveur = Resolveur::nouveau(racines);
+    // Cache NÉGATIF : la session n'existe pas encore.
+    assert!(chemin_codex_par_nom(&resolveur, "Nouvelle session", "/dev/projets/x").is_none());
+    // La session est AJOUTÉE (la base change) : le cache négatif s'invalide,
+    // la session devient VISIBLE.
+    let rollout = resolveur
+        .racines
+        .codex_sessions
+        .join("rollout-2026-nouvelle.jsonl");
+    match fs::write(&rollout, "{}") {
+        Ok(()) => (),
+        Err(cause) => panic!("rollout refusé : {cause}"),
+    }
+    match connexion.execute_batch(&format!(
+        "INSERT INTO threads (name, cwd, rollout_path, archived, updated_at) VALUES ('Nouvelle session', '/dev/projets/x', '{}', 0, '2026-10-18T12:00:00Z');",
+        rollout.display()
+    )) {
+        Ok(()) => (),
+        Err(cause) => panic!("insertion refusée : {cause}"),
+    }
+    match chemin_codex_par_nom(&resolveur, "Nouvelle session", "/dev/projets/x") {
+        Some(chemin) => assert!(
+            chemin == rollout,
+            "la nouvelle session est VISIBLE : {chemin:?}"
+        ),
+        None => panic!("un cache négatif permanent cachait la session ajoutée"),
+    }
+}
+
+#[test]
+fn le_cache_négatif_s_invalide_aussi_en_mode_wal() {
+    let racines = racines_fake();
+    let base = racines.codex_home.join("state_10.sqlite");
+    let connexion = match rusqlite::Connection::open(&base) {
+        Ok(connexion) => connexion,
+        Err(cause) => panic!("index refusé : {cause}"),
+    };
+    match connexion.execute_batch(
+        "PRAGMA journal_mode=WAL; CREATE TABLE threads (id TEXT PRIMARY KEY, name TEXT, cwd TEXT, rollout_path TEXT, archived INTEGER, updated_at TEXT);",
+    ) {
+        Ok(()) => (),
+        Err(cause) => panic!("schéma refusé : {cause}"),
+    }
+    // ⚠️ Codex écrit son index en WAL : la base principale ne bouge pas à
+    // l'insertion, seul le `-wal` grandit — et le dossier ne change pas.
     let resolveur = Resolveur::nouveau(racines);
     // Cache NÉGATIF : la session n'existe pas encore.
     assert!(chemin_codex_par_nom(&resolveur, "Nouvelle session", "/dev/projets/x").is_none());

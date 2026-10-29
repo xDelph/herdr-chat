@@ -14,7 +14,10 @@
 
 use crate::agents::{devin, opencode};
 use crate::cursor;
+use crate::normalisation::Normaliseur;
+use crate::path_policy::{VerdictChemin, resolu_sous};
 use crate::resolver::{Emplacement, Racines, Resolveur, SourceSession, source_session_de};
+use crate::storage::jsonl::framing::prochain_debut_de_ligne;
 use crate::storage::jsonl::identity::{CurseurFichier, identite_de};
 use crate::storage::jsonl::reader::{ErreurBorne, page_arriere, page_bornee};
 use crate::storage::sqlite::worker::Ouvrier;
@@ -28,9 +31,17 @@ use std::path::Path;
 /// La cible d'une page quand le client ne la borne pas (fenêtre du fil).
 pub const LIMITE_PAGE_DEFAUT: u32 = 512 * 1024;
 
+/// Le nombre de lignes d'une page SQLite (opencode/devin) — celui du fil.
+///
+/// ⚠️ La `limit` d'une demande est une fenêtre en **octets** (celle des
+/// JSONL). Elle était passée telle quelle en `LIMIT` SQL : 512 Kio devenaient
+/// 524 288 lignes, donc toute la session à chaque ouverture.
+pub const LIGNES_PAGE_SQLITE: u32 = 400;
+
 /// Le port réel — les racines connues (les mêmes que le résolveur).
 pub struct PortSessions {
     resolveur: Resolveur,
+    normaliseur: Normaliseur,
 }
 
 impl PortSessions {
@@ -38,6 +49,42 @@ impl PortSessions {
     pub fn nouveau(racines: Racines) -> Self {
         Self {
             resolveur: Resolveur::nouveau(racines),
+            normaliseur: Normaliseur::standard(),
+        }
+    }
+
+    /// Les racines où un fichier de session a le droit d'être lu (S03).
+    fn racines_de_fichiers(&self) -> [std::path::PathBuf; 3] {
+        let racines = &self.resolveur.racines;
+        [
+            racines.pi_sessions.clone(),
+            racines.codex_sessions.clone(),
+            racines.claude_projects.clone(),
+        ]
+    }
+
+    /// Le chemin réellement ouvert — sous une racine autorisée, ou le refus
+    /// et sa cause (un chemin annoncé par Herdr n'est jamais lu sans garde).
+    fn garde(&self, source: &ResolvedSource) -> Result<ResolvedSource, SessionPageOutcome> {
+        match resolu_sous(&self.racines_de_fichiers(), Path::new(&source.base)) {
+            VerdictChemin::Autorise { .. } => Ok(source.clone()),
+            VerdictChemin::Refuse { raison } => match raison {
+                crate::path_policy::RefusChemin::CheminAbsent => {
+                    Err(SessionPageOutcome::Absente(SessionPage {
+                        session_path: source.base.clone(),
+                        entries: Vec::new(),
+                        incremental: false,
+                        cursor: None,
+                        previous_cursor: None,
+                        has_more: false,
+                        reset: false,
+                        rattrape: false,
+                    }))
+                }
+                autre => Err(SessionPageOutcome::Invalide {
+                    detail: format!("{} : {}", autre.message(), source.base),
+                }),
+            },
         }
     }
 
@@ -111,7 +158,11 @@ pub fn resout(resolveur: &Resolveur, hint: &SessionHint) -> Option<ResolvedSourc
 }
 
 /// Une page de fichier : le JSONL, borné, avec ses quatre clauses.
-fn page_fichier(source: &ResolvedSource, request: &SessionPageRequest) -> SessionPageOutcome {
+fn page_fichier(
+    normaliseur: &Normaliseur,
+    source: &ResolvedSource,
+    request: &SessionPageRequest,
+) -> SessionPageOutcome {
     let chemin = Path::new(&source.base);
     let empreinte = empreinte_de_source(source);
     // ⚠️ Le forward est borné par la CIBLE de T025 (2 MiB) dans `page_bornee` ;
@@ -143,7 +194,16 @@ fn page_fichier(source: &ResolvedSource, request: &SessionPageRequest) -> Sessio
         None => {
             let cible = u64::from(request.limit);
             if identite.taille > cible {
-                debut_de_queue(chemin, identite.taille - cible).unwrap_or(0)
+                match std::fs::File::open(chemin).and_then(|mut fichier| {
+                    prochain_debut_de_ligne(&mut fichier, identite.taille - cible)
+                }) {
+                    Ok(debut) => debut,
+                    Err(cause) => {
+                        return SessionPageOutcome::Io {
+                            detail: cause.to_string(),
+                        };
+                    }
+                }
             } else {
                 0
             }
@@ -184,13 +244,14 @@ fn page_fichier(source: &ResolvedSource, request: &SessionPageRequest) -> Sessio
         }
         Err(ErreurBorne::Io(cause)) => return SessionPageOutcome::Io { detail: cause },
     };
-    let _ = &page;
-
-    // 3) Les entrées, dans l'ordre de lecture — le brut est conservé.
+    // 3) Les entrées, dans l'ordre de lecture — chacune passée par le point
+    //    d'entrée unique (forme commune ; brute quand rien ne la traduit).
+    let famille = source.family.as_ref().map(|kind| kind.as_str());
     let entries: Vec<SessionEntry> = page
         .cadres
         .iter()
-        .map(|cadre| entree_de_cadre(&cadre.brut))
+        .filter(|cadre| !cadre.brut.trim().is_empty())
+        .map(|cadre| normaliseur.entree(famille, &cadre.brut))
         .collect();
     let nouveau_curseur = cursor::encode(
         &empreinte,
@@ -241,24 +302,6 @@ fn page_fichier(source: &ResolvedSource, request: &SessionPageRequest) -> Sessio
     SessionPageOutcome::Page(page)
 }
 
-/// Le premier offset **après** un saut de ligne, à partir de `depart` — pour
-/// commencer la queue d'un fichier sur une ligne entière.
-fn debut_de_queue(chemin: &Path, depart: u64) -> Option<u64> {
-    use std::io::{Read, Seek, SeekFrom};
-    let mut fichier = std::fs::File::open(chemin).ok()?;
-    fichier.seek(SeekFrom::Start(depart)).ok()?;
-    let mut octet = [0_u8; 1];
-    let mut position = depart;
-    loop {
-        match fichier.read(&mut octet) {
-            Ok(0) => return Some(position),
-            Ok(_) if octet[0] == b'\n' => return Some(position + 1),
-            Ok(_) => position += 1,
-            Err(_) => return None,
-        }
-    }
-}
-
 /// La page vide d'une source absente — le contexte de réponse (incrémental,
 /// reset) est celui de la demande, jamais inventé.
 fn page_vide_de(source: &ResolvedSource, request: &SessionPageRequest) -> SessionPage {
@@ -276,6 +319,7 @@ fn page_vide_de(source: &ResolvedSource, request: &SessionPageRequest) -> Sessio
 
 /// Une page **arrière** : `previous_cursor` demande l'historique avant lui.
 fn page_fichier_arriere(
+    normaliseur: &Normaliseur,
     source: &ResolvedSource,
     request: &SessionPageRequest,
     avant: &str,
@@ -310,10 +354,12 @@ fn page_fichier_arriere(
     } as usize;
     match page_arriere(Path::new(&source.base), &curseur, limite) {
         Ok(arriere) => {
+            let famille = source.family.as_ref().map(|kind| kind.as_str());
             let entries: Vec<SessionEntry> = arriere
                 .cadres
                 .iter()
-                .map(|cadre| entree_de_cadre(&cadre.brut))
+                .filter(|cadre| !cadre.brut.trim().is_empty())
+                .map(|cadre| normaliseur.entree(famille, &cadre.brut))
                 .collect();
             SessionPageOutcome::Page(SessionPage {
                 cursor: Some(cursor::encode(
@@ -339,33 +385,6 @@ fn page_fichier_arriere(
         Err(cause) => SessionPageOutcome::Io {
             detail: cause.to_string(),
         },
-    }
-}
-
-/// Une entrée de session : le brut **tel quel**, et les trois champs de
-/// position quand la ligne les porte.
-#[must_use]
-pub fn entree_de_cadre(brut: &str) -> SessionEntry {
-    let valeur: serde_json::Value = serde_json::from_str(brut).unwrap_or(serde_json::Value::Null);
-    SessionEntry {
-        kind: valeur
-            .get("type")
-            .and_then(serde_json::Value::as_str)
-            .unwrap_or("ligne")
-            .to_string(),
-        id: valeur
-            .get("id")
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_string),
-        parent_id: valeur
-            .get("parentId")
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_string),
-        raw: brut.to_string(),
-        timestamp: valeur
-            .get("timestamp")
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_string),
     }
 }
 
@@ -408,7 +427,7 @@ fn page_sqlite(source: &ResolvedSource, request: &SessionPageRequest) -> Session
             identifiant.as_str(),
             avant,
             depuis,
-            request.limit,
+            LIGNES_PAGE_SQLITE,
         )
         .map(|page| {
             (
@@ -421,14 +440,20 @@ fn page_sqlite(source: &ResolvedSource, request: &SessionPageRequest) -> Session
         }),
         "devin" => {
             let lue = match (avant, depuis) {
-                (Some(borne), _) => {
-                    devin::moteur::lire_avant(&ouvrier, identifiant.as_str(), borne, request.limit)
-                }
-                (None, Some(borne)) => {
-                    devin::moteur::lire_depuis(&ouvrier, identifiant.as_str(), borne, request.limit)
-                }
+                (Some(borne), _) => devin::moteur::lire_avant(
+                    &ouvrier,
+                    identifiant.as_str(),
+                    borne,
+                    LIGNES_PAGE_SQLITE,
+                ),
+                (None, Some(borne)) => devin::moteur::lire_depuis(
+                    &ouvrier,
+                    identifiant.as_str(),
+                    borne,
+                    LIGNES_PAGE_SQLITE,
+                ),
                 (None, None) => {
-                    devin::moteur::lire_derniere(&ouvrier, identifiant.as_str(), request.limit)
+                    devin::moteur::lire_derniere(&ouvrier, identifiant.as_str(), LIGNES_PAGE_SQLITE)
                 }
             };
             lue.map(|page| {
@@ -452,10 +477,15 @@ fn page_sqlite(source: &ResolvedSource, request: &SessionPageRequest) -> Session
             };
         }
     };
-    let Ok((curseur_lu, previous_seq, incremental, has_more, entrees)) = page else {
-        return SessionPageOutcome::Io {
-            detail: format!("lecture SQLite échouée ({famille})"),
-        };
+    let (curseur_lu, previous_seq, incremental, has_more, entrees) = match page {
+        Ok(page) => page,
+        // ⚠️ La cause réelle est rendue : un verrou, une table absente et un
+        // schéma inattendu ne se diagnostiquent pas de la même façon.
+        Err(cause) => {
+            return SessionPageOutcome::Io {
+                detail: format!("lecture SQLite échouée ({famille}) : {cause:?}"),
+            };
+        }
     };
     let entries: Vec<SessionEntry> = entrees
         .iter()
@@ -496,9 +526,14 @@ impl domain::ports::SessionPort for PortSessions {
     fn page(&self, request: SessionPageRequest) -> SessionFuture<'_, SessionPageOutcome> {
         Box::pin(async move {
             let issue = match request.source.kind {
-                SourceKind::File => match request.previous_cursor.as_deref() {
-                    Some(avant) => page_fichier_arriere(&request.source, &request, avant),
-                    None => page_fichier(&request.source, &request),
+                SourceKind::File => match self.garde(&request.source) {
+                    Err(refus) => refus,
+                    Ok(source) => match request.previous_cursor.as_deref() {
+                        Some(avant) => {
+                            page_fichier_arriere(&self.normaliseur, &source, &request, avant)
+                        }
+                        None => page_fichier(&self.normaliseur, &source, &request),
+                    },
                 },
                 SourceKind::Sqlite => page_sqlite(&request.source, &request),
             };
