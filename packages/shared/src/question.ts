@@ -98,7 +98,7 @@ const indentation = (ligne: string): number => ligne.length - ligne.trimStart().
  * avec la longueur des libellés. Un seul espace est donc significatif — et ne
  * sépare pas : « Allow for this session » est un libellé, pas deux champs.
  */
-const LIGNE_CHOIX = /^[ \t]*(›)?[ \t]*(\d{1,2})[.)][ \t]+(.+)$/;
+const LIGNE_CHOIX = /^[ \t]*(›|❯)?[ \t]*(\d{1,2})[.)][ \t]+(.+)$/;
 
 /**
  * La ligne d'aide du sélecteur.
@@ -231,7 +231,7 @@ export const questionDeLEcran = (ecran: string): Question | undefined => {
       ...(detail === undefined ? {} : { detail }),
       libelle: lu.libelle,
       numero: Number.parseInt(trouve[2] ?? "0", 10),
-      selectionne: trouve[1] === "›",
+      selectionne: trouve[1] === "›" || trouve[1] === "❯",
     });
   }
 
@@ -315,6 +315,14 @@ export const questionDeLEcran = (ecran: string): Question | undefined => {
  */
 export const OPTION_SAISIE_LIBRE = "Type your own answer";
 
-/** Un libellé de choix est-il l'option de saisie libre d'opencode ? */
-export const estOptionSaisieLibre = (libelle: string): boolean =>
-  libelle.trim() === OPTION_SAISIE_LIBRE;
+/** Les saisies libres de Claude Code (`AskUserQuestion`, 2.1.312). */
+export const OPTIONS_SAISIE_LIBRE_CLAUDE: ReadonlyArray<string> = [
+  "Type something.",
+  "Type something",
+];
+
+/** Un libellé de choix est-il une option de saisie libre (opencode, Claude) ? */
+export const estOptionSaisieLibre = (libelle: string): boolean => {
+  const propre = libelle.trim();
+  return propre === OPTION_SAISIE_LIBRE || OPTIONS_SAISIE_LIBRE_CLAUDE.includes(propre);
+};

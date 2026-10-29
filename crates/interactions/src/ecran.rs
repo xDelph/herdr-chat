@@ -19,8 +19,19 @@ pub struct Choix {
     /// ligne suivante, indentée plus profond que le choix.
     pub detail: Option<String>,
     pub numero: u64,
-    /// Le `›` de sélection (le curseur du sélecteur).
+    /// Le curseur du sélecteur (`›` opencode/codex, `❯` Claude Code).
     pub selectionne: bool,
+}
+
+/// Comment on atteint un choix sur l'interface affichée — lu à l'écran.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Navigation {
+    /// Les choix sont numérotés : on frappe le chiffre (Claude, codex,
+    /// opencode).
+    Chiffres,
+    /// Les choix ne sont PAS numérotés : on déplace le curseur `→` avec
+    /// `j`/`k` (sélecteur des extensions de pi, `extension-selector.js`).
+    Fleches,
 }
 
 /// Une question posée, prête à afficher.
@@ -32,6 +43,8 @@ pub struct Question {
     pub choix: Vec<Choix>,
     /// Ce qu'il faut faire pour valider — « enter to submit | esc to cancel ».
     pub invite: Option<String>,
+    /// Comment atteindre un choix (chiffres, ou curseur à déplacer).
+    pub navigation: Navigation,
 }
 
 /// Retire le filet de rendu en début de ligne — **le filet, pas ce qui le
@@ -53,11 +66,18 @@ fn indentation(ligne: &str) -> usize {
     ligne.len() - ligne.trim_start().len()
 }
 
-/// La ligne d'un choix : `›` facultatif, numéro 1-2 chiffres, `.` ou `)`,
-/// puis espaces, puis le corps.
+/// Le curseur de Claude Code (`figures.pointer` d'Ink sur macOS).
+const CURSEUR_CLAUDE: char = '❯';
+
+/// La ligne d'un choix : curseur facultatif (`›` opencode/codex, `❯` Claude
+/// Code), numéro 1-2 chiffres, `.` ou `)`, puis espaces, puis le corps.
+///
+/// ⚠️ Sans `❯`, la ligne SURLIGNÉE d'une question de Claude n'était pas un
+/// choix : la liste commençait à 2, la numérotation était refusée, et la PWA
+/// renvoyait l'utilisateur au clavier (retour du 2026-10-29).
 fn ligne_choix(ligne: &str) -> Option<(bool, u64, &str)> {
     let mut reste = ligne.trim_start_matches([' ', '\t']);
-    let selectionne = reste.starts_with('›');
+    let selectionne = reste.starts_with('›') || reste.starts_with(CURSEUR_CLAUDE);
     if selectionne {
         reste = reste[reste.chars().next()?.len_utf8()..].trim_start_matches([' ', '\t']);
     }
@@ -185,10 +205,15 @@ fn separer_libelle(brut: &str) -> (String, Option<String>) {
 /// l'envoyer comme un choix (le choisir ouvre un champ texte).
 pub const OPTION_SAISIE_LIBRE: &str = "Type your own answer";
 
-/// Un libellé de choix est-il l'option de saisie libre d'opencode ?
+/// Les saisies libres de Claude Code (`AskUserQuestion`, 2.1.312) : « Type
+/// something. » (choix unique), « Type something » (choix multiple).
+pub const OPTIONS_SAISIE_LIBRE_CLAUDE: [&str; 2] = ["Type something.", "Type something"];
+
+/// Un libellé de choix est-il une option de saisie libre (opencode, Claude) ?
 #[must_use]
 pub fn est_option_saisie_libre(libelle: &str) -> bool {
-    libelle.trim() == OPTION_SAISIE_LIBRE
+    let libelle = libelle.trim();
+    libelle == OPTION_SAISIE_LIBRE || OPTIONS_SAISIE_LIBRE_CLAUDE.contains(&libelle)
 }
 
 /// Lit la question affichée sur un écran de terminal — `None` si rien ne
@@ -200,7 +225,7 @@ pub fn question_de_l_ecran(ecran: &str) -> Option<Question> {
         .filter(|index| ligne_choix(lignes[*index]).is_some())
         .collect();
     if numerotees.is_empty() {
-        return None;
+        return question_a_fleches(&lignes);
     }
     let numero_de = |index: usize| ligne_choix(lignes[index]).map(|(_, numero, _)| numero);
 
@@ -288,7 +313,38 @@ pub fn question_de_l_ecran(ecran: &str) -> Option<Question> {
             contexte.push(ligne.clone());
         }
     }
-    let texte = texte?;
+    let mut texte = texte?;
+    // ⚠️ Une longue question est REPLIÉE sur plusieurs lignes (Claude Code la
+    // rend en paragraphe) : on ne gardait que sa dernière ligne. Les lignes
+    // non vides juste au-dessus, jusqu'à la ligne vide, en font partie.
+    if contexte.is_empty() {
+        let mut index = premier;
+        while index > 0 && lignes[index - 1].trim().is_empty() {
+            index -= 1;
+        }
+        // `index` est sur la dernière ligne de la question ; on remonte au-delà.
+        let mut haut = index.saturating_sub(1);
+        let mut morceaux: Vec<String> = Vec::new();
+        while haut > 0 {
+            let precedente = lignes[haut - 1].trim();
+            if precedente.is_empty()
+                || precedente
+                    .chars()
+                    .all(|c| matches!(c, '─' | '━' | '═' | '-' | '╌'))
+                || ligne_choix(lignes[haut - 1]).is_some()
+                || est_ligne_invite(lignes[haut - 1])
+                || est_ligne_champ(lignes[haut - 1])
+            {
+                break;
+            }
+            morceaux.insert(0, precedente.to_string());
+            haut -= 1;
+        }
+        if !morceaux.is_empty() {
+            morceaux.push(texte);
+            texte = morceaux.join(" ");
+        }
+    }
 
     // L'invite de validation, après la liste.
     let invite = lignes[premier..]
@@ -301,6 +357,7 @@ pub fn question_de_l_ecran(ecran: &str) -> Option<Question> {
         contexte,
         choix,
         invite,
+        navigation: Navigation::Chiffres,
     })
 }
 
@@ -319,5 +376,106 @@ pub fn en_resume(question: &Question) -> Value {
     serde_json::json!({
         "texte": question.texte,
         "choix": question.choix.iter().map(|c| c.numero).collect::<Vec<u64>>(),
+    })
+}
+
+/// Le curseur du sélecteur de pi (`extension-selector.js`, `select-list.js`).
+const CURSEUR_PI: &str = "→ ";
+
+/// Une question à choix NON numérotés (sélecteur des extensions de pi) :
+///
+/// ```text
+///  Titre
+///
+///  Description
+///
+///  → Option A
+///    Option B
+///
+///  ↑↓ navigate  enter select  esc cancel
+/// ```
+///
+/// Les numéros sont ceux de l'ordre affiché ; la réponse déplace le curseur
+/// (`Navigation::Fleches`) au lieu de frapper un chiffre.
+fn question_a_fleches(lignes: &[&str]) -> Option<Question> {
+    // La DERNIÈRE ligne d'aide « ↑↓ navigate » : l'invite courante.
+    let aide = (0..lignes.len()).rev().find(|index| {
+        let basse = lignes[*index].trim().to_lowercase();
+        basse.starts_with("↑↓") && basse.contains("navigate")
+    })?;
+    // Le bloc d'options : les lignes non vides juste au-dessus de l'aide.
+    let mut fin = aide;
+    while fin > 0 && lignes[fin - 1].trim().is_empty() {
+        fin -= 1;
+    }
+    let mut debut = fin;
+    while debut > 0 && !lignes[debut - 1].trim().is_empty() {
+        debut -= 1;
+    }
+    let bloc = &lignes[debut..fin];
+    let curseurs = bloc
+        .iter()
+        .filter(|ligne| ligne.trim_start().starts_with(CURSEUR_PI))
+        .count();
+    if bloc.len() < 2 || curseurs != 1 {
+        return None;
+    }
+    let choix: Vec<Choix> = bloc
+        .iter()
+        .enumerate()
+        .map(|(rang, ligne)| {
+            let propre = ligne.trim_start();
+            let selectionne = propre.starts_with(CURSEUR_PI);
+            let libelle = propre
+                .strip_prefix(CURSEUR_PI)
+                .unwrap_or(propre)
+                .trim()
+                .to_string();
+            Choix {
+                libelle,
+                detail: None,
+                numero: (rang + 1) as u64,
+                selectionne,
+            }
+        })
+        .collect();
+    // Le texte : les paragraphes au-dessus (titre, puis description), jusqu'au
+    // cadre (`────`) ou au haut de l'écran.
+    let mut paragraphes: Vec<String> = Vec::new();
+    let mut courant: Vec<String> = Vec::new();
+    let mut index = debut;
+    while index > 0 {
+        index -= 1;
+        let propre = lignes[index].trim();
+        if propre.chars().all(|c| matches!(c, '─' | '━' | '═')) && !propre.is_empty() {
+            break;
+        }
+        if propre.is_empty() {
+            if !courant.is_empty() {
+                paragraphes.insert(0, courant.join(" "));
+                courant.clear();
+                // Titre et description, pas plus : sans cadre, on ne remonte
+                // jamais dans la conversation.
+                if paragraphes.len() == 2 {
+                    break;
+                }
+            }
+            continue;
+        }
+        courant.insert(0, propre.to_string());
+    }
+    if !courant.is_empty() {
+        paragraphes.insert(0, courant.join(" "));
+    }
+    let texte = paragraphes.join(" — ");
+    if texte.is_empty() {
+        return None;
+    }
+    Some(Question {
+        texte,
+        contexte: Vec::new(),
+        choix,
+        invite: Some(lignes[aide].trim().to_string()),
+        navigation: Navigation::Fleches,
     })
 }

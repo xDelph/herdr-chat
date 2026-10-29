@@ -5,7 +5,7 @@
 //! l'exécution de code ; envoyer un chiffre que personne n'a proposé serait
 //! envoyer une décision que l'utilisateur n'a pas prise.
 
-use crate::ecran::{Choix, question_de_l_ecran};
+use crate::ecran::{Choix, Navigation, Question, est_option_saisie_libre, question_de_l_ecran};
 use domain::errors::PortError;
 use domain::ids::PaneId;
 use domain::ports::{ControlPort, PortFuture, ScreenRead, TargetedKeys, TargetedText};
@@ -60,7 +60,8 @@ pub type PortPourQuestion = dyn ControlPort + 'static;
 /// ⚠️ **`texte` n'est pas une décoration.** « Type your own answer » est un
 /// choix qu'opencode ajoute lui-même : le choisir **ouvre un champ texte** —
 /// la séquence complète est le numéro, `enter` (qui ouvre le champ), le
-/// texte, `enter`. ⚠️ L'ordre est **prouvé par le code d'opencode** (bundle
+/// texte, `enter`. Chez Claude Code (« Type something. »), le chiffre place
+/// le curseur dans le champ : numéro, texte, `enter`. ⚠️ L'ordre est **prouvé par le code d'opencode** (bundle
 /// 2.0.23) : un chiffre SÉLECTIONNE sans valider, et `return` valide.
 ///
 /// ⚠️ Un texte vide ou fait d'espaces n'écrit rien : valider un champ vide
@@ -100,24 +101,99 @@ pub fn repondre_question(
             ),
         });
     }
-    // `enter` valide le choix : le numéro seul le sélectionne sans soumettre.
-    attends(&mut port.send_keys(TargetedKeys {
-        pane: pane.clone(),
-        keys: vec![numero.to_string(), String::from("enter")],
-    }))?;
-
-    // ⚠️ Saisie libre : le choix ouvre un champ, il faut y écrire — sinon
-    // l'agent bloquait toujours, et rien à l'écran ne le disait.
     let reponse_libre = texte.unwrap_or("").trim();
-    if !reponse_libre.is_empty() {
-        attends(&mut port.send_text(TargetedText {
-            pane: pane.clone(),
-            text: reponse_libre.to_string(),
-        }))?;
+    let saisie_libre = question
+        .choix
+        .iter()
+        .find(|choix| choix.numero == numero as u64)
+        .is_some_and(|choix| est_option_saisie_libre(&choix.libelle));
+
+    /*
+      ⚠️ **La séquence se décide sur ce que l'écran MONTRE, pas sur un agent
+      supposé** (retour du 2026-10-29). Mesuré dans les codes sources :
+      - Codex (`list_selection_view.rs`) et le sélecteur standard de Claude
+        Code (2.1.312) VALIDENT au chiffre : un `enter` de plus tombait sur
+        l'écran suivant — la question 2, ou l'approbation suivante, dont
+        l'option 1 (« Yes ») est sélectionnée par défaut. On répondait à une
+        question que personne n'avait lue.
+      - opencode (bundle 2.0.23), la variante « aperçus » de Claude et les
+        lignes « confirmation explicite » de Codex SÉLECTIONNENT au chiffre,
+        et `enter` valide.
+      Règle : là où un curseur est visible (`›`, `❯`), on envoie le chiffre
+      SEUL, on relit, et `enter` ne part que si c'est la MÊME question avec le
+      curseur sur NOTRE choix — `enter` ne peut alors valider que lui. Là où
+      aucun curseur n'est visible (opencode surligne en couleur), la séquence
+      prouvée par son code : chiffre puis `enter`.
+    */
+    let curseur_visible = question.choix.iter().any(|choix| choix.selectionne);
+    if question.navigation == Navigation::Fleches {
+        if let Some(refus) = deplace_curseur(port, pane, &question, numero as u64, &avant)? {
+            return Ok(refus);
+        }
         attends(&mut port.send_keys(TargetedKeys {
             pane: pane.clone(),
             keys: vec![String::from("enter")],
         }))?;
+    } else if curseur_visible {
+        if saisie_libre && reponse_libre.is_empty() {
+            return Ok(ReponseQuestion {
+                etat: EtatReponse::Refusee,
+                detail: String::from("this choice needs your text — nothing was sent"),
+            });
+        }
+        attends(&mut port.send_keys(TargetedKeys {
+            pane: pane.clone(),
+            keys: vec![numero.to_string()],
+        }))?;
+        let ecran_avant = avant.text.clone().unwrap_or_default();
+        let apres_chiffre = relit_apres_frappe(port, pane, &ecran_avant)?;
+        if let Some(encore) = question_de_l_ecran(&apres_chiffre)
+            && meme_question(&encore, &question)
+        {
+            let curseur = encore
+                .choix
+                .iter()
+                .find(|choix| choix.selectionne)
+                .map(|choix| choix.numero);
+            if curseur != Some(numero as u64) {
+                return Ok(ReponseQuestion {
+                    etat: EtatReponse::Transmise,
+                    detail: String::from(
+                        "the choice key was sent but the cursor is not on it — nothing was validated",
+                    ),
+                });
+            }
+            // Le champ de saisie libre est sous le curseur : le texte, puis
+            // `enter` qui le valide. Sinon, `enter` valide NOTRE choix.
+            if saisie_libre {
+                attends(&mut port.send_text(TargetedText {
+                    pane: pane.clone(),
+                    text: reponse_libre.to_string(),
+                }))?;
+            }
+            attends(&mut port.send_keys(TargetedKeys {
+                pane: pane.clone(),
+                keys: vec![String::from("enter")],
+            }))?;
+        }
+    } else {
+        // `enter` valide le choix : le numéro seul le sélectionne (opencode).
+        attends(&mut port.send_keys(TargetedKeys {
+            pane: pane.clone(),
+            keys: vec![numero.to_string(), String::from("enter")],
+        }))?;
+        // ⚠️ Saisie libre : le choix ouvre un champ, il faut y écrire — sinon
+        // l'agent bloquait toujours, et rien à l'écran ne le disait.
+        if !reponse_libre.is_empty() {
+            attends(&mut port.send_text(TargetedText {
+                pane: pane.clone(),
+                text: reponse_libre.to_string(),
+            }))?;
+            attends(&mut port.send_keys(TargetedKeys {
+                pane: pane.clone(),
+                keys: vec![String::from("enter")],
+            }))?;
+        }
     }
 
     // Relecture : l'application est un **fait observé**, pas une intention.
@@ -143,4 +219,99 @@ pub fn repondre_question(
         etat: EtatReponse::Appliquee,
         detail: format!("“{libelle}” — the agent resumed"),
     })
+}
+
+/// La même question : même texte, mêmes libellés de choix.
+fn meme_question(a: &Question, b: &Question) -> bool {
+    a.texte == b.texte
+        && a.choix.len() == b.choix.len()
+        && a.choix
+            .iter()
+            .zip(b.choix.iter())
+            .all(|(x, y)| x.libelle == y.libelle)
+}
+
+/// Le nombre de relectures après une frappe, et leur intervalle : l'interface
+/// de l'agent redessine en quelques dizaines de millisecondes.
+const RELECTURES: usize = 8;
+const INTERVALLE_RELECTURE: std::time::Duration = std::time::Duration::from_millis(75);
+
+/// Relit l'écran jusqu'à ce qu'il change (la frappe a été dessinée), borné :
+/// un écran qui ne bouge pas est rendu tel quel.
+fn relit_apres_frappe(
+    port: &PortPourQuestion,
+    pane: &PaneId,
+    avant: &str,
+) -> Result<String, PortError> {
+    let mut dernier = String::new();
+    for _ in 0..RELECTURES {
+        std::thread::sleep(INTERVALLE_RELECTURE);
+        dernier = attends(&mut port.read_screen(ScreenRead {
+            pane: pane.clone(),
+            max_lines: 200,
+        }))?
+        .text
+        .unwrap_or_default();
+        if dernier != avant {
+            break;
+        }
+    }
+    Ok(dernier)
+}
+
+/// Le nombre maximal de pas de curseur — une liste d'écran, pas un menu infini.
+const PAS_MAXIMUM: u64 = 20;
+
+/// Amène le curseur `→` sur `cible`, un pas à la fois (`j` descend, `k`
+/// monte — `extension-selector.js` de pi les lit en texte brut), en RELISANT
+/// l'écran après chaque pas. Rend un refus si le curseur n'y arrive pas :
+/// `enter` ne part alors jamais.
+fn deplace_curseur(
+    port: &PortPourQuestion,
+    pane: &PaneId,
+    question: &Question,
+    cible: u64,
+    avant: &domain::observation::ScreenObservation,
+) -> Result<Option<ReponseQuestion>, PortError> {
+    let mut ecran = avant.text.clone().unwrap_or_default();
+    let mut courante = question.clone();
+    for _ in 0..PAS_MAXIMUM {
+        let curseur = courante
+            .choix
+            .iter()
+            .find(|choix| choix.selectionne)
+            .map(|choix| choix.numero);
+        let Some(curseur) = curseur else { break };
+        if curseur == cible {
+            return Ok(None);
+        }
+        let pas = if cible > curseur { "j" } else { "k" };
+        attends(&mut port.send_text(TargetedText {
+            pane: pane.clone(),
+            text: String::from(pas),
+        }))?;
+        ecran = relit_apres_frappe(port, pane, &ecran)?;
+        match question_de_l_ecran(&ecran) {
+            Some(suivante) if meme_question(&suivante, question) => {
+                let nouveau = suivante
+                    .choix
+                    .iter()
+                    .find(|choix| choix.selectionne)
+                    .map(|choix| choix.numero);
+                // Un pas sans effet : l'interface ne suit pas — on s'arrête là
+                // plutôt que d'y frapper encore.
+                if nouveau == Some(curseur) {
+                    break;
+                }
+                courante = suivante;
+            }
+            _ => break,
+        }
+    }
+    Ok(Some(ReponseQuestion {
+        etat: EtatReponse::Transmise,
+        detail: String::from(
+            "the cursor could not be brought onto the choice — nothing was validated",
+        ),
+    }))
 }

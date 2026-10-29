@@ -150,3 +150,111 @@ fn la_garde_numero_offert_protège_du_hasard() {
         "pas de négatif"
     );
 }
+
+/// La question `AskUserQuestion` de Claude Code (2.1.312), reconstituée
+/// d'après son rendu lu dans le binaire (`iZ`, `kk`, sélecteur `compact-
+/// vertical`) : barre d'onglets, question repliée sur deux lignes, curseur
+/// `❯`, description sous chaque choix, saisie libre « Type something. »,
+/// séparateur, « Chat about this », pied d'aide.
+pub(crate) const ECRAN_CLAUDE: &str = concat!(
+    "────────────────────────────────────────────────────────────────────\n",
+    " ←  ☐ Environment   ✔ Submit  →\n",
+    "\n",
+    "I can't get past the maintenance page. Locally, the backend rejects the\n",
+    "publishable key. Which environment should I browse?\n",
+    "\n",
+    "❯ 1. Production (I'll give password)\n",
+    "     Browse atcrea.fr with the maintenance password.\n",
+    "  2. Local\n",
+    "     Fix the publishable key first.\n",
+    "  3. Type something.\n",
+    "────────────────────────────────────────────────────────────────────\n",
+    "  4. Chat about this\n",
+    "\n",
+    "Enter to select · ↑/↓ to navigate · Esc to cancel\n",
+);
+
+#[test]
+fn la_question_de_claude_se_lit_avec_son_curseur() {
+    let question = question_de_l_ecran(ECRAN_CLAUDE)
+        .unwrap_or_else(|| panic!("la question de Claude doit se lire (curseur ❯)"));
+    // La question repliée est lue EN ENTIER, pas sa dernière ligne.
+    assert_eq!(
+        question.texte,
+        "I can't get past the maintenance page. Locally, the backend rejects the publishable key. Which environment should I browse?"
+    );
+    let libelles: Vec<&str> = question.choix.iter().map(|c| c.libelle.as_str()).collect();
+    assert_eq!(
+        libelles,
+        vec![
+            "Production (I'll give password)",
+            "Local",
+            "Type something.",
+            "Chat about this"
+        ]
+    );
+    assert!(question.choix[0].selectionne, "le ❯ est le curseur");
+    assert_eq!(
+        question.choix[0].detail.as_deref(),
+        Some("Browse atcrea.fr with the maintenance password.")
+    );
+    assert!(est_option_saisie_libre("Type something."));
+    assert!(
+        question
+            .invite
+            .is_some_and(|invite| invite.starts_with("Enter to select"))
+    );
+}
+
+/// Le sélecteur des extensions de pi (`extension-selector.js`) : cadre,
+/// titre, description, options NON numérotées avec le curseur `→`, aide.
+pub(crate) fn ecran_pi(curseur: usize) -> String {
+    let options = ["Deploy to staging", "Deploy to production", "Cancel"];
+    let mut lignes = vec![
+        String::from("previous agent output"),
+        String::from("────────────────────────────────────────"),
+        String::new(),
+        String::from(" Where should I deploy?"),
+        String::new(),
+        String::from(" The build passed on main."),
+        String::new(),
+    ];
+    for (rang, option) in options.iter().enumerate() {
+        lignes.push(if rang == curseur {
+            format!(" → {option}")
+        } else {
+            format!("   {option}")
+        });
+    }
+    lignes.extend([
+        String::new(),
+        String::from(" ↑↓ navigate  enter select  esc cancel"),
+        String::new(),
+        String::from("────────────────────────────────────────"),
+    ]);
+    lignes.join("\n")
+}
+
+#[test]
+fn le_selecteur_de_pi_sans_numeros_se_lit() {
+    use interactions::ecran::Navigation;
+    let question = question_de_l_ecran(&ecran_pi(0))
+        .unwrap_or_else(|| panic!("le sélecteur de pi doit se lire"));
+    assert_eq!(
+        question.texte,
+        "Where should I deploy? — The build passed on main."
+    );
+    let libelles: Vec<&str> = question.choix.iter().map(|c| c.libelle.as_str()).collect();
+    assert_eq!(
+        libelles,
+        vec!["Deploy to staging", "Deploy to production", "Cancel"]
+    );
+    assert_eq!(
+        question.choix.iter().map(|c| c.numero).collect::<Vec<_>>(),
+        vec![1, 2, 3]
+    );
+    assert!(question.choix[0].selectionne);
+    assert_eq!(question.navigation, Navigation::Fleches);
+    // Rien au-dessus du cadre (la sortie précédente de l'agent) n'est lu.
+    assert!(!question.texte.contains("previous agent output"));
+}

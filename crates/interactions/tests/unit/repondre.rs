@@ -264,3 +264,155 @@ fn la_saisie_libre_écrit_le_texte_après_le_choix() {
         "aucun texte envoyé"
     );
 }
+
+/// Les touches frappées, dans l'ordre.
+fn frappees(port: &FauxPort) -> Vec<Vec<String>> {
+    port.touches
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone()
+}
+
+fn touches(liste: &[&[&str]]) -> Vec<Vec<String>> {
+    liste
+        .iter()
+        .map(|frappe| frappe.iter().map(|t| (*t).to_string()).collect())
+        .collect()
+}
+
+/// Retour du 2026-10-29 : sur le sélecteur de Claude Code (et de Codex), le
+/// chiffre VALIDE à lui seul. Un `enter` de plus tombait sur l'écran suivant
+/// et y répondait « 1 » sans que personne l'ait choisi.
+#[test]
+fn le_chiffre_qui_valide_part_seul() {
+    let port = FauxPort::nouveau(vec![
+        crate::unit::ecran::ECRAN_CLAUDE.to_string(),
+        String::from("l'agent travaille…"),
+    ]);
+    let reponse = repondre_question(&port, &PaneId::from(String::from("wB:p1")), 2, None)
+        .unwrap_or_else(|cause| panic!("{cause}"));
+    assert!(reponse.etat == EtatReponse::Appliquee, "{reponse:?}");
+    assert_eq!(
+        frappees(&port),
+        touches(&[&["2"]]),
+        "le chiffre, sans enter"
+    );
+}
+
+/// Le danger mesuré : après le chiffre, la question SUIVANTE s'affiche (avec
+/// son option 1 surlignée). Aucun `enter` ne part — sinon il y répondrait.
+#[test]
+fn la_question_suivante_ne_recoit_jamais_d_enter() {
+    let suivante = crate::unit::ecran::ECRAN_CLAUDE.replace(
+        "Which environment should I browse?",
+        "Which browser should I use?",
+    );
+    let port = FauxPort::nouveau(vec![
+        crate::unit::ecran::ECRAN_CLAUDE.to_string(),
+        suivante.clone(),
+        suivante,
+    ]);
+    let reponse = repondre_question(&port, &PaneId::from(String::from("wB:p1")), 1, None)
+        .unwrap_or_else(|cause| panic!("{cause}"));
+    assert_eq!(frappees(&port), touches(&[&["1"]]));
+    // La relecture voit UNE question (la suivante) : pas « appliquée » au sens
+    // fort, mais rien d'autre n'est parti.
+    assert!(reponse.etat == EtatReponse::Transmise, "{reponse:?}");
+}
+
+/// Une ligne à confirmation explicite (Codex) : le chiffre déplace seulement
+/// le curseur. Même question, curseur sur NOTRE choix : `enter` le valide.
+#[test]
+fn le_curseur_sur_notre_choix_recoit_enter() {
+    let avant = "Would you like to run the following command?\n› 1. Yes, proceed\n  2. No, and tell Codex what to do differently\nPress enter to confirm or esc to cancel\n";
+    let selectionne = "Would you like to run the following command?\n  1. Yes, proceed\n› 2. No, and tell Codex what to do differently\nPress enter to confirm or esc to cancel\n";
+    let port = FauxPort::nouveau(vec![
+        avant.to_string(),
+        selectionne.to_string(),
+        String::from("l'agent travaille…"),
+    ]);
+    let reponse = repondre_question(&port, &PaneId::from(String::from("w1:p1")), 2, None)
+        .unwrap_or_else(|cause| panic!("{cause}"));
+    assert!(reponse.etat == EtatReponse::Appliquee, "{reponse:?}");
+    assert_eq!(frappees(&port), touches(&[&["2"], &["enter"]]));
+}
+
+/// Le curseur n'est pas allé sur notre choix : rien ne valide à notre place.
+#[test]
+fn le_curseur_ailleurs_ne_recoit_rien() {
+    let ecran = "Would you like to run the following command?\n› 1. Yes, proceed\n  2. No\nPress enter to confirm or esc to cancel\n";
+    let port = FauxPort::nouveau(vec![ecran.to_string()]);
+    let reponse = repondre_question(&port, &PaneId::from(String::from("w1:p1")), 2, None)
+        .unwrap_or_else(|cause| panic!("{cause}"));
+    assert!(reponse.etat == EtatReponse::Transmise, "{reponse:?}");
+    assert_eq!(frappees(&port), touches(&[&["2"]]), "jamais d'enter");
+}
+
+/// La saisie libre de Claude : le chiffre place le curseur dans le champ,
+/// puis le texte, puis `enter` — et sans texte, rien ne part.
+#[test]
+fn la_saisie_libre_de_claude_est_chiffre_texte_enter() {
+    let champ = crate::unit::ecran::ECRAN_CLAUDE
+        .replace("❯ 1. Production", "  1. Production")
+        .replace("  3. Type something.", "❯ 3. Type something.");
+    let port = FauxPort::nouveau(vec![
+        crate::unit::ecran::ECRAN_CLAUDE.to_string(),
+        champ,
+        String::from("l'agent travaille…"),
+    ]);
+    let reponse = repondre_question(
+        &port,
+        &PaneId::from(String::from("wB:p1")),
+        3,
+        Some("staging, please"),
+    )
+    .unwrap_or_else(|cause| panic!("{cause}"));
+    assert!(reponse.etat == EtatReponse::Appliquee, "{reponse:?}");
+    assert_eq!(frappees(&port), touches(&[&["3"], &["enter"]]));
+    let textes = port
+        .textes
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    assert_eq!(textes, vec![String::from("staging, please")]);
+
+    let vide = FauxPort::nouveau(vec![crate::unit::ecran::ECRAN_CLAUDE.to_string()]);
+    let refus = repondre_question(&vide, &PaneId::from(String::from("wB:p1")), 3, Some("  "))
+        .unwrap_or_else(|cause| panic!("{cause}"));
+    assert!(refus.etat == EtatReponse::Refusee, "{refus:?}");
+    assert!(frappees(&vide).is_empty(), "rien ne part sans texte");
+}
+
+/// pi : aucun chiffre — le curseur descend pas à pas (`j`), l'écran est relu
+/// à chaque pas, et `enter` ne part que le curseur sur NOTRE choix.
+#[test]
+fn pi_le_curseur_est_amene_puis_valide() {
+    use crate::unit::ecran::ecran_pi;
+    let port = FauxPort::nouveau(vec![
+        ecran_pi(0),
+        ecran_pi(1),
+        ecran_pi(2),
+        String::from("l'agent travaille…"),
+    ]);
+    let reponse = repondre_question(&port, &PaneId::from(String::from("w9:p1")), 3, None)
+        .unwrap_or_else(|cause| panic!("{cause}"));
+    assert!(reponse.etat == EtatReponse::Appliquee, "{reponse:?}");
+    let textes = port
+        .textes
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    assert_eq!(textes, vec![String::from("j"), String::from("j")]);
+    assert_eq!(frappees(&port), touches(&[&["enter"]]));
+}
+
+/// Le curseur ne bouge pas : `enter` ne part jamais.
+#[test]
+fn pi_curseur_bloque_rien_ne_valide() {
+    use crate::unit::ecran::ecran_pi;
+    let port = FauxPort::nouveau(vec![ecran_pi(0)]);
+    let reponse = repondre_question(&port, &PaneId::from(String::from("w9:p1")), 2, None)
+        .unwrap_or_else(|cause| panic!("{cause}"));
+    assert!(reponse.etat == EtatReponse::Transmise, "{reponse:?}");
+    assert!(frappees(&port).is_empty(), "jamais d'enter");
+}
