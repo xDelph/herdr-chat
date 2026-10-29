@@ -219,6 +219,10 @@ pub struct Snapshot {
     pub focused_tab: Option<TabId>,
     pub focused_workspace: Option<WorkspaceId>,
     pub provenance: Option<SnapshotProvenance>,
+    /// Tous les panes du snapshot (`panes[]`), agents ou non, dans l'ordre
+    /// du fil — vide quand le fil ne les porte pas. ⚠️ Seule source du
+    /// dossier d'un projet dont aucun pane n'est un agent (D02).
+    pub panes: Vec<SituatedPane>,
 }
 
 impl Snapshot {

@@ -24,8 +24,8 @@ use domain::errors::PortError;
 use domain::ids::{AgentKind, AgentName, PaneId, TabId, WorkspaceId};
 use domain::observation::{
     AgentObservation, AgentSessionRef, LayoutPane, PaneLayoutObservation, ReadSource, RectCell,
-    ScreenObservation, Snapshot, SnapshotProvenance, TabObservation, WorkspaceObservation,
-    WorkspaceWorktree,
+    ScreenObservation, SituatedPane, Snapshot, SnapshotProvenance, TabObservation,
+    WorkspaceObservation, WorkspaceWorktree,
 };
 use domain::ports::{
     ControlPort, CreateTab, CreatedTab, FocusEvidence, PartialStep, PortFuture, PromptEvidence,
@@ -208,6 +208,22 @@ pub fn observation_depuis_photo(photo: &PhotoSession) -> Snapshot {
             .tabs
             .as_ref()
             .map(|liste| liste.iter().map(onglet_depuis).collect()),
+        // Absent du fil = aucun pane situé (vecteur vide) : le dossier d'un
+        // projet retombe alors sur les cwd des agents (`panes_situes`).
+        panes: photo
+            .panes
+            .as_ref()
+            .map(|liste| {
+                liste
+                    .iter()
+                    .map(|pane| SituatedPane {
+                        pane_id: PaneId::from(pane.pane_id.clone()),
+                        workspace_id: Some(WorkspaceId::from(pane.workspace_id.clone())),
+                        cwd: pane.cwd.clone(),
+                    })
+                    .collect()
+            })
+            .unwrap_or_default(),
     }
 }
 

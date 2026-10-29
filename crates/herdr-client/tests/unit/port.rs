@@ -379,3 +379,49 @@ fn le_socket_attend_le_verdict_de_agent_start() {
     // Les autres méthodes gardent le défaut mesuré.
     assert_eq!(delai_de("agent.prompt"), DELAI_PAR_DEFAUT);
 }
+
+#[test]
+fn la_photo_porte_les_panes_et_leur_cwd() {
+    // D02 : `panes[]` (forme mesurée sur Herdr 0.9, 31 panes) porte le cwd
+    // des panes qui ne sont pas des agents — seule source du dossier d'un
+    // projet de shells. Les champs non lus (scroll, titres…) sont ignorés ;
+    // un cwd null reste absent.
+    let photo: PhotoSession = serde_json::from_value(json!({
+        "agents": [],
+        "workspaces": [{ "workspace_id": "w3" }],
+        "panes": [
+            { "agent_status": "unknown", "cwd": "/projets/jarvis", "focused": false,
+              "foreground_cwd": "/projets/jarvis", "pane_id": "w3:p1", "revision": 1,
+              "scroll": { "max_offset_from_bottom": 0, "offset_from_bottom": 0,
+                          "viewport_rows": 80 },
+              "tab_id": "w3:t1", "terminal_id": "term_1",
+              "terminal_title": "shell", "terminal_title_stripped": "shell",
+              "workspace_id": "w3" },
+            { "agent_status": "unknown", "cwd": null, "focused": false,
+              "pane_id": "w3:p2", "revision": 1, "tab_id": "w3:t1",
+              "terminal_id": "term_2", "workspace_id": "w3" }
+        ],
+        "protocol": 22,
+        "version": "0.9.3"
+    }))
+    .unwrap_or_else(|cause| panic!("photo : {cause}"));
+    let snapshot = observation_depuis_photo(&photo);
+    assert_eq!(snapshot.panes.len(), 2);
+    assert_eq!(snapshot.panes[0].cwd.as_deref(), Some("/projets/jarvis"));
+    assert_eq!(snapshot.panes[1].cwd, None, "null reste absent");
+    let workspace = &snapshot.workspaces[0];
+    assert_eq!(
+        domain::naming::checkout_path_of(workspace, &domain::naming::panes_situes(&snapshot))
+            .as_deref(),
+        Some("/projets/jarvis")
+    );
+}
+
+#[test]
+fn une_photo_sans_panes_n_en_invente_pas() {
+    let photo: PhotoSession = serde_json::from_value(json!({
+        "agents": [], "workspaces": [], "protocol": 22, "version": "0.9.3"
+    }))
+    .unwrap_or_else(|cause| panic!("photo : {cause}"));
+    assert!(observation_depuis_photo(&photo).panes.is_empty());
+}
