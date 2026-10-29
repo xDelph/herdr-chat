@@ -64,6 +64,40 @@ fn texte_de_demande(texte: &str) -> Option<String> {
 }
 
 /// Le texte d'un `tool_result` : une chaîne, ou une liste de blocs.
+/// Un bloc image de la forme Anthropic → le bloc image de la forme commune
+/// (`{type:"image", data, mimeType}`, celui que la PWA rend).
+///
+/// ⚠️ **Les images étaient jetées.** Le codec ne gardait que les blocs texte :
+/// une capture collée dans une demande, ou une image lue par un outil (`Read`
+/// d'un PNG), n'arrivait jamais à l'écran. Une image par URL n'a pas de bloc
+/// commun : elle devient un lien d'image Markdown, que la PWA sait montrer.
+fn bloc_image(bloc: &Value) -> Option<Value> {
+    if bloc.get("type").and_then(Value::as_str) != Some("image") {
+        return None;
+    }
+    let source = bloc.get("source")?;
+    match source.get("type").and_then(Value::as_str) {
+        Some("base64") => {
+            let donnees = source.get("data").and_then(Value::as_str)?;
+            let genre = source.get("media_type").and_then(Value::as_str)?;
+            Some(json!({ "type": "image", "data": donnees, "mimeType": genre }))
+        }
+        Some("url") => {
+            let adresse = source.get("url").and_then(Value::as_str)?;
+            Some(bloc_texte(&format!("![image]({adresse})")))
+        }
+        _ => None,
+    }
+}
+
+/// Les images d'un contenu de blocs, dans l'ordre.
+fn images_de(contenu: &Value) -> Vec<Value> {
+    contenu
+        .as_array()
+        .map(|blocs| blocs.iter().filter_map(bloc_image).collect())
+        .unwrap_or_default()
+}
+
 fn texte_de_resultat(contenu: &Value) -> String {
     if let Some(texte) = contenu.as_str() {
         return texte.to_string();
@@ -173,8 +207,14 @@ pub fn ligne_vers_pi(parsed: &Value) -> Option<LignePi> {
         let en_echec = resultats
             .iter()
             .any(|bloc| bloc.get("is_error").and_then(Value::as_bool) == Some(true));
+        let mut blocs_resultat = vec![bloc_texte(&texte)];
+        blocs_resultat.extend(
+            resultats
+                .iter()
+                .flat_map(|bloc| images_de(bloc.get("content").unwrap_or(&Value::Null))),
+        );
         let mut corps = json!({
-            "content": [bloc_texte(&texte)],
+            "content": blocs_resultat,
             "role": "toolResult",
             "toolName": "outil",
         });
@@ -208,12 +248,14 @@ pub fn ligne_vers_pi(parsed: &Value) -> Option<LignePi> {
     if genre == "user" {
         // Tous les blocs étaient des marques de l'application : pas une
         // demande.
-        let demandes: Vec<Value> = textes
+        let mut demandes: Vec<Value> = textes
             .iter()
             .filter_map(|texte| texte_de_demande(texte))
             .filter(|texte| !texte.trim().is_empty())
             .map(|texte| bloc_texte(&texte))
             .collect();
+        // Une capture collée accompagne la demande — ou EST la demande.
+        demandes.extend(images_de(contenu));
         if demandes.is_empty() {
             return None;
         }
@@ -226,6 +268,7 @@ pub fn ligne_vers_pi(parsed: &Value) -> Option<LignePi> {
         .map(|texte| bloc_texte(texte))
         .collect();
     let mut sortie = textes_utiles;
+    sortie.extend(images_de(contenu));
     sortie.extend(appels);
     // Un message sans bloc n'est pas un message : pas de bulle vide.
     if sortie.is_empty() {

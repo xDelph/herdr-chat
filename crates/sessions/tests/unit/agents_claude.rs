@@ -196,3 +196,43 @@ fn une_demande_envoyee_pendant_le_tour_est_une_demande() {
     });
     assert!(registre.traite("claude", &notification).is_none());
 }
+
+#[test]
+fn les_images_arrivent_dans_la_forme_commune() {
+    // Une capture collée dans une demande, et une image lue par un outil :
+    // les deux formes mesurées sur une vraie session Claude Code.
+    let mut registre = Registre::nouveau();
+    registre.pose(ProfilClaude::profil());
+    let demande = json!({
+        "type": "user", "uuid": "u-img",
+        "message": { "role": "user", "content": [
+            { "type": "text", "text": "j'ai toujours le flou" },
+            { "type": "image", "source": { "type": "base64", "media_type": "image/jpeg", "data": "QUJD" } },
+        ]},
+    });
+    let Some(LigneNormalisee::Message(ligne)) = registre.traite("claude", &demande) else {
+        panic!("la demande avec image est lue");
+    };
+    let contenu = serde_json::to_value(&ligne.message.content).unwrap_or(Value::Null);
+    assert!(
+        contenu
+            .as_array()
+            .is_some_and(|blocs| blocs.iter().any(|bloc| bloc
+                == &json!({ "type": "image", "data": "QUJD", "mimeType": "image/jpeg" }))),
+        "l'image collée est un bloc image commun : {contenu}"
+    );
+
+    let resultat = json!({
+        "type": "user", "uuid": "u-res",
+        "message": { "role": "user", "content": [{
+            "type": "tool_result", "tool_use_id": "t1",
+            "content": [{ "type": "image", "source": { "type": "base64", "media_type": "image/png", "data": "UE5H" } }],
+        }]},
+    });
+    let Some(LigneNormalisee::Message(ligne)) = registre.traite("claude", &resultat) else {
+        panic!("le résultat d'outil avec image est lu");
+    };
+    assert_eq!(ligne.message.role.as_deref(), Some("toolResult"));
+    let contenu = serde_json::to_string(&ligne.message.content).unwrap_or_default();
+    assert!(contenu.contains("\"mimeType\":\"image/png\""), "{contenu}");
+}

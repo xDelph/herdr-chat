@@ -354,6 +354,26 @@
   width: 11px;
   height: 11px;
 }
+.outils__apercus {
+  display: flex;
+  gap: 8px;
+  padding: 0 12px 12px;
+  overflow-x: auto;
+}
+.outils__apercu {
+  flex: none;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-s);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+.outils__apercu img {
+  display: block;
+  max-height: 140px;
+  max-width: 220px;
+  object-fit: cover;
+}
 .outils__echec {
   color: var(--err);
 }

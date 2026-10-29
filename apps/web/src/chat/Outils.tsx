@@ -320,6 +320,14 @@ export const GroupeOutils = memo(
       ligne.kind === "commands" ? ligne.commands : ligne.kind === "action" ? [ligne] : [],
     );
     const echecs = actions.filter((ligne) => ligne.enEchec).length;
+    /*
+      ⚠️ **Une image produite par un outil se voit sans déplier.** Une capture
+      lue par l'agent (`Read` d'un PNG) est souvent la chose à regarder ; elle
+      restait enfouie dans le détail d'une ligne d'un groupe replié.
+    */
+    const images = messages.flatMap((message) =>
+      message.blocks.flatMap((block) => (block.kind === "toolResult" ? block.images : [])),
+    );
     if (lignes.length === 0) return null;
     const masquees =
       enCours && !toutes && lignes.length > ETAPES_VISIBLES_EN_COURS
@@ -355,6 +363,21 @@ export const GroupeOutils = memo(
             <Icone nom="chev" petite />
           </span>
         </button>
+        {!ouvert && images.length > 0 ? (
+          <div className="outils__apercus">
+            {images.map((image) => (
+              <button
+                type="button"
+                key={`${image.mimeType}:${image.data.slice(0, 32)}:${String(image.data.length)}`}
+                className="outils__apercu"
+                onClick={() => setManuel(true)}
+                aria-label="Ouvrir le détail des actions"
+              >
+                <img src={`data:${image.mimeType};base64,${image.data}`} alt="Rendu d’un outil" />
+              </button>
+            ))}
+          </div>
+        ) : null}
         {ouvert ? (
           <div className="outils__corps">
             {masquees > 0 ? (
