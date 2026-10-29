@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  LaunchAgent de Herdr Chat (démon Rust `herdrchat`) — GABARIT, non installé.
+
+  Destination : ~/Library/LaunchAgents/dev.herdr.chat.plist
+  Procédure, contrôles et retour arrière : docs/BASCULE.md (§5 option B).
+  Rien ici n'est chargé automatiquement.
+
+  ⚠️ Remplacer les trois marqueurs avant usage :
+     __HERDRCHAT_BIN__  chemin absolu du binaire (ex. /Users/<moi>/.local/bin/herdrchat)
+     __HOME__           le HOME de l'utilisateur (launchd ne développe pas `~`)
+     __LOG_DIR__        ex. /Users/<moi>/Library/Logs/herdr-chat (à créer avant le chargement)
+
+  ⚠️ Agent UTILISATEUR (gui/<uid>), jamais un LaunchDaemon système : le démon
+  lit les sessions de l'utilisateur et le socket Herdr de son HOME.
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>dev.herdr.chat</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>__HERDRCHAT_BIN__</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__HOME__</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>HOME</key>
+    <string>__HOME__</string>
+    <!-- Le binaire n'a besoin d'aucun interpréteur ; `tailscale` est lu une
+         fois au démarrage pour dériver l'origine publique autorisée. -->
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <!-- Mêmes noms et mêmes valeurs que l'ancien service TS : seul le binaire change. -->
+    <key>HERDR_REMOTE_BIND</key>
+    <string>127.0.0.1</string>
+    <key>HERDR_REMOTE_PORT</key>
+    <string>8791</string>
+    <key>HERDR_REMOTE_LOG_PATH</key>
+    <string>__HOME__/.herdr-remote/herdr-remote.log</string>
+    <key>HERDR_REMOTE_PUSH_STORE</key>
+    <string>__HOME__/.herdr-remote/push.json</string>
+    <!-- Facultatifs, à décommenter seulement s'ils étaient définis pour l'ancien service :
+    <key>HERDR_SOCKET_PATH</key>
+    <string>__HOME__/.config/herdr/herdr.sock</string>
+    <key>HERDR_REMOTE_PUBLIC_ORIGINS</key>
+    <string>https://machine.tailnet.ts.net:8790</string>
+    -->
+  </dict>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <!-- Redémarre après une sortie anormale ; un arrêt propre (`launchctl bootout`)
+       n'est pas relancé. -->
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>ThrottleInterval</key>
+  <integer>5</integer>
+
+  <key>ProcessType</key>
+  <string>Background</string>
+
+  <key>StandardOutPath</key>
+  <string>__LOG_DIR__/stdout.log</string>
+  <key>StandardErrorPath</key>
+  <string>__LOG_DIR__/stderr.log</string>
+</dict>
+</plist>

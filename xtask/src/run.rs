@@ -237,7 +237,7 @@ fn step(name: &str, root: &Path, door: fn(&Path) -> Result<(), String>) -> Resul
 }
 
 /// `xtask verify` — all doors, layout first (no build needed to fail fast on
-/// structure), then graph, format, clippy, external tests.
+/// structure), then the coverage matrix, graph, format, clippy, external tests.
 pub fn verify(root: &Path) -> Result<(), String> {
     let layout_report = verify_layout(root)?;
     if layout_report.is_clean() {
@@ -255,6 +255,20 @@ pub fn verify(root: &Path) -> Result<(), String> {
             layout_report.exit_details()
         );
         return Err("verify-layout en échec".to_string());
+    }
+
+    // La matrice de couverture : aucune preuve cassée, aucun « proven » sans
+    // preuve composée, aucun identifiant manquant (T064). Bon marché — avant
+    // tout build.
+    let couverture = crate::coverage::porte(root)?;
+    if couverture.est_coherent() {
+        println!("[verify] coverage — ok ({})", couverture.resume());
+    } else {
+        eprintln!("[verify] coverage — ÉCHEC: {}", couverture.resume());
+        for defaut in &couverture.defauts {
+            eprintln!("  défaut : {defaut}");
+        }
+        return Err("coverage en échec".to_string());
     }
 
     let order = graph_check(root)?;
@@ -286,4 +300,57 @@ pub fn repo_root(argv_root: Option<PathBuf>) -> Result<PathBuf, String> {
         "racine du workspace introuvable depuis {} (Cargo.toml workspace absent)",
         cwd.display()
     ))
+}
+
+fn commande_verifiee(
+    root: &Path,
+    programme: &str,
+    args: &[&str],
+    what: &str,
+) -> Result<(), String> {
+    println!("[final-gate] {what} ...");
+    let mut c = Command::new(programme);
+    c.current_dir(root).args(args);
+    spawn_checked(&mut c, what)?;
+    println!("[final-gate] {what} — ok");
+    Ok(())
+}
+
+/// `xtask final-gate` — la porte finale verrouillée (T069), dans l'ordre :
+///
+/// 1. `xtask verify` (layout, couverture, graphe, fmt, clippy, tests externes) ;
+/// 2. `bun install --frozen-lockfile` puis `bun run verify` (frontend) ;
+/// 3. `bun run build` — la PWA AVANT le binaire ;
+/// 4. `xtask release` natif — build de release PWA embarquée, liens sans
+///    OpenSSL système, archive + SHA-256 + manifeste dans `dist/` ;
+/// 5. le binaire empaqueté répond à `--version` avec un PATH réduit (ni Bun
+///    ni Node).
+///
+/// S'arrête au premier échec. Ne démarre aucun service, ne touche ni Homebrew,
+/// ni launchd, ni Tailscale.
+pub fn final_gate(root: &Path) -> Result<(), String> {
+    verify(root)?;
+    commande_verifiee(
+        root,
+        "bun",
+        &["install", "--frozen-lockfile"],
+        "bun install --frozen-lockfile",
+    )?;
+    commande_verifiee(root, "bun", &["run", "verify"], "bun run verify")?;
+    commande_verifiee(root, "bun", &["run", "build"], "bun run build (PWA)")?;
+    println!("[final-gate] xtask release (natif) ...");
+    let archive = crate::release::entree(root, &[String::from("--native")]);
+    archive.map_err(|e| format!("xtask release : {e}"))?;
+    println!("[final-gate] xtask release (natif) — ok");
+    let binaire = std::fs::read_dir(root.join("dist"))
+        .map_err(|e| format!("dist/ : {e}"))?
+        .filter_map(Result::ok)
+        .map(|entree| entree.path().join("herdrchat"))
+        .find(|chemin| chemin.is_file())
+        .ok_or_else(|| String::from("aucun binaire herdrchat dans dist/"))?;
+    let mut c = Command::new(&binaire);
+    c.env_clear().env("PATH", "/usr/bin:/bin").arg("--version");
+    spawn_checked(&mut c, "binaire empaqueté --version (PATH réduit)")?;
+    println!("[final-gate] porte finale verte");
+    Ok(())
 }

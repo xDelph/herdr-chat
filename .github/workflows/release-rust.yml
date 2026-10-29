@@ -1,15 +1,30 @@
-# Assemble les binaires Rust de Herdr Chat (T066).
+# Publie les binaires Rust de Herdr Chat (T066, T068).
 #
-# ⚠️ **Une cible = un runner NATIF.** Chaque entrée de la matrice compile sur la
-# machine de sa propre architecture, puis **exécute** le binaire produit
-# (`--version` + une sonde HTTP locale). C'est la seule façon d'écrire
-# « validée » : une compilation croisée dirait « compile », pas « tourne » —
-# et l'acceptation de T066 interdit de confondre les deux.
+# ⚠️ **Seul chemin de publication.** L'ancien `release.yml` (tarball du démon
+# TS lancé par Bun) est retiré à T068 : une étiquette `v*` ne produit plus que
+# le binaire natif `herdrchat`, PWA embarquée.
 #
-# ⚠️ **La PWA est construite AVANT le binaire.** `crates/herdrchat/build.rs`
-# embarque `apps/web/dist` via `include_bytes!` et refuse de publier sans lui
-# (`HERDRCHAT_REQUIRE_PWA=1`) : une archive sans interface serait livrée
-# silencieusement.
+# Ordre des portes — chaque étape dépend de la précédente :
+#   1. `portes`   : `xtask verify` (layout, graphe, fmt, clippy, tests externes)
+#                   et `bun run verify` (frontend). Aucun binaire n'est construit
+#                   si une porte échoue.
+#   2. `binaires` : par cible, la PWA est construite AVANT `cargo build`
+#                   (`crates/herdrchat/build.rs` embarque `apps/web/dist` et
+#                   refuse un build de release sans elle), puis `xtask release`
+#                   assemble archive + SHA-256 + manifeste.
+#   3. `publication` : sur une étiquette seulement, une release GitHub reçoit
+#                   les quatre archives, leurs empreintes et `SHA256SUMS`.
+#
+# ⚠️ **Une cible = un runner NATIF.** Chaque entrée compile sur la machine de
+# sa propre architecture, puis **exécute** le binaire produit (`--version` + une
+# sonde HTTP locale). Une compilation croisée dirait « compile », pas « tourne »
+# — et l'acceptation de T066 interdit de confondre les deux.
+#
+# ⚠️ **`macos-13` est retiré par GitHub.** Le x86_64 macOS tourne sur
+# `macos-15-intel` (dernier runner Intel hébergé). Si ce runner disparaît à
+# son tour, la cible doit passer en compile-only depuis `macos-15`
+# (`xtask release --target x86_64-apple-darwin`, manifeste `validee: false`) —
+# jamais être déclarée validée sans exécution.
 name: release-rust
 
 on:
@@ -18,20 +33,47 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
+  portes:
+    name: portes (xtask verify + bun verify)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@1.94.1
+        with:
+          components: rustfmt, clippy
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: dépendances frontend (lockfile gelé)
+        run: bun install --frozen-lockfile
+
+      - name: xtask verify
+        run: cargo run --locked -p xtask -- verify
+
+      - name: matrice de couverture (aucune preuve cassée)
+        run: cargo run --locked -p xtask -- coverage
+
+      - name: bun run verify
+        run: bun run verify
+
   binaires:
     name: ${{ matrix.etiquette }}
+    needs: portes
     strategy:
       fail-fast: false
       matrix:
         include:
           - etiquette: macos-arm64
-            runner: macos-14
+            runner: macos-15
             cible: aarch64-apple-darwin
           - etiquette: macos-x86_64
-            runner: macos-13
+            runner: macos-15-intel
             cible: x86_64-apple-darwin
           - etiquette: linux-x86_64
             runner: ubuntu-22.04
@@ -47,13 +89,13 @@ jobs:
         with:
           bun-version: 1.4.2
 
-      - name: la PWA se construit
+      - name: la PWA se construit (avant le binaire)
         run: bun install --frozen-lockfile && bun run --cwd apps/web build
 
       - name: la PWA existe vraiment
         run: test -f apps/web/dist/index.html
 
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.94.1
         with:
           targets: ${{ matrix.cible }}
 
@@ -63,8 +105,21 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y perl
 
-      - name: assemblage (build + archive + empreinte + manifeste)
+      - name: assemblage natif (build PWA embarquée + archive + empreinte + manifeste)
+        # `--target` égal à la cible native : `xtask release` marque
+        # `validee: true` uniquement parce que les deux pas suivants exécutent
+        # le binaire sur cette machine.
         run: cargo run --locked -p xtask -- release --target ${{ matrix.cible }}
+
+      - name: le manifeste déclare la PWA embarquée
+        run: |
+          manifeste="dist/herdr-chat-${{ matrix.etiquette }}/manifest.json"
+          cat "$manifeste"
+          grep -q '"validee": true' "$manifeste"
+          if grep -q '"pwa_embarquee": 0' "$manifeste"; then
+            echo "::error::archive sans PWA"
+            exit 1
+          fi
 
       - name: le binaire tourne SANS Bun ni Node
         # ⚠️ Le PATH est réduit : si le binaire dépendait de Bun ou de Node, ce
@@ -73,19 +128,29 @@ jobs:
           env -i PATH=/usr/bin:/bin HOME="$RUNNER_TEMP" \
             ./dist/herdr-chat-${{ matrix.etiquette }}/herdrchat --version
 
-      - name: il sert HTTP quand Herdr est absent
+      - name: il sert HTTP et la PWA quand Herdr est absent
         run: |
+          hote="$(printf '%s.%s.%s.%s' 127 0 0 1)"
           env -i PATH=/usr/bin:/bin HOME="$RUNNER_TEMP" \
             HERDR_SOCKET_PATH="$RUNNER_TEMP/absent.sock" \
-            HERDR_REMOTE_BIND="$(printf '%s.%s.%s.%s' 127 0 0 1)" HERDR_REMOTE_PORT=8799 \
+            HERDR_REMOTE_BIND="$hote" HERDR_REMOTE_PORT=8799 \
             HERDR_REMOTE_LOG_PATH="$RUNNER_TEMP/x.log" \
             HERDR_REMOTE_PUSH_STORE="$RUNNER_TEMP/p.json" \
             ./dist/herdr-chat-${{ matrix.etiquette }}/herdrchat &
-          sleep 3
-          code=$(curl -s -o /dev/null -w '%{http_code}' "http://$(printf '%s.%s.%s.%s' 127 0 0 1):8799/api/health")
+          pid=$!
+          code=000
+          for _ in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' "http://$hote:8799/api/health" || true)
+            [ "$code" != "000" ] && break
+            sleep 0.5
+          done
           echo "sante : $code"
-          # 503 = Herdr injoignable MAIS le serveur répond ; 0 = pas de serveur.
+          # 503 = Herdr injoignable MAIS le serveur répond ; 000 = pas de serveur.
           test "$code" = "503" || test "$code" = "200"
+          page=$(curl -s -o /dev/null -w '%{http_code}' "http://$hote:8799/")
+          echo "PWA / : $page"
+          test "$page" = "200"
+          kill "$pid"
 
       - name: aucun OpenSSL système dans les liens
         run: |
@@ -107,3 +172,38 @@ jobs:
             dist/herdr-chat-${{ matrix.etiquette }}.tar.gz
             dist/herdr-chat-${{ matrix.etiquette }}.tar.gz.sha256
           if-no-files-found: error
+
+  publication:
+    name: release GitHub
+    needs: binaires
+    # Uniquement sur une étiquette : un `workflow_dispatch` assemble et vérifie,
+    # il ne publie rien.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: herdr-chat-*
+          path: dist
+          merge-multiple: true
+
+      - name: les quatre archives sont là et leurs empreintes concordent
+        working-directory: dist
+        run: |
+          ls -l
+          for etiquette in macos-arm64 macos-x86_64 linux-x86_64 linux-aarch64; do
+            test -f "herdr-chat-$etiquette.tar.gz"
+            sha256sum -c "herdr-chat-$etiquette.tar.gz.sha256"
+          done
+          cat herdr-chat-*.tar.gz.sha256 > SHA256SUMS
+          cat SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/herdr-chat-*.tar.gz
+            dist/herdr-chat-*.tar.gz.sha256
+            dist/SHA256SUMS
+          generate_release_notes: true

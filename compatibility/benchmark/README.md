@@ -18,7 +18,7 @@ was altered and measurements are void.
 ## Contents
 
 - `pi/pane-*.jsonl` — 55 Pi sessions (55 × ≥40 KiB) written by the existing
-  synthetic seeded fixture writer (`apps/server/src/sessions/Fixture.ts`,
+  synthetic seeded fixture writer (`compatibility/benchmark/fixture-pi.ts`, copied verbatim from the retired `apps/server/src/sessions/Fixture.ts` at T068,
   seed base 20 240 310). Real Pi line shapes by construction.
 - `codex/pane-*.jsonl` — 10 rollout-shaped sessions: `response_item`
   (message/function_call/function_call_output/reasoning), `event_msg`

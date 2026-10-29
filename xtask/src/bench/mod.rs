@@ -34,6 +34,11 @@ pub struct Options {
     /// `base` (petites sessions) ou `delta32` (32 Mio par session).
     pub scenario: String,
     pub racine: PathBuf,
+    /// La racine d'un checkout qui contient encore le démon TS
+    /// (`apps/server/src/main.ts`). T068 l'a retiré de cet arbre : la pile
+    /// `ts` se mesure depuis un worktree de l'historique (`--ts-root <dir>`,
+    /// voir `compatibility/benchmark/README.md`). `None` = la racine courante.
+    pub racine_ts: Option<PathBuf>,
     /// Garde le dossier temporaire et le journal du serveur — un banc qui
     /// efface ses traces interdit de comprendre un échec.
     pub keep: bool,
@@ -51,6 +56,7 @@ impl Options {
             secondes: 5,
             scenario: String::from("base"),
             racine: racine.to_path_buf(),
+            racine_ts: None,
             keep: false,
         };
         let mut iterateur = arguments.iter();
@@ -77,6 +83,7 @@ impl Options {
                 "--runs" => options.runs = nombre(&valeur, "--runs")?,
                 "--seconds" => options.secondes = nombre(&valeur, "--seconds")? as u64,
                 "--scenario" => options.scenario = valeur,
+                "--ts-root" => options.racine_ts = Some(PathBuf::from(valeur)),
                 "--keep" => options.keep = true,
                 autre => return Err(format!("option inconnue : {autre}")),
             }
@@ -491,10 +498,23 @@ fn commande(
             Command::new(binaire)
         }
         _ => {
+            let entree = options
+                .racine_ts
+                .as_deref()
+                .unwrap_or(&options.racine)
+                .join("apps/server/src/main.ts");
+            // ⚠️ Le démon TS n'est plus dans l'arbre (T068) : son absence est
+            // dite, jamais remplacée par une mesure de l'autre pile.
+            if !entree.is_file() {
+                return Err(format!(
+                    "démon TS absent : {} — retiré à T068 ; mesurer depuis un worktree de l'historique : \
+                     `git worktree add /tmp/herdr-ts <commit-avant-T068> && (cd /tmp/herdr-ts && bun install --frozen-lockfile)` \
+                     puis `--ts-root /tmp/herdr-ts`",
+                    entree.display()
+                ));
+            }
             let mut commande = Command::new("bun");
-            commande
-                .arg("run")
-                .arg(options.racine.join("apps/server/src/main.ts"));
+            commande.arg("run").arg(entree);
             commande
         }
     };
@@ -667,7 +687,7 @@ fn mesure_pile(options: &Options, pile: &str, atelier: &Atelier) -> Result<Value
         "pile": pile,
         "commande": format!(
             "HERDR_SOCKET_PATH=<fixture>/herdr-fixture.sock HERDR_REMOTE_PORT={port} HERDR_REMOTE_BIND=127.0.0.1 {}",
-            if pile == "rust" { "target/{release,debug}/herdrchat" } else { "bun run apps/server/src/main.ts" }
+            if pile == "rust" { "target/{release,debug}/herdrchat" } else { "bun run <ts-root>/apps/server/src/main.ts" }
         ),
         "pret_ms": attente.as_millis(),
         "routes": routes,
@@ -738,4 +758,108 @@ pub fn entree(racine: &Path, arguments: &[String]) -> Result<(), String> {
     execute(&options)?;
     println!("banc terminé en {:?}", debut.elapsed());
     Ok(())
+}
+
+/// `xtask fixture-daemon` — un démon `herdrchat` RÉEL servi par la fausse
+/// Herdr et des sessions synthétiques copiées du bundle (T067/T072).
+///
+/// ⚠️ **Fixture uniquement.** Le socket est la fausse du banc (elle refuse
+/// nommément toute méthode de mutation), les sessions sont des copies dans un
+/// dossier temporaire, `HOME` est un dossier temporaire (aucun store, aucune
+/// clé, aucun abonnement de l'utilisateur n'est lu), et le `PATH` est réduit
+/// (la CLI Tailscale n'est pas interrogée). Le démon écoute sur un port libre
+/// du loopback, jamais sur 8791.
+///
+/// Protocole pour un pilote (navigateur headless) : une ligne
+/// `FIXTURE_PRETE http://127.0.0.1:<port>` sur la sortie standard, puis le
+/// démon vit jusqu'à la fermeture de l'entrée standard, `--seconds` écoulées
+/// ou sa propre sortie. Le banc tue alors le seul processus qu'il a lancé.
+pub fn sert_fixture(racine: &Path, arguments: &[String]) -> Result<(), String> {
+    use std::io::{BufRead as _, Write as _};
+    // Défauts propres à la fixture : 3 panes, 10 minutes au plus.
+    let mut avec_defauts = vec![
+        String::from("--stack"),
+        String::from("rust"),
+        String::from("--panes"),
+        String::from("3"),
+        String::from("--seconds"),
+        String::from("600"),
+    ];
+    avec_defauts.extend_from_slice(arguments);
+    let options = Options::depuis(&avec_defauts, racine)?;
+    if options.pile != "rust" {
+        return Err(String::from(
+            "fixture-daemon ne sert que le démon Rust (--stack rust)",
+        ));
+    }
+    let atelier = Atelier::prepare(&options)?;
+    let maison = atelier.racine.join("home");
+    std::fs::create_dir_all(&maison).map_err(|cause| format!("HOME de fixture : {cause}"))?;
+    let fausse = fixture::Fausse::demarre(
+        &atelier.racine,
+        fixture::Plan {
+            panes: options.panes,
+            sessions: atelier.sessions.clone(),
+            sqlite_session: None,
+        },
+    )?;
+    let port = port_libre()?;
+    let mut serveur = commande(&options, "rust", port, &atelier)?
+        .env_clear()
+        .env("PATH", "/usr/bin:/bin")
+        .env("HOME", &maison)
+        .env("HERDR_SOCKET_PATH", fausse.chemin())
+        .env("HERDR_REMOTE_PORT", port.to_string())
+        .env("HERDR_REMOTE_BIND", "127.0.0.1")
+        .env("HERDR_REMOTE_LOG_PATH", atelier.racine.join("banc.log"))
+        .env("HERDR_REMOTE_PUSH_STORE", atelier.racine.join("push.json"))
+        .env("PI_SESSIONS_ROOT", atelier.racine.join("sessions"))
+        .env("CLAUDE_PROJECTS_ROOT", atelier.racine.join("sessions"))
+        .env("CODEX_SESSION_ROOT", atelier.racine.join("codex-absent"))
+        .env("OPENCODE_DB", atelier.racine.join("pas-de-base.db"))
+        .env("DEVIN_DB", atelier.racine.join("pas-de-base-devin.db"))
+        .spawn()
+        .map_err(|cause| format!("lancement du démon de fixture : {cause}"))?;
+    let racine_http = format!("127.0.0.1:{port}");
+    if let Err(cause) = mesure::attend_pret(&racine_http, "/api/health", Duration::from_secs(60)) {
+        let _ = serveur.kill();
+        let _ = serveur.wait();
+        return Err(format!("démon de fixture non prêt : {cause}"));
+    }
+    println!("FIXTURE_PRETE http://{racine_http}");
+    let _ = std::io::stdout().flush();
+
+    // La fin : entrée standard fermée (le pilote a terminé), délai écoulé, ou
+    // sortie du démon lui-même.
+    let (envoi, reception) = std::sync::mpsc::channel::<()>();
+    thread::spawn(move || {
+        let entree = std::io::stdin();
+        for ligne in entree.lock().lines() {
+            if ligne.is_err() {
+                break;
+            }
+        }
+        let _ = envoi.send(());
+    });
+    let fin = Instant::now() + Duration::from_secs(options.secondes);
+    let issue = loop {
+        if let Ok(Some(statut)) = serveur.try_wait() {
+            break Err(format!("le démon de fixture s'est arrêté seul ({statut})"));
+        }
+        if reception.try_recv().is_ok() {
+            break Ok(());
+        }
+        if Instant::now() >= fin {
+            break Ok(());
+        }
+        thread::sleep(Duration::from_millis(100));
+    };
+    let _ = serveur.kill();
+    let _ = serveur.wait();
+    eprintln!(
+        "fixture : {} demande(s) servies par la fausse Herdr",
+        fausse.servies()
+    );
+    drop(fausse);
+    issue
 }

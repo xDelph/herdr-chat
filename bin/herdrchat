@@ -1,26 +1,46 @@
 #!/usr/bin/env bash
 #
-# Lanceur de Herdr Chat.
+# Lanceur de Herdr Chat depuis un checkout du dépôt (T068).
+#
+# Le démon est le binaire Rust `herdrchat` (PWA embarquée). Ce lanceur ne
+# fait que trouver le binaire construit dans CE checkout et lui passer la main
+# — aucun Bun, aucun Node à l'exécution. Une installation par archive ou par
+# Homebrew fournit directement le binaire et n'utilise pas ce script.
 #
 # ⚠️ **Il résout sa racine depuis SA PROPRE position**, jamais depuis le
-# répertoire courant : le serveur trouve ses assets en remontant depuis son
-# fichier source (`apps/server/src/../../web/dist`). Lancer `herdrchat` depuis
-# n'importe où doit donc fonctionner, et un `cd` dans l'utilisateur le casserait.
+# répertoire courant : lancer `bin/herdrchat` depuis n'importe où doit trouver
+# le même binaire.
+#
+# Ordre de recherche :
+#   1. `HERDRCHAT_BIN` (chemin explicite d'un binaire) ;
+#   2. `target/release/herdrchat` ;
+#   3. `target/debug/herdrchat`.
+# Les variables d'environnement (`HERDR_REMOTE_PORT`, `HERDR_REMOTE_BIND`,
+# `HERDR_SOCKET_PATH`…) sont transmises telles quelles.
 set -euo pipefail
 
 ici="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 racine="$(cd "${ici}/.." && pwd)"
 
-if ! command -v bun >/dev/null 2>&1; then
-  echo "herdrchat : 'bun' est introuvable dans le PATH." >&2
-  echo "            Installez-le : brew install bun" >&2
+# Un chemin explicite qui ne mène à rien est une erreur, jamais un repli
+# silencieux vers un autre binaire.
+if [[ -n "${HERDRCHAT_BIN:-}" ]]; then
+  if [[ -x "${HERDRCHAT_BIN}" && ! -d "${HERDRCHAT_BIN}" ]]; then
+    exec "${HERDRCHAT_BIN}" "$@"
+  fi
+  echo "herdrchat : HERDRCHAT_BIN=${HERDRCHAT_BIN} n'est pas un exécutable." >&2
   exit 1
 fi
 
-entree="${racine}/apps/server/src/main.ts"
-if [[ ! -f "${entree}" ]]; then
-  echo "herdrchat : ${entree} est absent — installation incomplète." >&2
-  exit 1
-fi
+candidats=("${racine}/target/release/herdrchat" "${racine}/target/debug/herdrchat")
+for binaire in "${candidats[@]}"; do
+  if [[ -x "${binaire}" && ! -d "${binaire}" ]]; then
+    exec "${binaire}" "$@"
+  fi
+done
 
-exec bun run "${entree}" "$@"
+echo "herdrchat : binaire Rust introuvable (cherché : ${candidats[*]})." >&2
+echo "            Construisez-le depuis ${racine} :" >&2
+echo "              bun install --frozen-lockfile && bun run build   # PWA embarquée" >&2
+echo "              cargo build --release --locked -p herdrchat" >&2
+exit 1

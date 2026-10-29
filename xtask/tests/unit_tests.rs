@@ -329,24 +329,32 @@ fn entree(id: &str, statut: xtask::coverage::Statut, preuves: &[&str]) -> xtask:
         candidats: Vec::new(),
         id: String::from(id),
         preuves: preuves.iter().map(|p| String::from(*p)).collect(),
+        preuves_unitaires: Vec::new(),
+        ecart: None,
         statut,
         taches: Vec::new(),
     }
 }
 
+/// Crée un fichier vide (et ses dossiers) sous la racine.
+fn touche(racine: &Path, chemin: &str) {
+    let complet = racine.join(chemin);
+    if let Some(parent) = complet.parent() {
+        std::fs::create_dir_all(parent).unwrap_or_else(|cause| panic!("{cause}"));
+    }
+    std::fs::write(complet, "").unwrap_or_else(|cause| panic!("{cause}"));
+}
+
 #[test]
 fn couverture_une_preuve_existante_est_acceptee() {
     let racine = répertoire_temporaire();
-    std::fs::create_dir_all(racine.join("crates/x/tests"))
-        .unwrap_or_else(|cause| panic!("{cause}"));
-    std::fs::write(racine.join("crates/x/tests/a.rs"), "")
-        .unwrap_or_else(|cause| panic!("{cause}"));
+    touche(&racine, "crates/http-api/tests/unit/a.rs");
     let rapport = xtask::coverage::verifie(
         &racine,
         &[entree(
             "H01",
             xtask::coverage::Statut::Proven,
-            &["crates/x/tests/a.rs"],
+            &["crates/http-api/tests/unit/a.rs"],
         )],
     );
     assert!(rapport.est_complete(), "{rapport:?}");
@@ -462,4 +470,125 @@ fn couverture_les_candidats_ne_sont_pas_des_preuves() {
     assert_eq!(rapport.prouvees, 0);
     assert_eq!(rapport.avec_candidats, 1);
     let _ = std::fs::remove_dir_all(&racine);
+}
+
+// ── Le modèle « prouvé par composition » (audit T064) ──
+
+#[test]
+fn couverture_proven_sur_un_seul_test_de_composant_est_un_defaut() {
+    // Le cas exact de l'audit : un composant testé seul (livraison push) que
+    // le démon n'appelle pas ne peut pas être « proven ».
+    let racine = répertoire_temporaire();
+    touche(&racine, "crates/notifications/tests/unit/delivery.rs");
+    let rapport = xtask::coverage::verifie(
+        &racine,
+        &[entree(
+            "E09",
+            xtask::coverage::Statut::Proven,
+            &["crates/notifications/tests/unit/delivery.rs"],
+        )],
+    );
+    assert!(!rapport.est_coherent(), "{rapport:?}");
+    assert!(
+        rapport.defauts[0].contains("sans preuve composée"),
+        "{:?}",
+        rapport.defauts
+    );
+    let _ = std::fs::remove_dir_all(&racine);
+}
+
+#[test]
+fn couverture_unit_only_et_not_wired_exigent_un_ecart_decrit() {
+    let racine = répertoire_temporaire();
+    touche(&racine, "crates/sessions/tests/unit/cursor.rs");
+    let mut sans_ecart = entree("C12", xtask::coverage::Statut::UnitOnly, &[]);
+    sans_ecart.preuves_unitaires = vec![String::from("crates/sessions/tests/unit/cursor.rs")];
+    let mut non_branchee = entree("E09", xtask::coverage::Statut::NotWired, &[]);
+    non_branchee.ecart = Some(String::from("delivery jamais appelée par le démon"));
+    let rapport = xtask::coverage::verifie(&racine, &[sans_ecart.clone(), non_branchee]);
+    assert_eq!(rapport.defauts.len(), 1, "{:?}", rapport.defauts);
+    assert!(rapport.defauts[0].contains("C12") && rapport.defauts[0].contains("gap"));
+    assert_eq!(rapport.unitaires, 1);
+    assert_eq!(rapport.non_branchees, 1);
+
+    // Avec l'écart décrit : cohérente, mais jamais complète.
+    sans_ecart.ecart = Some(String::from("le curseur n'est pas validé par la route"));
+    let rapport = xtask::coverage::verifie(&racine, &[sans_ecart]);
+    assert!(rapport.est_coherent(), "{rapport:?}");
+    assert!(!rapport.est_complete());
+    assert_eq!(rapport.restantes[0].1, "unit-only");
+    let _ = std::fs::remove_dir_all(&racine);
+}
+
+#[test]
+fn couverture_une_reference_unitaire_cassee_est_un_defaut() {
+    // C21/C22/C24 pointaient des fichiers disparus : une référence cassée est
+    // un défaut quel que soit le statut.
+    let racine = répertoire_temporaire();
+    let mut cassee = entree("C21", xtask::coverage::Statut::UnitOnly, &[]);
+    cassee.ecart = Some(String::from("test à écrire"));
+    cassee.preuves_unitaires = vec![String::from("apps/web/tests/mise-a-jour.test.ts")];
+    let rapport = xtask::coverage::verifie(&racine, &[cassee]);
+    assert!(!rapport.est_coherent());
+    assert!(
+        rapport.defauts[0].contains("introuvable"),
+        "{:?}",
+        rapport.defauts
+    );
+    let _ = std::fs::remove_dir_all(&racine);
+}
+
+#[test]
+fn couverture_un_statut_inconnu_est_un_defaut() {
+    let racine = répertoire_temporaire();
+    let document = serde_json::json!({
+        "capabilities": [{ "id": "H01", "status": "prouvé-en-gros" }],
+        "corrections": []
+    });
+    let rapport = xtask::coverage::verifie_document(&racine, &document)
+        .unwrap_or_else(|cause| panic!("document : {cause}"));
+    assert!(!rapport.est_coherent());
+    assert!(rapport.defauts[0].contains("statut inconnu"));
+    let _ = std::fs::remove_dir_all(&racine);
+}
+
+#[test]
+fn couverture_l_inventaire_complet_est_exige_pour_le_document_reel() {
+    let racine = répertoire_temporaire();
+    let document = serde_json::json!({
+        "capabilities": [{ "id": "H01" }, { "id": "Z99" }],
+        "corrections": [{ "id": "C01" }]
+    });
+    let rapport = xtask::coverage::verifie_document_avec(&racine, &document, true)
+        .unwrap_or_else(|cause| panic!("document : {cause}"));
+    // 88 capacités et 26 corrections manquent, et Z99 est inconnu.
+    assert!(
+        rapport
+            .defauts
+            .iter()
+            .any(|d| d.starts_with("H02 : identifiant absent"))
+    );
+    assert!(
+        rapport
+            .defauts
+            .iter()
+            .any(|d| d.starts_with("C27 : identifiant absent"))
+    );
+    assert!(
+        rapport
+            .defauts
+            .iter()
+            .any(|d| d.starts_with("Z99 : identifiant inconnu"))
+    );
+    assert_eq!(rapport.defauts.len(), 88 + 26 + 1, "{:?}", rapport.defauts);
+    let _ = std::fs::remove_dir_all(&racine);
+}
+
+#[test]
+fn couverture_la_matrice_du_depot_est_coherente() {
+    // La porte réelle sur le document réel — la même que `xtask verify`.
+    let racine = Path::new(env!("CARGO_MANIFEST_DIR")).join("..");
+    let rapport =
+        xtask::coverage::porte(&racine).unwrap_or_else(|cause| panic!("coverage.json : {cause}"));
+    assert!(rapport.est_coherent(), "{:#?}", rapport.defauts);
 }
