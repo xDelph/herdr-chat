@@ -13,7 +13,7 @@ use domain::errors::{ErreurDomaine, Nature, PortError};
 use std::sync::Arc;
 
 /// La liste — la composition du service (T039) porte l'isolation des lignes.
-pub async fn conversations(
+async fn conversations_sur_place(
     axum::extract::State(services): axum::extract::State<Arc<Services>>,
 ) -> axum::response::Response {
     match services.snapshots.lecture() {
@@ -65,4 +65,11 @@ pub fn erreur_de_snapshot(cause: &PortError) -> ErreurDomaine {
             ErreurDomaine::chemin_refuse(format!("chemin refusé : {detail}"))
         }
     }
+}
+
+/// Le handler `conversations`, exécuté hors des workers du runtime ([`crate::bloquant`]).
+pub async fn conversations(
+    axum::extract::State(services): axum::extract::State<Arc<Services>>,
+) -> axum::response::Response {
+    crate::bloquant::hors_runtime(conversations_sur_place(axum::extract::State(services))).await
 }

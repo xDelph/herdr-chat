@@ -12,7 +12,7 @@ use std::sync::Arc;
 
 /// Le focus — la cible est celle de l'appel, jamais la conversation
 /// affichée (T034 : la cible est capturée à l'admission).
-pub async fn focus(
+async fn focus_sur_place(
     axum::extract::State(services): axum::extract::State<Arc<Services>>,
     axum::extract::Path(pane_id): axum::extract::Path<String>,
 ) -> axum::response::Response {
@@ -29,4 +29,16 @@ pub async fn focus(
         }),
     )
         .into_response()
+}
+
+/// Le handler `focus`, exécuté hors des workers du runtime ([`crate::bloquant`]).
+pub async fn focus(
+    axum::extract::State(services): axum::extract::State<Arc<Services>>,
+    axum::extract::Path(pane_id): axum::extract::Path<String>,
+) -> axum::response::Response {
+    crate::bloquant::hors_runtime(focus_sur_place(
+        axum::extract::State(services),
+        axum::extract::Path(pane_id),
+    ))
+    .await
 }

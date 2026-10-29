@@ -14,7 +14,7 @@ use domain::errors::{ErreurDomaine, Nature, PortError};
 use std::sync::Arc;
 
 /// Le handler — l'uptime vient de l'horloge injectée, jamais du réel.
-pub async fn sante(
+async fn sante_sur_place(
     axum::extract::State(services): axum::extract::State<Arc<Services>>,
 ) -> axum::response::Response {
     match services.snapshots.sante() {
@@ -92,4 +92,11 @@ pub fn reponse_erreur_500(erreur: &ErreurDomaine) -> axum::response::Response {
         axum::Json(corps),
     )
         .into_response()
+}
+
+/// Le handler `sante`, exécuté hors des workers du runtime ([`crate::bloquant`]).
+pub async fn sante(
+    axum::extract::State(services): axum::extract::State<Arc<Services>>,
+) -> axum::response::Response {
+    crate::bloquant::hors_runtime(sante_sur_place(axum::extract::State(services))).await
 }

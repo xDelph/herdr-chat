@@ -68,8 +68,13 @@ impl ServiceAbonnements {
     /// abonnés — sous la MÊME possession que la création d'abonnement, pour
     /// que rien ne tombe entre rattrapage et live.
     pub fn publie(&self, genre: &str, donnees: Vec<u8>) -> Result<EvenementJournal, ErreurJournal> {
-        let evenement = self.journal.publie(genre, donnees)?;
+        // ⚠️ **Le verrou des abonnés AVANT l'écriture au journal.** Dans
+        // l'ordre inverse, un abonnement créé entre les deux lisait
+        // l'événement dans son rattrapage PUIS le recevait en direct : un
+        // doublon. Sous la même possession que `abonne`, l'événement est
+        // dans l'un ou dans l'autre, jamais les deux.
         let mut etat = self.etat.lock().unwrap_or_else(PoisonError::into_inner);
+        let evenement = self.journal.publie(genre, donnees)?;
         // `try_send` : une sonnette pleine laisse tomber l'événement (le
         // journal l'a), elle ne bloque JAMAIS la publication pour un
         // consommateur lent — et un canal plein ne désabonne pas (Full =

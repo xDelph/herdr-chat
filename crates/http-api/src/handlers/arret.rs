@@ -15,7 +15,7 @@ use domain::ids::PaneId;
 use std::sync::Arc;
 
 /// L'arrêt — le corps est ignoré (la garde l'a déjà borné).
-pub async fn arret(
+async fn arret_sur_place(
     axum::extract::State(services): axum::extract::State<Arc<Services>>,
     axum::extract::Path(pane_id): axum::extract::Path<String>,
 ) -> axum::response::Response {
@@ -65,4 +65,16 @@ pub fn erreur_en_domaine(erreur: ErreurArret) -> ErreurDomaine {
             ErreurDomaine::amont_refus(format!("Ctrl+C refused for {}: {detail}", cible.as_str()))
         }
     }
+}
+
+/// Le handler `arret`, exécuté hors des workers du runtime ([`crate::bloquant`]).
+pub async fn arret(
+    axum::extract::State(services): axum::extract::State<Arc<Services>>,
+    axum::extract::Path(pane_id): axum::extract::Path<String>,
+) -> axum::response::Response {
+    crate::bloquant::hors_runtime(arret_sur_place(
+        axum::extract::State(services),
+        axum::extract::Path(pane_id),
+    ))
+    .await
 }

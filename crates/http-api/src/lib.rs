@@ -2,6 +2,7 @@
 //! (TECH §2) ; les modules arrivent avec leurs tâches (T010, T050+).
 
 pub mod assets;
+pub mod bloquant;
 pub mod convertir;
 pub mod corps;
 pub mod errors;

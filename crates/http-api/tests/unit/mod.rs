@@ -4,6 +4,7 @@
 
 pub(crate) mod arret;
 pub(crate) mod assets;
+pub(crate) mod bloquant;
 pub(crate) mod catalogues;
 pub(crate) mod confiance;
 pub(crate) mod conversations;

@@ -13,7 +13,7 @@ use std::sync::Arc;
 
 /// La vue d'accueil — composition par génération (T039), jamais un cache
 /// périmé servi comme frais.
-pub async fn overview(
+async fn overview_sur_place(
     axum::extract::State(services): axum::extract::State<Arc<Services>>,
 ) -> axum::response::Response {
     match services.snapshots.lecture() {
@@ -67,4 +67,11 @@ pub fn reponse_500(erreur: &ErreurDomaine) -> axum::response::Response {
         axum::Json(crate::errors::corps(erreur)),
     )
         .into_response()
+}
+
+/// Le handler `overview`, exécuté hors des workers du runtime ([`crate::bloquant`]).
+pub async fn overview(
+    axum::extract::State(services): axum::extract::State<Arc<Services>>,
+) -> axum::response::Response {
+    crate::bloquant::hors_runtime(overview_sur_place(axum::extract::State(services))).await
 }

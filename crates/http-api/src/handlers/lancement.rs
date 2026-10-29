@@ -23,7 +23,7 @@ use domain::ids::{AgentKind, AgentName, TabId, WorkspaceId};
 use std::sync::Arc;
 
 /// Le lancement d'un agent.
-pub async fn lancement(
+async fn lancement_sur_place(
     axum::extract::State(services): axum::extract::State<Arc<Services>>,
     axum::extract::Path(workspace_id): axum::extract::Path<String>,
     corps: CorpsBorne,
@@ -187,4 +187,18 @@ pub fn erreur_en_domaine(erreur: ErreurLancement) -> ErreurDomaine {
             pane.as_str()
         )),
     }
+}
+
+/// Le handler `lancement`, exécuté hors des workers du runtime ([`crate::bloquant`]).
+pub async fn lancement(
+    axum::extract::State(services): axum::extract::State<Arc<Services>>,
+    axum::extract::Path(workspace_id): axum::extract::Path<String>,
+    corps: CorpsBorne,
+) -> axum::response::Response {
+    crate::bloquant::hors_runtime(lancement_sur_place(
+        axum::extract::State(services),
+        axum::extract::Path(workspace_id),
+        corps,
+    ))
+    .await
 }

@@ -119,6 +119,35 @@ fn travaille(
     // 3) Le direct — la sonnette, puis le journal quand elle se tait.
     loop {
         if let Some(evenement) = abonnement.attend(battement) {
+            // Déjà émis (rattrapage) : rien à renvoyer.
+            if evenement.id.sequence <= curseur && !resync_emis {
+                continue;
+            }
+            /*
+              ⚠️ **Un trou dans la sonnette se comble par le journal.** La file
+              bornée laisse tomber des événements quand le client est lent ;
+              émettre celui-ci directement faisait sauter le curseur
+              par-dessus les tombés, perdus pour toujours. On relit le journal
+              depuis le dernier émis : il contient les tombés ET celui-ci.
+            */
+            if evenement.id.sequence > curseur.saturating_add(1) && !resync_emis {
+                let manquants = abonnement.rattrapage_apres(curseur);
+                if manquants.resync_requis {
+                    resync_emis = true;
+                    curseur = manquants.reprendre_de.sequence;
+                    if !envoie(&emetteur, evenement_de_resync(&manquants)) {
+                        return;
+                    }
+                    continue;
+                }
+                for manquant in &manquants.evenements {
+                    curseur = manquant.id.sequence;
+                    if !envoie(&emetteur, EvenementSse::du_journal(manquant)) {
+                        return;
+                    }
+                }
+                continue;
+            }
             curseur = evenement.id.sequence;
             if !envoie(&emetteur, EvenementSse::du_journal(&evenement)) {
                 return;

@@ -29,7 +29,7 @@ struct Corps {
 }
 
 /// La réponse à une question.
-pub async fn reponse(
+async fn reponse_sur_place(
     axum::extract::State(services): axum::extract::State<Arc<Services>>,
     axum::extract::Path(pane_id): axum::extract::Path<String>,
     corps: CorpsBorne,
@@ -75,4 +75,18 @@ pub fn etat_de_fil(etat: EtatReponse) -> AnswerState {
         EtatReponse::Transmise => AnswerState::Transmise,
         EtatReponse::Refusee => AnswerState::Refusee,
     }
+}
+
+/// Le handler `reponse`, exécuté hors des workers du runtime ([`crate::bloquant`]).
+pub async fn reponse(
+    axum::extract::State(services): axum::extract::State<Arc<Services>>,
+    axum::extract::Path(pane_id): axum::extract::Path<String>,
+    corps: CorpsBorne,
+) -> axum::response::Response {
+    crate::bloquant::hors_runtime(reponse_sur_place(
+        axum::extract::State(services),
+        axum::extract::Path(pane_id),
+        corps,
+    ))
+    .await
 }

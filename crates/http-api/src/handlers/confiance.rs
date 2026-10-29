@@ -27,7 +27,7 @@ struct Corps {
 }
 
 /// La confiance tranchée.
-pub async fn confiance(
+async fn confiance_sur_place(
     axum::extract::State(services): axum::extract::State<Arc<Services>>,
     axum::extract::Path(pane_id): axum::extract::Path<String>,
     corps: CorpsBorne,
@@ -86,4 +86,18 @@ pub fn etat_de_fil(etat: EtatConfiance) -> TrustState {
         EtatConfiance::Refusee => TrustState::Refusee,
         EtatConfiance::NonApplicable => TrustState::NonApplicable,
     }
+}
+
+/// Le handler `confiance`, exécuté hors des workers du runtime ([`crate::bloquant`]).
+pub async fn confiance(
+    axum::extract::State(services): axum::extract::State<Arc<Services>>,
+    axum::extract::Path(pane_id): axum::extract::Path<String>,
+    corps: CorpsBorne,
+) -> axum::response::Response {
+    crate::bloquant::hors_runtime(confiance_sur_place(
+        axum::extract::State(services),
+        axum::extract::Path(pane_id),
+        corps,
+    ))
+    .await
 }

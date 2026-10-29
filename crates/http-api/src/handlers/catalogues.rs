@@ -22,7 +22,7 @@ use domain::ids::AgentKind;
 use std::sync::Arc;
 
 /// Les types installés ET lisibles — la liste du menu.
-pub async fn types(
+async fn types_sur_place(
     axum::extract::State(services): axum::extract::State<Arc<Services>>,
 ) -> axum::response::Response {
     match services.types.installes() {
@@ -59,7 +59,7 @@ pub async fn types(
 }
 
 /// Le catalogue d'un type — un catalogue indisponible reste une VALEUR.
-pub async fn modeles(
+async fn modeles_sur_place(
     axum::extract::State(services): axum::extract::State<Arc<Services>>,
     axum::extract::Path(kind): axum::extract::Path<String>,
 ) -> axum::response::Response {
@@ -105,4 +105,23 @@ pub async fn modeles(
                 .into_response()
         }
     }
+}
+
+/// Le handler `types`, exécuté hors des workers du runtime ([`crate::bloquant`]).
+pub async fn types(
+    axum::extract::State(services): axum::extract::State<Arc<Services>>,
+) -> axum::response::Response {
+    crate::bloquant::hors_runtime(types_sur_place(axum::extract::State(services))).await
+}
+
+/// Le handler `modeles`, exécuté hors des workers du runtime ([`crate::bloquant`]).
+pub async fn modeles(
+    axum::extract::State(services): axum::extract::State<Arc<Services>>,
+    axum::extract::Path(kind): axum::extract::Path<String>,
+) -> axum::response::Response {
+    crate::bloquant::hors_runtime(modeles_sur_place(
+        axum::extract::State(services),
+        axum::extract::Path(kind),
+    ))
+    .await
 }

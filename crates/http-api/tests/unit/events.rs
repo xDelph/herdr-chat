@@ -386,3 +386,64 @@ async fn les_charges_du_contrat_se_decodent() {
         assert_eq!(vu, genre, "le nom decode est celui emis");
     }
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn un_client_lent_recoit_tout_sans_trou_ni_doublon() {
+    // Le client ne lit pas pendant que 200 événements sont publiés : la
+    // sonnette bornée (16) déborde. Chaque événement doit pourtant arriver,
+    // une fois, dans l'ordre — le journal comble les trous.
+    let journal = Arc::new(ServiceAbonnements::nouveau(Arc::new(Journal::nouveau())));
+    let partage = Arc::clone(&journal);
+    let services = services_retouches(HerdrFaux::nouveau(), move |services| {
+        services.journal = partage;
+    });
+    let reponse = ouvre(services, None).await;
+    let mut flux = reponse.into_body().into_data_stream();
+    let mut tampon = String::new();
+    let mut trames: Vec<Trame> = Vec::new();
+    // `ready` d'abord : l'abonnement est en place.
+    while trames.is_empty() {
+        let portion = tokio::time::timeout(Duration::from_secs(5), flux.next())
+            .await
+            .unwrap_or_else(|_| panic!("rien reçu"))
+            .unwrap_or_else(|| panic!("flux fermé"))
+            .unwrap_or_else(|cause| panic!("flux : {cause:?}"));
+        tampon.push_str(&String::from_utf8_lossy(&portion));
+        while let Some(fin) = tampon.find("\n\n") {
+            let bloc: String = tampon.drain(..fin + 2).collect();
+            if let Some(trame) = decode_trame(&bloc) {
+                trames.push(trame);
+            }
+        }
+    }
+    for n in 0..200 {
+        journal
+            .publie(
+                "session_changed",
+                format!(r#"{{"paneId":"w1:p{n}","sourceRevision":"0123456789abcdef"}}"#)
+                    .into_bytes(),
+            )
+            .unwrap_or_else(|cause| panic!("publication : {cause:?}"));
+    }
+    let mut recus: Vec<String> = Vec::new();
+    while recus.len() < 200 {
+        let portion = tokio::time::timeout(Duration::from_secs(5), flux.next())
+            .await
+            .unwrap_or_else(|_| panic!("il manque des événements : {} reçus", recus.len()))
+            .unwrap_or_else(|| panic!("flux fermé"))
+            .unwrap_or_else(|cause| panic!("flux : {cause:?}"));
+        tampon.push_str(&String::from_utf8_lossy(&portion));
+        while let Some(fin) = tampon.find("\n\n") {
+            let bloc: String = tampon.drain(..fin + 2).collect();
+            if let Some(trame) = decode_trame(&bloc)
+                && trame.genre == "session_changed"
+            {
+                recus.push(trame.donnees);
+            }
+        }
+    }
+    let attendus: Vec<String> = (0..200)
+        .map(|n| format!(r#"{{"paneId":"w1:p{n}","sourceRevision":"0123456789abcdef"}}"#))
+        .collect();
+    assert!(recus == attendus, "tous, une fois, dans l'ordre");
+}

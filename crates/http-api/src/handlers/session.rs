@@ -31,7 +31,7 @@ pub struct Parametres {
 }
 
 /// La page de session — le point d'entrée du handler.
-pub async fn session(
+async fn session_sur_place(
     axum::extract::State(services): axum::extract::State<Arc<Services>>,
     axum::extract::Path(pane_id): axum::extract::Path<String>,
     axum::extract::Query(parametres): axum::extract::Query<Parametres>,
@@ -173,4 +173,18 @@ pub(crate) fn erreur_de_snapshot(cause: &PortError) -> ErreurDomaine {
             ErreurDomaine::chemin_refuse(format!("chemin refusé : {detail}"))
         }
     }
+}
+
+/// Le handler `session`, exécuté hors des workers du runtime ([`crate::bloquant`]).
+pub async fn session(
+    axum::extract::State(services): axum::extract::State<Arc<Services>>,
+    axum::extract::Path(pane_id): axum::extract::Path<String>,
+    axum::extract::Query(parametres): axum::extract::Query<Parametres>,
+) -> axum::response::Response {
+    crate::bloquant::hors_runtime(session_sur_place(
+        axum::extract::State(services),
+        axum::extract::Path(pane_id),
+        axum::extract::Query(parametres),
+    ))
+    .await
 }

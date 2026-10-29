@@ -27,7 +27,7 @@ pub struct Parametres {
 }
 
 /// `GET /api/file?path=…` — le fichier, tel quel, avec son type mesuré.
-pub async fn fichier(
+async fn fichier_sur_place(
     axum::extract::State(services): axum::extract::State<Arc<Services>>,
     axum::extract::Query(parametres): axum::extract::Query<Parametres>,
 ) -> axum::response::Response {
@@ -80,7 +80,7 @@ pub async fn fichier(
 }
 
 /// `GET /api/images` — les images récentes des dossiers autorisés.
-pub async fn images(
+async fn images_sur_place(
     axum::extract::State(services): axum::extract::State<Arc<Services>>,
 ) -> axum::response::Response {
     let racines = match racines_autorisees(&services) {
@@ -139,4 +139,23 @@ fn refus_403(raison: &str) -> axum::response::Response {
         axum::Json(serde_json::json!({ "error": raison })),
     )
         .into_response()
+}
+
+/// Le handler `fichier`, exécuté hors des workers du runtime ([`crate::bloquant`]).
+pub async fn fichier(
+    axum::extract::State(services): axum::extract::State<Arc<Services>>,
+    axum::extract::Query(parametres): axum::extract::Query<Parametres>,
+) -> axum::response::Response {
+    crate::bloquant::hors_runtime(fichier_sur_place(
+        axum::extract::State(services),
+        axum::extract::Query(parametres),
+    ))
+    .await
+}
+
+/// Le handler `images`, exécuté hors des workers du runtime ([`crate::bloquant`]).
+pub async fn images(
+    axum::extract::State(services): axum::extract::State<Arc<Services>>,
+) -> axum::response::Response {
+    crate::bloquant::hors_runtime(images_sur_place(axum::extract::State(services))).await
 }

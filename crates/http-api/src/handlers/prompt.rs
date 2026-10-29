@@ -35,7 +35,7 @@ struct Corps {
 }
 
 /// L'envoi du prompt.
-pub async fn prompt(
+async fn prompt_sur_place(
     axum::extract::State(services): axum::extract::State<Arc<Services>>,
     axum::extract::Path(pane_id): axum::extract::Path<String>,
     corps: CorpsBorne,
@@ -142,4 +142,18 @@ pub fn etat_de_panne(cause: &PortError) -> SendState {
         PortError::Upstream { .. } | PortError::Unsupported { .. } => SendState::Erreur,
         PortError::PathRejected { .. } => SendState::Erreur,
     }
+}
+
+/// Le handler `prompt`, exécuté hors des workers du runtime ([`crate::bloquant`]).
+pub async fn prompt(
+    axum::extract::State(services): axum::extract::State<Arc<Services>>,
+    axum::extract::Path(pane_id): axum::extract::Path<String>,
+    corps: CorpsBorne,
+) -> axum::response::Response {
+    crate::bloquant::hors_runtime(prompt_sur_place(
+        axum::extract::State(services),
+        axum::extract::Path(pane_id),
+        corps,
+    ))
+    .await
 }
