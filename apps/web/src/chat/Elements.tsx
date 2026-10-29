@@ -9,6 +9,7 @@ import { memo, useState } from "react";
 import { fileUrl } from "../api.ts";
 import {
   estMessageDuHarnais,
+  ROLE_LIGNE_IGNOREE,
   type Block,
   type Item,
   type RenderedMessage,
@@ -141,6 +142,14 @@ export const ElementFil = memo(
       return (
         <div className="fil__el">
           <CarteRapport message={message} />
+        </div>
+      );
+    }
+    if (message.role === ROLE_LIGNE_IGNOREE) {
+      // Discret : une note du fil, pas une bulle — mais jamais un trou muet.
+      return (
+        <div className="fil__el">
+          <p className="fil__info">{message.text}</p>
         </div>
       );
     }

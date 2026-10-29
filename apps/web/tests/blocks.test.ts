@@ -16,10 +16,13 @@ import {
   commandeSansCd,
   contentToText,
   lastAssistantText,
+  octetsDeLigneIgnoree,
+  ROLE_LIGNE_IGNOREE,
   relativeWorkspacePath,
   toBlocks,
   toItems,
   toMessages,
+  toRenderedMessage,
 } from "../src/blocks.ts";
 
 describe("le `cd` d'entrée vers le projet", () => {
@@ -756,5 +759,34 @@ describe("une demande utilisateur opencode n'est jamais perdue", () => {
       ]),
     );
     expect(rendus.map((item) => item.kind)).toEqual(["single", "single", "single", "single"]);
+  });
+});
+
+describe("ligne trop grande ignorée par le démon", () => {
+  test("l'entrée unknown du cadrage devient une note discrète, pas un trou muet", () => {
+    const octets = 18_040_000;
+    const entree = {
+      raw: JSON.stringify({
+        bytes: octets,
+        ignored: true,
+        reason: `line too large (${String(octets)} bytes) skipped`,
+        type: "unknown",
+      }),
+      type: "unknown",
+    };
+    expect(octetsDeLigneIgnoree(entree)).toBe(octets);
+    const message = toRenderedMessage(entree);
+    expect(message?.role).toBe(ROLE_LIGNE_IGNOREE);
+    expect(message?.text).toBe("A line of 17.2 MB was skipped (too large)");
+  });
+
+  test("l'ancien texte français du démon est encore reconnu", () => {
+    expect(
+      octetsDeLigneIgnoree({ raw: "ligne trop grande (20971520 octets) ignorée", type: "unknown" }),
+    ).toBe(20_971_520);
+  });
+
+  test("une autre entrée unknown reste invisible", () => {
+    expect(toRenderedMessage({ raw: '{"type":"unknown","x":1}', type: "unknown" })).toBe(undefined);
   });
 });
