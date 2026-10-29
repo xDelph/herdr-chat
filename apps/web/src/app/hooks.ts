@@ -129,14 +129,41 @@ export const useHauteurVisible = (): void => {
       racine.style.setProperty("--haut-visible", `${String(mesure.haut)}px`);
       racine.classList.toggle("clavier-ouvert", mesure.clavier);
     };
+    /*
+      ⚠️ **La rotation (retour du 2026-10-29, iPad paysage → portrait).** iOS
+      émet `resize` PENDANT la rotation, avec les valeurs de l'orientation
+      d'avant, et pas toujours un dernier événement une fois stabilisé : la
+      hauteur restait celle du paysage, l'app ne prenait plus tout l'écran.
+      On remesure donc aussi quand la page a réellement changé de taille
+      (`ResizeObserver`, après la mise en page), sur `orientationchange`, et
+      un peu après chaque événement. Une mesure identique ne republie rien.
+    */
+    const minuteries = new Set<number>();
+    const appliqueEtRelit = () => {
+      applique();
+      for (const delai of [150, 500, 1_000]) {
+        const minuterie = window.setTimeout(() => {
+          minuteries.delete(minuterie);
+          applique();
+        }, delai);
+        minuteries.add(minuterie);
+      }
+    };
+    const observateur =
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(appliqueEtRelit);
+    observateur?.observe(document.documentElement);
     applique();
     vue?.addEventListener("resize", applique);
     vue?.addEventListener("scroll", applique);
-    window.addEventListener("resize", applique);
+    window.addEventListener("resize", appliqueEtRelit);
+    window.addEventListener("orientationchange", appliqueEtRelit);
     return () => {
+      observateur?.disconnect();
+      for (const minuterie of minuteries) window.clearTimeout(minuterie);
       vue?.removeEventListener("resize", applique);
       vue?.removeEventListener("scroll", applique);
-      window.removeEventListener("resize", applique);
+      window.removeEventListener("resize", appliqueEtRelit);
+      window.removeEventListener("orientationchange", appliqueEtRelit);
     };
   }, []);
 };
