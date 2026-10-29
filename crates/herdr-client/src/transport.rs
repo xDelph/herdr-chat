@@ -23,15 +23,32 @@ pub const CADRE_MAX_OCTETS: usize = 16 * 1024 * 1024;
 /// contre 120 s de shell).
 pub const DELAI_PAR_DEFAUT: Duration = Duration::from_secs(15);
 
+/// Le délai de démarrage d'agent **demandé à Herdr** (`agent.start.timeout_ms`)
+/// — 120 s, la valeur du fil (Herdr attend que l'agent sorte de `unknown`).
+pub const DELAI_DEMARRAGE_HERDR_MS: u64 = 120_000;
+
+/// La marge du socket au-delà du délai demandé à Herdr : le verdict d'Herdr
+/// (démarré, ou son propre délai dépassé) doit arriver AVANT que le socket
+/// abandonne.
+pub const MARGE_SOCKET_DEMARRAGE: Duration = Duration::from_secs(5);
+
 /// Les deadlines **par méthode** : les méthodes lentes documentées sortent
 /// du défaut ; tout le reste vit à 15 s.
 ///
 /// ⚠️ Valeurs mesurées seulement : le catalogage des modèles porte la limite
-/// partagée (20 s, `MODEL_CATALOG_TIMEOUT_MS`) ; rien d'autre n'a de preuve.
+/// partagée (20 s, `MODEL_CATALOG_TIMEOUT_MS`).
+///
+/// ⚠️ **`agent.start` attend jusqu'à 120 s côté Herdr** : il ne répond
+/// qu'une fois l'agent démarré. Avec le défaut de 15 s, un démarrage lent
+/// (claude met souvent plus de 15 s) était déclaré « délai dépassé » par le
+/// socket alors qu'Herdr travaillait encore — le lancement tombait en
+/// « amorçage ambigu » pour un agent qui démarrait normalement. Le socket
+/// attend donc le délai demandé à Herdr plus une marge (125 s).
 #[must_use]
 pub fn delai_de(methode: &str) -> Duration {
     match methode {
         "agent.catalog" | "catalog" => Duration::from_secs(20),
+        "agent.start" => Duration::from_millis(DELAI_DEMARRAGE_HERDR_MS) + MARGE_SOCKET_DEMARRAGE,
         _ => DELAI_PAR_DEFAUT,
     }
 }

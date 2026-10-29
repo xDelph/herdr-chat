@@ -26,10 +26,28 @@ async fn kinds_200_liste_du_lancement() {
     // `cursor` est installé mais n'expose aucune session : jamais proposé.
     assert!(!noms.contains(&"cursor"));
     assert!(!noms.contains(&"gemini"), "non installé");
-    // Le libellé est la commande, l'état « current » — tout type offert est
-    // utilisable.
-    assert_eq!(kinds[0]["label"], "pi");
+    // Le libellé et l'état sont ceux MESURÉS par Herdr — jamais un
+    // « current » écrit pour tout le monde (H08).
+    assert_eq!(kinds[0]["label"], "Pi");
     assert_eq!(kinds[0]["state"], "current");
+    assert_eq!(kinds[1]["label"], "Claude Code");
+    assert_eq!(kinds[1]["state"], "outdated");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn kinds_502_etat_non_mesurable() {
+    // L'état ne peut pas être lu (integration.list en panne côté catalogue) :
+    // 502 nommé — jamais un état inventé pour compléter la liste.
+    let services = services_retouches(HerdrFaux::nouveau(), |services| {
+        services.catalogue = Arc::new(FauxCatalogue::en_panne(PortError::Upstream {
+            code: String::from("integration.list"),
+            message: String::from("socket fermé"),
+        }));
+    });
+    let (statut, corps) = requete_get(routeur(services, vec![]), "/api/agents/kinds").await;
+    assert_eq!(statut, StatusCode::BAD_GATEWAY);
+    let message = corps["error"].as_str().unwrap_or_else(|| panic!("error"));
+    assert!(message.contains("socket fermé"), "{message}");
 }
 
 #[tokio::test(flavor = "multi_thread")]

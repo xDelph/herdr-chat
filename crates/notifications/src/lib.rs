@@ -3,6 +3,7 @@
 //! (TECH §4) ; les modules arrivent avec leurs tâches.
 
 pub mod delivery;
+pub mod notifieur;
 pub mod payload;
 pub mod port;
 pub mod store;

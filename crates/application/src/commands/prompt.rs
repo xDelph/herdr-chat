@@ -68,6 +68,9 @@ pub enum RefusEnvoi {
         detail: String,
         cause: PortError,
     },
+    /// La file du pane est pleine (T034) : RIEN n'a été envoyé — le client
+    /// peut réessayer ; jamais une attente infinie.
+    Sature { cible: String, detail: String },
 }
 
 impl std::fmt::Display for RefusEnvoi {
@@ -81,6 +84,9 @@ impl std::fmt::Display for RefusEnvoi {
             }
             RefusEnvoi::NonConfirme { cible, detail, .. } => {
                 write!(f, "envoi non confirmé ({cible}) : {detail}")
+            }
+            RefusEnvoi::Sature { cible, detail } => {
+                write!(f, "file du pane saturée ({cible}) : {detail}")
             }
         }
     }
@@ -142,7 +148,33 @@ impl EnvoieurPrompt {
 
     /// Envoie un texte vers un agent — prompt ou frappes, avec le repli
     /// interactif **sur refus connu seulement**.
+    ///
+    /// ⚠️ **Admis par la file du pane** ([`super::admission::partage`]) : la
+    /// déduplication ET l'envoi s'exécutent dans le tour exclusif du pane. Un
+    /// double tap attend la fin du premier envoi, voit sa confirmation, et
+    /// devient un doublon supprimé — il ne part plus deux fois. Aucune autre
+    /// commande (réponse, confiance, arrêt, focus) ne s'intercale.
     pub fn envoie(
+        &self,
+        port: &dyn ControlPort,
+        cible: &PaneId,
+        texte: &str,
+        saisie: bool,
+    ) -> Result<Envoi, RefusEnvoi> {
+        match super::admission::partage()
+            .admet(cible, || self.envoie_admis(port, cible, texte, saisie))
+        {
+            Ok(envoi) => Ok(envoi),
+            Err(Err(refus)) => Err(refus),
+            Err(Ok(super::admission::ErreurAdmission::Saturation)) => Err(RefusEnvoi::Sature {
+                cible: cible.as_str().to_string(),
+                detail: super::admission::detail_saturation(cible),
+            }),
+        }
+    }
+
+    /// L'envoi lui-même, dans le tour exclusif du pane.
+    fn envoie_admis(
         &self,
         port: &dyn ControlPort,
         cible: &PaneId,

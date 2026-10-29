@@ -234,6 +234,15 @@ impl LanceurAgent {
         construit_args: &ConstructeurArgs,
         demande: &DemandeLancement,
     ) -> Result<IssueLancement, ErreurLancement> {
+        /*
+          ⚠️ **Les délais se mesurent depuis le début de CETTE opération.**
+          L'horloge de production est partagée et créée au démarrage du démon :
+          `ecoule()` y vaut l'uptime. Comparer l'uptime aux 125 s du délai de
+          démarrage faisait échouer TOUS les lancements deux minutes après le
+          démarrage (« start deadline exceeded » avant même le premier essai,
+          onglet refermé). On retient l'instant de départ et on compare l'écart.
+        */
+        let debut = horloge.ecoule();
         let kind = demande.kind.as_str();
         // 1) La validation AVANT tout : les args de modèle/raisonnement
         // (T030, injectée) — un refus = zéro onglet, zéro appel au port.
@@ -306,7 +315,8 @@ impl LanceurAgent {
             // Le délai de démarrage (125 s) et le budget global (160 s) :
             // plus rien ne peut démarrer dans la fenêtre — l'agent n'a
             // jamais amorcé, l'onglet possédé est fermé.
-            if horloge.ecoule() >= DELAI_DEMARRAGE || horloge.ecoule() >= BUDGET_TOTAL {
+            let ecoule = horloge.ecoule().saturating_sub(debut);
+            if ecoule >= DELAI_DEMARRAGE || ecoule >= BUDGET_TOTAL {
                 ferme_le_possede(port, &tab);
                 return Err(ErreurLancement::CoquilleNonPrete {
                     pane: pane.clone(),

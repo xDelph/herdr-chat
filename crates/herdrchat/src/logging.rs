@@ -195,3 +195,43 @@ pub fn maintenant_ms() -> u64 {
 pub fn detail_borne(detail: &str) -> String {
     tronque(detail, application::diagnostics::DETAIL_MAX)
 }
+
+/// Le filtre des traces : `RUST_LOG` quand il est donné, `info` sinon.
+///
+/// ⚠️ Un `RUST_LOG` illisible est une ERREUR rendue (avec la directive
+/// fautive), jamais un filtre muet : l'appelant retombe sur `info` et le dit.
+pub fn filtre_de_traces(rust_log: Option<&str>) -> Result<tracing_subscriber::EnvFilter, String> {
+    match rust_log.map(str::trim).filter(|valeur| !valeur.is_empty()) {
+        None => Ok(tracing_subscriber::EnvFilter::new("info")),
+        Some(directives) => tracing_subscriber::EnvFilter::try_new(directives)
+            .map_err(|cause| format!("RUST_LOG illisible (« {directives} ») : {cause}")),
+    }
+}
+
+/// Installe l'abonné des traces : `stderr`, sans couleurs (la sortie est un
+/// fichier, `out.log`), filtré par [`filtre_de_traces`].
+///
+/// ⚠️ Sans cet abonné, tout `tracing::warn!` du démon — flux dégradé, SQLite
+/// en panne, livraison push échouée — était **perdu**. Un `RUST_LOG`
+/// illisible n'empêche pas d'installer `info` : l'erreur est rendue pour être
+/// affichée.
+pub fn initialise_traces(rust_log: Option<&str>) -> Result<(), String> {
+    let (filtre, avertissement) = match filtre_de_traces(rust_log) {
+        Ok(filtre) => (filtre, None),
+        Err(cause) => (
+            tracing_subscriber::EnvFilter::new("info"),
+            Some(format!("{cause} — filtre « info » appliqué")),
+        ),
+    };
+    tracing_subscriber::fmt()
+        .with_env_filter(filtre)
+        .with_writer(std::io::stderr)
+        .with_ansi(false)
+        .with_target(true)
+        .try_init()
+        .map_err(|cause| format!("traces non initialisées : {cause}"))?;
+    match avertissement {
+        Some(avertissement) => Err(avertissement),
+        None => Ok(()),
+    }
+}

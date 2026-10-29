@@ -649,8 +649,24 @@ impl CatalogPort for FauxCatalogue {
         Box::pin(async move { resultat })
     }
 
+    /// Les intégrations MESURÉES (label/state d'Herdr) — les mêmes types que
+    /// l'inventaire par défaut ; un état non `current` prouve qu'il est relu.
     fn installed(&self) -> PortFuture<'_, Vec<domain::catalog::InstalledKindInstance>> {
-        Box::pin(async { Ok(Vec::new()) })
+        let mesure =
+            |kind: &str, label: &str, state: &str| domain::catalog::InstalledKindInstance {
+                kind: domain::ids::AgentKind::from(String::from(kind)),
+                label: String::from(label),
+                state: String::from(state),
+            };
+        let resultat = match &self.panne {
+            Some(panne) => Err(panne.clone()),
+            None => Ok(vec![
+                mesure("pi", "Pi", "current"),
+                mesure("claude", "Claude Code", "outdated"),
+                mesure("cursor", "Cursor", "current"),
+            ]),
+        };
+        Box::pin(async move { resultat })
     }
 
     fn validate_launch(

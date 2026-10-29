@@ -543,3 +543,28 @@ fn la_reservation_evite_la_collision_concurrente_d_un_meme_libelle() {
         "le second lancement est décalé : {premier} puis {second}"
     );
 }
+
+/// L'horloge de production est créée au démarrage du démon : `ecoule()` y
+/// vaut l'UPTIME. Un démon en marche depuis dix minutes doit lancer comme au
+/// premier jour — avant la correction, tout lancement tombait en « start
+/// deadline exceeded » avant même le premier essai, et l'onglet était fermé.
+#[test]
+fn un_demon_demarre_depuis_longtemps_lance_encore() {
+    let faux = faux_heureux();
+    faux.repond_lancement(StartEvidence::Started {
+        pane: PaneId::from(String::from("p-1")),
+    });
+    let horloge = HorlogeTest::nouvelle();
+    // Dix minutes d'uptime avant la demande.
+    horloge.ecoule_ms.store(600_000, Ordering::SeqCst);
+    match LanceurAgent::nouveau().lance(&faux, &horloge, &args_acceptes, &demande("w1", "pi")) {
+        Ok(IssueLancement::Lance { pane, .. }) => assert_eq!(pane.as_str(), "p-1"),
+        autre => panic!("le lancement doit passer après 10 min d'uptime : {autre:?}"),
+    }
+    assert!(
+        faux.actions()
+            .iter()
+            .all(|action| action.op != Op::FermetureOnglet),
+        "aucun onglet fermé"
+    );
+}

@@ -358,3 +358,67 @@ fn la_creation_donglet_exige_un_pane_racine_utilisable() {
         "tab.create porte cwd/focus/label/workspace_id (mesuré) : {params}"
     );
 }
+
+/// Le port RÉEL contre le faux socket : `agent.start` part avec le délai du
+/// fil (120 s) et le refus « coquille pas prête » d'Herdr devient
+/// `ShellNotReady` — sans quoi les 10 essais du moteur ne se déclenchaient
+/// jamais et un onglet tout juste créé donnait 502.
+#[test]
+fn le_port_traduit_le_refus_coquille_de_agent_start() {
+    use domain::ports::ControlPort;
+    use domain::ports::{StartAgent, StartEvidence};
+
+    let faux = FauxHerdr::nouveau("herdr-start");
+    let vues: Arc<Mutex<Vec<Value>>> = Arc::new(Mutex::new(Vec::new()));
+    let notees = Arc::clone(&vues);
+    faux.sert_une(move |flux| {
+        let mut lecteur = BufReader::new(match flux.try_clone() {
+            Ok(clone) => clone,
+            Err(cause) => panic!("clone : {cause}"),
+        });
+        let mut ligne = String::new();
+        if lecteur.read_line(&mut ligne).is_err() {
+            return;
+        }
+        let demande: Value = match serde_json::from_str(&ligne) {
+            Ok(valeur) => valeur,
+            Err(cause) => panic!("demande illisible : {cause}"),
+        };
+        notees
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push(demande.clone());
+        let reponse = json!({
+            "id": demande["id"],
+            "error": { "code": "invalid_request", "message": "pane w1:p4 is not an available shell" }
+        });
+        let mut flux = flux;
+        let _ = writeln!(flux, "{reponse}");
+    });
+    let port = match herdr_client::port::PortHerdr::connecte(&faux.chemin) {
+        Ok(port) => port,
+        Err(cause) => panic!("port : {cause}"),
+    };
+    let mut futur = port.start_agent(StartAgent {
+        pane: domain::ids::PaneId::from(String::from("w1:p4")),
+        kind: domain::ids::AgentKind::from(String::from("pi")),
+        name: None,
+        args: Vec::new(),
+    });
+    let mut contexte = std::task::Context::from_waker(std::task::Waker::noop());
+    let issue = match futur.as_mut().poll(&mut contexte) {
+        std::task::Poll::Ready(issue) => issue,
+        std::task::Poll::Pending => panic!("un port bloquant répond au premier poll"),
+    };
+    assert!(
+        matches!(issue, Ok(StartEvidence::ShellNotReady { .. })),
+        "{issue:?}"
+    );
+    let demandes = vues
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone();
+    assert_eq!(demandes.len(), 1, "une seule demande : aucune relance ici");
+    assert_eq!(demandes[0]["method"], "agent.start");
+    assert_eq!(demandes[0]["params"]["timeout_ms"], 120_000);
+}

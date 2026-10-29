@@ -135,12 +135,17 @@ async fn lancement_sur_place(
 }
 
 /// La cause d'un lancement refusé, en domaine — tout est 502 sauf le corps
-/// invalide (400, traité avant) et la découverte (503, traitée avant).
+/// invalide (400, traité avant), la demande refusée par la validation (400 :
+/// modèle, raisonnement — l'entrée est fautive, pas Herdr) et la découverte
+/// (503, traitée avant).
 #[must_use]
 pub fn erreur_en_domaine(erreur: ErreurLancement) -> ErreurDomaine {
     match erreur {
+        // ⚠️ Une demande refusée par la validation est une ENTRÉE invalide
+        // (400 + la cause), jamais une panne amont (502) : aucun onglet n'a
+        // été créé, et l'utilisateur doit corriger son choix, pas réessayer.
         ErreurLancement::ValidationRefusee { erreur } => {
-            ErreurDomaine::amont_refus(format!("invalid launch request: {erreur}"))
+            ErreurDomaine::entree_invalide(format!("invalid launch request: {erreur}"))
         }
         ErreurLancement::SnapshotIndisponible { detail } => {
             ErreurDomaine::amont_refus(format!("snapshot Herdr indisponible: {detail}"))

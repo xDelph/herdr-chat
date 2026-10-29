@@ -259,6 +259,50 @@ pub fn preuve_de_lancement(pane: &PaneId) -> StartEvidence {
     StartEvidence::Started { pane: pane.clone() }
 }
 
+/// Le texte mesuré du refus « coquille pas encore prête » : un pane
+/// fraîchement créé lit encore sa configuration de shell, et Herdr répond
+/// `… is not an available shell` (le fil réessaie sur ce texte exact).
+const TEXTE_COQUILLE_NON_PRETE: &str = "not an available shell";
+
+/// L'issue de `agent.start` → la preuve du domaine.
+///
+/// ⚠️ **Sans ce mappage, le moteur de lancement était aveugle.** Toute erreur
+/// d'Herdr devenait `Err(Upstream)` : le refus « coquille pas prête » — le cas
+/// NORMAL d'un onglet tout juste créé — n'était jamais `ShellNotReady`, donc
+/// les 10 essais espacés de 3 s ne se déclenchaient pas et le lancement
+/// répondait 502 ; un démarrage bloqué sur l'invite de confiance n'était
+/// jamais `Failed { "…blocked…" }`, donc le 409 `trust-required` était
+/// inatteignable.
+///
+/// Trois issues, comme le fil (`Api.ts`, `startAgent` + `retry` + `blocked`) :
+/// - un refus STRUCTURÉ d'Herdr qui dit « not an available shell » →
+///   `ShellNotReady` (rejouable) ;
+/// - tout autre refus structuré → `Failed`, avec le message d'Herdr (et son
+///   code) : le moteur y cherche « blocked » pour l'invite de confiance ;
+/// - une panne de transport ou un délai sans verdict → l'erreur de port,
+///   inchangée (le moteur ne rejoue jamais un délai : l'agent peut exister).
+pub fn issue_de_lancement(
+    resultat: Result<serde_json::Value, ErreurTransport>,
+    pane: &PaneId,
+) -> Result<StartEvidence, PortError> {
+    match resultat {
+        Ok(_) => Ok(preuve_de_lancement(pane)),
+        Err(ErreurTransport::AmontRefus { code, message }) => {
+            let detail = if code.is_empty() {
+                message.clone()
+            } else {
+                format!("{message} ({code})")
+            };
+            if message.to_lowercase().contains(TEXTE_COQUILLE_NON_PRETE) {
+                Ok(StartEvidence::ShellNotReady { detail })
+            } else {
+                Ok(StartEvidence::Failed { detail })
+            }
+        }
+        Err(autre) => Err(erreur_de_port(&autre)),
+    }
+}
+
 /// La traduction d'une erreur de transport — chaque cause garde sa nature.
 #[must_use]
 pub fn erreur_de_port(cause: &ErreurTransport) -> PortError {
@@ -479,10 +523,12 @@ impl ControlPort for PortHerdr {
         let genre = request.kind.as_str().to_string();
         let nom = request.name.as_ref().map(|nom| nom.as_str().to_string());
         let args = request.args.clone();
-        self.bloquant(move |client| {
-            client
-                .lancement(&genre, nom.as_deref(), pane.as_str(), &args, DELAI_AGENT_MS)
-                .map(|_| preuve_de_lancement(&pane))
+        Box::pin(async move {
+            let mut client = self.emprunte()?;
+            let resultat =
+                client.lancement(&genre, nom.as_deref(), pane.as_str(), &args, DELAI_AGENT_MS);
+            self.rend(client);
+            issue_de_lancement(resultat, &pane)
         })
     }
 
@@ -503,5 +549,7 @@ impl ControlPort for PortHerdr {
     }
 }
 
-/// Le délai de `agent.start` — 125 s (le fil : 120 s côté Herdr + marge).
-pub const DELAI_AGENT_MS: u64 = 125_000;
+/// Le délai de `agent.start` **demandé à Herdr** — 120 s, la valeur du fil.
+/// Le socket, lui, attend 125 s ([`crate::transport::delai_de`]) : le verdict
+/// d'Herdr arrive toujours avant l'abandon du socket.
+pub const DELAI_AGENT_MS: u64 = crate::transport::DELAI_DEMARRAGE_HERDR_MS;

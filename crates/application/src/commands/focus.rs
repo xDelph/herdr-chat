@@ -54,6 +54,22 @@ impl FocaliseurAgent {
     /// Applique le focus — la cible est celle de l'appel, jamais la
     /// conversation affichée (T034 : la cible est capturée à l'admission).
     pub fn focalise(&self, port: &dyn ControlPort, cible: &PaneId) -> IssueFocus {
+        // ⚠️ Admis par la file du pane (T034). La saturation reste une VALEUR
+        // (`focused: false` et sa cause, H11) — jamais une erreur du fil.
+        match super::admission::partage().admet(cible, || {
+            Ok::<IssueFocus, std::convert::Infallible>(self.focalise_admis(port, cible))
+        }) {
+            Ok(issue) => issue,
+            Err(Ok(super::admission::ErreurAdmission::Saturation)) => IssueFocus {
+                focalise: false,
+                cause: Some(super::admission::detail_saturation(cible)),
+            },
+            Err(Err(impossible)) => match impossible {},
+        }
+    }
+
+    /// Le focus lui-même, dans le tour exclusif du pane.
+    fn focalise_admis(&self, port: &dyn ControlPort, cible: &PaneId) -> IssueFocus {
         let mut demande = port.focus(cible.clone());
         match pousse(&mut demande) {
             Ok(FocusEvidence::Focused) => IssueFocus {

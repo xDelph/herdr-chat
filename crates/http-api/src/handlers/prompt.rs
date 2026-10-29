@@ -119,6 +119,16 @@ async fn prompt_sur_place(
             )
                 .into_response()
         }
+        // La file du pane est pleine : RIEN n'est parti — un refus nommé
+        // (`erreur`), le client peut réessayer. Jamais « envoyé ».
+        Err(RefusEnvoi::Sature { detail, .. }) => (
+            axum::http::StatusCode::BAD_GATEWAY,
+            axum::Json(PromptFailedResponse {
+                detail,
+                state: SendState::Erreur,
+            }),
+        )
+            .into_response(),
         // B05 : l'état vient de la NATURE de la panne, jamais d'une phrase.
         Err(RefusEnvoi::NonConfirme { detail, cause, .. }) => (
             axum::http::StatusCode::BAD_GATEWAY,

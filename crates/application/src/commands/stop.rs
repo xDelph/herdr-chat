@@ -61,6 +61,26 @@ impl ArreteurAgent {
         port: &dyn ControlPort,
         cible: &PaneId,
     ) -> Result<IssueArret, ErreurArret> {
+        // ⚠️ Admis par la file du pane (T034) : la photo ET le Ctrl+C dans le
+        // tour exclusif — jamais au milieu d'un prompt ou d'une réponse.
+        match super::admission::partage().admet(cible, || self.arrete_admis(port, cible)) {
+            Ok(issue) => Ok(issue),
+            Err(Err(erreur)) => Err(erreur),
+            Err(Ok(super::admission::ErreurAdmission::Saturation)) => {
+                Err(ErreurArret::Transmission {
+                    cible: cible.clone(),
+                    detail: super::admission::detail_saturation(cible),
+                })
+            }
+        }
+    }
+
+    /// L'arrêt lui-même, dans le tour exclusif du pane.
+    fn arrete_admis(
+        &self,
+        port: &dyn ControlPort,
+        cible: &PaneId,
+    ) -> Result<IssueArret, ErreurArret> {
         // 1) L'observation fraîche — la seule source de décision.
         let mut photo = port.snapshot();
         let photo = match pousse(&mut photo) {

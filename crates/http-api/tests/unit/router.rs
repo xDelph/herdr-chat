@@ -289,3 +289,70 @@ fn methode_non_autorisee_lecture_porte_allow() {
         Some("GET, HEAD")
     );
 }
+
+/// O07 : une réponse JSON de l'API n'est jamais mise en cache — la couche du
+/// routeur pose `no-store` quand le handler n'a rien dit, sur les succès
+/// comme sur les erreurs, et ne touche pas une politique déjà posée.
+#[tokio::test(flavor = "multi_thread")]
+async fn l_api_repond_toujours_no_store() {
+    for chemin in [
+        "/api/health",
+        "/api/overview",
+        "/api/conversations",
+        "/api/agents/w1:p1/session",
+        "/api/route-inconnue",
+    ] {
+        let reponse = envoie("GET", chemin, &[], Vec::new()).await;
+        assert_eq!(
+            reponse
+                .headers()
+                .get("cache-control")
+                .and_then(|valeur| valeur.to_str().ok()),
+            Some("no-store"),
+            "{chemin} ({})",
+            reponse.status()
+        );
+    }
+    // Un refus de la garde (403) aussi.
+    let refus = envoie(
+        "POST",
+        "/api/agents/w1:p1/prompt",
+        &[("content-type", "application/json")],
+        b"{}".to_vec(),
+    )
+    .await;
+    assert_eq!(refus.status(), StatusCode::FORBIDDEN);
+    assert_eq!(
+        refus
+            .headers()
+            .get("cache-control")
+            .and_then(|valeur| valeur.to_str().ok()),
+        Some("no-store")
+    );
+}
+
+/// La trace d'une erreur lit la cause que le client lit — jamais la demande.
+#[test]
+fn la_cause_d_une_erreur_est_celle_du_corps_rendu() {
+    use http_api::router::cause_de_reponse;
+
+    assert_eq!(
+        cause_de_reponse(br#"{"error":"agent types unavailable","hint":"integration.list"}"#),
+        "agent types unavailable — integration.list"
+    );
+    assert_eq!(
+        cause_de_reponse(
+            br#"{"detail":"send not confirmed: deadline exceeded","state":"attente"}"#
+        ),
+        "send not confirmed: deadline exceeded"
+    );
+    assert_eq!(
+        cause_de_reponse(b"Web Push not configured"),
+        "Web Push not configured"
+    );
+    assert_eq!(cause_de_reponse(b""), "(corps vide)");
+    assert_eq!(
+        cause_de_reponse("é".repeat(500).as_bytes()).chars().count(),
+        300
+    );
+}

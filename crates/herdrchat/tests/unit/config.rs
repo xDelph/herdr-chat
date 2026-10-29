@@ -516,3 +516,58 @@ fn chaque_famille_recoit_sa_propre_racine_de_sessions() {
     assert_eq!(racines.codex_sessions, Path::new("/foyer/.codex/sessions"));
     assert_eq!(racines.codex_home, Path::new("/foyer/.codex"));
 }
+
+/// Le sujet VAPID (le `sub` de chaque JWT push) : explicite, puis première
+/// origine HTTPS du PLURIEL, puis le `mailto:` du fil — jamais le défaut
+/// `mailto:example@example.com` du crate `web-push`.
+#[test]
+fn le_sujet_vapid_suit_la_precedence_du_fil() {
+    let mut env = env_dep();
+    assert_eq!(
+        configue(&mut env).vapid_sujet_resolu,
+        "mailto:herdr-remote@example.com"
+    );
+
+    env.insert(
+        String::from("HERDR_REMOTE_PUBLIC_ORIGINS"),
+        String::from("http://100.64.0.2:8791, https://herdr.exemple.ts.net:8790"),
+    );
+    assert_eq!(
+        configue(&mut env).vapid_sujet_resolu,
+        "https://herdr.exemple.ts.net:8790"
+    );
+
+    env.insert(
+        String::from("HERDR_REMOTE_VAPID_SUBJECT"),
+        String::from("mailto:moi@exemple.test"),
+    );
+    assert_eq!(
+        configue(&mut env).vapid_sujet_resolu,
+        "mailto:moi@exemple.test"
+    );
+
+    // Un sujet explicite VIDE n'est pas signé tel quel.
+    env.insert(
+        String::from("HERDR_REMOTE_VAPID_SUBJECT"),
+        String::from("  "),
+    );
+    assert_eq!(
+        configue(&mut env).vapid_sujet_resolu,
+        "https://herdr.exemple.ts.net:8790"
+    );
+}
+
+/// Le singulier (`HERDR_REMOTE_PUBLIC_ORIGIN`) n'entre pas dans le sujet :
+/// le fil ne lisait que le pluriel.
+#[test]
+fn le_sujet_vapid_ignore_le_singulier() {
+    let mut env = env_dep();
+    env.insert(
+        String::from("HERDR_REMOTE_PUBLIC_ORIGIN"),
+        String::from("https://herdr.exemple.ts.net"),
+    );
+    assert_eq!(
+        configue(&mut env).vapid_sujet_resolu,
+        "mailto:herdr-remote@example.com"
+    );
+}
