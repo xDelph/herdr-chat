@@ -89,42 +89,11 @@ async fn demarre(config: &Config) -> Result<(), String> {
     );
     // 3) Les artefacts : confinés aux racines de CHAQUE requête.
     let artefacts = Arc::new(files::port::PortArtefacts::nouveau());
-    // 4) Les notifications : le store compatible, à côté du journal.
-    //
-    // ⚠️ Avant d'ouvrir le store, on rapatrie celui de l'ancien emplacement
-    // (`<cwd>/.herdr-remote/push.json`, E10) : sans cela, les abonnements déjà
-    // enregistrés restent orphelins et les notifications s'arrêtent sans un
-    // mot. Une erreur est DITE, jamais masquée — et n'empêche pas de servir.
-    if let Ok(dossier) = std::env::current_dir() {
-        let ancien = dossier.join(".herdr-remote").join("push.json");
-        match notifications::store::rapatrie_store(&config.push_store_path, &ancien) {
-            Ok(Some(depuis)) => {
-                tracing::warn!("abonnements Web Push rapatriés depuis {}", depuis.display())
-            }
-            Ok(None) => {}
-            Err(erreur) => tracing::warn!(
-                "rapatriement du store push impossible ({} → {}) : {erreur:?}",
-                ancien.display(),
-                config.push_store_path.display()
-            ),
-        }
-    }
-    // Les surcharges VAPID de l'environnement : une paire PARTIELLE ou
-    // incohérente est refusée au démarrage, jamais complétée en silence.
-    let clefs_env = notifications::store::ClefsVapid::depuis_env(
-        config.vapid_cle_publique.clone(),
-        config.vapid_cle_privee.clone(),
-    )
-    .map_err(|erreur| {
-        format!(
-            "clés VAPID de l'environnement refusées : {}",
-            notifications::port::erreur_de_port(&erreur).description()
-        )
-    })?;
-    let store_push = Arc::new(notifications::store::GardienDeStore::nouveau(
-        config.push_store_path.clone(),
-        clefs_env,
-    ));
+    // 4) Les notifications : le store compatible, à côté du journal —
+    //    rapatriement de l'ancien emplacement (E10) et clés VAPID de
+    //    l'environnement (E08) composés par `assemblage::store_push`.
+    let store_push =
+        herdrchat::assemblage::store_push(config, std::env::current_dir().ok().as_deref())?;
     // UNE livraison réelle, partagée par le port (H15/H16) et le notifieur de
     // la veille — le `sub` du JWT est le sujet configuré.
     let livraison =

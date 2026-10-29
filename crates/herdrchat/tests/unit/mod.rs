@@ -7,5 +7,6 @@ pub(crate) mod config;
 pub(crate) mod cycle;
 pub(crate) mod demarrage;
 pub(crate) mod logging;
-pub(crate) mod version;
+pub(crate) mod store_push;
 mod veille;
+pub(crate) mod version;
