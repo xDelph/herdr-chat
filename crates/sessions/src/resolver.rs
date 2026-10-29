@@ -24,7 +24,8 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::time::SystemTime;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant, SystemTime};
 
 /// Où vit la session d'un agent — ⚠️ **deux magasins, pas deux capacités** :
 /// pi/codex/claude écrivent un FICHIER ; opencode/devin écrivent une base
@@ -120,7 +121,36 @@ fn validite_index_codex(codex_home: &Path) -> Vec<(SystemTime, u64)> {
 pub struct Resolveur {
     pub racines: Racines,
     cache: Mutex<HashMap<(String, String), EntreeCache>>,
+    /// Le cache identifiant → fichier (codex, claude) : voir
+    /// [`Resolveur::chemin_par_id`].
+    ids: Mutex<HashMap<(FamilleId, String), EntreeId>>,
+    /// La durée de vie d'un « introuvable » en cache.
+    ttl_negatif: Duration,
+    /// Combien de parcours de dossiers ont réellement eu lieu — l'observation
+    /// des tests (un cache qui ne sert jamais est un ornement).
+    parcours: AtomicU64,
 }
+
+/// Les deux familles dont l'identifiant se cherche dans un NOM de fichier.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum FamilleId {
+    Codex,
+    Claude,
+}
+
+struct EntreeId {
+    chemin: Option<PathBuf>,
+    mesure: Instant,
+}
+
+/// La durée de vie d'un « introuvable » : 5 s. Une session claude/codex qui
+/// naît après une recherche infructueuse devient visible au plus tard après
+/// ce délai — deux battements du veilleur.
+pub const TTL_NEGATIF_IDS: Duration = Duration::from_secs(5);
+
+/// La borne du cache d'identifiants : au-delà, il repart vide (jamais une
+/// croissance sans fin sur un démon qui tourne des semaines).
+const CAPACITE_IDS: usize = 1024;
 
 /// Les bases d'index codex, de la plus récente à la plus ancienne — tri
 /// **numérique** de la version (la régression d19f98d : le tri lexicographique
@@ -365,7 +395,7 @@ pub fn source_session(
     }
     match agent_kind {
         Some("codex") => {
-            let chemin = chemin_codex_par_id(&resolveur.racines, &emplacement.value)?;
+            let chemin = resolveur.chemin_par_id(FamilleId::Codex, &emplacement.value)?;
             Some(SourceSession::Fichier { base: chemin })
         }
         Some("opencode") => {
@@ -380,7 +410,7 @@ pub fn source_session(
             })
         }
         Some("claude") => {
-            let chemin = chemin_claude_par_id(&resolveur.racines, &emplacement.value)?;
+            let chemin = resolveur.chemin_par_id(FamilleId::Claude, &emplacement.value)?;
             Some(SourceSession::Fichier { base: chemin })
         }
         Some("devin") => {
@@ -439,9 +469,70 @@ pub fn localise_session(
 impl Resolveur {
     #[must_use]
     pub fn nouveau(racines: Racines) -> Self {
+        Self::avec_ttl_negatif(racines, TTL_NEGATIF_IDS)
+    }
+
+    /// Le résolveur avec une durée de vie choisie pour les « introuvables »
+    /// (les tests la mettent à zéro pour ne pas dormir).
+    #[must_use]
+    pub fn avec_ttl_negatif(racines: Racines, ttl_negatif: Duration) -> Self {
         Self {
             racines,
             cache: Mutex::new(HashMap::new()),
+            ids: Mutex::new(HashMap::new()),
+            ttl_negatif,
+            parcours: AtomicU64::new(0),
         }
+    }
+
+    /// Combien de parcours de dossiers ont eu lieu depuis la création.
+    #[must_use]
+    pub fn parcours_effectues(&self) -> u64 {
+        self.parcours.load(Ordering::Relaxed)
+    }
+
+    /// Le fichier d'un identifiant codex/claude — **mis en cache**.
+    ///
+    /// ⚠️ **Un parcours récursif à chaque appel** : chaque battement du
+    /// veilleur (2 s), chaque battement de flux et chaque requête refaisaient
+    /// la descente complète de `~/.codex/sessions` ou `~/.claude/projects`.
+    /// Désormais :
+    /// - **trouvé** : servi tant que le fichier **existe** encore (vérifié à
+    ///   chaque appel — un fichier déplacé ou supprimé relance la recherche,
+    ///   jamais un chemin mort servi) ;
+    /// - **introuvable** : servi pendant [`TTL_NEGATIF_IDS`] seulement — une
+    ///   session qui naît devient visible après ce délai.
+    pub fn chemin_par_id(&self, magasin: FamilleId, id: &str) -> Option<PathBuf> {
+        if id.trim().is_empty() {
+            return None;
+        }
+        let cle = (magasin, id.to_string());
+        if let Ok(ids) = self.ids.lock()
+            && let Some(entree) = ids.get(&cle)
+        {
+            match &entree.chemin {
+                Some(chemin) if chemin.is_file() => return Some(chemin.clone()),
+                None if entree.mesure.elapsed() < self.ttl_negatif => return None,
+                _ => {}
+            }
+        }
+        self.parcours.fetch_add(1, Ordering::Relaxed);
+        let chemin = match magasin {
+            FamilleId::Codex => chemin_codex_par_id(&self.racines, id),
+            FamilleId::Claude => chemin_claude_par_id(&self.racines, id),
+        };
+        if let Ok(mut ids) = self.ids.lock() {
+            if ids.len() >= CAPACITE_IDS {
+                ids.clear();
+            }
+            ids.insert(
+                cle,
+                EntreeId {
+                    chemin: chemin.clone(),
+                    mesure: Instant::now(),
+                },
+            );
+        }
+        chemin
     }
 }

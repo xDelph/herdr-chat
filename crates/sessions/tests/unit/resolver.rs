@@ -354,3 +354,51 @@ fn les_racines_injectees_ne_lisent_jamais_lenvironnement() {
     // Et un JSON d'en-tête, pour la forme — rien n'est déduit :
     let _ = json!({ "parentSession": null });
 }
+
+#[test]
+fn un_identifiant_trouve_n_est_plus_recherche_tant_que_son_fichier_existe() {
+    use sessions::resolver::FamilleId;
+    // Régression : chaque résolution d'un identifiant claude/codex refaisait
+    // la descente récursive complète (battement du veilleur, du flux,
+    // chaque requête).
+    let racines = racines_fake();
+    let dossier = racines.claude_projects.join("-Users-x-projet");
+    let _ = fs::create_dir_all(&dossier);
+    let fichier = dossier.join("abcd-1234.jsonl");
+    fs::write(&fichier, "{}").unwrap_or_else(|cause| panic!("écriture : {cause}"));
+    let resolveur = Resolveur::nouveau(racines.clone());
+    for _ in 0..5 {
+        assert_eq!(
+            resolveur.chemin_par_id(FamilleId::Claude, "abcd-1234"),
+            Some(fichier.clone())
+        );
+    }
+    assert_eq!(resolveur.parcours_effectues(), 1, "un seul parcours");
+    // Le fichier déplacé : le chemin mort n'est jamais servi.
+    let ailleurs = racines.claude_projects.join("-Users-x-autre");
+    let _ = fs::create_dir_all(&ailleurs);
+    let deplace = ailleurs.join("abcd-1234.jsonl");
+    fs::rename(&fichier, &deplace).unwrap_or_else(|cause| panic!("rename : {cause}"));
+    assert_eq!(
+        resolveur.chemin_par_id(FamilleId::Claude, "abcd-1234"),
+        Some(deplace)
+    );
+    assert_eq!(resolveur.parcours_effectues(), 2);
+}
+
+#[test]
+fn un_identifiant_introuvable_est_mis_en_cache_peu_de_temps() {
+    use sessions::resolver::FamilleId;
+    let racines = racines_fake();
+    // TTL long : l'introuvable est servi depuis le cache.
+    let resolveur = Resolveur::nouveau(racines.clone());
+    assert!(resolveur.chemin_par_id(FamilleId::Codex, "neuf").is_none());
+    assert!(resolveur.chemin_par_id(FamilleId::Codex, "neuf").is_none());
+    assert_eq!(resolveur.parcours_effectues(), 1);
+    // TTL nul : une session qui naît est visible à l'appel suivant.
+    let vif = Resolveur::avec_ttl_negatif(racines.clone(), std::time::Duration::ZERO);
+    assert!(vif.chemin_par_id(FamilleId::Codex, "neuf").is_none());
+    let rollout = racines.codex_sessions.join("rollout-2026-neuf.jsonl");
+    fs::write(&rollout, "{}").unwrap_or_else(|cause| panic!("écriture : {cause}"));
+    assert_eq!(vif.chemin_par_id(FamilleId::Codex, "neuf"), Some(rollout));
+}
