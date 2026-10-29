@@ -131,6 +131,9 @@ pub fn statut(route: RouteId, erreur: &ErreurDomaine) -> u16 {
             Nature::InternalInvariant => 500,
             _ => 503,
         },
+        // H22 : 400 corps invalide — la seule erreur documentée (une panne de
+        // persistance est journalisée, la lecture vaut en mémoire).
+        RouteId::Lecture => 400,
         // H20 : 404 pane inconnu ou sans session ; 503 Herdr sans snapshot ;
         // 502 lecture des tâches en échec (cause nommée).
         RouteId::TachesDeFond => match nature {

@@ -1,5 +1,5 @@
 // Généré par `cargo xtask contracts export` — ne pas éditer.
-// Source : contracts.schema.json (69 définitions).
+// Source : contracts.schema.json (71 définitions).
 
 /**
  * Un focus appliqué (`AgentFocusedResponse`).
@@ -611,6 +611,11 @@ export interface ConversationSummary {
     texte: string;
   };
   /**
+   * L'instant (ms) jusqu'où la conversation a été lue sur l'un des
+   * appareils (H22) — absent tant qu'aucun ne l'a ouverte.
+   */
+  readAt?: number;
+  /**
    * État de la conversation visible sur une ligne de conversation
    * (`available | absent | error`, B10).
    */
@@ -751,6 +756,11 @@ export interface ConversationsResponse {
       invite?: string;
       texte: string;
     };
+    /**
+     * L'instant (ms) jusqu'où la conversation a été lue sur l'un des
+     * appareils (H22) — absent tant qu'aucun ne l'a ouverte.
+     */
+    readAt?: number;
     /**
      * État de la conversation visible sur une ligne de conversation
      * (`available | absent | error`, B10).
@@ -1193,6 +1203,23 @@ export interface LaunchFailed {
  * coincé, l'utilisateur sait s'il faut nettoyer un onglet ou réessayer.
  */
 export type LaunchPhase = "validation" | "onglet" | "agent" | "detection";
+
+/**
+ * La lecture notée (`MarkReadRequest`) — l'instant (ms UTC) jusqu'où la
+ * conversation a été vue.
+ */
+export interface MarkReadRequest {
+  at: number;
+}
+
+/**
+ * La lecture retenue (`MarkReadResponse`) — `readAt` ne recule jamais : une
+ * lecture plus ancienne que celle connue rend la connue.
+ */
+export interface MarkReadResponse {
+  paneId: string;
+  readAt: number;
+}
 
 /**
  * Le catalogue d'un type (`ModelCatalogResponse`) — `error` est **nullable

@@ -2823,3 +2823,13 @@ Branche `lot/finition`, partie de `plan/rust-backend` intégré (lots notif, ses
 | Code mort (P3) | `IndexSessions`, second réducteur `metadata::reduis`, `constructeur_d_args` | retirés (seule `iso_vers_ms` reste) | `xtask verify` vert |
 
 Restent : D04, D07, D10, A14 partiels (écart dit dans la matrice) ; O08–O10 attendent une exécution réelle (CI de release, bascule, porte finale par l'intégrateur).
+
+## Retours d'usage (2026-10-29, soir)
+
+| Point | Constat | Correction | Preuve |
+|---|---|---|---|
+| Point « non lu » | lu sur le téléphone, toujours « non lu » sur l'ordinateur : la lecture vivait dans chaque navigateur | **H22** `POST /api/agents/:paneId/read` : lecture partagée par le démon (`reads.json`, bornée à 512 panes, ne recule jamais, ne touche jamais Herdr) ; `readAt` sur `ConversationSummary` ; la PWA prend la plus récente des deux lectures | `crates/http-api/tests/unit/lectures.rs`, `crates/herdrchat/tests/unit/lectures.rs`, `crates/application/tests/unit/lectures.rs`, `apps/web/tests/lectures-libelles.test.ts` |
+| Ligne de liste | montrait le dernier texte de l'agent ou une demande glissée en plein tour | `lastPrompt` = demande qui a ouvert le tour, retrouvée par une remontée profonde unique (512 fenêtres) puis retenue par source | session réelle de 22,8 Mo : ouverture à 10 Mo de la fin retrouvée ; `crates/herdrchat/tests/unit/assemblage.rs` (prouvé capable d'échouer) |
+| Compactage Claude | le résumé (`isCompactSummary`) s'affichait comme une bulle de l'utilisateur | message `custom` `compaction` → repère « Context compacted » | `crates/sessions/tests/unit/agents_claude_harnais.rs`, `apps/web/tests/taches.test.ts` |
+| En-tête mobile | puce des tâches + « Working » : titre réduit à deux mots à 390 px | pastille réduite à sa forme sous 600 px (libellé lu par VoiceOver), puce resserrée | capture WebKit 390×844 |
+| herdr-client | `Invalid argument (os error 22)` intermittent | délai de lecture posé avant l'écriture (macOS refuse `setsockopt` après fermeture du pair) | 5 passes consécutives vertes |

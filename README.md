@@ -90,6 +90,7 @@ Every variable is optional — a bare install works.
 | `HERDR_REMOTE_PUBLIC_ORIGINS` | derived | Extra allowed origins, comma-separated |
 | `HERDR_REMOTE_LOG_PATH` | `~/.herdr-remote/herdr-remote.log` | Error journal |
 | `HERDR_REMOTE_PUSH_STORE` | `~/.herdr-remote/push.json` | Push subscriptions |
+| `HERDR_REMOTE_READS_STORE` | `reads.json` next to the push store | Read marks shared across devices (unread dot) |
 | `PI_SESSIONS_ROOT` | `~/.pi/agent/sessions` | Pi session root |
 | `CODEX_SESSION_ROOT` | `~/.codex/sessions` | codex session root |
 | `CLAUDE_PROJECTS_ROOT` | `~/.claude/projects` | Claude Code session root |

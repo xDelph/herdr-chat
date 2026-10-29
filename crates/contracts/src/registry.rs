@@ -1,4 +1,4 @@
-//! Le registre typé des **21 routes** — le manifeste unique (TECH §5).
+//! Le registre typé des **22 routes** — le manifeste unique (TECH §5).
 //!
 //! ⚠️ **Ni table à la main dans le routeur, ni table à la main dans
 //! l'export.** Le routeur (T050+) s'enregistre depuis ici, l'export OpenAPI
@@ -30,7 +30,7 @@ pub enum Politique {
     Mutation,
 }
 
-/// Les 21 routes, nommées — l'ordre du manifeste suit H01…H21.
+/// Les 22 routes, nommées — l'ordre du manifeste suit H01…H22.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum RouteId {
@@ -77,6 +77,9 @@ pub enum RouteId {
     /// H21 — `GET /api/agents/{paneId}/taches/{id}/session` (transcription
     /// d'une tâche de fond, page de session).
     SessionDeTache,
+    /// H22 — `POST /api/agents/{paneId}/read` (lecture partagée entre les
+    /// appareils).
+    Lecture,
 }
 
 /// La forme d'une réponse — le Content-Type est un fait du manifeste, pas
@@ -190,9 +193,9 @@ const fn json(statut: u16, schema: &'static str) -> Variante {
     }
 }
 
-/// Le manifeste complet — 21 entrées, dans l'ordre H01…H21, formes et
+/// Le manifeste complet — 22 entrées, dans l'ordre H01…H22, formes et
 /// statuts exacts de CURRENT.md §2.
-pub const ROUTES: [Route; 21] = [
+pub const ROUTES: [Route; 22] = [
     Route {
         id: RouteId::Sante,
         methode: Methode::Get,
@@ -633,6 +636,22 @@ pub const ROUTES: [Route; 21] = [
             json(502, "ApiErrorResponse"),
             json(503, "ApiErrorResponse"),
         ],
+    },
+    Route {
+        id: RouteId::Lecture,
+        methode: Methode::Post,
+        chemin: "/api/agents/{paneId}/read",
+        politique: Politique::Mutation,
+        entree: Entree {
+            chemin: &["paneId"],
+            requete: &[],
+            entete: &[],
+            corps: Some(Corps::Json {
+                schema: "MarkReadRequest",
+                octets_max: None,
+            }),
+        },
+        variantes: &[json(200, "MarkReadResponse"), json(400, "ApiErrorResponse")],
     },
 ];
 

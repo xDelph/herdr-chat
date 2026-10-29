@@ -16,6 +16,7 @@ pub(crate) mod flux_session;
 pub(crate) mod focus;
 pub(crate) mod journal_client;
 pub(crate) mod lancement;
+pub(crate) mod lectures;
 pub(crate) mod origin;
 pub(crate) mod overview;
 pub(crate) mod prompt;

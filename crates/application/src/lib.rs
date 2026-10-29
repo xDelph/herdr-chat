@@ -6,6 +6,7 @@ pub mod conversations;
 pub mod diagnostics;
 pub mod events;
 pub mod git;
+pub mod lectures;
 pub mod observation;
 pub mod overview;
 /// Les ports du domaine, réexportés pour l'assembleur : `herdrchat` compose

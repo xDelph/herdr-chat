@@ -14,6 +14,7 @@ pub mod flux_session;
 pub mod focus;
 pub mod journal_client;
 pub mod lancement;
+pub mod lectures;
 pub mod overview;
 pub mod prompt;
 pub mod push;

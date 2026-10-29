@@ -45,6 +45,10 @@ pub struct ConversationSummary {
     /// qui les expose (Claude) ; absent = capacité absente.
     #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
     pub taches_de_fond: Field<crate::http::taches::BackgroundTaskCount>,
+    /// L'instant (ms) jusqu'où la conversation a été lue sur l'un des
+    /// appareils (H22) — absent tant qu'aucun ne l'a ouverte.
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
+    pub read_at: Field<u64>,
     pub title: String,
     pub status: AgentStatus,
     pub workspace_id: String,

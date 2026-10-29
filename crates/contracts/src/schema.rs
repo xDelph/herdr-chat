@@ -207,6 +207,15 @@ pub fn definitions() -> Vec<(&'static str, Value)> {
             "BackgroundTaskStatus",
             schema_de::<crate::http::taches::BackgroundTaskStatus>(),
         ),
+        // http::lectures (H22)
+        (
+            "MarkReadRequest",
+            schema_de::<crate::http::lectures::MarkReadRequest>(),
+        ),
+        (
+            "MarkReadResponse",
+            schema_de::<crate::http::lectures::MarkReadResponse>(),
+        ),
         // http::errors
         (
             "ApiErrorResponse",

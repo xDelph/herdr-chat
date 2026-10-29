@@ -40,6 +40,23 @@ describe("lectures locales", () => {
     expect(estNonLue({ paneId: "a", status: "idle" }, lues)).toBe(false);
   });
 
+  test("lue sur un autre appareil : le point s'éteint ici aussi (H22)", () => {
+    const vide = new Map<string, number>();
+    // Jamais ouverte ici, mais lue ailleurs après sa dernière activité.
+    expect(estNonLue({ paneId: "a", readAt: 100, status: "done", timestamp: 90 }, vide)).toBe(
+      false,
+    );
+    // Lue ailleurs AVANT une nouvelle activité : toujours non lue.
+    expect(estNonLue({ paneId: "a", readAt: 100, status: "idle", timestamp: 120 }, vide)).toBe(
+      true,
+    );
+    // La plus récente des deux lectures l'emporte.
+    const lues = noteLecture(new Map(), "a", 50);
+    expect(estNonLue({ paneId: "a", readAt: 130, status: "idle", timestamp: 120 }, lues)).toBe(
+      false,
+    );
+  });
+
   test("un agent au travail ou bloqué n'a pas de point non lu (son état parle)", () => {
     expect(estNonLue({ paneId: "a", status: "working", timestamp: 5 }, new Map())).toBe(false);
     expect(estNonLue({ paneId: "a", status: "blocked", timestamp: 5 }, new Map())).toBe(false);

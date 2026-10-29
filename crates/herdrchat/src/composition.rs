@@ -89,6 +89,14 @@ pub fn services(
     ));
     let conversations =
         ServiceConversations::nouveau(Arc::clone(&ports.lit_sessions), Arc::clone(&ports.branche));
+    // Les lectures partagées (H22) : une source illisible n'empêche pas de
+    // démarrer, mais sa cause est dite.
+    let (lectures, panne) = application::lectures::ServiceLectures::charge(Arc::new(
+        crate::lectures::FichierLectures::nouveau(config.lectures_store_path.clone()),
+    ));
+    if let Some(cause) = panne {
+        tracing::warn!(%cause, "lectures partagées illisibles : la table part vide");
+    }
     Services {
         snapshots,
         port: Arc::clone(&ports.controle),
@@ -125,6 +133,7 @@ pub fn services(
         battement_flux: HEARTBEAT,
         assets,
         diagnostics,
+        lectures: Arc::new(lectures),
     }
 }
 

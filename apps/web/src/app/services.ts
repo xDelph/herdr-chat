@@ -13,6 +13,7 @@ import {
   fetchConversations,
   fetchHealth,
   fetchOverview,
+  markRead,
   openEventStream,
   reportError,
   sendPrompt,
@@ -118,3 +119,23 @@ export const version = creeMagasinVersion({
     await enregistrement?.update();
   },
 });
+
+/**
+ * La lecture partagée (H22) : ce que j'ai lu ici s'éteint aussi sur les autres
+ * appareils. Un échec ne bloque rien (la lecture locale vaut) — il part au
+ * journal du démon, avec sa cause réelle.
+ */
+const partage = async (paneId: string, instant: number): Promise<void> => {
+  try {
+    await markRead(paneId, instant);
+  } catch (cause) {
+    journal("read not shared", {
+      message: cause instanceof Error ? cause.message : String(cause),
+      pane: paneId,
+    });
+  }
+};
+
+export const partageLecture = (paneId: string, instant: number): void => {
+  void partage(paneId, instant);
+};

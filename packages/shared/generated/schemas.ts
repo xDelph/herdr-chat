@@ -1,5 +1,5 @@
 // Généré par `cargo xtask contracts export` — ne pas éditer.
-// Source : contracts.schema.json (69 définitions).
+// Source : contracts.schema.json (71 définitions).
 // Schemas Effect : le client décode avec EUX, comme le serveur sérialise avec le contrat.
 import { Schema } from "effect";
 
@@ -185,6 +185,7 @@ export const ConversationSummary = Schema.Struct({
   "invite": Schema.optional(Schema.String),
   "texte": Schema.String,
 })),
+  "readAt": Schema.optional(Schema.Number),
   "sessionState": Schema.Literals(["available", "absent", "error"]),
   "status": Schema.Literals(["idle", "working", "blocked", "done", "unknown"]),
   "tabId": Schema.String,
@@ -232,6 +233,7 @@ export const ConversationsResponse = Schema.Struct({
   "invite": Schema.optional(Schema.String),
   "texte": Schema.String,
 })),
+  "readAt": Schema.optional(Schema.Number),
   "sessionState": Schema.Literals(["available", "absent", "error"]),
   "status": Schema.Literals(["idle", "working", "blocked", "done", "unknown"]),
   "tabId": Schema.String,
@@ -424,6 +426,19 @@ export type LaunchFailed = typeof LaunchFailed.Type;
 /** L'étape d'un lancement qui a coincé, union fermée mesurée */
 export const LaunchPhase = Schema.Literals(["validation", "onglet", "agent", "detection"]);
 export type LaunchPhase = typeof LaunchPhase.Type;
+
+/** La lecture notée (`MarkReadRequest`) — l'instant (ms UTC) jusqu'où la */
+export const MarkReadRequest = Schema.Struct({
+  "at": Schema.Number,
+});
+export type MarkReadRequest = typeof MarkReadRequest.Type;
+
+/** La lecture retenue (`MarkReadResponse`) — `readAt` ne recule jamais : une */
+export const MarkReadResponse = Schema.Struct({
+  "paneId": Schema.String,
+  "readAt": Schema.Number,
+});
+export type MarkReadResponse = typeof MarkReadResponse.Type;
 
 /** Le catalogue d'un type (`ModelCatalogResponse`) — `error` est **nullable */
 export const ModelCatalogResponse = Schema.Struct({

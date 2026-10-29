@@ -66,9 +66,19 @@ fn workspace(workspace: &WorkspaceDomaine) -> WorkspaceView {
 
 /// La liste des conversations — une ligne par pane visible.
 #[must_use]
-pub fn liste_conversations(lignes: &[LigneConversation]) -> ConversationsResponse {
+pub fn liste_conversations(
+    lignes: &[LigneConversation],
+    lue_a: impl Fn(&str) -> Option<u64>,
+) -> ConversationsResponse {
     ConversationsResponse {
-        conversations: lignes.iter().map(ligne_conversation).collect(),
+        conversations: lignes
+            .iter()
+            .map(|ligne| {
+                let mut resume = ligne_conversation(ligne);
+                resume.read_at = Field::de_option(lue_a(&resume.pane_id));
+                resume
+            })
+            .collect(),
     }
 }
 
@@ -90,6 +100,7 @@ fn ligne_conversation(ligne: &LigneConversation) -> ConversationSummary {
         session_state: ligne.session_state,
         timestamp: Field::de_option(ligne.horodatage),
         tour_debut: Field::de_option(ligne.tour_debut),
+        read_at: Field::de_option(None),
         taches_de_fond: Field::de_option(ligne.taches_de_fond.map(|compte| {
             contracts::http::taches::BackgroundTaskCount {
                 en_cours: compte.en_cours,

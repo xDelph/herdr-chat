@@ -15,6 +15,7 @@ pub mod files;
 pub mod health;
 pub mod interactive;
 pub mod launch;
+pub mod lectures;
 pub mod overview;
 pub mod push;
 pub mod sessions;

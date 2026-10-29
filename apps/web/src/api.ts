@@ -20,6 +20,7 @@ import type { InstalledKind, RecentImage } from "@herdr-remote/shared";
 import {
   AgentFocusedResponse,
   ApiErrorResponse,
+  MarkReadResponse,
   HealthResponse,
   InstalledKindsResponse,
   LaunchAgentResponse,
@@ -858,6 +859,26 @@ export const answerQuestion = async (
  * ⚠️ **Lève sur un échec**, avec la cause : un focus qui n'a pas eu lieu ne se
  * présente pas comme fait.
  */
+/**
+ * H22 — note qu'une conversation a été lue, pour TOUS les appareils. Le démon
+ * garde l'instant le plus récent (une lecture ne recule jamais) et ne touche
+ * jamais Herdr.
+ */
+export const markRead = async (paneId: string, at: number): Promise<MarkReadResponse> => {
+  const response = await fetch(`/api/agents/${encodeURIComponent(paneId)}/read`, {
+    body: JSON.stringify({ at: Math.floor(at) }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const payload = await readJson(response);
+  if (!response.ok) {
+    throw new Error(erreurDe(payload, response.status));
+  }
+  const lu = decoderOf(MarkReadResponse)(payload);
+  if (lu === undefined) throw new Error("unexpected response shape: read");
+  return lu;
+};
+
 export const focusAgent = async (paneId: string): Promise<AgentFocusedResponse> => {
   const response = await fetch(`/api/agents/${encodeURIComponent(paneId)}/focus`, {
     body: JSON.stringify({}),

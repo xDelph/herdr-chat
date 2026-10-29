@@ -86,6 +86,8 @@ pub struct Services {
     /// Le journal de diagnostics (T055) — le puits ne rend rien, donc une
     /// panne d'écriture ne change jamais l'issue d'une commande.
     pub diagnostics: Arc<dyn SinkDiagnostic>,
+    /// Les lectures partagées entre appareils (H22).
+    pub lectures: Arc<application::lectures::ServiceLectures>,
 }
 
 impl Services {

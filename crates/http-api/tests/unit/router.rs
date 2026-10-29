@@ -183,14 +183,14 @@ async fn routes_non_servies(routes: &[contracts::registry::Route]) -> Vec<String
     manquantes
 }
 
-/// Toutes les routes du manifeste (H01–H21) sont servies par le routeur
+/// Toutes les routes du manifeste (H01–H22) sont servies par le routeur
 /// composé : aucune ne répond 501, 405 ou « route inconnue ».
 #[tokio::test(flavor = "multi_thread")]
 async fn toutes_les_routes_du_manifeste_sont_servies() {
     let routes = contracts::registry::ROUTES;
     // La boucle n'est jamais vide : un manifeste vidé ferait passer ce test
     // sans rien vérifier.
-    assert_eq!(routes.len(), 21, "le manifeste a changé de taille");
+    assert_eq!(routes.len(), 22, "le manifeste a changé de taille");
     let manquantes = routes_non_servies(&routes).await;
     assert!(
         manquantes.is_empty(),

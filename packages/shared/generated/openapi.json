@@ -853,6 +853,12 @@
             ],
             "type": "object"
           },
+          "readAt": {
+            "description": "L'instant (ms) jusqu'où la conversation a été lue sur l'un des\nappareils (H22) — absent tant qu'aucun ne l'a ouverte.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
           "sessionState": {
             "description": "État de la conversation visible sur une ligne de conversation\n(`available | absent | error`, B10).",
             "enum": [
@@ -1083,6 +1089,12 @@
                     "texte"
                   ],
                   "type": "object"
+                },
+                "readAt": {
+                  "description": "L'instant (ms) jusqu'où la conversation a été lue sur l'un des\nappareils (H22) — absent tant qu'aucun ne l'a ouverte.",
+                  "format": "uint64",
+                  "minimum": 0,
+                  "type": "integer"
                 },
                 "sessionState": {
                   "description": "État de la conversation visible sur une ligne de conversation\n(`available | absent | error`, B10).",
@@ -1932,6 +1944,43 @@
         ],
         "title": "LaunchPhase",
         "type": "string"
+      },
+      "MarkReadRequest": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "additionalProperties": false,
+        "description": "La lecture notée (`MarkReadRequest`) — l'instant (ms UTC) jusqu'où la\nconversation a été vue.",
+        "properties": {
+          "at": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "at"
+        ],
+        "title": "MarkReadRequest",
+        "type": "object"
+      },
+      "MarkReadResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "La lecture retenue (`MarkReadResponse`) — `readAt` ne recule jamais : une\nlecture plus ancienne que celle connue rend la connue.",
+        "properties": {
+          "paneId": {
+            "type": "string"
+          },
+          "readAt": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "paneId",
+          "readAt"
+        ],
+        "title": "MarkReadResponse",
+        "type": "object"
       },
       "ModelCatalogResponse": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
@@ -3707,6 +3756,95 @@
               }
             },
             "description": "Réponse 502 — PromptFailedResponse"
+          }
+        }
+      }
+    },
+    "/api/agents/{paneId}/read": {
+      "post": {
+        "operationId": "h22-lecture",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "paneId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "Corps JSON — MarkReadRequest",
+              "schema": {
+                "$ref": "#/components/schemas/MarkReadRequest"
+              },
+              "x-octets-max": null
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarkReadResponse"
+                }
+              }
+            },
+            "description": "Réponse 200 — MarkReadResponse"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 400 — ApiErrorResponse"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 403 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "405": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 405 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 413 — garde partagée des POST (CURRENT.md §2)"
+          },
+          "415": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 415 — garde partagée des POST (CURRENT.md §2)"
           }
         }
       }

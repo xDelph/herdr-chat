@@ -412,6 +412,7 @@ pub(crate) fn services(
         battement_flux: Duration::from_millis(20),
         assets: Arc::new(FauxAssets::defaut()),
         diagnostics: Arc::new(SinkMuet),
+        lectures: Arc::new(application::lectures::ServiceLectures::en_memoire()),
     });
     (services, herdr)
 }

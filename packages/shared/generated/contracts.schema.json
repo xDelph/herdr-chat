@@ -852,6 +852,12 @@
           ],
           "type": "object"
         },
+        "readAt": {
+          "description": "L'instant (ms) jusqu'où la conversation a été lue sur l'un des\nappareils (H22) — absent tant qu'aucun ne l'a ouverte.",
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        },
         "sessionState": {
           "description": "État de la conversation visible sur une ligne de conversation\n(`available | absent | error`, B10).",
           "enum": [
@@ -1082,6 +1088,12 @@
                   "texte"
                 ],
                 "type": "object"
+              },
+              "readAt": {
+                "description": "L'instant (ms) jusqu'où la conversation a été lue sur l'un des\nappareils (H22) — absent tant qu'aucun ne l'a ouverte.",
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
               },
               "sessionState": {
                 "description": "État de la conversation visible sur une ligne de conversation\n(`available | absent | error`, B10).",
@@ -1931,6 +1943,43 @@
       ],
       "title": "LaunchPhase",
       "type": "string"
+    },
+    "MarkReadRequest": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "additionalProperties": false,
+      "description": "La lecture notée (`MarkReadRequest`) — l'instant (ms UTC) jusqu'où la\nconversation a été vue.",
+      "properties": {
+        "at": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "at"
+      ],
+      "title": "MarkReadRequest",
+      "type": "object"
+    },
+    "MarkReadResponse": {
+      "$schema": "https://json-schema.org/draft/2020-12/schema",
+      "description": "La lecture retenue (`MarkReadResponse`) — `readAt` ne recule jamais : une\nlecture plus ancienne que celle connue rend la connue.",
+      "properties": {
+        "paneId": {
+          "type": "string"
+        },
+        "readAt": {
+          "format": "uint64",
+          "minimum": 0,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "paneId",
+        "readAt"
+      ],
+      "title": "MarkReadResponse",
+      "type": "object"
     },
     "ModelCatalogResponse": {
       "$schema": "https://json-schema.org/draft/2020-12/schema",

@@ -118,6 +118,10 @@ pub fn routeur(services: Arc<Services>, origines: Vec<String>) -> Router<()> {
         )
         .route("/api/agents/{paneId}/focus", post(handlers::focus::focus))
         .route(
+            "/api/agents/{paneId}/read",
+            post(handlers::lectures::lecture),
+        )
+        .route(
             "/api/agents/{paneId}/trust",
             post(handlers::confiance::confiance),
         )

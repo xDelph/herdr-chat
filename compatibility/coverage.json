@@ -444,6 +444,22 @@
       ]
     },
     {
+      "id": "H22",
+      "deliverTasks": [
+        "lot-lectures"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests (lecture partagée entre appareils)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/lectures.rs",
+        "crates/herdrchat/tests/unit/lectures.rs"
+      ],
+      "unitTests": [
+        "crates/application/tests/unit/lectures.rs"
+      ]
+    },
+    {
       "id": "D01",
       "deliverTasks": [
         "T005",

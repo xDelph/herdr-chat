@@ -9,6 +9,7 @@ import {
   answerTrust,
   focusAgent,
   launchAgent,
+  markRead,
   sendPrompt,
   stopAgent,
 } from "../src/api.ts";
@@ -61,7 +62,8 @@ describe("les actions partent en POST JSON", () => {
     await answerTrust("w1:p1", true).catch(() => undefined);
     await focusAgent("w1:p1").catch(() => undefined);
     await launchAgent("w1", "pi").catch(() => undefined);
-    expect(demandes).toHaveLength(5);
+    await markRead("w1:p1", 1000).catch(() => undefined);
+    expect(demandes).toHaveLength(6);
     for (const demande of demandes) action(demande);
   });
 });

@@ -9,10 +9,10 @@ use contracts::registry::{
 use contracts::{limits, registry};
 
 #[test]
-fn le_manifeste_compte_21_routes_distinctes() {
+fn le_manifeste_compte_22_routes_distinctes() {
     assert!(
-        ROUTES.len() == 21,
-        "21 routes documentées, pas {}",
+        ROUTES.len() == 22,
+        "22 routes documentées, pas {}",
         ROUTES.len()
     );
     for (rang, route) in ROUTES.iter().enumerate() {
@@ -37,7 +37,8 @@ fn le_manifeste_compte_21_routes_distinctes() {
             17 => RouteId::Images,
             18 => RouteId::FluxSession,
             19 => RouteId::TachesDeFond,
-            _ => RouteId::SessionDeTache,
+            20 => RouteId::SessionDeTache,
+            _ => RouteId::Lecture,
         };
         assert!(
             route.id == attendu,
@@ -108,7 +109,7 @@ fn la_politique_mutante_est_mesuree() {
 fn les_variantes_explicites_sont_toutes_documentees() {
     // Statuts explicites par route — transcription de CURRENT.md §2, une
     // ligne par route, dans l'ordre H01…H18.
-    let attendues: [&[u16]; 21] = [
+    let attendues: [&[u16]; 22] = [
         &[200, 503, 500],                          // H01 santé
         &[200, 500],                               // H02 overview
         &[200, 503, 502],                          // H03 conversations
@@ -130,6 +131,7 @@ fn les_variantes_explicites_sont_toutes_documentees() {
         &[200, 404, 503],      // H19 flux de session
         &[200, 404, 502, 503], // H20 tâches de fond
         &[200, 400, 403, 404, 409, 422, 502, 503], // H21 transcription d'une tâche
+        &[200, 400],           // H22 lecture partagée
     ];
     for (route, attendu) in ROUTES.iter().zip(attendues.iter()) {
         let trouves: Vec<u16> = route.variantes.iter().map(|v| v.statut).collect();
@@ -195,6 +197,7 @@ fn les_corps_nommes_pointent_vers_des_contrats_reels() {
                 "TrustRequest",
                 "ClientLogRequest",
                 "PushBody",
+                "MarkReadRequest",
             ];
             assert!(
                 connus.contains(&schema),
@@ -356,6 +359,7 @@ fn la_recherche_par_identifiant_est_totale() {
         RouteId::Images,
         RouteId::TachesDeFond,
         RouteId::SessionDeTache,
+        RouteId::Lecture,
     ] {
         let route = entree_de(id);
         assert!(route.id == id, "entree_de({id:?}) rend {id:?}");
@@ -364,5 +368,5 @@ fn la_recherche_par_identifiant_est_totale() {
             "chaque route porte des variantes"
         );
     }
-    assert!(registry::ROUTES.len() == 21, "le manifeste reste complet");
+    assert!(registry::ROUTES.len() == 22, "le manifeste reste complet");
 }

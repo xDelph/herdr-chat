@@ -23,7 +23,9 @@ async fn conversations_sur_place(
                 .lignes(services.port.as_ref(), &borne);
             (
                 axum::http::StatusCode::OK,
-                axum::Json(convertir::liste_conversations(&lignes)),
+                axum::Json(convertir::liste_conversations(&lignes, |pane| {
+                    services.lectures.lue_a(pane)
+                })),
             )
                 .into_response()
         }

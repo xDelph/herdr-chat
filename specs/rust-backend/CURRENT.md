@@ -21,7 +21,7 @@ No TLS server, account system, public deployment mode, background job service, o
 
 ## 2. HTTP surface: all 18 registered paths
 
-> Démon Rust : 21 routes (H19–H21 ajoutées) et quelques statuts corrigés — voir [§9](#9-écarts-du-démon-rust-état-au-2026-10-29). Le tableau ci-dessous reste la photographie du fil TS.
+> Démon Rust : 22 routes (H19–H22 ajoutées) et quelques statuts corrigés — voir [§9](#9-écarts-du-démon-rust-état-au-2026-10-29). Le tableau ci-dessous reste la photographie du fil TS.
 
 `Api.ts` returns the authoritative route table. The table below gives intended methods. All eight mutation handlers explicitly reject non-POST methods with 405 and `Allow: POST`. The ten read handlers do not enforce GET themselves: Bun's route map binds them by path, without a method map. There is no public raw terminal, arbitrary shell, model-update, workspace-create, session-write, or agent-delete endpoint. Model/thinking changes during a session use the ordinary prompt pathway from the webapp.
 
@@ -355,6 +355,7 @@ Les sections 1 à 8 photographient le fil TS (commit de base). Cette section dit
 | H19 | GET `/api/agents/:paneId/stream` | `Last-Event-ID` (prioritaire) ou `?cursor=` | 200 `text/event-stream` : `entries` (`SessionStreamEntries`), `reset` (`SessionResponse`), `gone` (`SessionStreamGone`), battement 15 s — contrat complet dans [STREAMING.md](STREAMING.md) | 404 pane inconnu ; 503 plus de 16 flux ; un curseur refusé n'est pas une erreur HTTP : il produit un `reset` |
 | H20 | GET `/api/agents/:paneId/taches` | aucune | 200 `BackgroundTasksResponse` `{paneId, supported, tasks[]}` — `supported:false` = capacité absente (famille sans tâches de fond), jamais une liste vide inventée | 404 pane inconnu ou sans session ; 502 lecture en panne |
 | H21 | GET `/api/agents/:paneId/taches/:id/session` | `tail?`, `cursor?`, `before?` comme H04 | 200 `SessionResponse` de la transcription de la tâche | 404 tâche inconnue ou sans transcription ; 403 chemin de transcription hors des racines ; 422 résultat invalide ; autres statuts comme H04 |
+| H22 | POST `/api/agents/:paneId/read` | `MarkReadRequest` `{at: number}` (ms epoch) | 200 `MarkReadResponse` `{paneId, readAt}` — `readAt` ne recule jamais (une lecture plus ancienne rend la connue) ; la lecture est partagée entre tous les appareils, persistée dans `HERDR_REMOTE_READS_STORE` (défaut : `reads.json` à côté du magasin push) ; ne touche jamais Herdr | 400 corps invalide ; gardes POST partagées ; une panne de persistance est journalisée (`warn`), la lecture vaut en mémoire |
 
 `BackgroundTask` : `id`, `kind` (`agent` \| `commande`), `status` (`en_cours` \| `terminee` \| `echouee` \| `arretee` \| `inconnu` — sans fin écrite ni activité depuis 30 min, une tâche est `inconnu`, jamais `en_cours`), `transcript` (booléen), et, quand la source les porte : `description`, `agentType`, `startedAt`, `endedAt`, `lastActivity`, `summary`.
 
@@ -364,8 +365,9 @@ Les sections 1 à 8 photographient le fil TS (commit de base). Cette section dit
 |---|---|---|
 | `tourDebut` | `number` (ms epoch), omis si inconnu | l'instant du message qui a **ouvert** le tour courant : la dernière vraie demande — ni une demande envoyée pendant le travail (`details.midTurn`), ni un message du harnais injecté dans le tour |
 | `tachesDeFond` | `{enCours: number, total: number}`, omis si la famille n'expose pas de tâches | le décompte des tâches de fond de l'agent (H20) |
+| `readAt` | `number` (ms epoch), omis tant qu'aucun appareil ne l'a ouverte | la lecture partagée (H22) ; la PWA prend la plus récente de sa lecture locale et de celle-ci pour le point « non lu » |
 
-`lastPrompt` ne compte que les demandes de l'utilisateur : les messages du harnais Claude (rapports de sous-agents, fins de tâches de fond) deviennent des messages `custom`, et les lignes du mode shell de Claude (`<bash-input>`, `<bash-stdout>`/`<bash-stderr>`) des `bashExecution` (commande, sortie, `exitCode: null`) — ni l'un ni l'autre n'est jamais une demande.
+`lastPrompt` est la demande qui a **ouvert** le tour courant (jamais une demande glissée en plein tour) ; si elle est au-delà de la remontée ordinaire, une remontée profonde unique la retrouve et le démon la retient par source tant que le fichier ne fait que grandir. Le résumé de compactage de Claude (`isCompactSummary`) devient un message `custom` `compaction`, jamais une demande. `lastPrompt` ne compte que les demandes de l'utilisateur : les messages du harnais Claude (rapports de sous-agents, fins de tâches de fond) deviennent des messages `custom`, et les lignes du mode shell de Claude (`<bash-input>`, `<bash-stdout>`/`<bash-stderr>`) des `bashExecution` (commande, sortie, `exitCode: null`) — ni l'un ni l'autre n'est jamais une demande.
 
 ### Interface
 

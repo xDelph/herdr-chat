@@ -88,6 +88,9 @@ pub struct Config {
     /// `HERDR_REMOTE_PUSH_STORE` — clés et abonnements push, indépendant du
     /// journal configuré.
     pub push_store_path: PathBuf,
+    /// `HERDR_REMOTE_READS_STORE` — les lectures partagées entre appareils
+    /// (H22) ; par défaut `reads.json` à côté du magasin push.
+    pub lectures_store_path: PathBuf,
     /// `HERDR_REMOTE_VAPID_SUBJECT` — brut ; la dérivation (HTTPS configuré,
     /// puis mailto) vit dans les abonnements (T052).
     pub vapid_sujet: Option<String>,
@@ -239,6 +242,21 @@ pub fn config_depuis_avec(
                     .into_owned()
             },
         )),
+        lectures_store_path: env.get("HERDR_REMOTE_READS_STORE").map_or_else(
+            || {
+                PathBuf::from(
+                    env.get("HERDR_REMOTE_PUSH_STORE")
+                        .cloned()
+                        .unwrap_or_else(|| {
+                            home.join(".herdr-remote/push.json")
+                                .to_string_lossy()
+                                .into_owned()
+                        }),
+                )
+                .with_file_name("reads.json")
+            },
+            PathBuf::from,
+        ),
         vapid_sujet: env.get("HERDR_REMOTE_VAPID_SUBJECT").cloned(),
         vapid_sujet_resolu: sujet_vapid(env),
         vapid_cle_publique: env.get("HERDR_REMOTE_VAPID_PUBLIC_KEY").cloned(),

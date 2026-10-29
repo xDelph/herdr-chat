@@ -24,7 +24,7 @@ import { useDonnees, useEtroit, useHauteurVisible, useRoute } from "./hooks.ts";
 import { Notifications } from "../ui/Notifications.tsx";
 import { NouvelleVersion } from "../ui/NouvelleVersion.tsx";
 import { PleinEcran } from "../ui/PleinEcran.tsx";
-import { envois, magasin } from "./services.ts";
+import { envois, magasin, partageLecture } from "./services.ts";
 
 /**
  * La conversation est chargée **à la demande** : le fil, le Markdown et
@@ -135,6 +135,7 @@ export const App = () => {
       if (suivantes !== precedentes) ecritLectures(stockageNavigateur(), suivantes);
       return suivantes;
     });
+    partageLecture(paneId, instant);
   }, []);
 
   const retour = useCallback(() => navigue({ kind: "liste" }), [navigue]);

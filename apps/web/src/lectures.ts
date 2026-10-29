@@ -9,7 +9,8 @@
  *
  * La conséquence est assumée : un agent `done` reste `done` côté Herdr tant
  * qu'on ne l'a pas regardé sur le Mac. Le point « non lu » de la liste, lui,
- * s'éteint dès qu'on a ouvert la conversation ici.
+ * s'éteint dès qu'on a ouvert la conversation ici — et, depuis H22, sur les
+ * autres appareils aussi : la lecture est partagée par le démon (`readAt`).
  *
  * ⚠️ Ce n'est pas du contenu : un horodatage par pane, rien d'autre.
  */
@@ -72,11 +73,19 @@ export const estNonLue = (
     readonly paneId: string;
     readonly status: string;
     readonly timestamp?: number | undefined;
+    /** La lecture partagée par le démon (H22) — lue sur n'importe quel appareil. */
+    readonly readAt?: number | undefined;
   },
   lectures: Lectures,
 ): boolean => {
   if (conversation.status === "working" || conversation.status === "blocked") return false;
-  const vue = lectures.get(conversation.paneId);
+  // ⚠️ La plus récente des deux : la lecture d'ici, ou celle d'un autre
+  // appareil (retour du 2026-10-29 : lue sur le téléphone, toujours « non
+  // lue » sur l'ordinateur).
+  const locale = lectures.get(conversation.paneId);
+  const partagee = conversation.readAt;
+  const vue =
+    locale === undefined ? partagee : partagee === undefined ? locale : Math.max(locale, partagee);
   if (vue === undefined) return conversation.status === "done";
   return conversation.timestamp !== undefined && conversation.timestamp > vue;
 };
