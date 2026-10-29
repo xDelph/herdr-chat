@@ -32,8 +32,8 @@ const message = (
 describe("U21 — un appel se raconte en une ligne", () => {
   test("une commande : son icône, son verbe, sa première ligne", () => {
     const action = actionDe("bash", { command: "npm test\nnpm run build" });
-    expect(action.icone).toBe("🖥");
-    expect(action.singulier).toBe("Ran");
+    expect(action.icone).toBe("term");
+    expect(action.singulier).toBe("Lancé");
     // ⚠️ Une commande peut contenir un script entier : l'afficher en entier
     // défait la ligne compacte.
     expect(action.cible).toBe("npm test");
@@ -42,21 +42,21 @@ describe("U21 — un appel se raconte en une ligne", () => {
 
   test("une édition : le chemin devient une cible cliquable", () => {
     const action = actionDe("edit", { path: "/dev/p/backup.py" });
-    expect(action.icone).toBe("✎");
+    expect(action.icone).toBe("edit");
     expect(action.cible).toBe("/dev/p/backup.py");
     expect(action.estFichier).toBe(true);
   });
 
   test("une création se distingue d'une modification", () => {
     // « Créé » et « modifié » ne se relisent pas de la même façon.
-    expect(actionDe("write", { path: "a.ts" }).singulier).toBe("Create");
-    expect(actionDe("edit", { path: "a.ts" }).singulier).toBe("Edit");
+    expect(actionDe("write", { path: "a.ts" }).singulier).toBe("Créé");
+    expect(actionDe("edit", { path: "a.ts" }).singulier).toBe("Modifié");
   });
 
   test("une suppression a sa propre famille", () => {
     const action = actionDe("rm", { path: "vieux.ts" });
-    expect(action.icone).toBe("✕");
-    expect(action.singulier).toBe("Delete");
+    expect(action.icone).toBe("delete");
+    expect(action.singulier).toBe("Supprimé");
     expect(action.estFichier).toBe(true);
   });
 
@@ -64,13 +64,14 @@ describe("U21 — un appel se raconte en une ligne", () => {
     // ⚠️ Le nom technique **n'est pas traduit** : c'est un identifiant, et
     // l'inventer ferait perdre le lien avec la session.
     const action = actionDe("outil-du-futur", { path: "x" });
-    expect(action.icone).toBe("•");
-    expect(action.singulier).toBe("Action");
+    expect(action.icone).toBe("dot");
+    expect(action.singulier).toBe("outil-du-futur");
+    expect(action.cible).toBe("x");
   });
 
   test("la casse du nom ne change pas la reconnaissance", () => {
-    expect(actionDe("BASH", { command: "ls" }).singulier).toBe("Ran");
-    expect(actionDe(" Edit ", { path: "a" }).singulier).toBe("Edit");
+    expect(actionDe("BASH", { command: "ls" }).singulier).toBe("Lancé");
+    expect(actionDe(" Edit ", { path: "a" }).singulier).toBe("Modifié");
   });
 
   test("un chemin vide ne devient pas une cible cliquable", () => {
@@ -84,12 +85,12 @@ describe("U21 — le résumé dit ce qui a été fait", () => {
     // « 7 appels » ne dit pas **ce qui a été fait** — la seule question qu'on se
     // pose devant un groupe replié.
     expect(resumeDuGroupe(["bash", "edit", "read", "bash"])).toBe(
-      "Edits, ran commands, files read",
+      "Fichiers modifiés, commandes lancées, fichiers lus",
     );
   });
 
   test("une famille répétée n'apparaît qu'une fois", () => {
-    expect(resumeDuGroupe(["bash", "bash", "bash"])).toBe("Ran commands");
+    expect(resumeDuGroupe(["bash", "bash", "bash"])).toBe("Commandes lancées");
   });
 
   test("un groupe vide ne produit pas de résumé", () => {
@@ -378,9 +379,9 @@ const pensee = (cle: string): LigneTravail => ({
     cible: null,
     delta: null,
     estFichier: false,
-    icone: "✻",
-    pluriel: "Thinking",
-    singulier: "Thinking",
+    icone: "brain",
+    pluriel: "Réflexion",
+    singulier: "Réflexion",
   },
   cle,
   details: [],
@@ -401,7 +402,7 @@ describe("points 2b — la fusion couvre aussi les pensées", () => {
     expect(lignes).toHaveLength(1);
     expect(lignes[0]?.kind).toBe("commands");
     if (lignes[0]?.kind !== "commands") return;
-    expect(lignes[0].libelle).toBe("Thinking");
+    expect(lignes[0].libelle).toBe("Réflexion");
     expect(lignes[0].commands).toHaveLength(4);
   });
 

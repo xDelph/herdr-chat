@@ -521,8 +521,8 @@ describe("U23 — la ligne compacte s'applique PAR BLOC, pas par message", () =>
 
   test("la réflexion garde son icône et son verbe", () => {
     const actions = readFileSync(join(import.meta.dir, "..", "src", "actions.ts"), "utf8");
-    expect(actions).toContain('icone: "✻"');
-    expect(actions).toContain('singulier: "Thinking"');
+    expect(actions).toContain('icone: "brain"');
+    expect(actions).toContain('singulier: "Réflexion"');
   });
 });
 
