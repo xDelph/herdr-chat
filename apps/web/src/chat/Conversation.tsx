@@ -190,6 +190,20 @@ export const Conversation = ({
     [feuille, messages],
   );
 
+  // ⚠️ Mémoïsé : un `children` neuf à chaque rendu défaisait le `memo` du fil.
+  const travaille = status === "working";
+  const basDuFil = useMemo(
+    () => (
+      <>
+        <Envois liste={liste} onRemettre={remettre} travaille={travaille} />
+        {travaille ? <LigneTravail tour={tour} debutObserve={debutObserve} cwd={cwd} /> : null}
+      </>
+    ),
+    [cwd, debutObserve, liste, remettre, tour, travaille],
+  );
+  // Le compte des fichiers modifiés n'est calculé qu'à l'ouverture du menu.
+  const compteFichiers = useCallback(() => touchedFilesOf(messages).length, [messages]);
+
   const titre = premierNonVide(titrePropre(conversation?.title ?? connu?.title), projet);
   const bloque = status === "blocked";
   const attente = bloque ? attenteAffichee(conversation) : null;
@@ -209,7 +223,7 @@ export const Conversation = ({
         transport={vue.transport}
         causeRepli={vue.causeRepli}
         inactif={disparu}
-        nombreFichiers={fichiers === null ? null : fichiers.length}
+        compteFichiers={compteFichiers}
         onRetour={onRetour}
         onMac={() => void montrerSurMac(paneId)}
         onModele={() => setFeuille({ genre: "modele" })}
@@ -249,10 +263,7 @@ export const Conversation = ({
         aUneSession={aUneSession}
         envoisEnAttente={liste.length}
       >
-        <Envois liste={liste} onRemettre={remettre} travaille={status === "working"} />
-        {status === "working" ? (
-          <LigneTravail tour={tour} debutObserve={debutObserve} cwd={cwd} />
-        ) : null}
+        {basDuFil}
       </Fil>
 
       {bloque && conversation !== null ? (
