@@ -215,12 +215,13 @@ impl LecteurBranches {
         self.executeur.acquiere();
         let valeur = self.lit(dossier);
         self.executeur.relache();
-        // 4) Le vol est rendu, le résultat mis en cache.
-        self.vols
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .remove(dossier);
-        self.vol_disponible.notify_all();
+        // 4) Le résultat mis en cache, PUIS le vol rendu.
+        //
+        // ⚠️ L'ordre inverse (vol rendu, puis cache) laissait une fenêtre :
+        // un joint réveillé — ou un nouveau venu — entre les deux ne voyait
+        // ni vol ni cache et relançait git pour le même dossier. Observé
+        // sous une charge de ~20 (`un_seul_job_par_dossier_concurrent` : 2
+        // lancements au lieu de 1).
         self.cache
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -231,6 +232,11 @@ impl LecteurBranches {
                     valeur: valeur.clone(),
                 },
             );
+        self.vols
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .remove(dossier);
+        self.vol_disponible.notify_all();
         valeur
     }
 

@@ -2,33 +2,17 @@
 //! lien, FIFO, périphérique — et le lien interne légitime, la RAII, l'absence
 //! de fuite de descripteurs.
 
+use crate::unit::soutien::{Jetable, temporaire};
 use files::confined::{
     FichierAutorise, RacineAutorisee, RefusOuverture, est_sous, normalise, ouvre_confine,
 };
 use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering};
-
-/// Un répertoire temporaire unique — construit ici en `std` : la porte
-/// graphe interdit d'ajouter une dépendance dev sur `test-support` hors de
-/// son arête prévue, et c'est très bien ainsi (15 lignes).
-static NONCE: AtomicU32 = AtomicU32::new(0);
-
-fn temporaire(prefixe: &str) -> PathBuf {
-    let base = std::env::temp_dir();
-    let pid = std::process::id();
-    let nonce = NONCE.fetch_add(1, Ordering::SeqCst);
-    let chemin = base.join(format!("{prefixe}-{pid}-{nonce}"));
-    match fs::create_dir(&chemin) {
-        Ok(()) => chemin,
-        Err(cause) => panic!("racine temporaire refusée : {cause}"),
-    }
-}
 
 /// Une racine de travail par essai, avec un fichier régulier dedans.
 struct Atelier {
-    racine: PathBuf,
+    racine: Jetable,
     fichier: PathBuf,
 }
 

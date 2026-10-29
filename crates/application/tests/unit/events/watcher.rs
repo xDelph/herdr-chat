@@ -455,9 +455,16 @@ fn la_boucle_attend_apres_une_iteration_complete() {
         let boucle = Arc::clone(&boucle);
         std::thread::spawn(move || boucle.boucle())
     };
-    std::thread::sleep(Duration::from_millis(120));
-    let lectures = source.lectures.load(Ordering::SeqCst);
-    assert!(lectures >= 2, "la boucle tourne malgré les pannes");
+    // Au moins deux lectures OBSERVÉES (au plus 10 s) — ⚠️ un `sleep(120 ms)`
+    // supposait l'ordonnanceur disponible et tombait sous charge.
+    let debut = Instant::now();
+    while source.lectures.load(Ordering::SeqCst) < 2 {
+        assert!(
+            debut.elapsed() < Duration::from_secs(10),
+            "la boucle tourne malgré les pannes"
+        );
+        std::thread::sleep(Duration::from_millis(1));
+    }
     assert_eq!(
         pic.load(Ordering::SeqCst),
         1,

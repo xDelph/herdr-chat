@@ -85,6 +85,19 @@ impl Tourniquet {
             .clone()
     }
 
+    /// Le nombre de galets pris sur la file d'un pane (en vol + en attente
+    /// du tour) — l'observation qui permet aux essais d'attendre que la
+    /// file soit pleine au lieu de dormir en espérant qu'elle le soit.
+    #[must_use]
+    pub fn occupation(&self, pane: &PaneId) -> usize {
+        let file = self.file_de(pane);
+        let pris = file
+            .pris
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *pris
+    }
+
     /// Admet une opération sur un pane : un galet (file ≤ 8), PUIS le tour
     /// exclusif (les séquences ne s'entrelacent pas), puis l'effet.
     pub fn admet<T, E>(

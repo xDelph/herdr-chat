@@ -257,7 +257,9 @@ fn le_delai_annule_le_job_retardataire_et_lui_seul() {
     let debut = Instant::now();
     assert_eq!(lecteur.branche("/projets/lent"), None, "délai → absent");
     assert!(
-        debut.elapsed() < Duration::from_secs(1),
+        // Sous DELAI_GIT (3 s) : c'est le délai raccourci qui a tranché —
+        // marge large pour une machine chargée.
+        debut.elapsed() < Duration::from_millis(2_500),
         "le délai raccourci a bien tranché"
     );
     assert_eq!(
@@ -297,15 +299,25 @@ fn un_seul_job_par_dossier_concurrent() {
     let lecteur = Arc::new(LecteurBranches::avec_delai(
         Box::new(lanceur.clone()),
         Arc::new(horloge.clone()),
-        Duration::from_secs(1),
+        // Délai large : il ne doit jamais trancher ici (sous une charge de
+        // ~20, 1 s pouvait s'écouler avant l'ouverture de la porte).
+        Duration::from_secs(30),
     ));
 
     let premier = {
         let lecteur = Arc::clone(&lecteur);
         std::thread::spawn(move || lecteur.branche("/projets/atelier"))
     };
-    // Le premier job est en vol (porte fermée). Le second arrive pendant.
-    std::thread::sleep(Duration::from_millis(50));
+    // Le premier job est en vol (porte fermée) — OBSERVÉ : il a lancé son
+    // processus. Le second arrive pendant.
+    let debut = Instant::now();
+    while lanceur.nombre_de_lancements() == 0 {
+        assert!(
+            debut.elapsed() < Duration::from_secs(10),
+            "le premier job n'a jamais lancé git"
+        );
+        std::thread::sleep(Duration::from_millis(1));
+    }
     let second = {
         let lecteur = Arc::clone(&lecteur);
         std::thread::spawn(move || lecteur.branche("/projets/atelier"))
@@ -348,7 +360,9 @@ fn l_executeur_borne_les_processus_simultanes() {
     let lecteur = Arc::new(LecteurBranches::avec_delai(
         Box::new(lanceur),
         Arc::new(horloge.clone()),
-        Duration::from_secs(1),
+        // Délai large : il ne doit jamais trancher ici (sous une charge de
+        // ~20, 1 s pouvait s'écouler avant l'ouverture de la porte).
+        Duration::from_secs(30),
     ));
     let mut porteurs = Vec::new();
     for index in 1..=6 {
