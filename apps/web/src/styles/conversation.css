@@ -117,9 +117,6 @@
   width: 10px;
   height: 10px;
 }
-.conversation__issue {
-  margin: 8px 16px 0;
-}
 
 /* ---------- fil ---------- */
 .fil-cadre {
@@ -153,6 +150,17 @@
   content-visibility: auto;
   contain-intrinsic-size: auto 96px;
   min-width: 0;
+}
+/*
+  ⚠️ **Ce qui bouge reste rendu normalement.** WebKit bride le rendu dans un
+  sous-arbre `content-visibility: auto` : le spinner de « x actions en cours »
+  ne tournait qu'à une image sur trois ou quatre, alors que celui de la ligne
+  de travail (hors du fil) tournait bien. L'économie vaut pour l'historique,
+  pas pour l'élément vivant.
+*/
+.fil__el:last-child,
+.fil__el:has(.spin) {
+  content-visibility: visible;
 }
 .fil__el--moi {
   display: flex;
@@ -285,6 +293,32 @@
 }
 .moi--delivered .moi__etat {
   color: var(--ok);
+}
+/* Remis pendant un tour : en file chez l'agent, pas encore lu. */
+.moi--en-file {
+  border-style: dashed;
+  border-color: var(--work);
+}
+.moi--en-file .moi__etat {
+  color: var(--work);
+}
+.moi__file {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: palpite 1.6s ease-in-out infinite;
+  flex: none;
+}
+@keyframes palpite {
+  50% {
+    opacity: 0.3;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .moi__file {
+    animation: none;
+  }
 }
 .envois {
   display: flex;
@@ -659,15 +693,7 @@
 .composeur__aide {
   font-size: 12px;
   color: var(--ink-3);
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
   padding: 0 4px;
-  min-height: 16px;
-}
-.composeur__aide .mono {
-  font-size: 11px;
-  margin-left: auto;
 }
 .conversation__attente {
   margin: auto;

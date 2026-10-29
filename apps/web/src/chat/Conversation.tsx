@@ -17,7 +17,6 @@ import { envois } from "../app/services.ts";
 import { creeTranscripteur, tourEnCours } from "../transcript.ts";
 import { marqueAgent, premierNonVide, titrePropre } from "../libelles.ts";
 import { Avis } from "../ui/atomes.tsx";
-import { IssueAction } from "../ui/IssueAction.tsx";
 import { Fichiers } from "../feuilles/Fichiers.tsx";
 import { Modele } from "../feuilles/Modele.tsx";
 import { Visionneuse } from "../feuilles/Visionneuse.tsx";
@@ -109,7 +108,6 @@ export const Conversation = ({
   const composeur = useRef<PoigneeComposeur | null>(null);
   const [feuille, setFeuille] = useState<Feuille | null>(null);
   const arret = useAction(cleAction(paneId, "arret"));
-  const focus = useAction(cleAction(paneId, "focus"));
 
   // La lecture est notée ici, sur le téléphone — jamais par un focus sur le Mac.
   const derniereActivite = conversation?.timestamp;
@@ -163,12 +161,11 @@ export const Conversation = ({
 
   const titre = premierNonVide(titrePropre(conversation?.title ?? agent?.title), projet);
   const bloque = status === "blocked";
+  // L'issue de l'arrêt part en notification en haut de l'écran (`gestes.ts`).
   const aide =
-    arret?.phase === "fini"
-      ? arret.texte
-      : bloque && conversation?.question === undefined && conversation?.trust === undefined
-        ? "L'agent attend : votre message est tapé dans son invite."
-        : null;
+    bloque && conversation?.question === undefined && conversation?.trust === undefined
+      ? "L'agent attend : votre message est tapé dans son invite."
+      : null;
 
   return (
     <section className="conversation" aria-label={`Conversation ${titre}`}>
@@ -192,11 +189,6 @@ export const Conversation = ({
           Herdr ne connaît plus ce pane — affichage des derniers éléments lus.
         </Avis>
       ) : null}
-      {focus === undefined ? null : (
-        <div className="conversation__issue">
-          <IssueAction issue={focus} enCours="Affichage sur le Mac…" />
-        </div>
-      )}
       {vue.fin === null ? null : (
         <Avis ton="attention" annonce="statut">
           Le flux de la session s'est arrêté : {vue.fin}
@@ -223,7 +215,7 @@ export const Conversation = ({
         aUneSession={aUneSession}
         envoisEnAttente={liste.length}
       >
-        <Envois liste={liste} onRemettre={remettre} />
+        <Envois liste={liste} onRemettre={remettre} travaille={status === "working"} />
         {status === "working" ? (
           <LigneTravail tour={tour} debutObserve={debutObserve} cwd={cwd} />
         ) : null}

@@ -14,7 +14,7 @@
 import { answerQuestion, answerTrust, focusAgent, reportError, stopAgent } from "../api.ts";
 import { cleAction, type EtatAction } from "../actions-locales.ts";
 import { expliquerConfiance } from "../etats-envoi.ts";
-import { actions, magasin } from "./services.ts";
+import { actions, magasin, notifications } from "./services.ts";
 
 const cause = (erreur: unknown): string =>
   erreur instanceof Error ? erreur.message : String(erreur);
@@ -22,7 +22,16 @@ const cause = (erreur: unknown): string =>
 const execute = async (
   cle: string,
   geste: () => Promise<EtatAction>,
-  rapport: { readonly message: string; readonly paneId: string },
+  rapport: {
+    readonly message: string;
+    readonly paneId: string;
+    /**
+     * L'issue part aussi en notification en haut de l'écran. Pour les gestes
+     * sans emplacement propre (arrêter, afficher sur le Mac) : leur issue
+     * s'affichait sous le composeur, là où on ne la cherche pas.
+     */
+    readonly notifie?: boolean;
+  },
 ): Promise<void> => {
   const jeton = actions.debute(cle);
   if (jeton === null) return;
@@ -36,6 +45,9 @@ const execute = async (
     reportError(rapport.message, { detail: issue.texte, paneId: rapport.paneId });
   }
   actions.termine(cle, jeton, issue);
+  if (rapport.notifie === true && issue.phase === "fini") {
+    notifications.annonce(issue.ton, issue.texte);
+  }
   // L'état de l'agent a pu changer : la liste le dira au prochain vol.
   void magasin.rafraichit();
 };
@@ -99,7 +111,7 @@ export const arreter = (paneId: string): Promise<void> =>
           }
         : { phase: "fini", texte: "Herdr indique que l'agent ne travaille plus.", ton: "ok" };
     },
-    { message: "failed to interrupt the agent", paneId },
+    { message: "failed to interrupt the agent", notifie: true, paneId },
   );
 
 /**
@@ -116,5 +128,5 @@ export const montrerSurMac = (paneId: string): Promise<void> =>
       await focusAgent(paneId);
       return { phase: "fini", texte: "Pane affiché sur le Mac.", ton: "ok" };
     },
-    { message: "failed to focus a pane", paneId },
+    { message: "failed to focus a pane", notifie: true, paneId },
   );

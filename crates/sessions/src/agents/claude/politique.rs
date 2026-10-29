@@ -5,7 +5,8 @@
 
 use crate::families::anthropic::messages;
 use crate::pipeline::{Capacites, Codec, Profil};
-use serde_json::Value;
+use domain::session::LignePi;
+use serde_json::{Value, json};
 
 /// Le profil **Claude** : lisible, catalogue, lancement, interactions
 /// (mesuré : la surface TS traite les quatre — le modèle porte sur chaque
@@ -35,7 +36,7 @@ impl ProfilClaude {
             genre: Self::genre(),
             capacites: Self::capacites(),
             codec: Codec {
-                ligne_vers_pi: messages::ligne_vers_pi,
+                ligne_vers_pi: ligne_claude_vers_pi,
                 reglage_vers_pi: None,
             },
         }
@@ -58,4 +59,57 @@ pub fn ligne_traitee(ligne: &Value) -> Value {
         return messages::sans_message(ligne);
     }
     ligne.clone()
+}
+
+/// Une ligne Claude Code → forme commune : le codec Anthropic, puis les
+/// demandes envoyées **pendant** un tour.
+#[must_use]
+pub fn ligne_claude_vers_pi(ligne: &Value) -> Option<LignePi> {
+    messages::ligne_vers_pi(ligne).or_else(|| demande_en_cours_de_tour(ligne))
+}
+
+/// Une demande envoyée pendant que l'agent travaille.
+///
+/// ⚠️ **Mesuré sur une session réelle (2026-10-29).** Claude Code n'écrit pas
+/// un message reçu en cours de tour comme une ligne `user` : il l'écrit en
+/// `attachment` de type `queued_command` (`prompt`, `commandMode: "prompt"`,
+/// `origin.kind: "human"`) au moment où il l'injecte dans le tour. Sans cette
+/// lecture, la demande n'apparaissait jamais dans le chat. Aucune ligne `user`
+/// ne la répète (vérifié) : pas de doublon.
+///
+/// Les notifications internes du harnais (`commandMode: "task-notification"`,
+/// origine non humaine) passent par le même canal : elles ne sont PAS des
+/// demandes et restent écartées.
+#[must_use]
+pub fn demande_en_cours_de_tour(ligne: &Value) -> Option<LignePi> {
+    let objet = ligne.as_object()?;
+    if objet.get("type").and_then(Value::as_str) != Some("attachment") {
+        return None;
+    }
+    let piece = objet.get("attachment")?.as_object()?;
+    if piece.get("type").and_then(Value::as_str) != Some("queued_command")
+        || piece.get("commandMode").and_then(Value::as_str) != Some("prompt")
+        || piece
+            .get("origin")
+            .and_then(|origine| origine.get("kind"))
+            .and_then(Value::as_str)
+            != Some("human")
+    {
+        return None;
+    }
+    let texte = piece.get("prompt").and_then(Value::as_str)?.trim();
+    if texte.is_empty() {
+        return None;
+    }
+    let mut complet = json!({
+        "type": "message",
+        "message": { "role": "user", "content": [{ "type": "text", "text": texte }] },
+    });
+    if let Some(horodatage) = objet.get("timestamp").and_then(Value::as_str) {
+        complet["timestamp"] = json!(horodatage);
+    }
+    if let Some(uuid) = objet.get("uuid").and_then(Value::as_str) {
+        complet["id"] = json!(format!("claude:{uuid}"));
+    }
+    serde_json::from_value(complet).ok()
 }

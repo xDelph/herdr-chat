@@ -15,6 +15,7 @@ import { stockageNavigateur } from "../memoire-defilement.ts";
 import { lireGroupement, retenirGroupement, type Groupement } from "../preferences.ts";
 import { estAdresseDOnglet, HOME } from "../routing.ts";
 import { useDonnees, useHauteurVisible, useRoute } from "./hooks.ts";
+import { Notifications } from "../ui/Notifications.tsx";
 import { envois, magasin } from "./services.ts";
 
 /**
@@ -132,6 +133,7 @@ export const App = () => {
 
   return (
     <div className="app" data-vue={route.kind === "agent" ? "agent" : "liste"}>
+      <Notifications />
       <Boite
         donnees={donnees}
         lectures={lectures}

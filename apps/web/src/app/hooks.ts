@@ -84,18 +84,24 @@ export const useMaintenant = (intervalle: number | null): number => {
 export const useHauteurVisible = (): void => {
   useEffect(() => {
     const vue = window.visualViewport;
-    let derniere = -1;
+    let derniere = "";
     const applique = () => {
       const hauteur = Math.round(vue?.height ?? window.innerHeight);
-      if (hauteur === derniere) return;
-      derniere = hauteur;
-      document.documentElement.style.setProperty("--hauteur-app", `${String(hauteur)}px`);
+      const haut = Math.max(0, Math.round(vue?.offsetTop ?? 0));
+      const cle = `${String(hauteur)}:${String(haut)}`;
+      if (cle === derniere) return;
+      derniere = cle;
+      const racine = document.documentElement.style;
+      racine.setProperty("--hauteur-app", `${String(hauteur)}px`);
+      racine.setProperty("--haut-visible", `${String(haut)}px`);
     };
     applique();
     vue?.addEventListener("resize", applique);
+    vue?.addEventListener("scroll", applique);
     window.addEventListener("resize", applique);
     return () => {
       vue?.removeEventListener("resize", applique);
+      vue?.removeEventListener("scroll", applique);
       window.removeEventListener("resize", applique);
     };
   }, []);

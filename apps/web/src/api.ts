@@ -443,12 +443,26 @@ export const sendPrompt = async (paneId: string, text: string): Promise<SendResu
 };
 
 /** Envoie une demande d'interruption à un agent que Herdr voit en cours. */
-export const stopAgent = (paneId: string): Promise<StopAgentResponse> =>
-  decoded(
-    `/api/agents/${encodeURIComponent(paneId)}/stop`,
-    decoderOf(StopAgentResponse),
-    "agent stop",
-  );
+export const stopAgent = async (paneId: string): Promise<StopAgentResponse> => {
+  /*
+    ⚠️ **Un POST, comme toute action.** L'arrêt passait par `decoded()`, qui
+    fait un GET : les deux démons répondent 405 « method not allowed on this
+    route » et Stop n'a jamais pu fonctionner. La route exige aussi un
+    Content-Type JSON (corps ignoré, comme `/focus`).
+  */
+  const response = await fetch(`/api/agents/${encodeURIComponent(paneId)}/stop`, {
+    body: JSON.stringify({}),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const payload = await readJson(response);
+  if (!response.ok) {
+    throw new Error(decodeError(payload)?.error ?? `échec (${String(response.status)})`);
+  }
+  const lu = decoderOf(StopAgentResponse)(payload);
+  if (lu === undefined) throw new Error("forme de réponse inattendue : arrêt");
+  return lu;
+};
 
 /**
  * Ouvre le flux d'événements.

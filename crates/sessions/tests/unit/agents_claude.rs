@@ -154,3 +154,45 @@ fn le_profil_claude_se_pose_avec_les_autres() {
 }
 
 use sessions::agents::codex::ProfilCodex;
+
+#[test]
+fn une_demande_envoyee_pendant_le_tour_est_une_demande() {
+    // Forme mesurée sur une vraie session Claude Code : le message reçu en
+    // cours de tour est un `attachment` `queued_command`.
+    let pendant = json!({
+        "type": "attachment",
+        "uuid": "51115105-ec86",
+        "timestamp": "2026-10-29T14:42:58.698Z",
+        "attachment": {
+            "type": "queued_command",
+            "prompt": "encore un autre problème",
+            "commandMode": "prompt",
+            "origin": { "kind": "human" },
+        },
+    });
+    let mut registre = Registre::nouveau();
+    registre.pose(ProfilClaude::profil());
+    let Some(LigneNormalisee::Message(ligne)) = registre.traite("claude", &pendant) else {
+        panic!("la demande envoyée pendant le tour doit être lue");
+    };
+    assert_eq!(ligne.message.role.as_deref(), Some("user"));
+    assert_eq!(ligne.id.as_deref(), Some("claude:51115105-ec86"));
+    assert!(
+        serde_json::to_string(&ligne.message.content)
+            .unwrap_or_default()
+            .contains("encore un autre problème")
+    );
+
+    // Une notification interne passe par le même canal : ce n'est pas une
+    // demande de l'utilisateur.
+    let notification = json!({
+        "type": "attachment",
+        "attachment": {
+            "type": "queued_command",
+            "prompt": "<task-notification>…</task-notification>",
+            "commandMode": "task-notification",
+            "origin": { "kind": "task-notification" },
+        },
+    });
+    assert!(registre.traite("claude", &notification).is_none());
+}

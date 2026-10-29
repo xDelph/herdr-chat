@@ -80,6 +80,32 @@ const envoi = (changement: Partial<Envoi>): Envoi => ({
 const envois = (liste: ReadonlyArray<Envoi>) =>
   rendu(createElement(Envois, { liste, onRemettre: rien }));
 
+describe("un message envoyé pendant le travail", () => {
+  test("remis pendant un tour : en attente de lecture, pas « remis » tout court", () => {
+    const html = rendu(
+      createElement(Envois, {
+        liste: [envoi({ state: "delivered" })],
+        onRemettre: rien,
+        travaille: true,
+      }),
+    );
+    expect(html).toContain("En attente : l'agent le lira à sa prochaine étape");
+    expect(html).toContain("moi--en-file");
+  });
+
+  test("remis au repos : remis, sans file", () => {
+    const html = envois([envoi({ state: "delivered" })]);
+    expect(html).toContain("Remis à Herdr");
+    expect(html).not.toContain("moi--en-file");
+  });
+});
+
+describe("le composeur ne montre pas d'identifiant interne", () => {
+  test("aucun identifiant de pane sous le bouton d'envoi", () => {
+    expect(composeur(true, "wB:p1D")).not.toContain("wB:p1D");
+  });
+});
+
 describe("un envoi non confirmé n'est jamais affiché comme envoyé", () => {
   test("incertain : dit qu'il n'est pas confirmé, propose de réessayer", () => {
     const html = envois([envoi({ state: "uncertain" })]);

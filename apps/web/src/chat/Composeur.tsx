@@ -141,10 +141,11 @@ export const Composeur = memo(
             </button>
           ) : null}
         </div>
-        <div className="composeur__aide">
-          <span>{aide}</span>
-          <span className="mono">{paneId}</span>
-        </div>
+        {/*
+          ⚠️ Plus d'identifiant de pane ici (`wB:p1D`) : c'est un repère interne
+          d'Herdr, il ne dit rien à l'utilisateur (même retour que D015.2).
+        */}
+        {aide === null || aide === "" ? null : <div className="composeur__aide">{aide}</div>}
       </form>
     );
   },
