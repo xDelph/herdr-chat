@@ -8,6 +8,17 @@
  * l'agent exécute la commande chez lui.
  *
  * Rien ne part avant « Appliquer ».
+ *
+ * ⚠️ **`/thinking` n'est envoyé qu'à Pi** : c'est la seule commande de
+ * réflexion en cours de session vérifiée par exécution. Les niveaux que le
+ * catalogue déclare pour les autres (`--effort` de Claude, niveaux de codex)
+ * sont des **arguments de lancement** : taper `/thinking` dans Claude Code
+ * enverrait une commande inconnue. La feuille le dit au lieu de l'offrir.
+ *
+ * ⚠️ **Changer la seule réflexion ne dépend pas du catalogue.** Un modèle
+ * courant absent du catalogue (alias, modèle local) bloquait aussi la
+ * réflexion ; les niveaux viennent alors de ceux que le catalogue déclare pour
+ * le type.
  */
 import { useEffect, useState } from "react";
 import type { ModelCatalogResponse } from "@herdr-remote/shared";
@@ -27,6 +38,24 @@ const fournisseurDe = (id: string): string | null => {
   const separateur = id.indexOf("/");
   return separateur < 0 ? null : id.slice(0, separateur);
 };
+
+/**
+ * Les niveaux de réflexion proposables : ceux du modèle choisi ; sans modèle
+ * reconnu, ceux que le catalogue déclare pour le type (sinon l'union de ceux
+ * de ses modèles). Rien d'inventé.
+ */
+export const niveauxProposes = (
+  catalogue: ModelCatalogResponse | null,
+  modele: { readonly thinkingLevels: ReadonlyArray<string> } | null,
+): ReadonlyArray<string> => {
+  if (modele !== null) return modele.thinkingLevels;
+  if (catalogue === null) return [];
+  if (catalogue.thinkingLevels.length > 0) return catalogue.thinkingLevels;
+  return [...new Set(catalogue.models.flatMap((candidat) => candidat.thinkingLevels))];
+};
+
+/** Le seul type dont la commande `/thinking` en session est vérifiée. */
+export const reflexionEnSession = (kind: string): boolean => kind === "pi";
 
 /** Le modèle courant tel que le catalogue l'écrit — `null` s'il n'y figure pas. */
 const modeleDuCatalogue = (
@@ -120,14 +149,20 @@ export const Modele = ({
           .includes(filtre.trim().toLowerCase()),
     ) ?? [];
   const niveau = reflexion === undefined ? (reflexionActuelle ?? null) : reflexion;
+  const enSession = reflexionEnSession(kind);
+  const niveaux = niveauxProposes(catalogue, modele);
   const changeModele = modele !== null && modele.id !== actuel;
-  const changeReflexion = niveau !== null && niveau !== (reflexionActuelle ?? null);
+  const changeReflexion =
+    enSession &&
+    niveau !== null &&
+    niveau !== (reflexionActuelle ?? null) &&
+    niveaux.includes(niveau);
 
   const appliquer = async () => {
-    if (occupe || modele === null) return;
+    if (occupe) return;
     const commandes: string[] = [];
     if (changeModele) commandes.push(`/model ${modele.id}`);
-    if (changeReflexion && niveau !== null) commandes.push(`/thinking ${niveau}`);
+    if (changeReflexion) commandes.push(`/thinking ${niveau}`);
     if (commandes.length === 0) return;
     setOccupe(true);
     const faits: Array<{ readonly commande: string; readonly resultat: SendResult }> = [];
@@ -239,11 +274,19 @@ export const Modele = ({
           </fieldset>
         </>
       )}
-      {modele !== null && modele.thinkingLevels.length > 0 ? (
+      {!enSession ? (
+        <p className="discret">
+          La réflexion de {agentNom} ne se change pas en cours de session depuis ici : seule la
+          commande « /thinking » de Pi est vérifiée.
+          {catalogue !== null && catalogue.thinkingLevels.length > 0
+            ? ` Niveaux proposés au lancement : ${catalogue.thinkingLevels.map(libelleReflexion).join(", ")}.`
+            : ""}
+        </p>
+      ) : niveaux.length > 0 ? (
         <fieldset className="champ">
           <legend>Réflexion</legend>
           <fieldset className="seg seg--plein" aria-label="Niveau de réflexion">
-            {modele.thinkingLevels.map((candidat) => (
+            {niveaux.map((candidat) => (
               <button
                 key={candidat}
                 type="button"
@@ -259,15 +302,20 @@ export const Modele = ({
             {reflexionActuelle === undefined
               ? "Niveau actuel inconnu."
               : `Actuel : ${libelleReflexion(reflexionActuelle)}`}
+            {modele === null && catalogue !== null
+              ? " — niveaux déclarés pour le type, le modèle actuel n'étant pas au catalogue."
+              : ""}
           </p>
         </fieldset>
       ) : modele !== null ? (
         <p className="discret">Ce modèle ne déclare pas de niveau de réflexion.</p>
+      ) : catalogue !== null ? (
+        <p className="discret">Le catalogue ne déclare aucun niveau de réflexion.</p>
       ) : null}
       <button
         type="button"
         className="bouton bouton--principal bouton--plein"
-        disabled={occupe || modele === null || (!changeModele && !changeReflexion)}
+        disabled={occupe || (!changeModele && !changeReflexion)}
         onClick={() => void appliquer()}
       >
         {occupe ? "Envoi…" : "Appliquer"}

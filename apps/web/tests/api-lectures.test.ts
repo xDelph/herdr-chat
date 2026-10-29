@@ -2,9 +2,12 @@
  * Les lectures du client — sans réseau : `fetch` est un double.
  *
  * - la sonde du flux de session distingue une route absente d'un pane refusé ;
+ * - une lecture a un délai, et son dépassement se dit ;
+ * - les erreurs connues du démon sont traduites, la cause brute reste.
  */
 import { afterEach, describe, expect, test } from "bun:test";
-import { sondeFluxSession } from "../src/api.ts";
+import { fetchSession, sendPrompt, sondeFluxSession } from "../src/api.ts";
+import { erreurLisible } from "../src/erreurs-demon.ts";
 
 const original = globalThis.fetch;
 
@@ -61,5 +64,69 @@ describe("sonde du flux de session : route absente ≠ pane refusé", () => {
       { preconnect: original.preconnect },
     );
     expect((await sondeFluxSession(url)).nature).toBe("passager");
+  });
+});
+
+describe("une lecture a un délai (P2)", () => {
+  test("un délai dépassé se dit comme tel, pas comme une erreur réseau", async () => {
+    let signal: AbortSignal | null | undefined;
+    globalThis.fetch = Object.assign(
+      async (_entree: RequestInfo | URL, init?: RequestInit) => {
+        signal = init?.signal;
+        throw new DOMException("The operation timed out.", "TimeoutError");
+      },
+      { preconnect: original.preconnect },
+    );
+    const erreur = await fetchSession("w1:p1", { tail: 1 }).catch((cause: unknown) => cause);
+    expect(signal).toBeInstanceOf(AbortSignal);
+    expect(erreur instanceof Error ? erreur.message : "").toBe("Le démon n'a pas répondu en 10 s");
+  });
+});
+
+describe("les erreurs du démon, en français (P2)", () => {
+  test("la phrase connue est traduite, et la cause brute suit sur sa ligne", () => {
+    expect(erreurLisible("no usable session path for this agent")).toBe(
+      "Herdr n'expose pas de session lisible pour cet agent\nCause : no usable session path for this agent",
+    );
+  });
+
+  test("une cause inconnue passe telle quelle — rien d'inventé", () => {
+    expect(erreurLisible("quelque chose d'imprévu")).toBe("quelque chose d'imprévu");
+  });
+
+  test("une lecture de session refusée affiche la traduction", async () => {
+    repond(
+      JSON.stringify({ error: "no usable session path for this agent" }),
+      404,
+      "application/json",
+    );
+    const erreur = await fetchSession("w1:p1").catch((cause: unknown) => cause);
+    expect(erreur instanceof Error ? erreur.message : "").toContain(
+      "Herdr n'expose pas de session lisible pour cet agent",
+    );
+  });
+
+  test("hors ligne, un envoi dit « rien n'est parti »", async () => {
+    const enLigne = Object.getOwnPropertyDescriptor(globalThis, "navigator");
+    Object.defineProperty(globalThis, "navigator", {
+      configurable: true,
+      value: { onLine: false },
+    });
+    globalThis.fetch = Object.assign(
+      async () => {
+        throw new TypeError("Load failed");
+      },
+      { preconnect: original.preconnect },
+    );
+    try {
+      expect(await sendPrompt("w1:p1", "x")).toEqual({
+        kind: "failed",
+        message: "",
+        state: "hors-ligne",
+      });
+    } finally {
+      if (enLigne === undefined) Reflect.deleteProperty(globalThis, "navigator");
+      else Object.defineProperty(globalThis, "navigator", enLigne);
+    }
   });
 });

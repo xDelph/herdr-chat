@@ -52,6 +52,13 @@ export interface Lectures<O = unknown, H = unknown, C = unknown> {
 export interface ClientDeDonnees<O = unknown, H = unknown, C = unknown> {
   /** Lit (ou rejoint le vol en cours) et rend le résultat du vol le plus récent. */
   readonly lit: () => Promise<Resultat<O, H, C>>;
+  /**
+   * Lit **après** maintenant : un vol en cours est parti avant le changement
+   * signalé, il ne peut pas le contenir. On note la demande et on relit **une**
+   * fois à sa fin — tous les signaux arrivés pendant le vol partagent ce second
+   * vol.
+   */
+  readonly litFrais: () => Promise<Resultat<O, H, C>>;
   /** Y a-t-il un vol en cours ? */
   readonly enVol: () => boolean;
   /** Le nombre de vols réellement lancés (la mesure du vol unique). */
@@ -85,12 +92,12 @@ export const auMoinsUneReussie = (resultat: Resultat): boolean =>
  */
 export const creeClient = <O, H, C>(lectures: Lectures<O, H, C>): ClientDeDonnees<O, H, C> => {
   let enCours: Promise<Resultat<O, H, C>> | null = null;
+  /** Le vol déjà promis à ceux qui ont signalé pendant le vol en cours. */
+  let suivant: Promise<Resultat<O, H, C>> | null = null;
   let generation = 0;
   let lancements = 0;
 
-  const lit = async (): Promise<Resultat<O, H, C>> => {
-    // Le vol en cours sert tous les appelants : c'est le « un seul vol » de C23.
-    if (enCours !== null) return enCours;
+  const lance = (): Promise<Resultat<O, H, C>> => {
     lancements += 1;
     generation += 1;
     const mienne = generation;
@@ -106,18 +113,40 @@ export const creeClient = <O, H, C>(lectures: Lectures<O, H, C>): ClientDeDonnee
       return { conversations, generation: mienne, health, overview };
     })();
     enCours = vol;
-    try {
-      return await vol;
-    } finally {
-      // ⚠️ Le vol n'est « en cours » que tant qu'il l'est : le prochain signal
-      // en relancera un, avec une génération PLUS GRANDE.
-      enCours = null;
-    }
+    // ⚠️ Le vol n'est « en cours » que tant qu'il l'est : le prochain signal
+    // en relancera un, avec une génération PLUS GRANDE. (Le vol ne rejette
+    // jamais : chaque lecture attrape son échec.)
+    void (async () => {
+      await vol;
+      if (enCours === vol) enCours = null;
+    })();
+    return vol;
+  };
+
+  // Le vol en cours sert tous les appelants : c'est le « un seul vol » de C23.
+  const lit = (): Promise<Resultat<O, H, C>> => enCours ?? lance();
+
+  /*
+    ⚠️ **Le défaut fermé (P2).** Un `agent_status` arrivé PENDANT une lecture la
+    rejoignait : il recevait une liste lue avant lui, et la suivante n'arrivait
+    qu'au filet — jusqu'à 30 s d'une liste périmée. Ici il marque le vol
+    « sale » ; une seule relecture part à sa fin.
+  */
+  const litFrais = (): Promise<Resultat<O, H, C>> => {
+    const courant = enCours;
+    if (courant === null) return lance();
+    suivant ??= (async () => {
+      await courant;
+      suivant = null;
+      return lance();
+    })();
+    return suivant;
   };
 
   return {
     enVol: () => enCours !== null,
     lit,
+    litFrais,
     vols: () => lancements,
   };
 };

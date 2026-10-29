@@ -173,3 +173,24 @@
   text-underline-offset: 2px;
   font-weight: 600;
 }
+
+/* Une erreur traduite garde sa cause brute sur sa propre ligne (`erreurs-demon.ts`). */
+.avis,
+.notif__texte,
+.fil__info--erreur,
+.moi__etat,
+.bandeau-connexion span {
+  white-space: pre-line;
+}
+
+/* L'emplacement du haut du fil : hauteur fixe, quoi qu'il affiche. */
+.fil__haut {
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+.fil__haut .fil__info {
+  margin: 0;
+}

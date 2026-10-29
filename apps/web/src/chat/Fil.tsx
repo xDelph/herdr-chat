@@ -58,6 +58,7 @@ import {
 } from "../memoire-defilement.ts";
 import { Avis } from "../ui/atomes.tsx";
 import { Icone } from "../ui/Icone.tsx";
+import { Annonces } from "./Annonces.tsx";
 import { ElementFil } from "./Elements.tsx";
 
 const cleDe = (item: Item): string => (item.kind === "tools" ? item.id : `m:${item.message.id}`);
@@ -331,15 +332,26 @@ export const Fil = memo(
           ref={conteneur}
           onScroll={surDefilement}
           role="log"
-          aria-live="polite"
+          // ⚠️ Muet : chaque jeton était lu à voix haute. `Annonces` dit
+          // l'essentiel (état, réponse terminée).
+          aria-live="off"
           aria-label="Conversation"
         >
           <div className="fil__contenu" ref={contenu}>
             <span className="fil__sentinelle" ref={sentinelle} aria-hidden="true" />
-            {vue.chargementAncien ? (
-              <output className="fil__info">Chargement de l'historique…</output>
-            ) : vue.precedent === null && items.length > 0 ? (
-              <p className="fil__info">Début de la conversation</p>
+            {/*
+              ⚠️ Un emplacement de hauteur FIXE : le message « Chargement de
+              l'historique… » s'insérait au-dessus du contenu et le poussait
+              d'une ligne — un saut à chaque page remontée.
+            */}
+            {items.length > 0 ? (
+              <div className="fil__haut">
+                {vue.chargementAncien ? (
+                  <output className="fil__info">Chargement de l'historique…</output>
+                ) : vue.precedent === null ? (
+                  <p className="fil__info">Début de la conversation</p>
+                ) : null}
+              </div>
             ) : null}
             {vue.erreurAncien === null ? null : (
               <p className="fil__info fil__info--erreur" role="alert">
@@ -383,6 +395,7 @@ export const Fil = memo(
           (pas seulement quand du neuf arrive) ; il dit « Nouveaux messages »
           quand il y en a.
         */}
+        <Annonces status={status} items={items} />
         {loinDuBas || nouveaux ? (
           <button
             type="button"

@@ -35,7 +35,7 @@ export const BandeauConnexion = memo(() => {
         type="button"
         className="lien bandeau-connexion__action"
         disabled={donnees.chargement}
-        onClick={() => void magasin.rafraichit()}
+        onClick={() => void magasin.rafraichit(true)}
       >
         {donnees.chargement ? "Lecture…" : "Réessayer"}
       </button>

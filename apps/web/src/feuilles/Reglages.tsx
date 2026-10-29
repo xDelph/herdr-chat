@@ -32,6 +32,14 @@ import { dureeLongue } from "../libelles.ts";
 import { Avis } from "../ui/atomes.tsx";
 import { Feuille } from "../ui/Feuille.tsx";
 
+/** La permission du navigateur, en français — jamais `granted/denied/default` bruts. */
+export const LIBELLE_PERMISSION: Record<NotificationPermission | "non-pris-en-charge", string> = {
+  default: "pas encore demandée",
+  denied: "refusée (à rétablir dans les réglages du navigateur)",
+  granted: "accordée",
+  "non-pris-en-charge": "non prise en charge",
+};
+
 const Notifications = () => {
   const [active, setActive] = useState<boolean | null>(null);
   const [occupe, setOccupe] = useState(false);
@@ -88,7 +96,7 @@ const Notifications = () => {
       <div className="reglage">
         <span>
           {active === null ? "État inconnu" : active ? "Activées sur cet appareil" : "Désactivées"}
-          <small className="discret"> · permission : {permission}</small>
+          <small className="discret"> · permission : {LIBELLE_PERMISSION[permission]}</small>
         </span>
         <button
           type="button"

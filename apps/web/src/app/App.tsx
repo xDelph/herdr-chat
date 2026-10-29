@@ -89,7 +89,7 @@ export const App = () => {
 
   useEffect(() => {
     const surVisibilite = () => {
-      if (document.visibilityState === "visible") void magasin.rafraichit();
+      if (document.visibilityState === "visible") void magasin.rafraichit(true);
     };
     document.addEventListener("visibilitychange", surVisibilite);
     return () => document.removeEventListener("visibilitychange", surVisibilite);
@@ -178,7 +178,7 @@ export const App = () => {
         projet={route.kind === "projet" ? route.workspaceId : null}
         onLancer={() => setFeuille({ genre: "lancement" })}
         onReglages={() => setFeuille({ genre: "reglages" })}
-        onReessayer={() => void magasin.rafraichit()}
+        onReessayer={() => void magasin.rafraichit(true)}
         paneCourant={paneOuvert}
         cachee={etroit && paneOuvert !== null}
       />

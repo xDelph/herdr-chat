@@ -13,6 +13,7 @@
  * diverger entre le décodage et le type affiché. Aucune assertion de type.
  */
 import { Option, Schema } from "effect";
+import { erreurLisible } from "./erreurs-demon.ts";
 // Import **local** : `export type { X } from "…"` ne crée aucune liaison ici.
 import type { InstalledKind, RecentImage } from "@herdr-remote/shared";
 import {
@@ -110,7 +111,8 @@ export const answerTrust = async (paneId: string, accept: boolean): Promise<Trus
     const failure = decodeError(payload);
     return {
       accepted: false,
-      detail: failure?.error ?? `échec (${String(response.status)})`,
+      detail:
+        failure === undefined ? `échec (${String(response.status)})` : erreurLisible(failure.error),
       state: "inconnu",
     };
   }
@@ -183,8 +185,7 @@ export const launchAgent = async (
     if (trust !== undefined) throw new TrustRequiredError(trust);
   }
   if (!response.ok) {
-    const failure = decodeError(payload);
-    throw new Error(failure?.error ?? `échec (${String(response.status)})`);
+    throw new Error(erreurDe(payload, response.status));
   }
 
   const decoded = decoderOf(LaunchAgentResponse)(payload);
@@ -243,6 +244,16 @@ const decoderOf =
 
 const decodeError = decoderOf(ErrorPayload);
 
+/** L'appareil se dit hors ligne (`navigator.onLine`, absent hors navigateur). */
+export const horsLigne = (): boolean =>
+  typeof navigator !== "undefined" && "onLine" in navigator && !navigator.onLine;
+
+/** La cause d'une réponse d'erreur, traduite quand on la reconnaît (`erreurs-demon.ts`). */
+const erreurDe = (payload: unknown, statut: number): string => {
+  const failure = decodeError(payload);
+  return failure === undefined ? `échec (${String(statut)})` : erreurLisible(failure.error);
+};
+
 /** Lit le corps une seule fois et le renvoie analysé, ou lève une erreur lisible. */
 const readJson = async (response: Response): Promise<unknown> => {
   const text = await response.text();
@@ -253,15 +264,40 @@ const readJson = async (response: Response): Promise<unknown> => {
   }
 };
 
+/**
+ * Le délai d'une lecture.
+ *
+ * ⚠️ Sans délai, une lecture bloquée (démon figé, réseau qui ne répond plus
+ * sans couper) laissait la liste « en chargement » pour toujours, et le vol
+ * unique bloquait toutes les relectures derrière elle.
+ */
+export const DELAI_LECTURE_MS = 10_000;
+
 const request = async (path: string, init?: RequestInit): Promise<unknown> => {
-  const response = await fetch(path, {
-    headers: { "content-type": "application/json" },
-    ...init,
-  });
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      headers: { "content-type": "application/json" },
+      signal: AbortSignal.timeout(DELAI_LECTURE_MS),
+      ...init,
+    });
+  } catch (cause) {
+    if (cause instanceof DOMException && cause.name === "TimeoutError") {
+      throw new Error(`Le démon n'a pas répondu en ${String(DELAI_LECTURE_MS / 1000)} s`, {
+        cause,
+      });
+    }
+    if (horsLigne()) throw new Error("Hors ligne : l'appareil n'a pas de réseau", { cause });
+    throw new Error(erreurLisible(cause instanceof Error ? cause.message : String(cause)), {
+      cause,
+    });
+  }
   const payload = await readJson(response);
   if (!response.ok) {
     const failure = decodeError(payload);
-    throw new Error(failure?.error ?? `échec (${response.status})`);
+    throw new Error(
+      failure === undefined ? `échec (${String(response.status)})` : erreurLisible(failure.error),
+    );
   }
   return payload;
 };
@@ -363,10 +399,6 @@ export const reportError = (message: string, detail?: unknown): void => {
   })();
 };
 
-/** L'appareil se dit hors ligne (`navigator.onLine`, absent hors navigateur). */
-export const horsLigne = (): boolean =>
-  typeof navigator !== "undefined" && "onLine" in navigator && !navigator.onLine;
-
 /**
  * Le délai d'un envoi.
  *
@@ -444,12 +476,11 @@ export const sendPrompt = async (paneId: string, text: string): Promise<SendResu
   // pilote l'action proposée à l'utilisateur.
   const named = decoderOf(FailedPayload)(payload);
   if (named !== undefined) {
-    return { kind: "failed", message: named.detail, state: named.state };
+    return { kind: "failed", message: erreurLisible(named.detail), state: named.state };
   }
-  const failure = decodeError(payload);
   return {
     kind: "failed",
-    message: failure?.error ?? `échec (${response.status})`,
+    message: erreurDe(payload, response.status),
     state: "inconnu",
   };
 };
@@ -469,7 +500,7 @@ export const stopAgent = async (paneId: string): Promise<StopAgentResponse> => {
   });
   const payload = await readJson(response);
   if (!response.ok) {
-    throw new Error(decodeError(payload)?.error ?? `échec (${String(response.status)})`);
+    throw new Error(erreurDe(payload, response.status));
   }
   const lu = decoderOf(StopAgentResponse)(payload);
   if (lu === undefined) throw new Error("forme de réponse inattendue : arrêt");
@@ -765,7 +796,7 @@ export const focusAgent = async (paneId: string): Promise<AgentFocusedResponse> 
   });
   const payload = await readJson(response);
   if (!response.ok) {
-    throw new Error(decodeError(payload)?.error ?? `échec (${String(response.status)})`);
+    throw new Error(erreurDe(payload, response.status));
   }
   const lu = decoderOf(AgentFocusedResponse)(payload);
   if (lu === undefined) throw new Error("forme de réponse inattendue : focus");

@@ -93,8 +93,12 @@ export interface MagasinDonnees {
   /** Ouvre le flux, lance la première lecture et la cadence. Idempotent. */
   readonly demarre: () => void;
   readonly arrete: () => void;
-  /** Lecture immédiate (vol partagé) — retour au premier plan, bouton « réessayer ». */
-  readonly rafraichit: () => Promise<void>;
+  /**
+   * Lecture immédiate. Par défaut elle rejoint le vol en cours (retour au
+   * premier plan) ; `frais` exige une lecture partie APRÈS l'appel (un
+   * événement, le bouton « Réessayer »).
+   */
+  readonly rafraichit: (frais?: boolean) => Promise<void>;
   /** S'abonner aux événements du flux global (le chat, les envois). */
   readonly ecoute: (abonne: (evenement: EvenementGlobal) => void) => () => void;
   readonly lectureDesKinds: () => Promise<void>;
@@ -171,10 +175,10 @@ export const creeMagasinDonnees = (deps: DependancesDonnees): MagasinDonnees => 
     });
   };
 
-  const rafraichit = async (): Promise<void> => {
+  const rafraichit = async (frais = false): Promise<void> => {
     publie({ chargement: true });
     try {
-      applique(await client.lit());
+      applique(await (frais ? client.litFrais() : client.lit()));
     } finally {
       publie({ chargement: client.enVol() });
     }
@@ -182,8 +186,9 @@ export const creeMagasinDonnees = (deps: DependancesDonnees): MagasinDonnees => 
 
   const jetons = new Map<number, () => void>();
   let compteurJetons = 0;
+  // Un événement dit qu'un état a changé : la lecture doit partir APRÈS lui.
   const regroupement = creeRegroupement(
-    () => void rafraichit(),
+    () => void rafraichit(true),
     deps.delaiRegroupement,
     (action, attente) => {
       compteurJetons += 1;
@@ -261,7 +266,7 @@ export const creeMagasinDonnees = (deps: DependancesDonnees): MagasinDonnees => 
           for (const ecouteur of ecouteurs) ecouteur({ donnees, genre });
         },
         onResync: () => {
-          void rafraichit();
+          void rafraichit(true);
           for (const ecouteur of ecouteurs) ecouteur({ donnees: null, genre: "resync" });
         },
         onStatus: (statut) => {
