@@ -6,8 +6,6 @@
  */
 import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import type { AgentView } from "@herdr-remote/shared";
-import { Lancement } from "../feuilles/Lancement.tsx";
-import { Reglages } from "../feuilles/Reglages.tsx";
 import { Boite } from "../inbox/Boite.tsx";
 import { ecritLectures, litLectures, noteLecture, type Lectures } from "../lectures.ts";
 import { dossierDe, premierNonVide } from "../libelles.ts";
@@ -36,6 +34,22 @@ import { envois, magasin } from "./services.ts";
 const Conversation = lazy(async () => {
   const module = await import("../chat/Conversation.tsx");
   return { default: module.Conversation };
+});
+
+/**
+ * Les feuilles de lancement et de réglages sont des chemins **froids** : elles
+ * s'ouvrent sur un geste, jamais à la première peinture. Chargées à la
+ * demande, elles sortent du paquet initial (122,6 Ko gzip mesurés, cible
+ * ≤ 120 Ko).
+ */
+const Lancement = lazy(async () => {
+  const module = await import("../feuilles/Lancement.tsx");
+  return { default: module.Lancement };
+});
+
+const Reglages = lazy(async () => {
+  const module = await import("../feuilles/Reglages.tsx");
+  return { default: module.Reglages };
 });
 
 const ATTENTE_CONVERSATION = (
@@ -206,27 +220,33 @@ export const App = () => {
         </Suspense>
       )}
       {feuille?.genre === "lancement" ? (
-        <Lancement
-          espaces={donnees.overview?.workspaces ?? []}
-          kinds={donnees.kinds}
-          erreurKinds={donnees.erreurKinds}
-          espaceInitial={route.kind === "projet" ? route.workspaceId : (agent?.workspaceId ?? null)}
-          onClose={() => setFeuille(null)}
-          onLance={(paneId) => {
-            setFeuille(null);
-            navigue({ kind: "agent", paneId });
-          }}
-        />
+        <Suspense fallback={null}>
+          <Lancement
+            espaces={donnees.overview?.workspaces ?? []}
+            kinds={donnees.kinds}
+            erreurKinds={donnees.erreurKinds}
+            espaceInitial={
+              route.kind === "projet" ? route.workspaceId : (agent?.workspaceId ?? null)
+            }
+            onClose={() => setFeuille(null)}
+            onLance={(paneId) => {
+              setFeuille(null);
+              navigue({ kind: "agent", paneId });
+            }}
+          />
+        </Suspense>
       ) : null}
       {feuille?.genre === "reglages" ? (
-        <Reglages
-          health={donnees.health}
-          erreurHealth={donnees.erreurs.health}
-          overview={donnees.overview}
-          groupement={groupement}
-          onGroupement={changeGroupement}
-          onClose={() => setFeuille(null)}
-        />
+        <Suspense fallback={null}>
+          <Reglages
+            health={donnees.health}
+            erreurHealth={donnees.erreurs.health}
+            overview={donnees.overview}
+            groupement={groupement}
+            onGroupement={changeGroupement}
+            onClose={() => setFeuille(null)}
+          />
+        </Suspense>
       ) : null}
     </div>
   );
