@@ -64,13 +64,29 @@ async fn apercu_le_dossier_d_un_projet_sans_agent_vient_de_ses_panes() {
     // null (le fil TS le trouvait). Le premier pane du projet qui porte un
     // cwd fait foi, dans l'ordre du snapshot ; un worktree lié gagne.
     use domain::ids::{PaneId, WorkspaceId};
-    use domain::observation::{SituatedPane, WorkspaceObservation};
+    use domain::observation::{SituatedPane, WorkspaceWorktree};
+    use domain::status::AgentStatus;
     let mut photo = borne(vec![agent("w1:p2", "pi", None)]).snapshot;
     let mut sans_agent = photo.workspaces[0].clone();
     sans_agent.workspace_id = WorkspaceId::from(String::from("w3"));
     sans_agent.label = Some(String::from("jarvis"));
     sans_agent.worktree = None;
+    sans_agent.pane_count = Some(2);
+    sans_agent.tab_count = Some(1);
+    sans_agent.focused = Some(true);
+    sans_agent.agent_status = Some(AgentStatus::Idle);
     photo.workspaces.push(sans_agent);
+    // Un worktree lié GAGNE sur le cwd de ses panes.
+    let mut lie = photo.workspaces[0].clone();
+    lie.workspace_id = WorkspaceId::from(String::from("w4"));
+    lie.worktree = Some(WorkspaceWorktree {
+        checkout_path: String::from("/projets/worktree-lie"),
+        is_linked_worktree: true,
+        repo_key: String::from("cle"),
+        repo_name: String::from("depot"),
+        repo_root: String::from("/projets/depot"),
+    });
+    photo.workspaces.push(lie);
     let pane = |id: &str, espace: &str, cwd: Option<&str>| SituatedPane {
         pane_id: PaneId::from(String::from(id)),
         workspace_id: Some(WorkspaceId::from(String::from(espace))),
@@ -81,14 +97,8 @@ async fn apercu_le_dossier_d_un_projet_sans_agent_vient_de_ses_panes() {
         pane("w3:p2", "w3", Some("/projets/jarvis")),
         pane("w1:p1", "w1", Some("/projets/shell-d-abord")),
         pane("w1:p2", "w1", Some("/projets/atelier")),
+        pane("w4:p1", "w4", Some("/projets/cwd-du-pane")),
     ];
-    let attendu_w1 = match &photo.workspaces[0] {
-        WorkspaceObservation {
-            worktree: Some(worktree),
-            ..
-        } => worktree.checkout_path.clone(),
-        _ => String::from("/projets/shell-d-abord"),
-    };
     let faux = HerdrFaux::nouveau();
     faux.repond_snapshot(photo);
     let (services, _) = services(faux, Default::default(), Default::default());
@@ -109,7 +119,16 @@ async fn apercu_le_dossier_d_un_projet_sans_agent_vient_de_ses_panes() {
         "/projets/jarvis",
         "le pane shell porte le dossier"
     );
-    assert_eq!(dossier("w1"), attendu_w1.as_str());
+    assert_eq!(
+        dossier("w1"),
+        "/projets/shell-d-abord",
+        "le PREMIER pane du projet, dans l'ordre du snapshot"
+    );
+    assert_eq!(
+        dossier("w4"),
+        "/projets/worktree-lie",
+        "le worktree lié gagne"
+    );
     let jarvis = workspaces
         .iter()
         .find(|workspace| workspace["workspaceId"] == "w3")
@@ -119,4 +138,9 @@ async fn apercu_le_dossier_d_un_projet_sans_agent_vient_de_ses_panes() {
         serde_json::json!([]),
         "un pane shell n'est pas un agent"
     );
+    // Un projet SANS agent garde ses compteurs, son focus et son statut.
+    assert_eq!(jarvis["paneCount"], 2);
+    assert_eq!(jarvis["tabCount"], 1);
+    assert_eq!(jarvis["focused"], true);
+    assert_eq!(jarvis["agentStatus"], "idle");
 }

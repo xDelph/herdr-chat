@@ -690,3 +690,54 @@ fn la_resolution_porte_ce_que_declare_l_en_tete_d_une_session_pi() {
     assert_eq!(source.parent.as_ref().map(|id| id.as_str()), Some("p-1"));
     let _ = std::fs::remove_dir_all(&racine);
 }
+
+/// D22 — à travers la VRAIE lecture (PortSessions + normalisation Claude) :
+/// un modèle entre chevrons (`<synthetic>`, écrit par Claude Code pour ses
+/// messages fabriqués) n'est jamais un modèle ; le modèle réel déclaré plus
+/// tôt reste celui qu'on lit.
+#[test]
+fn un_modele_entre_chevrons_n_est_jamais_lu_comme_un_modele() {
+    let dossier = racine("soutien-assemblage-chevrons");
+    let chemin = dossier.join("session.jsonl");
+    let lignes = [
+        r#"{"type":"user","uuid":"u1","timestamp":"2026-10-29T10:00:00Z","message":{"role":"user","content":"go"}}"#,
+        r#"{"type":"assistant","uuid":"a1","timestamp":"2026-10-29T10:00:05Z","message":{"role":"assistant","model":"claude-opus-4-1","content":[{"type":"text","text":"fait"}]}}"#,
+        r#"{"type":"assistant","uuid":"a2","timestamp":"2026-10-29T10:00:09Z","message":{"role":"assistant","model":"<synthetic>","content":[{"type":"text","text":"No response requested."}]}}"#,
+    ];
+    std::fs::write(&chemin, format!("{}\n", lignes.join("\n")))
+        .unwrap_or_else(|cause| panic!("écriture : {cause}"));
+    let racines = sessions::resolver::Racines {
+        pi_sessions: dossier.join("pi"),
+        codex_sessions: dossier.join("codex"),
+        codex_home: dossier.join("codex-home"),
+        claude_projects: dossier.clone(),
+        opencode_db: dossier.join("opencode.db"),
+        devin_db: dossier.join("devin.db"),
+    };
+    let base = chemin.display().to_string();
+    let lecteur = LitSessionsViaPort {
+        port: Arc::new(sessions::port::PortSessions::nouveau(racines)),
+        familles: Arc::new(std::sync::Mutex::new(std::collections::HashMap::from([(
+            base.clone(),
+            domain::ids::AgentKind::from(String::from("claude")),
+        )]))),
+        fenetres: Arc::new(std::sync::Mutex::new(CacheFenetres::default())),
+        taches: Arc::new(sessions::agents::claude::taches::LecteurTaches::nouveau(
+            std::env::temp_dir().join("herdrchat-taches-absentes"),
+        )),
+    };
+    let entrees = lecteur
+        .fenetre(&PaneId::from(String::from("w1:p1")), &source(&base))
+        .unwrap_or_else(|cause| panic!("fenêtre : {}", cause.cause));
+    let modeles: Vec<Option<String>> = entrees
+        .iter()
+        .filter(|entree| entree.role == application::conversations::RoleDeSession::Assistant)
+        .map(|entree| entree.modele.clone())
+        .collect();
+    assert_eq!(
+        modeles,
+        vec![Some(String::from("claude-opus-4-1")), None],
+        "le substitut entre chevrons ne déclare rien"
+    );
+    let _ = std::fs::remove_dir_all(&dossier);
+}

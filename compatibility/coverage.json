@@ -34,11 +34,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/herdrchat/tests (composition)",
-      "status": "not-wired",
+      "status": "proven",
       "tests": [
+        "crates/herdrchat/tests/unit/demarrage.rs",
         "crates/http-api/tests/unit/sante.rs"
-      ],
-      "gap": "Aucun ping ni avertissement au démarrage : PortHerdr::connecte est paresseux (crates/herdr-client/src/transport.rs:106-111) ; seul /api/health dit l'injoignabilité."
+      ]
     },
     {
       "id": "O04",
@@ -84,11 +84,11 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests",
-      "status": "not-wired",
+      "status": "proven",
       "tests": [
+        "crates/http-api/tests/unit/router.rs",
         "crates/http-api/tests/unit/assets.rs"
-      ],
-      "gap": "Partiel : cache des assets correct, mais les réponses JSON de l'API ne posent pas no-store (crates/http-api/src/router.rs:139-151 n'ajoute que la compression)."
+      ]
     },
     {
       "id": "O08",
@@ -178,13 +178,16 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests/contract_tests.rs (session matrix)",
-      "status": "not-wired",
+      "status": "proven",
       "unitTests": [
         "crates/sessions/tests/unit/cursor.rs",
         "crates/sessions/tests/unit/port.rs",
         "crates/sessions/tests/unit/path_policy.rs"
       ],
-      "gap": "PortSessions.page rend toujours Ok (crates/sessions/src/port.rs:531-546) : les variantes 400/403/409/503 du manifeste ne sont jamais produites en production ; HA/session.rs ne les obtient qu'en injectant une erreur dans un faux."
+      "tests": [
+        "crates/herdrchat/tests/unit/composition.rs",
+        "crates/http-api/tests/unit/session.rs"
+      ]
     },
     {
       "id": "H05",
@@ -224,14 +227,13 @@
       ],
       "proofTask": "T064",
       "target": "crates/http-api/tests/contract_tests.rs (launch)",
-      "status": "not-wired",
+      "status": "proven",
       "tests": [
         "crates/http-api/tests/unit/lancement.rs"
       ],
       "unitTests": [
         "crates/application/tests/unit/launch.rs"
-      ],
-      "gap": "Partiel : 201/400/502/503 passent par le routeur composé, mais le 409 trust-required est inatteignable — PortHerdr::start_agent (crates/herdr-client/src/port.rs:477-487) ne rend que Started ou Err."
+      ]
     },
     {
       "id": "H08",
@@ -396,6 +398,52 @@
       ]
     },
     {
+      "id": "H19",
+      "deliverTasks": [
+        "lot-sessions"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests (flux de session SSE, STREAMING.md)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/flux_session.rs",
+        "crates/http-api/tests/unit/router.rs"
+      ],
+      "unitTests": [
+        "crates/sessions/tests/unit/hub.rs"
+      ]
+    },
+    {
+      "id": "H20",
+      "deliverTasks": [
+        "lot-taches"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests (tâches de fond)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/taches.rs"
+      ],
+      "unitTests": [
+        "crates/sessions/tests/unit/agents_claude_taches.rs"
+      ]
+    },
+    {
+      "id": "H21",
+      "deliverTasks": [
+        "lot-taches"
+      ],
+      "proofTask": "T064",
+      "target": "crates/http-api/tests (transcription d'une tâche)",
+      "status": "proven",
+      "tests": [
+        "crates/http-api/tests/unit/taches.rs"
+      ],
+      "unitTests": [
+        "crates/sessions/tests/unit/agents_claude_taches.rs"
+      ]
+    },
+    {
       "id": "D01",
       "deliverTasks": [
         "T005",
@@ -422,11 +470,13 @@
       ],
       "proofTask": "T064",
       "target": "crates/application/tests (overview)",
-      "status": "unit-only",
+      "status": "proven",
       "unitTests": [
         "crates/application/tests/unit/overview.rs"
       ],
-      "gap": "Le test du routeur n'affirme que les identifiants ; l'ordre et la structure de l'overview ne sont prouvés qu'au niveau application."
+      "tests": [
+        "crates/http-api/tests/unit/overview.rs"
+      ]
     },
     {
       "id": "D03",
@@ -436,12 +486,14 @@
       ],
       "proofTask": "T064",
       "target": "crates/application/tests (overview)",
-      "status": "not-wired",
+      "status": "proven",
       "unitTests": [
         "crates/application/tests/unit/overview.rs",
         "crates/domain/tests/unit/observation.rs"
       ],
-      "gap": "crates/herdrchat/src/assemblage.rs:51-60 code en dur cwd: None, parent: None : la correspondance par cwd n'est jamais calculée en production."
+      "tests": [
+        "crates/herdrchat/tests/unit/assemblage.rs"
+      ]
     },
     {
       "id": "D04",
@@ -455,7 +507,7 @@
         "crates/domain/tests/unit/naming.rs",
         "crates/application/tests/unit/overview.rs"
       ],
-      "gap": "Nommage non affirmé à travers le routeur ; le versant notifications est mort (voir E06)."
+      "gap": "Partiel : le versant notifications passe par la veille composée (crates/herdrchat/tests/unit/veille.rs : « un agent · tab 1 ») ; le rang de pane et le libellé multi-pane ne sont pas affirmés à travers le routeur."
     },
     {
       "id": "D05",
@@ -499,7 +551,7 @@
       "unitTests": [
         "crates/sessions/tests/unit/resolver.rs"
       ],
-      "gap": "Le vrai résolveur n'est jamais derrière le routeur dans un test."
+      "gap": "Partiel : le chemin publié (`path`) est résolu par le vrai PortSessions derrière le routeur composé (crates/herdrchat/tests/unit/composition.rs) ; les recherches par identifiant Codex/Claude et la sélection SQLite opencode/Devin ne sont prouvées qu'au niveau crate."
     },
     {
       "id": "D08",
@@ -522,12 +574,14 @@
       ],
       "proofTask": "T064",
       "target": "crates/sessions/tests/unit (jsonl) + metadata",
-      "status": "not-wired",
+      "status": "proven",
       "unitTests": [
         "crates/sessions/tests/unit/jsonl.rs",
         "crates/sessions/tests/unit/port.rs"
       ],
-      "gap": "SessionPort::metadata (lecture d'en-tête, crates/sessions/src/port.rs:549) n'a aucun appelant en production."
+      "tests": [
+        "crates/herdrchat/tests/unit/assemblage.rs"
+      ]
     },
     {
       "id": "D10",
@@ -541,7 +595,7 @@
         "crates/sessions/tests/unit/jsonl.rs",
         "crates/sessions/tests/unit/borne.rs"
       ],
-      "gap": "Lecture JSONL prouvée au niveau crate seulement."
+      "gap": "Partiel : queue, rotation au même chemin et historique périmé passent par le vrai lecteur derrière le routeur composé (crates/herdrchat/tests/unit/composition.rs) ; lectures avant/arrière complètes et enregistrements partiels prouvés au niveau crate."
     },
     {
       "id": "D11",
@@ -646,12 +700,14 @@
       ],
       "proofTask": "T064",
       "target": "crates/application/tests + sessions metadata",
-      "status": "not-wired",
+      "status": "proven",
       "unitTests": [
         "crates/application/tests/unit/conversations.rs",
         "crates/herdrchat/tests/unit/assemblage.rs"
       ],
-      "gap": "Partiel : assemblage.rs:373-379 laisse OutilAppele.indice à None et ne lit que message.toolName — l'aperçu outil+argument n'est jamais produit ; les modèles <placeholder> ne sont pas filtrés."
+      "tests": [
+        "crates/herdrchat/tests/unit/assemblage.rs"
+      ]
     },
     {
       "id": "D19",
@@ -660,12 +716,13 @@
       ],
       "proofTask": "T064",
       "target": "crates/sessions/tests (metadata reducer)",
-      "status": "not-wired",
+      "status": "proven",
       "unitTests": [
-        "crates/sessions/tests/unit/metadata.rs",
-        "crates/herdrchat/tests/unit/assemblage.rs"
+        "crates/application/tests/unit/conversations.rs"
       ],
-      "gap": "Le réducteur de résumé (crates/sessions/src/metadata.rs) et IndexSessions sont morts en production ; le substitut CacheFenetres (assemblage.rs:122-158) relit toute la fenêtre à chaque changement, sans mise à jour incrémentale."
+      "tests": [
+        "crates/herdrchat/tests/unit/assemblage.rs"
+      ]
     },
     {
       "id": "D20",
@@ -703,11 +760,14 @@
       ],
       "proofTask": "T064",
       "target": "crates/sessions/tests/contracts (normalization) ",
-      "status": "not-wired",
+      "status": "proven",
       "unitTests": [
-        "crates/sessions/tests/unit/metadata.rs"
+        "crates/application/tests/unit/conversations.rs",
+        "crates/sessions/tests/unit/codecs.rs"
       ],
-      "gap": "La règle placeholder/paire n'existe que dans reglages_de, non appelée en production."
+      "tests": [
+        "crates/herdrchat/tests/unit/assemblage.rs"
+      ]
     },
     {
       "id": "A01",
@@ -824,11 +884,14 @@
       ],
       "proofTask": "T064",
       "target": "crates/application/tests (launch)",
-      "status": "not-wired",
+      "status": "proven",
       "unitTests": [
-        "crates/application/tests/unit/launch.rs"
+        "crates/application/tests/unit/launch.rs",
+        "crates/herdr-client/tests/unit/port.rs"
       ],
-      "gap": "start_agent ne rend que Started ou Err (crates/herdr-client/src/port.rs:477-487, preuve_de_lancement:258) : la reprise ShellNotReady, le nettoyage de l'onglet possédé et l'issue trust de launch.rs:336-371 ne s'exécutent jamais."
+      "tests": [
+        "crates/http-api/tests/unit/lancement.rs"
+      ]
     },
     {
       "id": "A09",
@@ -920,7 +983,7 @@
       "unitTests": [
         "crates/catalog/tests/unit/args.rs"
       ],
-      "gap": "Branché par constructeur_d_args, mais le routeur est testé avec une fermeture factice."
+      "gap": "Branché par catalog::args::verificateur_args (construit_args puis niveau_supporte) ; le routeur composé (crates/herdrchat/tests/unit/composition.rs) ne passe que le cas Pi/niveau — les arguments des autres familles ne sont prouvés qu'au niveau crate."
     },
     {
       "id": "A15",
@@ -929,11 +992,14 @@
       ],
       "proofTask": "T064",
       "target": "crates/catalog/tests (args)",
-      "status": "not-wired",
+      "status": "proven",
       "unitTests": [
         "crates/catalog/tests/unit/args.rs"
       ],
-      "gap": "catalog::args::niveau_supporte (crates/catalog/src/args.rs:142) n'a aucun appelant en production (assemblage.rs:479-489 n'appelle que construit_args)."
+      "tests": [
+        "crates/herdrchat/tests/unit/composition.rs",
+        "crates/http-api/tests/unit/lancement.rs"
+      ]
     },
     {
       "id": "E01",
@@ -1018,11 +1084,13 @@
       ],
       "proofTask": "T064",
       "target": "crates/application/tests (watcher)",
-      "status": "not-wired",
+      "status": "proven",
       "unitTests": [
         "crates/application/tests/unit/events/watcher.rs"
       ],
-      "gap": "faut_notifier (crates/application/src/events/watcher.rs:334) n'a aucun appelant : la boucle de veille (crates/herdrchat/src/veille.rs:113-116) ne publie que dans le journal."
+      "tests": [
+        "crates/herdrchat/tests/unit/veille.rs"
+      ]
     },
     {
       "id": "E07",
@@ -1031,11 +1099,13 @@
       ],
       "proofTask": "T064",
       "target": "crates/notifications/tests (payload)",
-      "status": "not-wired",
+      "status": "proven",
       "unitTests": [
         "crates/notifications/tests/unit/payload.rs"
       ],
-      "gap": "payload_de_notification (crates/notifications/src/payload.rs:82) n'est pas utilisé en production."
+      "tests": [
+        "crates/herdrchat/tests/unit/veille.rs"
+      ]
     },
     {
       "id": "E08",
@@ -1044,12 +1114,15 @@
       ],
       "proofTask": "T064",
       "target": "crates/notifications/tests (store/vapid)",
-      "status": "not-wired",
+      "status": "proven",
       "unitTests": [
         "crates/notifications/tests/unit/store.rs",
         "crates/notifications/tests/unit/vapid.rs"
       ],
-      "gap": "Partiel : upsert/suppression/génération de clés branchés, mais la surcharge VAPID par l'environnement est perdue (main.rs:80-82 passe None ; config.rs:237-239 lit les variables sans les utiliser)."
+      "tests": [
+        "crates/herdrchat/tests/unit/store_push.rs",
+        "crates/herdrchat/tests/unit/config.rs"
+      ]
     },
     {
       "id": "E09",
@@ -1058,11 +1131,13 @@
       ],
       "proofTask": "T064",
       "target": "crates/notifications/tests (delivery)",
-      "status": "not-wired",
+      "status": "proven",
       "unitTests": [
         "crates/notifications/tests/unit/delivery.rs"
       ],
-      "gap": "Livreur (crates/notifications/src/delivery.rs:81) n'est jamais construit et NotificationPort::deliver n'est jamais appelé : aucune notification push n'est livrée."
+      "tests": [
+        "crates/herdrchat/tests/unit/veille.rs"
+      ]
     },
     {
       "id": "E10",
@@ -1071,11 +1146,13 @@
       ],
       "proofTask": "T064",
       "target": "crates/notifications/tests (store)",
-      "status": "not-wired",
+      "status": "proven",
       "unitTests": [
         "crates/notifications/tests/unit/store.rs"
       ],
-      "gap": "rapatrie_store (crates/notifications/src/store.rs:231) n'est pas appelé par main.rs. Sans effet tant que le chemin par défaut est identique (~/.herdr-remote/push.json, même format) — voir docs/BASCULE.md."
+      "tests": [
+        "crates/herdrchat/tests/unit/store_push.rs"
+      ]
     },
     {
       "id": "S01",
@@ -1127,12 +1204,14 @@
       ],
       "proofTask": "T064",
       "target": "crates/files/tests (confined) + sessions path_policy",
-      "status": "unit-only",
+      "status": "proven",
       "unitTests": [
         "crates/sessions/tests/unit/path_policy.rs",
         "crates/files/tests/unit/confined.rs"
       ],
-      "gap": "Un chemin refusé sort en 422 (Invalide) et non en 403 distinct (crates/sessions/src/port.rs:66-88)."
+      "tests": [
+        "crates/herdrchat/tests/unit/composition.rs"
+      ]
     },
     {
       "id": "S05",
@@ -1337,14 +1416,14 @@
         "T050"
       ],
       "proofTask": "T064",
-      "status": "unit-only",
+      "status": "proven",
       "tests": [
+        "crates/herdrchat/tests/unit/composition.rs",
         "crates/http-api/tests/unit/session.rs"
       ],
       "unitTests": [
         "crates/sessions/tests/unit/port.rs"
-      ],
-      "gap": "Erreurs visibles, mais 403/503 s'effondrent en 422/502 (crates/sessions/src/port.rs:66-88, 392-405) ; HA/session.rs utilise un faux."
+      ]
     },
     {
       "id": "C05",
@@ -1453,11 +1532,14 @@
         "T050"
       ],
       "proofTask": "T064",
-      "status": "not-wired",
+      "status": "proven",
       "unitTests": [
-        "crates/sessions/tests/unit/cursor.rs"
+        "crates/sessions/tests/unit/cursor.rs",
+        "crates/sessions/tests/unit/port_curseurs.rs"
       ],
-      "gap": "Curseur fichier invalide → 422 ; curseur SQLite étranger/invalide ignoré en silence (crates/sessions/src/port.rs:408-415, .ok()) ; valide_paire (cursor.rs:198) et ErreurCurseur::statut (cursor.rs:57) inutilisés."
+      "tests": [
+        "crates/herdrchat/tests/unit/composition.rs"
+      ]
     },
     {
       "id": "C13",
@@ -1481,13 +1563,15 @@
         "T045"
       ],
       "proofTask": "T064",
-      "status": "not-wired",
+      "status": "proven",
       "unitTests": [
         "crates/files/tests/unit/atomic.rs",
         "crates/notifications/tests/unit/store.rs",
         "crates/notifications/tests/unit/delivery.rs"
       ],
-      "gap": "Partiel : écriture atomique du store branchée ; la livraison bornée indépendante du lock est morte (voir E09)."
+      "tests": [
+        "crates/herdrchat/tests/unit/veille.rs"
+      ]
     },
     {
       "id": "C15",
@@ -1579,8 +1663,10 @@
         "T060"
       ],
       "proofTask": "T064",
-      "status": "pending",
-      "gap": "Aucune gestion controllerchange/mise à jour différée (apps/web/src/main.tsx:31-42) ; le test cité (apps/web/tests/mise-a-jour.test.ts) n'a jamais existé."
+      "status": "proven",
+      "tests": [
+        "apps/web/tests/mise-a-jour.test.ts"
+      ]
     },
     {
       "id": "C22",
@@ -1675,78 +1761,9 @@
     "unit-only": "code branché dans le démon, preuve seulement au niveau composant (unitTests) ; gap obligatoire",
     "not-wired": "composant présent mais non appelé par le démon, ou issue inatteignable en production ; gap obligatoire",
     "pending": "rien de livré ni de prouvé",
-    "audit": "audit T064 du 2026-10-29 sur lot/plan (e7dd7d8) — lecture du code, voir EXECUTION.md"
+    "audit": "audit T064 du 2026-10-29 sur lot/plan (e7dd7d8) — lecture du code, voir EXECUTION.md ; re-marquage du lot finition (2026-10-29) après fusion des lots notif, sessions et tâches — preuves composées ajoutées, voir EXECUTION.md"
   },
   "todoAfterMerge": [
-    {
-      "ids": [
-        "E06",
-        "E07",
-        "E09",
-        "C14"
-      ],
-      "lot": "push",
-      "note": "si la livraison push est branchée dans veille.rs/main.rs, ajouter un test composé (herdrchat ou http-api) qui observe une livraison sur le sink factice, puis passer en proven"
-    },
-    {
-      "ids": [
-        "E08",
-        "E10"
-      ],
-      "lot": "push",
-      "note": "surcharge VAPID par l'env et rapatrie_store : re-marquer après branchement dans main.rs, avec test herdrchat"
-    },
-    {
-      "ids": [
-        "A08",
-        "H07",
-        "C07"
-      ],
-      "lot": "launch",
-      "note": "si start_agent rend ShellNotReady/blocked, prouver reprise, nettoyage et 409 à travers HA/lancement.rs"
-    },
-    {
-      "ids": [
-        "A15"
-      ],
-      "lot": "launch",
-      "note": "niveau_supporte appelé par constructeur_d_args : test composé du 400 sur niveau non supporté"
-    },
-    {
-      "ids": [
-        "H04",
-        "C12",
-        "C04"
-      ],
-      "lot": "cursors",
-      "note": "si port.rs rend 400/403/409/503 et valide les curseurs SQLite, prouver la matrice de statuts de H04 à travers le routeur avec le vrai PortSessions sur fixtures temporaires"
-    },
-    {
-      "ids": [
-        "D18",
-        "D19",
-        "D22",
-        "D03",
-        "D09"
-      ],
-      "lot": "sessions/résumés",
-      "note": "parité des résumés : re-marquer si l'aperçu outil+argument, le filtre placeholder et l'index incrémental sont branchés"
-    },
-    {
-      "ids": [
-        "O03",
-        "O07"
-      ],
-      "lot": "démon",
-      "note": "ping de démarrage et no-store JSON : re-marquer après correction"
-    },
-    {
-      "ids": [
-        "C21"
-      ],
-      "lot": "web",
-      "note": "mise à jour PWA différée : test apps/web/tests à écrire"
-    },
     {
       "ids": [
         "O08",

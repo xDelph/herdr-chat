@@ -11,7 +11,7 @@ Elle enchaîne, dans cet ordre :
 | # | Étape | Ce qui la fait échouer |
 |---|---|---|
 | 1 | `xtask verify` → `verify-layout` | un test sous `src/` (Rust ou TS), un module `#[cfg(test)]`, un `include!` de test |
-| 2 | `xtask verify` → `coverage` | une preuve introuvable, sous `src/` ou hors `tests/` ; un `proven` sans test **composé** (`crates/http-api/tests`, `crates/herdrchat/tests`, `apps/web/tests`) ; un `unit-only`/`not-wired` sans `gap` ; un statut inconnu ; une des 89 capacités ou 27 corrections absente |
+| 2 | `xtask verify` → `coverage` | une preuve introuvable, sous `src/` ou hors `tests/` ; un `proven` sans test **composé** (`crates/http-api/tests`, `crates/herdrchat/tests`, `apps/web/tests`) ; un `unit-only`/`not-wired` sans `gap` ; un statut inconnu ; une des 92 capacités (H01–H21…) ou 27 corrections absente |
 | 3 | `xtask verify` → `graph` | une arête de production hors du graphe de TECH §2, un cycle |
 | 4 | `xtask verify` → `cargo fmt --check`, `clippy -D warnings`, `cargo test --workspace --locked` | format, avertissement, test rouge |
 | 5 | `bun install --frozen-lockfile` | lockfile désynchronisé |

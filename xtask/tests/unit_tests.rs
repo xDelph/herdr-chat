@@ -561,7 +561,7 @@ fn couverture_l_inventaire_complet_est_exige_pour_le_document_reel() {
     });
     let rapport = xtask::coverage::verifie_document_avec(&racine, &document, true)
         .unwrap_or_else(|cause| panic!("document : {cause}"));
-    // 88 capacités et 26 corrections manquent, et Z99 est inconnu.
+    // 91 capacités (H01–H21…) et 26 corrections manquent, et Z99 est inconnu.
     assert!(
         rapport
             .defauts
@@ -580,7 +580,7 @@ fn couverture_l_inventaire_complet_est_exige_pour_le_document_reel() {
             .iter()
             .any(|d| d.starts_with("Z99 : identifiant inconnu"))
     );
-    assert_eq!(rapport.defauts.len(), 88 + 26 + 1, "{:?}", rapport.defauts);
+    assert_eq!(rapport.defauts.len(), 91 + 26 + 1, "{:?}", rapport.defauts);
     let _ = std::fs::remove_dir_all(&racine);
 }
 
