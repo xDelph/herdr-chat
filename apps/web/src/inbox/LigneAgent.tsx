@@ -3,15 +3,13 @@
  *
  * - **au travail** : le chronomètre depuis la demande qui a ouvert le tour,
  *   lue dans la session (`tourDebut`, la même origine que le chat) ; à défaut,
- *   depuis le passage à `working` *observé* ; sinon pas de durée inventée — et
- *   la dernière chose que l'agent a écrite ;
+ *   depuis le passage à `working` *observé* ; sinon pas de durée inventée ;
  * - **en attente de ses tâches de fond** : « Attend 2 tâches de fond » ;
- * - **récente** : le dernier message, le temps écoulé, et le point « non lu »
- *   tant qu'on ne l'a pas ouverte ici.
+ * - **récente** : le temps écoulé, et le point « non lu » tant qu'on ne l'a
+ *   pas ouverte ici.
  *
- * ⚠️ L'action d'outil en cours n'est pas dans `/api/conversations` : la lire
- * demanderait une lecture de session par ligne. La ligne montre donc le
- * dernier texte de l'agent, et le chat montre l'action exacte.
+ * Le texte de la ligne est toujours la demande qui a lancé le travail ; le
+ * chat montre l'action exacte.
  */
 import { memo } from "react";
 import type { ConversationSummary } from "@herdr-remote/shared";
@@ -20,8 +18,13 @@ import { attenteDeTaches } from "../taches.ts";
 import { routeToHash } from "../routing.ts";
 import { Etat, FormeEtat, Marque } from "../ui/atomes.tsx";
 
+/**
+ * La demande qui a lancé le travail — toujours elle, quand elle existe : ni un
+ * message intermédiaire de l'agent, ni sa dernière commande (retour du
+ * 2026-10-29). L'aperçu de l'agent ne sert qu'à défaut de demande.
+ */
 const apercu = (conversation: ConversationSummary): string =>
-  apercuTexte(conversation.preview ?? conversation.lastPrompt ?? "");
+  apercuTexte(conversation.lastPrompt ?? conversation.preview ?? "");
 
 /** Branche · modèle · réflexion — ce que la ligne montrait avant la réécriture. */
 const details = (conversation: ConversationSummary): string =>

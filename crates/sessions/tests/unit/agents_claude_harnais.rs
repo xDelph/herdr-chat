@@ -243,3 +243,32 @@ fn le_rapport_final_d_un_sous_agent_est_sa_reponse() {
         json!("toolCall")
     );
 }
+
+#[test]
+fn le_resume_de_compactage_n_est_pas_une_demande() {
+    // Mesuré le 2026-10-29 : rôle user, ni isMeta ni origine — il passait
+    // pour une demande de l'utilisateur.
+    let ligne = json!({
+        "type": "user", "isCompactSummary": true, "isVisibleInTranscriptOnly": true,
+        "uuid": "u-comp", "timestamp": "2026-10-29T18:00:00.000Z",
+        "message": { "role": "user", "content": "<artifact-content-authored-by-others/>\nThis session is being continued from a previous conversation.\nSummary: ..." }
+    });
+    let normalisee = message(&ligne);
+    assert_eq!(normalisee.message.role.as_deref(), Some("custom"));
+    assert_eq!(
+        normalisee.message.custom_type.as_deref(),
+        Some("compaction")
+    );
+    assert_eq!(
+        texte(&normalisee),
+        "This session is being continued from a previous conversation.\nSummary: ..."
+    );
+    assert_eq!(normalisee.id.as_deref(), Some("claude:u-comp"));
+
+    // Sans le drapeau, une demande qui parle de résumé reste une demande.
+    let demande = json!({
+        "type": "user", "uuid": "u-dem", "origin": { "kind": "human" },
+        "message": { "role": "user", "content": "Summary: what did we do?" }
+    });
+    assert_eq!(message(&demande).message.role.as_deref(), Some("user"));
+}

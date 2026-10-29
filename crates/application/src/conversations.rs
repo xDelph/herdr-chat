@@ -620,9 +620,21 @@ impl ServiceConversations {
     fn details_de(entrees: &[EntreeLu], taches: &[TacheDeFond]) -> DetailsLigne {
         // Rognée comme le faisait le fil TS : un `\n` final n'est pas du
         // contenu (mesuré : la ligne de liste gardait un saut final).
-        let dernier_texte = dernier_texte_de_role(entrees, RoleDeSession::User)
-            .map(|texte| texte.trim().to_string())
-            .filter(|texte| !texte.is_empty());
+        // ⚠️ La demande qui a LANCÉ le travail : ni une demande glissée en
+        // plein tour, ni ce que le harnais injecte (la liste affichait le
+        // dernier message intermédiaire à la place de la demande).
+        let dernier_texte = entrees
+            .iter()
+            .rev()
+            .filter(|entree| ouvre_un_tour(entree))
+            .find_map(|entree| {
+                entree
+                    .texte
+                    .as_deref()
+                    .map(str::trim)
+                    .filter(|t| !t.is_empty())
+            })
+            .map(str::to_string);
         let apercu = dernier_texte_assistant(entrees)
             .or_else(|| dernier_outil_assistant(entrees).map(apercu_d_outil));
         let reglages = reglages_en_vigueur(entrees);

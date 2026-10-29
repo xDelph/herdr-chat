@@ -125,6 +125,44 @@ describe("le harnais n'est pas l'utilisateur", () => {
     expect(html).toContain(">Diagnostic</h3>");
   });
 
+  test("le résumé de compactage de Claude est le point « compacté », pas une demande", () => {
+    const messages = toMessages([
+      demande("u1", "lance l'audit", "2026-10-29T10:00:00.000Z"),
+      ligne(
+        "c1",
+        {
+          content: [{ text: "This session is being continued…", type: "text" }],
+          customType: "compaction",
+          details: { summary: "This session is being continued…" },
+          role: "custom",
+        },
+        "2026-10-29T10:05:00.000Z",
+      ),
+    ]);
+    expect(messages.map((message) => message.role)).toEqual(["user", "compaction"]);
+    expect(messages[1]?.blocks[0]?.kind).toBe("compaction");
+  });
+
+  test("la ligne de liste montre la demande qui a lancé le travail", () => {
+    const html = rendu(
+      createElement(LigneAgent, {
+        conversation: conversation("p1", {
+          lastPrompt: "fix the iPad sheets",
+          preview: "Running cargo test…",
+          status: "working",
+        }),
+        courante: false,
+        debutTravail: undefined,
+        maintenant: 0,
+        nonLue: false,
+        projet: "atelier",
+        titre: "",
+      }),
+    );
+    expect(html).toContain("fix the iPad sheets");
+    expect(html).not.toContain("Running cargo test");
+  });
+
   test("la carte se titre avec la description et l'état connus", () => {
     const messages = toMessages([
       rapport("r1", "court", "2026-10-29T10:05:00.000Z"),

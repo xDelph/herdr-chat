@@ -731,8 +731,9 @@ fn le_tour_part_de_la_demande_qui_l_a_ouvert() {
         )]),
     );
     assert_eq!(lignes[0].tour_debut, Some(1_000));
-    // La demande envoyée pendant le travail reste la dernière demande.
-    assert_eq!(lignes[0].dernier_texte.as_deref(), Some("et le test aussi"));
+    // La ligne de liste montre la demande qui a LANCÉ le travail, pas celle
+    // glissée en plein tour (retour du 2026-10-29).
+    assert_eq!(lignes[0].dernier_texte.as_deref(), Some("corrige le bug"));
 
     // Un rapport arrivé agent AU REPOS n'ouvre PAS de tour (retour du
     // 2026-10-29 : le chronomètre repartait à chaque notification).

@@ -84,7 +84,7 @@ Etat.displayName = "Etat";
 export const Pastille = memo(({ status }: { readonly status: AgentStatus }) => (
   <span className={`pastille pastille--${TON[status]}`}>
     <FormeEtat status={status} />
-    {LIBELLE_STATUT[status]}
+    <span className="pastille__libelle">{LIBELLE_STATUT[status]}</span>
   </span>
 ));
 Pastille.displayName = "Pastille";

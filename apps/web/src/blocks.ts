@@ -812,6 +812,19 @@ export const toRenderedMessage = (entry: {
   // Une opération de la file d'attente n'est pas un message : elle alimente
   // les bulles « Queued » (`file-attente.ts`).
   if (role === "custom" && body?.customType === "queue-operation") return undefined;
+  // Le résumé de compactage de Claude Code (le démon le rend en `custom`) :
+  // le même point « Context compacted » que pi, jamais une bulle de demande.
+  if (role === "custom" && body?.customType === "compaction") {
+    const summary = contentToText(body.content);
+    return {
+      at: entry.timestamp ?? null,
+      blocks: [{ firstKeptEntryId: null, kind: "compaction", summary, tokensBefore: null }],
+      id: entry.id ?? `entry:${stableHash(entry.raw)}`,
+      meta: {},
+      role: "compaction",
+      text: summary,
+    };
+  }
   if (role === "custom") {
     const rapport = rapportDe(body?.customType, body?.details, contentToText(body?.content));
     if (rapport !== undefined) {

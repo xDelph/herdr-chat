@@ -71,6 +71,9 @@ pub fn ligne_traitee(ligne: &Value) -> Value {
 /// message: <agent-message …> » affiché comme une bulle de l'utilisateur).
 #[must_use]
 pub fn ligne_claude_vers_pi(ligne: &Value) -> Option<LignePi> {
+    if let Some(resume) = super::harnais::resume_de_compactage(ligne) {
+        return Some(resume);
+    }
     if let Some(harnais) = super::harnais::message_du_harnais(ligne) {
         return Some(harnais);
     }

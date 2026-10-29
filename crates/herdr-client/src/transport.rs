@@ -150,7 +150,7 @@ impl TransportUnix {
                 .map_err(|cause| ErreurTransport::Socket(cause.to_string()))?,
         );
         self.envoie(&mut flux, identifiant, methode, params, delai)?;
-        self.recoit(&flux, &mut lecteur, identifiant, delai)
+        self.recoit(&mut lecteur, identifiant)
     }
 
     fn envoie(
@@ -162,6 +162,12 @@ impl TransportUnix {
         delai: Duration,
     ) -> Result<(), ErreurTransport> {
         flux.set_write_timeout(Some(delai))
+            .map_err(|cause| ErreurTransport::Socket(cause.to_string()))?;
+        // ⚠️ Le délai de lecture est posé AVANT d'écrire : sur macOS,
+        // `setsockopt` rend EINVAL quand le pair a déjà fermé — un serveur
+        // qui répond puis ferme vite rendait « Invalid argument (os error
+        // 22) » au lieu de sa réponse (mesuré sous charge).
+        flux.set_read_timeout(Some(delai))
             .map_err(|cause| ErreurTransport::Socket(cause.to_string()))?;
         // ⚠️ L'identifiant est une **chaîne** : mesuré sur le socket réel,
         // Herdr refuse un entier (`invalid type: integer 1, expected a string`).
@@ -189,13 +195,9 @@ impl TransportUnix {
 
     fn recoit(
         &mut self,
-        flux: &UnixStream,
         lecteur: &mut BufReader<UnixStream>,
         identifiant_attendu: u64,
-        delai: Duration,
     ) -> Result<Value, ErreurTransport> {
-        flux.set_read_timeout(Some(delai))
-            .map_err(|cause| ErreurTransport::Socket(cause.to_string()))?;
         // Lecture par octets jusqu'au saut de ligne : l'UTF-8 peut être
         // fragmenté EN CADRE, jamais À TRAVERS les cadres (le saut de ligne
         // est la frontière) ; le décodage n'arrive qu'à la fin.

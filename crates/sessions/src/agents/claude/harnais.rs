@@ -397,3 +397,51 @@ fn empreinte_courte(texte: &str) -> u64 {
     texte.hash(&mut hacheur);
     hacheur.finish()
 }
+
+/// La sorte `custom` du résumé écrit par Claude Code quand il compacte son
+/// contexte.
+pub const SORTE_COMPACTAGE: &str = "compaction";
+
+/// Le résumé de compactage (`isCompactSummary: true`) → un message `custom`
+/// que la PWA rend comme le point « Context compacted », jamais en bulle.
+///
+/// ⚠️ **Retour du 2026-10-29 : « tu m'as mis un artifact en mode user
+/// message ».** Claude Code écrit ce résumé en rôle `user`, sans `isMeta` ni
+/// origine : il passait pour une demande de l'utilisateur — et son en-tête
+/// (`<artifact-content-authored-by-others/>`, « This session is being
+/// continued… ») s'affichait comme envoyé par soi.
+#[must_use]
+pub fn resume_de_compactage(ligne: &Value) -> Option<LignePi> {
+    let objet = ligne.as_object()?;
+    if objet.get("type").and_then(Value::as_str) != Some("user")
+        || objet.get("isCompactSummary").and_then(Value::as_bool) != Some(true)
+    {
+        return None;
+    }
+    let texte = texte_de_ligne_user(objet).unwrap_or_default();
+    // Les balises vides du harnais en tête (`<…/>`) ne sont pas du résumé.
+    let resume: String = texte
+        .lines()
+        .skip_while(|ligne| {
+            let ligne = ligne.trim();
+            ligne.is_empty() || (ligne.starts_with('<') && ligne.ends_with("/>"))
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let mut complet = json!({
+        "type": "message",
+        "message": {
+            "role": "custom",
+            "customType": SORTE_COMPACTAGE,
+            "content": [{ "type": "text", "text": resume }],
+            "details": { "summary": resume },
+        },
+    });
+    if let Some(horodatage) = objet.get("timestamp").and_then(Value::as_str) {
+        complet["timestamp"] = json!(horodatage);
+    }
+    if let Some(uuid) = objet.get("uuid").and_then(Value::as_str) {
+        complet["id"] = json!(format!("claude:{uuid}"));
+    }
+    serde_json::from_value(complet).ok()
+}

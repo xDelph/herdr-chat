@@ -44,6 +44,28 @@
 .tete .pastille {
   margin-right: 2px;
 }
+/*
+  ⚠️ Téléphone : le titre est l'information. Retour du 2026-10-29 — la puce
+  des tâches et « Working » mangeaient l'en-tête, le titre tenait en deux mots.
+  L'état garde sa forme et sa couleur ; son libellé reste lu par VoiceOver.
+*/
+@media (max-width: 599px) {
+  .tete .pastille {
+    padding: 5px;
+  }
+  .tete .pastille__libelle {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+  .tete .puce-taches {
+    gap: 4px;
+    padding: 3px 8px;
+  }
+}
 .menu {
   position: relative;
 }
