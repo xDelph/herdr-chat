@@ -6,14 +6,21 @@
  * fermé par le premier démontage puis réutilisé mort.
  */
 import { useEffect, useState, useSyncExternalStore } from "react";
-import { fetchSession } from "../api.ts";
+import { fetchSession, sondeFluxSession } from "../api.ts";
 import { creeSuiviSession, type SuiviSession, type VueSession } from "../flux-session.ts";
 import { contientDemande } from "../transcript.ts";
-import { magasin, noteFluxIndisponible, ouvreurDeFlux, planifie } from "../app/services.ts";
+import {
+  journal,
+  magasin,
+  noteFluxIndisponible,
+  ouvreurDeFlux,
+  planifie,
+} from "../app/services.ts";
 
 const VUE_VIDE: VueSession = {
   ajoutsEnHaut: 0,
   avertissement: null,
+  causeRepli: null,
   chargementAncien: false,
   entries: [],
   erreur: null,
@@ -50,6 +57,9 @@ export const useSuiviSession = (
       ouvreFlux: ouvreurDeFlux(),
       paneId,
       planifie,
+      signale: journal,
+      sonde: sondeFluxSession,
+      visible: () => document.visibilityState === "visible",
     });
     setSuivi(controleur);
     controleur.demarre();
@@ -65,10 +75,13 @@ export const useSuiviSession = (
     };
     document.addEventListener("visibilitychange", reveil);
     window.addEventListener("focus", reveil);
+    // Le réseau revient : le flux a pu mourir sans le dire.
+    window.addEventListener("online", reveil);
     return () => {
       arreteEcoute();
       document.removeEventListener("visibilitychange", reveil);
       window.removeEventListener("focus", reveil);
+      window.removeEventListener("online", reveil);
       controleur.ferme();
     };
   }, [paneId, aUneSession]);

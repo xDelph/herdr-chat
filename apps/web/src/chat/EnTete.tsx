@@ -6,7 +6,7 @@
  * ne touche pas au Mac (`lectures.ts`) ; poser le focus sur le pane est un geste
  * explicite, avec son issue affichée.
  */
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useEffect, useId, useRef, useState } from "react";
 import type { AgentStatus, AgentView } from "@herdr-remote/shared";
 import { etiquetteDePane } from "@herdr-remote/shared";
 import type { Transport } from "../flux-session.ts";
@@ -18,7 +18,7 @@ import { Icone } from "../ui/Icone.tsx";
 const TRANSPORT: Record<Transport, string> = {
   aucun: "Contenu : pas de lecture en cours",
   flux: "Contenu : flux en direct",
-  repli: "Contenu : relecture sur signal (le démon ne sert pas le flux en direct)",
+  repli: "Contenu : relecture sur signal",
 };
 
 export const EnTete = memo(
@@ -30,7 +30,9 @@ export const EnTete = memo(
     reflexion,
     status,
     transport,
-    nombreFichiers,
+    causeRepli = null,
+    inactif = false,
+    compteFichiers,
     onRetour,
     onMac,
     onModele,
@@ -43,7 +45,12 @@ export const EnTete = memo(
     readonly reflexion: string | undefined;
     readonly status: AgentStatus;
     readonly transport: Transport;
-    readonly nombreFichiers: number | null;
+    /** Pourquoi ce pane est en repli — dite telle quelle, jamais devinée. */
+    readonly causeRepli?: string | null;
+    /** Le pane n'existe plus : les gestes qui lui écrivent sont désactivés. */
+    readonly inactif?: boolean;
+    /** Le nombre de fichiers modifiés — appelé seulement menu ouvert. */
+    readonly compteFichiers: () => number;
     readonly onRetour: () => void;
     readonly onMac: () => void;
     readonly onModele: () => void;
@@ -51,6 +58,8 @@ export const EnTete = memo(
   }) => {
     const [menu, setMenu] = useState(false);
     const zone = useRef<HTMLDivElement | null>(null);
+    const idMenu = useId();
+    const nombreFichiers = menu ? compteFichiers() : 0;
 
     useEffect(() => {
       if (!menu) return undefined;
@@ -102,36 +111,38 @@ export const EnTete = memo(
         </div>
         <Pastille status={status} />
         <div className="menu" ref={zone}>
+          {/*
+            ⚠️ Une liste de boutons, pas un `role="menu"` : ce rôle promet la
+            navigation aux flèches, que ce petit menu n'offrait pas. Tab suffit.
+          */}
           <button
             type="button"
             className="bouton-icone"
             aria-label="Plus d'actions"
-            aria-haspopup="menu"
+            aria-controls={menu ? idMenu : undefined}
             aria-expanded={menu}
             onClick={() => setMenu((valeur) => !valeur)}
           >
             <Icone nom="more" />
           </button>
           {menu ? (
-            <div className="menu__liste" role="menu">
-              <button type="button" role="menuitem" onClick={choisit(onMac)}>
+            <div className="menu__liste" id={idMenu}>
+              <button type="button" onClick={choisit(onMac)} disabled={inactif}>
                 <Icone nom="mac" petite />
                 Afficher sur le Mac
               </button>
-              <button type="button" role="menuitem" onClick={choisit(onModele)}>
+              <button type="button" onClick={choisit(onModele)} disabled={inactif}>
                 <Icone nom="sliders" petite />
                 Modèle et réflexion…
               </button>
-              <button
-                type="button"
-                role="menuitem"
-                onClick={choisit(onFichiers)}
-                disabled={nombreFichiers === 0}
-              >
+              <button type="button" onClick={choisit(onFichiers)} disabled={nombreFichiers === 0}>
                 <Icone nom="file" petite />
-                Fichiers modifiés{nombreFichiers === null ? "" : ` (${String(nombreFichiers)})`}
+                Fichiers modifiés ({String(nombreFichiers)})
               </button>
-              <p className="menu__info">{TRANSPORT[transport]}</p>
+              <p className="menu__info">
+                {TRANSPORT[transport]}
+                {transport === "repli" && causeRepli !== null ? ` (${causeRepli})` : ""}
+              </p>
             </div>
           ) : null}
         </div>

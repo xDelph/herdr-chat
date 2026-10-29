@@ -30,6 +30,8 @@ export const THEME_LABEL: Record<Theme, string> = {
 
 const CLE_THEME = "herdr-chat.theme";
 const CLE_GROUPEMENT = "herdr-chat.groupement";
+const CLE_ORDRE = "herdr-chat.ordre";
+const CLE_MARQUES = "herdr-chat.marques";
 
 export const estTheme = (valeur: string | null | undefined): valeur is Theme =>
   valeur !== null && valeur !== undefined && (THEMES as ReadonlyArray<string>).includes(valeur);
@@ -115,4 +117,56 @@ export const lireGroupement = (): Groupement => groupementEnregistre(lireStockag
 
 export const retenirGroupement = (groupement: Groupement): void => {
   ecrireStockage(CLE_GROUPEMENT, groupement);
+};
+
+/**
+ * L'ordre des lignes : récent d'abord (le défaut, U04), ou par nom — pour
+ * retrouver une conversation dont on connaît le nom. L'ancienne app l'offrait ;
+ * la réécriture l'avait figé sur « récent ».
+ */
+export const ORDRES_LISTE = ["recent", "nom"] as const;
+export type OrdreListe = (typeof ORDRES_LISTE)[number];
+
+export const ordreEnregistre = (valeur: string | null | undefined): OrdreListe =>
+  valeur === "nom" ? "nom" : "recent";
+
+export const lireOrdre = (): OrdreListe => ordreEnregistre(lireStockage(CLE_ORDRE));
+
+export const retenirOrdre = (ordre: OrdreListe): void => {
+  ecrireStockage(CLE_ORDRE, ordre);
+};
+
+/**
+ * Le rendu des marques d'agents : leurs couleurs d'origine (le défaut), ou la
+ * couleur du thème.
+ *
+ * ⚠️ **Les couleurs d'origine sont le défaut** : un logo sert à reconnaître un
+ * agent d'un coup d'œil, ce que l'encre du thème efface. L'option existe pour
+ * qui préfère une liste homogène. Les deux rendus sortent des **mêmes tracés** :
+ * une règle CSS (`fiabilite.css`) force `fill: currentColor` — les `fill` de
+ * `logos.tsx` sont des attributs de présentation, que n'importe quelle règle
+ * écrase. Deux jeux de chemins auraient divergé au premier changement de marque.
+ */
+export const STYLES_MARQUE = ["standard", "theme"] as const;
+export type StyleMarque = (typeof STYLES_MARQUE)[number];
+
+export const STYLE_MARQUE_LABEL: Record<StyleMarque, string> = {
+  standard: "Standard",
+  theme: "Couleur du thème",
+};
+
+export const styleMarqueEnregistre = (valeur: string | null | undefined): StyleMarque =>
+  valeur === "theme" ? "theme" : "standard";
+
+export const lireStyleMarque = (): StyleMarque => styleMarqueEnregistre(lireStockage(CLE_MARQUES));
+
+/** Pose le rendu des marques (`data-marques` sur `<html>`), sans l'enregistrer. */
+export const poserStyleMarque = (style: StyleMarque): void => {
+  document.documentElement.dataset["marques"] = style;
+};
+
+/** Applique le rendu des marques et le retient. */
+export const appliquerStyleMarque = (style: StyleMarque): void => {
+  poserStyleMarque(style);
+  ecrireStockage(CLE_MARQUES, style);
 };

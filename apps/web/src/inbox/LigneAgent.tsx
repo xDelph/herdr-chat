@@ -13,12 +13,22 @@
  */
 import { memo } from "react";
 import type { ConversationSummary } from "@herdr-remote/shared";
-import { apercuTexte, chrono, quand } from "../libelles.ts";
+import { apercuTexte, chrono, libelleReflexion, quand } from "../libelles.ts";
 import { routeToHash } from "../routing.ts";
 import { Etat, FormeEtat, Marque } from "../ui/atomes.tsx";
 
 const apercu = (conversation: ConversationSummary): string =>
   apercuTexte(conversation.preview ?? conversation.lastPrompt ?? "");
+
+/** Branche · modèle · réflexion — ce que la ligne montrait avant la réécriture. */
+const details = (conversation: ConversationSummary): string =>
+  [
+    conversation.branch,
+    conversation.model,
+    conversation.thinking === undefined ? undefined : libelleReflexion(conversation.thinking),
+  ]
+    .filter((morceau) => morceau !== undefined && morceau.length > 0)
+    .join(" · ");
 
 export const LigneAgent = memo(
   ({
@@ -39,6 +49,7 @@ export const LigneAgent = memo(
     readonly courante: boolean;
   }) => {
     const texte = apercu(conversation);
+    const reglages = details(conversation);
     const auTravail = conversation.status === "working";
     return (
       <a
@@ -86,6 +97,7 @@ export const LigneAgent = memo(
               : "Session illisible"}
           </span>
         ) : null}
+        {reglages.length > 0 ? <span className="ligne__details">{reglages}</span> : null}
       </a>
     );
   },

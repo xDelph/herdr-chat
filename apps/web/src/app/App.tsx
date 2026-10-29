@@ -11,11 +11,20 @@ import { Reglages } from "../feuilles/Reglages.tsx";
 import { Boite } from "../inbox/Boite.tsx";
 import { ecritLectures, litLectures, noteLecture, type Lectures } from "../lectures.ts";
 import { dossierDe, premierNonVide } from "../libelles.ts";
-import { stockageNavigateur } from "../memoire-defilement.ts";
-import { lireGroupement, retenirGroupement, type Groupement } from "../preferences.ts";
+import { purgeAnciennesPositions, stockageNavigateur } from "../memoire-defilement.ts";
+import {
+  lireGroupement,
+  lireOrdre,
+  retenirGroupement,
+  retenirOrdre,
+  type Groupement,
+  type OrdreListe,
+} from "../preferences.ts";
+import { retiens } from "../pane-ouvert.ts";
 import { estAdresseDOnglet, HOME } from "../routing.ts";
-import { useDonnees, useHauteurVisible, useRoute } from "./hooks.ts";
+import { useDonnees, useEtroit, useHauteurVisible, useRoute } from "./hooks.ts";
 import { Notifications } from "../ui/Notifications.tsx";
+import { NouvelleVersion } from "../ui/NouvelleVersion.tsx";
 import { PleinEcran } from "../ui/PleinEcran.tsx";
 import { envois, magasin } from "./services.ts";
 
@@ -47,19 +56,23 @@ export const App = () => {
   useHauteurVisible();
   const donnees = useDonnees();
   const [route, navigue] = useRoute();
+  const etroit = useEtroit();
   const [groupement, setGroupement] = useState<Groupement>(lireGroupement);
+  const [ordre, setOrdre] = useState<OrdreListe>(lireOrdre);
   const [lectures, setLectures] = useState<Lectures>(() => litLectures(stockageNavigateur()));
   const [feuille, setFeuille] = useState<FeuilleApp>(null);
   /**
-   * Le dernier état connu de chaque pane ouvert : un pane qui disparaît d'une
-   * lecture (rafraîchissement partiel, pane fermé) reste lisible au lieu de
-   * vider l'écran.
+   * Le dernier état connu de chaque pane ouvert — pour les **libellés**
+   * seulement (titre, projet, agent). ⚠️ Jamais pour l'état : un pane fermé
+   * restait « Travaille » avec Arrêter actif (`pane-ouvert.ts`). Bornée.
    */
   const [memoire, setMemoire] = useState<ReadonlyMap<string, AgentView>>(new Map());
 
   useEffect(() => {
     // Une ancienne adresse d'onglet (#/reglages…) retombe sur la liste.
     if (estAdresseDOnglet(window.location.hash)) window.location.replace(HOME);
+    // L'ancienne mémoire de défilement (ratios gardés pour toujours) part.
+    purgeAnciennesPositions(globalThis.localStorage);
     magasin.demarre();
     // ⚠️ La remise d'un envoi est prouvée par l'ÉVÉNEMENT `prompt` du démon,
     // pas par l'absence d'erreur — pour le pane qu'il nomme, et lui seul.
@@ -76,7 +89,7 @@ export const App = () => {
 
   useEffect(() => {
     const surVisibilite = () => {
-      if (document.visibilityState === "visible") void magasin.rafraichit();
+      if (document.visibilityState === "visible") void magasin.rafraichit(true);
     };
     document.addEventListener("visibilitychange", surVisibilite);
     return () => document.removeEventListener("visibilitychange", surVisibilite);
@@ -89,17 +102,17 @@ export const App = () => {
 
   useEffect(() => {
     if (agentLu === undefined) return;
-    setMemoire((precedente) => {
-      if (precedente.get(agentLu.paneId) === agentLu) return precedente;
-      const suivante = new Map(precedente);
-      suivante.set(agentLu.paneId, agentLu);
-      return suivante;
-    });
+    setMemoire((precedente) => retiens(precedente, agentLu.paneId, agentLu));
   }, [agentLu]);
 
   const changeGroupement = useCallback((suivant: Groupement) => {
     retenirGroupement(suivant);
     setGroupement(suivant);
+  }, []);
+
+  const changeOrdre = useCallback((suivant: OrdreListe) => {
+    retenirOrdre(suivant);
+    setOrdre(suivant);
   }, []);
 
   const noteVue = useCallback((paneId: string, instant: number) => {
@@ -112,7 +125,10 @@ export const App = () => {
 
   const retour = useCallback(() => navigue({ kind: "liste" }), [navigue]);
 
-  const agent = paneOuvert === null ? null : (agentLu ?? memoire.get(paneOuvert) ?? null);
+  // Les libellés et les voisins lisent le vivant, sinon le souvenir ; l'état et
+  // les gestes de la conversation ne lisent que le vivant (`agentLu`).
+  const souvenir = paneOuvert === null ? undefined : memoire.get(paneOuvert);
+  const agent = agentLu ?? souvenir ?? null;
   const conversation =
     paneOuvert === null
       ? null
@@ -127,8 +143,22 @@ export const App = () => {
     dossierDe(agent?.cwd),
     agent?.workspaceId ?? conversation?.workspaceId,
   );
+  /*
+    Les panes du même onglet, **dans l'ordre de la disposition** (`paneRank`)
+    — celui où ils apparaissent sur le Mac, comme dans l'ancienne app. L'ordre
+    de l'overview n'est pas une disposition.
+  */
   const voisins = useMemo(
-    () => (agent === null ? [] : agents.filter((candidat) => candidat.tabId === agent.tabId)),
+    () =>
+      agent === null
+        ? []
+        : agents
+            .filter((candidat) => candidat.tabId === agent.tabId)
+            .toSorted(
+              (a, b) =>
+                (a.paneRank ?? Number.MAX_SAFE_INTEGER) - (b.paneRank ?? Number.MAX_SAFE_INTEGER) ||
+                a.paneId.localeCompare(b.paneId),
+            ),
     [agent, agents],
   );
 
@@ -136,15 +166,21 @@ export const App = () => {
     <div className="app" data-vue={route.kind === "agent" ? "agent" : "liste"}>
       <div className="barre-etat" aria-hidden="true" />
       <Notifications />
+      <NouvelleVersion />
       <PleinEcran />
       <Boite
         donnees={donnees}
         lectures={lectures}
         groupement={groupement}
         onGroupement={changeGroupement}
+        ordre={ordre}
+        onOrdre={changeOrdre}
+        projet={route.kind === "projet" ? route.workspaceId : null}
         onLancer={() => setFeuille({ genre: "lancement" })}
         onReglages={() => setFeuille({ genre: "reglages" })}
+        onReessayer={() => void magasin.rafraichit(true)}
         paneCourant={paneOuvert}
+        cachee={etroit && paneOuvert !== null}
       />
       {paneOuvert === null ? (
         <div className="vide-large">
@@ -155,7 +191,10 @@ export const App = () => {
           <Conversation
             key={paneOuvert}
             paneId={paneOuvert}
-            agent={agent}
+            agent={agentLu ?? null}
+            souvenir={souvenir}
+            overviewLu={donnees.overview !== null}
+            vuAvant={souvenir !== undefined}
             conversation={conversation}
             projet={projet}
             voisins={voisins}

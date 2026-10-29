@@ -13,6 +13,8 @@
  * diverger entre le décodage et le type affiché. Aucune assertion de type.
  */
 import { Option, Schema } from "effect";
+import { erreurLisible } from "./erreurs-demon.ts";
+import { delaiDeReprise, SOURCE_OUVERTE } from "./reprise.ts";
 // Import **local** : `export type { X } from "…"` ne crée aucune liaison ici.
 import type { InstalledKind, RecentImage } from "@herdr-remote/shared";
 import {
@@ -110,7 +112,8 @@ export const answerTrust = async (paneId: string, accept: boolean): Promise<Trus
     const failure = decodeError(payload);
     return {
       accepted: false,
-      detail: failure?.error ?? `échec (${String(response.status)})`,
+      detail:
+        failure === undefined ? `échec (${String(response.status)})` : erreurLisible(failure.error),
       state: "inconnu",
     };
   }
@@ -183,8 +186,7 @@ export const launchAgent = async (
     if (trust !== undefined) throw new TrustRequiredError(trust);
   }
   if (!response.ok) {
-    const failure = decodeError(payload);
-    throw new Error(failure?.error ?? `échec (${String(response.status)})`);
+    throw new Error(erreurDe(payload, response.status));
   }
 
   const decoded = decoderOf(LaunchAgentResponse)(payload);
@@ -220,7 +222,8 @@ export type SendResult =
   | {
       kind: "failed";
       message: string;
-      state: "attente" | "erreur" | "inconnu";
+      /** `hors-ligne` est le nôtre : l'appareil n'avait pas de réseau. */
+      state: "attente" | "erreur" | "inconnu" | "hors-ligne";
     };
 
 const ErrorPayload = ApiErrorResponse;
@@ -242,6 +245,16 @@ const decoderOf =
 
 const decodeError = decoderOf(ErrorPayload);
 
+/** L'appareil se dit hors ligne (`navigator.onLine`, absent hors navigateur). */
+export const horsLigne = (): boolean =>
+  typeof navigator !== "undefined" && "onLine" in navigator && !navigator.onLine;
+
+/** La cause d'une réponse d'erreur, traduite quand on la reconnaît (`erreurs-demon.ts`). */
+const erreurDe = (payload: unknown, statut: number): string => {
+  const failure = decodeError(payload);
+  return failure === undefined ? `échec (${String(statut)})` : erreurLisible(failure.error);
+};
+
 /** Lit le corps une seule fois et le renvoie analysé, ou lève une erreur lisible. */
 const readJson = async (response: Response): Promise<unknown> => {
   const text = await response.text();
@@ -252,15 +265,40 @@ const readJson = async (response: Response): Promise<unknown> => {
   }
 };
 
+/**
+ * Le délai d'une lecture.
+ *
+ * ⚠️ Sans délai, une lecture bloquée (démon figé, réseau qui ne répond plus
+ * sans couper) laissait la liste « en chargement » pour toujours, et le vol
+ * unique bloquait toutes les relectures derrière elle.
+ */
+export const DELAI_LECTURE_MS = 10_000;
+
 const request = async (path: string, init?: RequestInit): Promise<unknown> => {
-  const response = await fetch(path, {
-    headers: { "content-type": "application/json" },
-    ...init,
-  });
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      headers: { "content-type": "application/json" },
+      signal: AbortSignal.timeout(DELAI_LECTURE_MS),
+      ...init,
+    });
+  } catch (cause) {
+    if (cause instanceof DOMException && cause.name === "TimeoutError") {
+      throw new Error(`Le démon n'a pas répondu en ${String(DELAI_LECTURE_MS / 1000)} s`, {
+        cause,
+      });
+    }
+    if (horsLigne()) throw new Error("Hors ligne : l'appareil n'a pas de réseau", { cause });
+    throw new Error(erreurLisible(cause instanceof Error ? cause.message : String(cause)), {
+      cause,
+    });
+  }
   const payload = await readJson(response);
   if (!response.ok) {
     const failure = decodeError(payload);
-    throw new Error(failure?.error ?? `échec (${response.status})`);
+    throw new Error(
+      failure === undefined ? `échec (${String(response.status)})` : erreurLisible(failure.error),
+    );
   }
   return payload;
 };
@@ -388,13 +426,20 @@ export const sendPrompt = async (paneId: string, text: string): Promise<SendResu
     });
   } catch (cause) {
     const expire = cause instanceof DOMException && cause.name === "TimeoutError";
+    /*
+      ⚠️ **Hors ligne, rien n'est parti.** WebKit rejette `fetch` avec « Load
+      failed » quand l'appareil n'a pas de réseau : la bulle disait « Herdr n'a
+      pas confirmé à temps — peut-être parti », ce qui est faux. Sans réseau,
+      la requête n'a pas quitté le téléphone.
+    */
+    if (!expire && horsLigne()) {
+      return { kind: "failed", message: "", state: "hors-ligne" };
+    }
     return {
       kind: "failed",
       message: expire
-        ? "Herdr n'a pas répondu à temps — le message est peut-être parti."
-        : cause instanceof Error
-          ? cause.message
-          : String(cause),
+        ? "Herdr n'a pas répondu dans les 15 s."
+        : `Connexion au démon interrompue (${cause instanceof Error ? cause.message : String(cause)}).`,
       state: "attente",
     };
   }
@@ -432,12 +477,11 @@ export const sendPrompt = async (paneId: string, text: string): Promise<SendResu
   // pilote l'action proposée à l'utilisateur.
   const named = decoderOf(FailedPayload)(payload);
   if (named !== undefined) {
-    return { kind: "failed", message: named.detail, state: named.state };
+    return { kind: "failed", message: erreurLisible(named.detail), state: named.state };
   }
-  const failure = decodeError(payload);
   return {
     kind: "failed",
-    message: failure?.error ?? `échec (${response.status})`,
+    message: erreurDe(payload, response.status),
     state: "inconnu",
   };
 };
@@ -457,11 +501,101 @@ export const stopAgent = async (paneId: string): Promise<StopAgentResponse> => {
   });
   const payload = await readJson(response);
   if (!response.ok) {
-    throw new Error(decodeError(payload)?.error ?? `échec (${String(response.status)})`);
+    throw new Error(erreurDe(payload, response.status));
   }
   const lu = decoderOf(StopAgentResponse)(payload);
   if (lu === undefined) throw new Error("forme de réponse inattendue : arrêt");
   return lu;
+};
+
+/** Ce qu'une sonde du flux de session a appris (`flux-session.ts`). */
+export interface VerdictSondeFlux {
+  readonly nature: "route-absente" | "pane" | "passager";
+  readonly detail: string | null;
+}
+
+/**
+ * Qualifie un flux de session qui n'a pas pu s'ouvrir, par une requête HTTP
+ * sur la même URL — `EventSource` ne dit jamais pourquoi il échoue.
+ *
+ * ⚠️ **Le corps tranche, pas le statut seul.** Un `404` JSON portant une erreur
+ * de domaine (pane inconnu, `no_source`) est un problème de **ce** pane ; un
+ * `404 route inconnue`, un `405`, une réponse non JSON ou la page HTML que le
+ * démon TS sert en `200` pour toute adresse inconnue disent que la **route**
+ * manque. Un flux qui répond (`text/event-stream`) ou un `503` (plafond de
+ * flux) est passager. Le corps d'un flux n'est jamais lu : la requête est
+ * abandonnée dès les en-têtes.
+ */
+export const sondeFluxSession = async (url: string): Promise<VerdictSondeFlux> => {
+  const arret = new AbortController();
+  const minuterie = setTimeout(() => arret.abort(), 5_000);
+  try {
+    const reponse = await fetch(url, {
+      headers: { accept: "text/event-stream" },
+      signal: arret.signal,
+    });
+    const type = reponse.headers.get("content-type") ?? "";
+    if (reponse.ok) {
+      return type.includes("text/event-stream")
+        ? { detail: null, nature: "passager" }
+        : {
+            detail: `réponse ${type.length > 0 ? type : "sans type"} au lieu d'un flux`,
+            nature: "route-absente",
+          };
+    }
+    let corps: unknown;
+    try {
+      corps = JSON.parse(await reponse.text());
+    } catch {
+      corps = undefined;
+    }
+    const erreur = decodeError(corps);
+    if (reponse.status === 404 || reponse.status === 405) {
+      if (reponse.status === 405 || erreur === undefined || erreur.error === "route inconnue") {
+        return { detail: erreur?.error ?? null, nature: "route-absente" };
+      }
+      return { detail: erreur.error, nature: "pane" };
+    }
+    if (reponse.status >= 500) return { detail: erreur?.error ?? null, nature: "passager" };
+    return { detail: erreur?.error ?? `HTTP ${String(reponse.status)}`, nature: "pane" };
+  } catch {
+    return { detail: null, nature: "passager" };
+  } finally {
+    clearTimeout(minuterie);
+    // Un flux qui a répondu ne doit pas rester ouvert : la sonde n'en lit rien.
+    arret.abort();
+  }
+};
+
+/** Ce que le flux global attend d'un `EventSource` — rien de plus. */
+export interface SourceGlobale {
+  readonly readyState?: number;
+  addEventListener(type: string, ecouteur: (evenement: MessageEvent<string>) => void): void;
+  close(): void;
+}
+
+/** Ce qui est injecté dans le flux global — par défaut, la plateforme. */
+export interface DependancesFluxGlobal {
+  readonly ouvre?: (url: string) => SourceGlobale;
+  readonly planifie?: (action: () => void, delai: number) => () => void;
+  /** S'abonne au retour du réseau et au retour au premier plan ; rend le désabonnement. */
+  readonly ecouteReveil?: (reveil: () => void) => () => void;
+  readonly visible?: () => boolean;
+}
+
+const planifieParDefaut = (action: () => void, delai: number): (() => void) => {
+  const minuterie = setTimeout(action, delai);
+  return () => clearTimeout(minuterie);
+};
+
+const ecouteReveilParDefaut = (reveil: () => void): (() => void) => {
+  if (typeof window === "undefined" || typeof document === "undefined") return () => undefined;
+  window.addEventListener("online", reveil);
+  document.addEventListener("visibilitychange", reveil);
+  return () => {
+    window.removeEventListener("online", reveil);
+    document.removeEventListener("visibilitychange", reveil);
+  };
 };
 
 /**
@@ -471,12 +605,26 @@ export const stopAgent = async (paneId: string): Promise<StopAgentResponse> => {
  * le rattrapage, et c'est pourquoi le flux est en SSE et non en WebSocket
  * (D009). Un événement `resync` signifie que la continuité est rompue : il faut
  * recharger l'état complet plutôt que de croire à un flux continu.
+ *
+ * ⚠️ **Un flux tombé est recréé par nous** (`reprise.ts`) : 1 s, 2 s, 5 s, puis
+ * 10 s, et tout de suite au retour du réseau ou au premier plan s'il n'est pas
+ * ouvert. Un flux recréé n'a pas l'identifiant du dernier événement : à sa
+ * première manifestation, la liste est relue (`onResync`).
  */
-export const openEventStream = (handlers: {
-  onEvent: (kind: string, data: unknown) => void;
-  onResync: () => void;
-  onStatus: (status: "live" | "down") => void;
-}): (() => void) => {
+export const openEventStream = (
+  handlers: {
+    onEvent: (kind: string, data: unknown) => void;
+    onResync: () => void;
+    onStatus: (status: "live" | "down") => void;
+  },
+  deps: DependancesFluxGlobal = {},
+): (() => void) => {
+  const ouvre = deps.ouvre ?? ((url: string): SourceGlobale => new EventSource(url));
+  const planifie = deps.planifie ?? planifieParDefaut;
+  const visible =
+    deps.visible ??
+    (() => typeof document === "undefined" || document.visibilityState === "visible");
+
   /**
    * Anti-clignotement du statut.
    *
@@ -487,34 +635,74 @@ export const openEventStream = (handlers: {
    *
    * On attend donc quelques secondes sans rétablissement avant de l'annoncer.
    */
-  let downTimer: ReturnType<typeof setTimeout> | undefined;
+  let annuleBaisse: (() => void) | null = null;
+  let annuleReprise: (() => void) | null = null;
+  let courant: SourceGlobale | undefined;
+  let ferme = false;
+  let essais = 0;
+  let aDejaVecu = false;
+  let resynchroniser = false;
 
   const markLive = () => {
-    if (downTimer !== undefined) {
-      clearTimeout(downTimer);
-      downTimer = undefined;
-    }
+    annuleBaisse?.();
+    annuleBaisse = null;
     handlers.onStatus("live");
   };
 
   const markDownSoon = () => {
-    if (downTimer !== undefined) return;
-    downTimer = setTimeout(() => {
-      downTimer = undefined;
+    if (annuleBaisse !== null) return;
+    annuleBaisse = planifie(() => {
+      annuleBaisse = null;
       handlers.onStatus("down");
     }, 6_000);
+  };
+
+  /**
+   * Un signe de vie — `open`, ou n'importe quel événement (un mandataire peut
+   * retenir `open` jusqu'au premier octet). Il annule la recréation prévue, et
+   * un flux RECRÉÉ se resynchronise une fois.
+   */
+  const signeDeVie = () => {
+    annuleReprise?.();
+    annuleReprise = null;
+    essais = 0;
+    aDejaVecu = true;
+    markLive();
+    if (resynchroniser) {
+      resynchroniser = false;
+      handlers.onResync();
+    }
+  };
+
+  const recree = () => {
+    if (ferme) return;
+    annuleReprise?.();
+    annuleReprise = null;
+    courant?.close();
+    // L'ancien objet emporte son `Last-Event-ID` : le nouveau devra relire.
+    if (aDejaVecu) resynchroniser = true;
+    connect();
+  };
+
+  const planifierReprise = () => {
+    if (ferme || annuleReprise !== null) return;
+    const delai = delaiDeReprise(essais);
+    essais += 1;
+    annuleReprise = planifie(() => {
+      annuleReprise = null;
+      recree();
+    }, delai);
   };
 
   /**
    * Un événement **nommé** prouve lui aussi que le flux vit.
    *
    * `message` ne se déclenche que pour les événements sans nom — or le trafic
-   * utile ici est nommé (`agent_status`, `prompt`…). Sans cette ligne, une
-   * coupure de trois secondes suivie d'un `agent_status` bien reçu laissait
-   * l'indicateur « hors ligne » alors que le flux fonctionnait.
+   * utile ici est nommé (`agent_status`, `prompt`…).
    */
-  const forward = (kind: string) => (event: MessageEvent<string>) => {
-    markLive();
+  const forward = (source: SourceGlobale, kind: string) => (event: MessageEvent<string>) => {
+    if (ferme || courant !== source) return;
+    signeDeVie();
     let data: unknown = event.data;
     try {
       data = JSON.parse(event.data);
@@ -531,64 +719,46 @@ export const openEventStream = (handlers: {
     "agent-launched",
     "session_changed",
   ];
-  /** `EventSource.CLOSED`, sans dépendre de la classe (absente d'un double de test). */
-  const CLOSED = 2;
 
-  let courant: EventSource | undefined;
-  let ferme = false;
-  let reprise: ReturnType<typeof setTimeout> | undefined;
-  let essais = 0;
-
-  /**
-   * Recrée le flux, avec un délai qui double puis plafonne.
-   *
-   * ⚠️ **`EventSource` ne se reconnecte PAS toujours tout seul.** Il réessaie
-   * tant que la coupure est un simple incident réseau, mais si le serveur a
-   * répondu une **erreur HTTP** (statut non-2xx, ou type de contenu inattendu),
-   * il passe en `CLOSED` et **abandonne définitivement**. Mesuré à l'usage : le
-   * bandeau « hors ligne » restait affiché indéfiniment, et seul un redémarrage
-   * de l'application rétablissait la connexion.
-   *
-   * On reprend donc la main : c'est la seule façon de garantir une reconnexion
-   * qui n'attende pas de l'utilisateur qu'il ferme l'app.
-   */
-  const planifierReprise = () => {
-    if (ferme || reprise !== undefined) return;
-    const delai = Math.min(1_000 * 2 ** essais, 15_000);
-    essais += 1;
-    reprise = setTimeout(() => {
-      reprise = undefined;
-      courant?.close();
-      connect();
-    }, delai);
-  };
-
-  const connect = () => {
+  function connect(): void {
     if (ferme) return;
-    const source = new EventSource("/api/events");
+    const source = ouvre("/api/events");
     courant = source;
-
+    const actuelle = () => !ferme && courant === source;
     source.addEventListener("open", () => {
-      // Le flux est reparti : le prochain incident repartira du délai court.
-      essais = 0;
-      markLive();
+      if (actuelle()) signeDeVie();
     });
     source.addEventListener("error", () => {
+      if (!actuelle()) return;
       markDownSoon();
-      if (source.readyState === CLOSED) planifierReprise();
+      planifierReprise();
     });
-    source.addEventListener("ready", markLive);
-    source.addEventListener("resync", () => handlers.onResync());
-    source.addEventListener("message", markLive);
-    for (const kind of EVENEMENTS_SUIVIS) source.addEventListener(kind, forward(kind));
-  };
+    source.addEventListener("ready", () => {
+      if (actuelle()) signeDeVie();
+    });
+    source.addEventListener("resync", () => {
+      if (actuelle()) handlers.onResync();
+    });
+    source.addEventListener("message", () => {
+      if (actuelle()) signeDeVie();
+    });
+    for (const kind of EVENEMENTS_SUIVIS) source.addEventListener(kind, forward(source, kind));
+  }
+
+  // Retour du réseau ou au premier plan : un flux qui n'est pas ouvert est
+  // recréé tout de suite, sans attendre la prochaine reprise.
+  const arreteReveil = (deps.ecouteReveil ?? ecouteReveilParDefaut)(() => {
+    if (ferme || !visible()) return;
+    if (courant?.readyState !== SOURCE_OUVERTE) recree();
+  });
 
   connect();
 
   return () => {
     ferme = true;
-    if (downTimer !== undefined) clearTimeout(downTimer);
-    if (reprise !== undefined) clearTimeout(reprise);
+    annuleBaisse?.();
+    annuleReprise?.();
+    arreteReveil();
     courant?.close();
   };
 };
@@ -694,7 +864,7 @@ export const focusAgent = async (paneId: string): Promise<AgentFocusedResponse> 
   });
   const payload = await readJson(response);
   if (!response.ok) {
-    throw new Error(decodeError(payload)?.error ?? `échec (${String(response.status)})`);
+    throw new Error(erreurDe(payload, response.status));
   }
   const lu = decoderOf(AgentFocusedResponse)(payload);
   if (lu === undefined) throw new Error("forme de réponse inattendue : focus");

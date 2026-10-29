@@ -31,12 +31,20 @@ describe("U08 — les trois échecs se distinguent", () => {
     expect(e.action).toBe("Modifier le message");
   });
 
-  test("inconnu : ni Herdr n'a dit oui, ni non — et on n'agit pas", () => {
+  test("inconnu : ni Herdr n'a dit oui, ni non — le renvoi dit son risque", () => {
     const e = expliquerEchec("inconnu", "connexion coupée");
     expect(e.texte).toContain("remise inconnue");
-    // ⚠️ Aucune action : renvoyer pourrait doubler le message, et c'est
-    // exactement ce que l'écran ne sait pas trancher.
-    expect(e.action).toBeNull();
+    // ⚠️ Le texte et le bouton disent la même chose : la bulle montrait un
+    // bouton pendant que le texte annonçait « aucune action ». Le renvoi existe,
+    // et il nomme le doublon possible.
+    expect(e.action).toBe("Renvoyer (doublon possible)");
+  });
+
+  test("hors ligne : rien n'est parti, et le texte ne dit pas « à temps »", () => {
+    const e = expliquerEchec("hors-ligne", "");
+    expect(e.texte).toBe("Hors ligne : rien n'est parti.");
+    expect(e.texte).not.toContain("peut-être");
+    expect(e.action).toBe("Réessayer");
   });
 
   test("les trois textes ne partagent aucun préfixe", () => {
@@ -74,9 +82,10 @@ describe("U08 — aucun envoi n'est annoncé sans preuve", () => {
     expect(e.texte).not.toBe("Envoyé");
   });
 
-  test("un double envoi est un état normal, pas une alerte", () => {
+  test("un double envoi est un état normal, pas une alerte — et pas un envoi", () => {
     const e = expliquerSuppression("identique au précédent");
-    expect(e.texte).toContain("Doublon évité");
+    expect(e.texte).toContain("Non envoyé : identique à un message déjà remis");
+    expect(e.texte).toContain("identique au précédent");
     expect(e.action).toBeNull();
   });
 });

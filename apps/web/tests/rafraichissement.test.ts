@@ -83,6 +83,43 @@ describe("C23 — huit signaux, UN vol", () => {
   });
 });
 
+describe("P2 — un signal arrivé PENDANT un vol fait relire une fois après", () => {
+  test("le vol en cours ne peut pas contenir le changement : un second vol part à sa fin", async () => {
+    let liberer: (() => void) | undefined;
+    let lectures = 0;
+    const client = creeClient({
+      conversations: async () => ({ conversations: [] }),
+      health: async () => ({}),
+      overview: () => {
+        lectures += 1;
+        if (lectures > 1) return Promise.resolve({ lu: lectures });
+        return new Promise((resolve) => {
+          liberer = () => resolve({ lu: lectures });
+        });
+      },
+    });
+    const premier = client.lit();
+    // Trois événements pendant le vol : UNE relecture, partagée.
+    const a = client.litFrais();
+    const b = client.litFrais();
+    const c = client.litFrais();
+    expect(client.vols()).toBe(1);
+    liberer?.();
+    const [r0, ra, rb, rc] = await Promise.all([premier, a, b, c]);
+    expect(client.vols()).toBe(2);
+    expect(ra).toBe(rb);
+    expect(rb).toBe(rc);
+    expect(ra.generation).toBeGreaterThan(r0.generation);
+    expect(ra.overview.ok ? ra.overview.valeur : null).toEqual({ lu: 2 });
+  });
+
+  test("sans vol en cours, une lecture fraîche part tout de suite", async () => {
+    const client = creeClient(lecturesFixes());
+    await client.litFrais();
+    expect(client.vols()).toBe(1);
+  });
+});
+
 describe("C23 — un échec ne détruit pas les réussites", () => {
   test("health en panne : overview et conversations restent lisibles", async () => {
     const client = creeClient({

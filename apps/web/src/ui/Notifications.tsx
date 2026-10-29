@@ -8,15 +8,23 @@ import { notifications } from "../app/services.ts";
 import { Icone } from "./Icone.tsx";
 
 export const Notifications = () => {
-  const liste = useSyncExternalStore(notifications.souscrire, notifications.liste);
-  if (liste.length === 0) return null;
+  const liste = useSyncExternalStore(
+    notifications.souscrire,
+    notifications.liste,
+    notifications.liste,
+  );
+  /*
+    ⚠️ Le conteneur existe TOUJOURS, vide au départ : une région vivante
+    insérée avec son texte n'est pas annoncée par VoiceOver. Le texte arrive
+    ensuite dans une région déjà là ; une erreur reste une alerte.
+  */
   return (
-    <div className="notifs">
+    <div className="notifs" aria-live="polite">
       {liste.map((notification) => (
         <div
           key={notification.id}
           className={`notif notif--${notification.ton}`}
-          role={notification.ton === "erreur" ? "alert" : "status"}
+          role={notification.ton === "erreur" ? "alert" : undefined}
         >
           <p className="notif__texte">{notification.texte}</p>
           <button

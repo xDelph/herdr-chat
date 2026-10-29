@@ -75,6 +75,34 @@ export const useMaintenant = (intervalle: number | null): number => {
   return maintenant;
 };
 
+const souscrireReseau = (abonne: () => void): (() => void) => {
+  window.addEventListener("online", abonne);
+  window.addEventListener("offline", abonne);
+  return () => {
+    window.removeEventListener("online", abonne);
+    window.removeEventListener("offline", abonne);
+  };
+};
+const enLigne = (): boolean => navigator.onLine;
+const toujoursEnLigne = (): boolean => true;
+
+/** L'appareil se dit-il en ligne ? (`navigator.onLine`, suivi en direct.) */
+export const useEnLigne = (): boolean =>
+  useSyncExternalStore(souscrireReseau, enLigne, toujoursEnLigne);
+
+/** La largeur sous laquelle un seul écran est visible (`base.css`). */
+const ETROIT = "(max-width: 899px)";
+const souscrireEtroit = (abonne: () => void): (() => void) => {
+  const requete = window.matchMedia(ETROIT);
+  requete.addEventListener("change", abonne);
+  return () => requete.removeEventListener("change", abonne);
+};
+const etroit = (): boolean => window.matchMedia(ETROIT).matches;
+const jamaisEtroit = (): boolean => false;
+
+/** Un seul écran à la fois (téléphone) ? */
+export const useEtroit = (): boolean => useSyncExternalStore(souscrireEtroit, etroit, jamaisEtroit);
+
 /**
  * La hauteur réellement visible, clavier iOS compris.
  *

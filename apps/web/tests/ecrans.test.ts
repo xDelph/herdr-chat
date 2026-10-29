@@ -67,7 +67,8 @@ describe("Arrêter reste visible tant que l'agent travaille", () => {
 });
 
 const envoi = (changement: Partial<Envoi>): Envoi => ({
-  baseline: 0,
+  apres: null,
+  creeA: 0,
   detail: null,
   failureState: null,
   id: "local-1",
@@ -107,10 +108,10 @@ describe("le composeur ne montre pas d'identifiant interne", () => {
 });
 
 describe("un envoi non confirmé n'est jamais affiché comme envoyé", () => {
-  test("incertain : dit qu'il n'est pas confirmé, propose de réessayer", () => {
+  test("incertain : dit qu'il n'est pas confirmé, propose de renvoyer", () => {
     const html = envois([envoi({ state: "uncertain" })]);
     expect(html).toContain("Remise non confirmée par Herdr");
-    expect(html).toContain("Réessayer");
+    expect(html).toContain("Renvoyer");
     expect(html).not.toContain("Remis à Herdr");
   });
 
@@ -122,6 +123,35 @@ describe("un envoi non confirmé n'est jamais affiché comme envoyé", () => {
   test("transport muet : le renvoi est signalé comme un doublon possible", () => {
     const html = envois([envoi({ detail: "x", failureState: "inconnu", state: "uncertain" })]);
     expect(html).toContain("doublon possible");
+  });
+
+  test("envoyé sans confirmation : le renvoi dit aussi le doublon possible", () => {
+    const html = envois([envoi({ failureState: null, state: "uncertain" })]);
+    expect(html).toContain("Renvoyer (doublon possible)");
+    expect(html).not.toContain(">Réessayer<");
+  });
+
+  test("doublon évité : « non envoyé », Fermer et Modifier — jamais « en attente »", () => {
+    const html = rendu(
+      createElement(Envois, {
+        liste: [envoi({ detail: "consecutive identical send", state: "suppressed" })],
+        onRemettre: rien,
+        travaille: true,
+      }),
+    );
+    expect(html).toContain("Non envoyé : identique à un message déjà remis");
+    expect(html).toContain("Fermer");
+    expect(html).toContain("Modifier");
+    expect(html).not.toContain("En attente");
+    expect(html).not.toContain("Remis à Herdr");
+    expect(html).not.toContain("moi--en-file");
+  });
+
+  test("hors ligne : « rien n'est parti », réessayer et modifier", () => {
+    const html = envois([envoi({ detail: "", failureState: "hors-ligne", state: "failed" })]);
+    expect(html).toContain("Hors ligne : rien n'est parti.");
+    expect(html).toContain("Réessayer");
+    expect(html).toContain("Modifier");
   });
 
   test("refus : la cause est affichée, et on peut modifier", () => {
@@ -311,7 +341,9 @@ describe("portes invisibles à l'écran", () => {
   test("un seul flux global pour toute l'app", () => {
     // Le flux global n'est ouvert que par `openEventStream`, branché une fois
     // sur le magasin ; l'autre `EventSource` est le flux PAR SESSION.
-    expect(appelants('new EventSource("/api/events")')).toEqual(["api.ts"]);
+    // (Recréé après une coupure, mais par le même propriétaire : `ouvre`.)
+    expect(appelants('"/api/events"')).toEqual(["api.ts"]);
+    expect(appelants('ouvre("/api/events")')).toEqual(["api.ts"]);
     expect(appelants("new EventSource(")).toEqual(["api.ts", "app/services.ts"]);
     expect(appelants("ouvreEvenements: openEventStream")).toEqual(["app/services.ts"]);
   });

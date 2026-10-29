@@ -1,17 +1,19 @@
 /**
- * Où l'on était dans une conversation, d'une visite à l'autre.
+ * Où l'on était dans une conversation, pour la durée de l'onglet.
  *
- * ⚠️ **Le défaut rapporté.** Lire une réponse sur l'ordinateur, lancer un
- * prompt, revenir sur la PWA : le fil repartait **en haut**, parce que la règle
- * d'ancrage ne parle que des changements d'état observés pendant qu'on regarde.
+ * ⚠️ **Deux défauts.** Le fil repartait en haut (aucune mémoire) ; puis il
+ * rouvrait au milieu de nulle part des jours après (un ratio gardé pour
+ * toujours dans `localStorage`, appliqué à un fil qui avait grandi).
  */
 import { describe, expect, test } from "bun:test";
 import {
-  hauteurDeReprise,
-  litPosition,
-  positionAffichee,
   ecritPosition,
+  litPosition,
+  premierVisible,
+  purgeAnciennesPositions,
+  repriseDe,
   stockageNavigateur,
+  stockageSession,
   type Stockage,
 } from "../src/memoire-defilement.ts";
 
@@ -26,91 +28,74 @@ const stockage = (): Stockage & { contenu: Map<string, string> } => {
   };
 };
 
-describe("ce qu'on retient d'un état de défilement", () => {
-  test("collé au bas : on retient « je suivais le bas »", () => {
-    expect(
-      positionAffichee({
-        clientHeight: 700,
-        scrollHeight: 2000,
-        scrollTop: 1300,
-        seuilBas: 48,
-      }),
-    ).toEqual({ bas: true, ratio: 1 });
+describe("la reprise suit le MESSAGE, et oublie quand du neuf est arrivé", () => {
+  const memoire = { ancre: "m:u3", bas: false, decalage: -40, dernier: "m:a9" };
+
+  test("même fil : on reprend sur le message retenu, avec son décalage", () => {
+    expect(repriseDe(memoire, "m:a9")).toEqual({ ancre: "m:u3", decalage: -40, genre: "ancre" });
   });
 
-  test("au milieu : on retient un ratio", () => {
-    const position = positionAffichee({
-      clientHeight: 700,
-      scrollHeight: 2000,
-      scrollTop: 650,
-      seuilBas: 48,
-    });
-    expect(position.bas).toBe(false);
-    expect(position.ratio).toBeCloseTo(0.5, 5);
+  test("du neuf depuis : la mémoire est oubliée, le défaut s'applique", () => {
+    expect(repriseDe(memoire, "m:a10")).toEqual({ genre: "defaut" });
   });
 
-  test("une conversation plus courte que l'écran ne donne pas un ratio négatif", () => {
-    // ⚠️ `scrollHeight - clientHeight` vaut alors 0 ou moins : sans borne, le
-    // retour sur un fil court scrollait « au-dessus du début ».
-    const position = positionAffichee({
-      clientHeight: 900,
-      scrollHeight: 400,
-      scrollTop: 0,
-      seuilBas: 48,
-    });
-    expect(position.ratio).toBeGreaterThanOrEqual(0);
-    expect(position.bas).toBe(true);
+  test("je suivais le bas : je reste en bas", () => {
+    expect(repriseDe({ ...memoire, bas: true }, "m:a9")).toEqual({ genre: "bas" });
+  });
+
+  test("rien de retenu : le défaut", () => {
+    expect(repriseDe(null, "m:a9")).toEqual({ genre: "defaut" });
   });
 });
 
-describe("où se poser au retour", () => {
-  test("« je suivais le bas » ramène au NOUVEAU bas", () => {
-    // Du contenu est arrivé depuis : suivre le bas, c'est suivre le bas.
-    expect(
-      hauteurDeReprise({ bas: true, ratio: 1 }, { clientHeight: 700, scrollHeight: 3000 }),
-    ).toBe(2300);
-  });
-
-  test("un ratio est rendu proportionnellement à la hauteur actuelle", () => {
-    expect(
-      hauteurDeReprise({ bas: false, ratio: 0.5 }, { clientHeight: 700, scrollHeight: 2000 }),
-    ).toBe(650);
-  });
-
-  test("sans course possible, on ne descend pas sous zéro", () => {
-    expect(
-      hauteurDeReprise({ bas: false, ratio: 0.8 }, { clientHeight: 900, scrollHeight: 400 }),
-    ).toBe(0);
+describe("le premier élément visible", () => {
+  test("celui dont le bas dépasse le haut du fil, avec son décalage", () => {
+    const elements = [
+      { bas: 100, cle: "m:u1", haut: 0 },
+      { bas: 400, cle: "m:a1", haut: 100 },
+      { bas: 600, cle: "m:u2", haut: 400 },
+    ];
+    expect(premierVisible(elements, 250)).toEqual({ cle: "m:a1", decalage: -150 });
+    expect(premierVisible(elements, 700)).toBeNull();
   });
 });
 
 describe("le stockage", () => {
-  test("on relit ce qu'on a écrit", () => {
+  test("écrire puis lire rend la même position", () => {
     const s = stockage();
-    ecritPosition(s, "w1:p1", { bas: false, ratio: 0.25 });
-    expect(litPosition(s, "w1:p1")).toEqual({ bas: false, ratio: 0.25 });
+    const position = { ancre: "m:u3", bas: false, decalage: -12, dernier: "m:a9" };
+    ecritPosition(s, "w1:p1", position);
+    expect(litPosition(s, "w1:p1")).toEqual(position);
   });
 
-  test("une valeur illisible vaut « inconnue », pas une erreur", () => {
+  test("une valeur de l'ancienne forme (ratio) ou illisible vaut « inconnue »", () => {
     const s = stockage();
-    s.ecrit("herdr:defilement:w1:p1", "{pas du json");
+    s.ecrit("herdr:defilement:w1:p1", JSON.stringify({ bas: false, ratio: 0.4 }));
     expect(litPosition(s, "w1:p1")).toBeNull();
-    s.ecrit("herdr:defilement:w1:p1", JSON.stringify({ bas: "oui", ratio: 2 }));
+    s.ecrit("herdr:defilement:w1:p1", "{");
     expect(litPosition(s, "w1:p1")).toBeNull();
   });
 
-  test("chaque conversation a sa position", () => {
-    const s = stockage();
-    ecritPosition(s, "w1:p1", { bas: true, ratio: 1 });
-    ecritPosition(s, "w1:p2", { bas: false, ratio: 0.1 });
-    expect(litPosition(s, "w1:p1")?.bas).toBe(true);
-    expect(litPosition(s, "w1:p2")?.ratio).toBeCloseTo(0.1, 5);
-    expect(litPosition(s, "w9:p9")).toBeNull();
+  test("sans stockage de plateforme, rien ne lève", () => {
+    expect(() => stockageNavigateur().lit("x")).not.toThrow();
+    expect(() => stockageSession().ecrit("x", "y")).not.toThrow();
   });
 
-  test("un stockage indisponible rend un stockage muet, jamais une exception", () => {
-    // Safari privé lève à l'écriture : le fil doit continuer de se rendre.
-    const muet = stockageNavigateur();
-    expect(() => ecritPosition(muet, "w1:p1", { bas: true, ratio: 1 })).not.toThrow();
+  test("les anciennes positions par ratio sont purgées de localStorage", () => {
+    const contenu = new Map<string, string>([
+      ["herdr:defilement:w1:p1", "{}"],
+      ["herdr-chat.theme", "auto"],
+    ]);
+    const faux = {
+      key: (index: number) => [...contenu.keys()][index] ?? null,
+      get length() {
+        return contenu.size;
+      },
+      removeItem: (cle: string) => {
+        contenu.delete(cle);
+      },
+    };
+    purgeAnciennesPositions(faux);
+    expect([...contenu.keys()]).toEqual(["herdr-chat.theme"]);
   });
 });

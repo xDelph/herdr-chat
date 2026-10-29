@@ -13,6 +13,19 @@
  * alors sur le **repli** — le mécanisme actuel, `session_changed` sur le flux
  * global puis `GET /session?cursor=` — et l'écran fonctionne contre les deux.
  *
+ * ⚠️ **Un pane sans flux n'est pas un démon sans flux.** Un `EventSource` ne
+ * dit pas pourquoi il a échoué : un pane inconnu (`404` JSON `no_source`) et
+ * une route absente (`404 route inconnue`, ou le HTML de la PWA servi en `200`
+ * par le démon TS) se ressemblaient, et un seul pane mort coupait le direct de
+ * TOUTES les conversations pendant cinq minutes. Le repli est donc **local** au
+ * pane ; seule une **sonde** qui prouve l'absence de la route le déclare au
+ * reste de l'application (`fluxIndisponible`).
+ *
+ * ⚠️ **Un flux muet n'est pas un flux vivant.** Au retour au premier plan, au
+ * retour du réseau, et après 45 s de silence, une lecture incrémentale vérifie
+ * que rien n'a été manqué ; un flux qui n'est plus ouvert, ou qui a laissé
+ * passer des lignes, est recréé depuis le curseur.
+ *
  * ⚠️ **Un seul propriétaire par conversation, et il ne survit pas à sa
  * fermeture.** Chaque réponse arrivée après `ferme()` est ignorée, et chaque
  * lecture lancée avant un `reset` est rejetée à son retour (`epoque`) : une
@@ -25,6 +38,7 @@ import { Option, Schema } from "effect";
 import type { SessionEntry } from "@herdr-remote/shared";
 import { SessionResponse, SessionStreamEntries, SessionStreamGone } from "@herdr-remote/shared";
 import { fusionnerEntrees } from "./messages.ts";
+import { delaiDeReprise } from "./reprise.ts";
 import { decideAffichage, mentionLecturePartielle } from "./session-vue.ts";
 
 type Entree = typeof SessionEntry.Type;
@@ -44,6 +58,24 @@ export interface SourceDEvenements {
 
 /** `EventSource.CLOSED`, sans dépendre de la classe (absente d'un double). */
 export const FERME = 2;
+/** `EventSource.OPEN`. */
+export const OUVERT = 1;
+
+/**
+ * Ce qu'une sonde HTTP apprend d'un flux qui n'a pas pu s'ouvrir.
+ *
+ * - `route-absente` : le démon ne sert pas `/stream` (404/405 sans erreur de
+ *   domaine, ou une page HTML) — vrai pour tous les panes ;
+ * - `pane` : la route existe, mais refuse CE pane (pane inconnu, sans source) ;
+ * - `passager` : la route répond un flux, ou rien de concluant (réseau, 503).
+ */
+export type NatureEchecFlux = "route-absente" | "pane" | "passager";
+
+export interface VerdictSonde {
+  readonly nature: NatureEchecFlux;
+  /** La cause telle que le démon l'a donnée, quand il en a donné une. */
+  readonly detail: string | null;
+}
 
 export type LitSession = (
   paneId: string,
@@ -70,6 +102,8 @@ export interface VueSession {
   readonly erreurAncien: string | null;
   /** Augmente à chaque ajout **en haut** du fil : sert à ancrer le défilement. */
   readonly ajoutsEnHaut: number;
+  /** Pourquoi ce pane est en repli, quand il l'est. */
+  readonly causeRepli: string | null;
 }
 
 export interface SuiviSession {
@@ -78,7 +112,10 @@ export interface SuiviSession {
   readonly demarre: () => void;
   /** Un événement global concerne ce pane (`session_changed`, `prompt`…). */
   readonly signale: () => void;
-  /** Retour au premier plan : relire tout de suite en repli. */
+  /**
+   * Retour au premier plan, ou retour du réseau : relire tout de suite, et
+   * recréer le flux s'il n'est plus ouvert.
+   */
   readonly reveille: () => void;
   readonly chargePlusAncien: () => Promise<void>;
   readonly ferme: () => void;
@@ -94,8 +131,24 @@ export interface DependancesSuivi {
   readonly planifie: (action: () => void, delai: number) => () => void;
   /** Une page contient-elle une demande de l'utilisateur ? */
   readonly contientDemande: (entries: ReadonlyArray<Entree>) => boolean;
-  /** Prévenu quand le flux est jugé indisponible (pour ne pas réessayer à chaque ouverture). */
+  /**
+   * Prévenu quand la **route** du flux est prouvée absente (pour ne pas
+   * réessayer à chaque ouverture). ⚠️ Jamais pour un pane : un pane mort ne
+   * coupe pas le direct des autres.
+   */
   readonly fluxIndisponible?: (cause: string) => void;
+  /**
+   * Qualifie un échec d'ouverture par une requête HTTP sur la même URL. Sans
+   * sonde, l'échec reste local au pane : on ne déclare jamais une route
+   * absente sans preuve.
+   */
+  readonly sonde?: (url: string) => Promise<VerdictSonde>;
+  /** Journalise une lecture de session ratée (dédoublonné par l'appelant). */
+  readonly signale?: (message: string, detail?: unknown) => void;
+  /** L'horloge — injectée pour la veille. */
+  readonly maintenant?: () => number;
+  /** La page est-elle visible ? La veille ne travaille pas pour un écran caché. */
+  readonly visible?: () => boolean;
   readonly fenetreInitiale?: number;
 }
 
@@ -107,12 +160,16 @@ export const ECHECS_FLUX_MAX = 3;
 export const DELAI_SIGNAL_MS = 120;
 /** Le filet du repli : une relecture même quand rien n'est signalé. */
 export const FILET_REPLI_MS = 15_000;
-/** Délai avant de rouvrir un flux qui s'est fermé après avoir fonctionné. */
-export const DELAI_REOUVERTURE_MS = 2_000;
 /** Pages vides consécutives tolérées en remontant l'historique. */
 export const PAGES_VIDES_MAX = 8;
 /** Pages lues au plus par remontée — un fichier sans demande ne se lit pas en entier. */
 export const PAGES_PAR_REMONTEE = 12;
+/** Silence (ni événement, ni lecture réussie) au-delà duquel la veille vérifie le flux. */
+export const SILENCE_MAX_MS = 45_000;
+/** Période de la veille du flux. */
+export const VEILLE_MS = 15_000;
+/** Un échec passager du flux : on retente de l'ouvrir après ce délai. */
+export const RETOUR_FLUX_MS = 30_000;
 
 const message = (cause: unknown): string =>
   cause instanceof Error ? cause.message : String(cause);
@@ -133,9 +190,12 @@ export const urlDuFlux = (paneId: string, curseur: string | undefined): string =
 
 export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
   const fenetre = deps.fenetreInitiale ?? FENETRE_INITIALE_OCTETS;
+  const maintenant = deps.maintenant ?? (() => Date.now());
+  const visible = deps.visible ?? (() => true);
   let vue: VueSession = {
     ajoutsEnHaut: 0,
     avertissement: null,
+    causeRepli: null,
     chargementAncien: false,
     entries: [],
     erreur: null,
@@ -157,6 +217,13 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
   let annuleSignal: (() => void) | null = null;
   let annuleFilet: (() => void) | null = null;
   let annuleReouverture: (() => void) | null = null;
+  let annuleVeille: (() => void) | null = null;
+  let annuleRetour: (() => void) | null = null;
+  /** Le flux a déjà fonctionné pour ce pane : un échec ensuite se reprend, il ne replie pas. */
+  let dejaVecu = false;
+  let essaisReprise = 0;
+  /** Dernier signe de vie du contenu : un événement du flux, ou une lecture réussie. */
+  let dernierSigne = maintenant();
 
   const publie = (changement: Partial<VueSession>): void => {
     if (ferme) return;
@@ -212,6 +279,7 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
 
   const echecDeLecture = (cause: unknown): void => {
     const texte = message(cause);
+    deps.signale?.("lecture de session en échec", { cause: texte, paneId: deps.paneId });
     // Un fil déjà affiché reste affiché : l'erreur dit qu'on n'a pas pu lire
     // *maintenant*, pas que la conversation n'existe plus (session-vue.ts).
     publie(
@@ -221,12 +289,15 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
     );
   };
 
-  /** Lecture incrémentale (ou de queue sans curseur) — une à la fois. */
-  const litIncrement = async (): Promise<void> => {
-    if (ferme || !deps.aUneSession) return;
+  /**
+   * Lecture incrémentale (ou de queue sans curseur) — une à la fois. Rend
+   * `true` quand la lecture a **apporté** des entrées.
+   */
+  const litIncrement = async (): Promise<boolean> => {
+    if (ferme || !deps.aUneSession) return false;
     if (lectureEnCours) {
       relireEnsuite = true;
-      return;
+      return false;
     }
     lectureEnCours = true;
     const mienne = epoque;
@@ -235,12 +306,16 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
         deps.paneId,
         curseur === undefined ? { tail: fenetre } : { cursor: curseur },
       );
-      if (ferme) return;
+      if (ferme) return false;
       // ⚠️ Une page lue avant un `reset` décrit l'ANCIENNE vue : on la jette.
-      if (mienne !== epoque && !page.reset) return;
+      if (mienne !== epoque && !page.reset) return false;
+      dernierSigne = maintenant();
+      const avant = vue.entries;
       appliquePage(page);
+      return vue.entries !== avant;
     } catch (cause) {
       if (!ferme) echecDeLecture(cause);
+      return false;
     } finally {
       lectureEnCours = false;
       if (relireEnsuite && !ferme) {
@@ -263,11 +338,91 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
   const passeEnRepli = (cause: string | null): void => {
     source?.close();
     source = null;
-    if (cause !== null) deps.fluxIndisponible?.(cause);
-    publie({ transport: "repli" });
+    annuleVeille?.();
+    annuleVeille = null;
+    // ⚠️ Local à CE pane : rien n'est déclaré au reste de l'application ici.
+    publie({ causeRepli: cause, transport: "repli" });
     armeFilet();
     // Rattrape ce qui a pu s'écrire pendant la tentative de flux.
     void litIncrement();
+  };
+
+  /**
+   * Qualifie un échec d'ouverture. Seule une route **prouvée** absente est
+   * déclarée au reste de l'application ; un pane refusé reste en repli local,
+   * un échec passager retente le flux plus tard.
+   */
+  const qualifieEchec = async (url: string): Promise<void> => {
+    if (deps.sonde === undefined) return;
+    let verdict: VerdictSonde;
+    try {
+      verdict = await deps.sonde(url);
+    } catch {
+      verdict = { detail: null, nature: "passager" };
+    }
+    if (ferme || vue.transport !== "repli") return;
+    switch (verdict.nature) {
+      case "route-absente": {
+        const cause = "le démon ne sert pas le flux de session";
+        deps.fluxIndisponible?.(cause);
+        publie({ causeRepli: cause });
+        return;
+      }
+      case "pane":
+        publie({
+          causeRepli: `le démon refuse le flux pour ce pane${
+            verdict.detail === null ? "" : ` (${verdict.detail})`
+          }`,
+        });
+        return;
+      case "passager":
+        annuleRetour?.();
+        annuleRetour = deps.planifie(() => {
+          annuleRetour = null;
+          if (ferme || vue.transport !== "repli" || vue.fin !== null) return;
+          annuleFilet?.();
+          annuleFilet = null;
+          ouvreFlux();
+        }, RETOUR_FLUX_MS);
+    }
+  };
+
+  /** Recrée le flux depuis le curseur : l'ancien se tait, le nouveau reprend. */
+  const rouvreFlux = (): void => {
+    annuleReouverture?.();
+    annuleReouverture = null;
+    source?.close();
+    source = null;
+    ouvreFlux();
+  };
+
+  /**
+   * La veille du flux, tant qu'il est ouvert : après un silence, une lecture
+   * témoin. Si elle apporte des lignes que le flux aurait dû porter, ou si le
+   * flux n'est plus ouvert, on le recrée.
+   *
+   * ⚠️ Un flux silencieux sur une conversation au repos est normal : le
+   * silence seul ne fait pas reconnecter, la preuve d'un manque si.
+   */
+  const verifieFlux = async (): Promise<void> => {
+    if (ferme || vue.transport !== "flux") return;
+    if (source === null || source.readyState !== OUVERT) {
+      void litIncrement();
+      rouvreFlux();
+      return;
+    }
+    const apporte = await litIncrement();
+    if (apporte && !ferme && vue.transport === "flux") rouvreFlux();
+  };
+
+  const armeVeille = (): void => {
+    annuleVeille?.();
+    if (ferme || vue.transport !== "flux") return;
+    annuleVeille = deps.planifie(() => {
+      annuleVeille = null;
+      if (visible() && maintenant() - dernierSigne >= SILENCE_MAX_MS) void verifieFlux();
+      armeVeille();
+    }, VEILLE_MS);
   };
 
   const ouvreFlux = (): void => {
@@ -281,6 +436,7 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
       passeEnRepli(`flux de session impossible à ouvrir : ${message(cause)}`);
       return;
     }
+    const url = urlDuFlux(deps.paneId, curseur);
     source = courante;
     const actuelle = (): boolean => !ferme && source === courante;
 
@@ -290,10 +446,19 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
       en-têtes jusqu'au premier octet du corps, et `open` n'arrive qu'avec lui.
     */
     const marqueOuvert = (): void => {
+      dernierSigne = maintenant();
+      // Un signe de vie annule la recréation prévue (le navigateur a repris seul).
+      annuleReouverture?.();
+      annuleReouverture = null;
+      essaisReprise = 0;
+      dejaVecu = true;
       if (ouvert) return;
       ouvert = true;
       echecsFlux = 0;
-      publie({ transport: "flux" });
+      annuleFilet?.();
+      annuleFilet = null;
+      publie({ causeRepli: null, transport: "flux" });
+      armeVeille();
     };
     courante.addEventListener("open", () => {
       if (actuelle()) marqueOuvert();
@@ -346,27 +511,32 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
 
     courante.addEventListener("error", () => {
       if (!actuelle()) return;
-      if (!ouvert) {
+      if (!ouvert && !dejaVecu) {
         echecsFlux += 1;
         if (courante.readyState === FERME || echecsFlux >= ECHECS_FLUX_MAX) {
           passeEnRepli(
             courante.readyState === FERME
-              ? "le démon ne sert pas le flux de session"
+              ? "le flux de session a été refusé pour ce pane"
               : `le flux de session n'a pas pu s'ouvrir (${String(echecsFlux)} essais)`,
           );
+          void qualifieEchec(url);
         }
         return;
       }
-      // Le flux a fonctionné : le navigateur reconnecte seul (Last-Event-ID).
-      // S'il abandonne (erreur HTTP à la reconnexion), on rouvre depuis le curseur.
-      if (courante.readyState !== FERME) return;
-      courante.close();
-      source = null;
-      annuleReouverture?.();
+      /*
+        ⚠️ Le flux a fonctionné : on ne compte plus sur le seul navigateur
+        (mesuré : après une coupure de 4 s, rien ne se rouvrait en 60 s). Une
+        recréation est programmée — 1 s, 2 s, 5 s, puis 10 s — depuis le
+        DERNIER curseur appliqué ; un signe de vie de cette source l'annule.
+      */
+      if (annuleReouverture !== null) return;
+      const delai = delaiDeReprise(essaisReprise);
+      essaisReprise += 1;
       annuleReouverture = deps.planifie(() => {
         annuleReouverture = null;
-        ouvreFlux();
-      }, DELAI_REOUVERTURE_MS);
+        if (ferme || vue.fin !== null || vue.transport === "repli") return;
+        rouvreFlux();
+      }, delai);
     });
   };
 
@@ -451,10 +621,22 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
       annuleSignal?.();
       annuleFilet?.();
       annuleReouverture?.();
+      annuleVeille?.();
+      annuleRetour?.();
       abonnes.clear();
     },
     reveille: () => {
-      if (vue.transport === "repli") void litIncrement();
+      if (ferme) return;
+      if (vue.transport === "repli") {
+        void litIncrement();
+        return;
+      }
+      // En direct : le flux a pu mourir pendant la veille de l'appareil sans
+      // le dire. On rattrape par HTTP, et on le recrée s'il n'est plus ouvert.
+      if (vue.transport === "flux") {
+        void litIncrement();
+        if (source === null || source.readyState !== OUVERT) rouvreFlux();
+      }
     },
     signale: () => {
       // En direct, le flux de session porte déjà le contenu : un signal global

@@ -231,3 +231,96 @@ describe("U10 — le statut ne clignote pas", () => {
     });
   });
 });
+
+describe("le flux global tombé est recréé (mesuré : rien en 60 s après une coupure de 4 s)", () => {
+  class Source {
+    readyState = 0;
+    ferme = false;
+    readonly ecouteurs = new Map<string, Array<(evenement: MessageEvent<string>) => void>>();
+    addEventListener(type: string, ecouteur: (evenement: MessageEvent<string>) => void): void {
+      this.ecouteurs.set(type, [...(this.ecouteurs.get(type) ?? []), ecouteur]);
+    }
+    close(): void {
+      this.ferme = true;
+      this.readyState = 2;
+    }
+    emet(type: string): void {
+      if (type === "open") this.readyState = 1;
+      for (const ecouteur of this.ecouteurs.get(type) ?? []) {
+        ecouteur(new MessageEvent(type, { data: "{}" }));
+      }
+    }
+  }
+
+  const banc = () => {
+    const sources: Source[] = [];
+    const taches: Array<{ action: () => void; delai: number }> = [];
+    let reveil: (() => void) | null = null;
+    const { c, handlers } = compteurs();
+    const fermer = openEventStream(handlers, {
+      ecouteReveil: (fn) => {
+        reveil = fn;
+        return () => undefined;
+      },
+      ouvre: () => {
+        const source = new Source();
+        sources.push(source);
+        return source;
+      },
+      planifie: (action, delai) => {
+        const tache = { action, delai };
+        taches.push(tache);
+        return () => {
+          const index = taches.indexOf(tache);
+          if (index >= 0) taches.splice(index, 1);
+        };
+      },
+      visible: () => true,
+    });
+    const avance = (delai: number) => {
+      for (const tache of taches.filter((t) => t.delai <= delai)) {
+        taches.splice(taches.indexOf(tache), 1);
+        tache.action();
+      }
+    };
+    return { avance, c, fermer, reveiller: () => reveil?.(), sources };
+  };
+
+  test("erreur : recréé à 1 s ; le nouveau, une fois vivant, fait relire la liste (resync)", () => {
+    const { avance, c, fermer, sources } = banc();
+    sources[0]?.emet("open");
+    sources[0]?.emet("error");
+    avance(1_000);
+    expect(sources).toHaveLength(2);
+    expect(sources[0]?.ferme).toBe(true);
+    expect(c.resync).toBe(0);
+    sources[1]?.emet("open");
+    // L'ancien emportait son Last-Event-ID : la liste est relue une fois.
+    expect(c.resync).toBe(1);
+    fermer();
+  });
+
+  test("délais croissants 1 s → 2 s → 5 s → 10 s, plafonnés", () => {
+    const { avance, fermer, sources } = banc();
+    sources[0]?.emet("error");
+    for (const [index, delai] of [1_000, 2_000, 5_000, 10_000, 10_000].entries()) {
+      avance(delai - 1);
+      expect(sources).toHaveLength(index + 1);
+      avance(delai);
+      expect(sources).toHaveLength(index + 2);
+      sources.at(-1)?.emet("error");
+    }
+    fermer();
+  });
+
+  test("retour du réseau : un flux non ouvert est recréé tout de suite", () => {
+    const { fermer, reveiller, sources } = banc();
+    sources[0]?.emet("open");
+    reveiller();
+    expect(sources).toHaveLength(1);
+    sources[0]?.close();
+    reveiller();
+    expect(sources).toHaveLength(2);
+    fermer();
+  });
+});

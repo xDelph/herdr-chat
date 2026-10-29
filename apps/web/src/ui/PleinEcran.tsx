@@ -4,6 +4,10 @@
  * - un appui sur l'image bascule entre « tient dans l'écran » et la taille
  *   réelle, qu'on parcourt du doigt ;
  * - le bouton fermer, Échap, ou un appui à côté de l'image ferment.
+ *
+ * ⚠️ **Modale pour de vrai** (`showModal`) : avec l'attribut `open` seul, le
+ * reste de la page restait atteignable au clavier et au lecteur d'écran
+ * derrière l'image. `showModal` rend le fond inerte et garde le focus dedans.
  */
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { pleinEcran } from "../app/services.ts";
@@ -13,25 +17,34 @@ export const PleinEcran = () => {
   const image = useSyncExternalStore(pleinEcran.souscrire, pleinEcran.lit);
   const [reelle, setReelle] = useState(false);
   const fermer = useRef<HTMLButtonElement | null>(null);
+  const boite = useRef<HTMLDialogElement | null>(null);
 
   useEffect(() => {
     setReelle(false);
-    if (image === null) return undefined;
+    const dialogue = boite.current;
+    if (image === null || dialogue === null) return undefined;
+    if (!dialogue.open) {
+      // `showModal` absent (très vieux navigateur) : l'ouverture simple reste.
+      if (typeof dialogue.showModal === "function") dialogue.showModal();
+      else dialogue.setAttribute("open", "");
+    }
     fermer.current?.focus();
-    const surTouche = (evenement: KeyboardEvent) => {
-      if (evenement.key === "Escape") pleinEcran.ferme();
+    return () => {
+      if (dialogue.open) dialogue.close();
     };
-    document.addEventListener("keydown", surTouche);
-    return () => document.removeEventListener("keydown", surTouche);
   }, [image]);
 
   if (image === null) return null;
   return (
     <dialog
-      open
+      ref={boite}
       className={reelle ? "plein-ecran plein-ecran--reelle" : "plein-ecran"}
-      aria-modal="true"
       aria-label={image.legende}
+      // Échap : le navigateur annule la modale ; on ferme par le magasin.
+      onCancel={(evenement) => {
+        evenement.preventDefault();
+        pleinEcran.ferme();
+      }}
     >
       {/* L'appui à côté de l'image ferme ; l'image, elle, bascule le zoom. */}
       <button

@@ -90,7 +90,7 @@ describe("C19 — la cible est CAPTURÉE, pas relue depuis l'écran", () => {
     const { avance, planifie } = planificateurManuel();
     const magasin = creeMagasinEnvois(lance, planifie);
 
-    const id = magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "bonjour" });
+    const id = magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "bonjour" });
     avance(DELAI_ENVOI_MS);
     await souffle();
     expect(appels).toEqual([{ pane: "w1:p1", text: "bonjour" }]);
@@ -111,7 +111,7 @@ describe("C19 — la cible est CAPTURÉE, pas relue depuis l'écran", () => {
     const { appels, lance } = lanceurNote();
     const { avance, planifie } = planificateurManuel();
     const magasin = creeMagasinEnvois(lance, planifie);
-    const id = magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "bonjour" });
+    const id = magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "bonjour" });
     avance(DELAI_ENVOI_MS);
     await souffle();
     expect(magasin.liste("w1:p1")[0]?.state).toBe("delivered");
@@ -125,10 +125,10 @@ describe("C20 — la minuterie survit à la navigation", () => {
     const { appels, lance } = lanceurNote();
     const { avance, planifie } = planificateurManuel();
     const magasin = creeMagasinEnvois(lance, planifie);
-    magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "message de A" });
+    magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "message de A" });
     // « Ouvrir B » : le magasin ne voit aucun démontage, et c'est le point —
     // l'ancien `setTimeout` du composant était annulé au démontage.
-    magasin.ajoute({ baseline: 0, pane: "w1:p2", text: "message de B" });
+    magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p2", text: "message de B" });
     avance(DELAI_ENVOI_MS);
     await souffle();
     // Les DEUX partent, chacun sur sa cible.
@@ -143,7 +143,8 @@ describe("C20 — la minuterie survit à la navigation", () => {
     const { avance, planifie } = planificateurManuel();
     const magasin = creeMagasinEnvois(lance, planifie);
     const id = magasin.ajoute({
-      baseline: 0,
+      apres: null,
+      creeA: 0,
       pane: "w1:p1",
       text: "à annuler",
     });
@@ -162,7 +163,7 @@ describe("C20 — une réponse tardive ne traverse pas les conversations", () =>
     const resolution: Array<(valeur: Awaited<ReturnType<Lanceur>>) => void> = [];
     const lance: Lanceur = () => new Promise((ok) => resolution.push(ok));
     const magasin = creeMagasinEnvois(lance, planifie);
-    const id = magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "pour A" });
+    const id = magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "pour A" });
     avance(DELAI_ENVOI_MS);
     await souffle();
     expect(magasin.liste("w1:p1")[0]?.state).toBe("sending");
@@ -184,7 +185,7 @@ describe("T058 — les états du fil, sans mensonge", () => {
     const { lance } = lanceurNote({ confirmation: "unknown", kind: "sent" });
     const { avance, planifie } = planificateurManuel();
     const magasin = creeMagasinEnvois(lance, planifie);
-    magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "x" });
+    magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "x" });
     avance(DELAI_ENVOI_MS);
     await souffle();
     const envoi = magasin.liste("w1:p1")[0];
@@ -192,19 +193,43 @@ describe("T058 — les états du fil, sans mensonge", () => {
     expect(envoi?.detail).toContain("pas confirmé");
   });
 
-  test("un double supprimé est un succès assumé, pas une erreur", async () => {
+  test("un double supprimé n'est PAS remis : état `suppressed`, jamais `delivered`", async () => {
+    /*
+      ⚠️ Le défaut : l'état était `delivered`. La bulle disait « en attente :
+      l'agent le lira » et ne partait jamais — rien n'avait été envoyé, donc
+      rien n'arrivait dans la session.
+    */
     const { lance } = lanceurNote({
       kind: "suppressed",
       reason: "consecutive identical send",
     });
     const { avance, planifie } = planificateurManuel();
     const magasin = creeMagasinEnvois(lance, planifie);
-    magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "x" });
+    const id = magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "x" });
     avance(DELAI_ENVOI_MS);
     await souffle();
     const envoi = magasin.liste("w1:p1")[0];
-    expect(envoi?.state).toBe("delivered");
-    expect(envoi?.detail).toContain("déjà confirmé");
+    expect(envoi?.state).toBe("suppressed");
+    expect(envoi?.detail).toBe("consecutive identical send");
+    // Un `prompt` publié pour le pane ne le transforme pas en remise.
+    expect(magasin.resoutParEvenement("w1:p1")).toBe(0);
+    expect(magasin.liste("w1:p1")[0]?.state).toBe("suppressed");
+    // Et on ne le « réessaie » pas : seul l'utilisateur le ferme ou le reprend.
+    expect(magasin.reessaye(id)).toBe(false);
+    magasin.oublie(id);
+    expect(magasin.liste("w1:p1")).toHaveLength(0);
+  });
+
+  test("hors ligne : un échec certain (`failed`), pas un « peut-être parti »", async () => {
+    const { lance } = lanceurNote({ kind: "failed", message: "", state: "hors-ligne" });
+    const { avance, planifie } = planificateurManuel();
+    const magasin = creeMagasinEnvois(lance, planifie);
+    magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "x" });
+    avance(DELAI_ENVOI_MS);
+    await souffle();
+    const envoi = magasin.liste("w1:p1")[0];
+    expect(envoi?.state).toBe("failed");
+    expect(envoi?.failureState).toBe("hors-ligne");
   });
 
   test("le lanceur qui LÈVE donne un état `inconnu`, jamais un échec", async () => {
@@ -218,7 +243,7 @@ describe("T058 — les états du fil, sans mensonge", () => {
     const lance = lanceurQuiLeve("réseau coupé");
     const { avance, planifie } = planificateurManuel();
     const magasin = creeMagasinEnvois(lance, planifie);
-    magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "x" });
+    magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "x" });
     avance(DELAI_ENVOI_MS);
     await souffle();
     const envoi = magasin.liste("w1:p1")[0];
@@ -231,7 +256,7 @@ describe("T058 — les états du fil, sans mensonge", () => {
     const { lance } = lanceurNote();
     const { avance, planifie } = planificateurManuel();
     const magasin = creeMagasinEnvois(lance, planifie);
-    const id = magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "x" });
+    const id = magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "x" });
     avance(DELAI_ENVOI_MS);
     await souffle();
     expect(magasin.liste("w1:p1")).toHaveLength(1);
@@ -247,7 +272,7 @@ describe("T058 — les états du fil, sans mensonge", () => {
     const desabonner = magasin.souscrire(() => {
       notifications += 1;
     });
-    magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "x" });
+    magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "x" });
     expect(notifications).toBeGreaterThan(0);
     const avant = notifications;
     desabonner();
@@ -266,7 +291,7 @@ describe("le SSE résout un envoi incertain — sans délai", () => {
       async () => ({ confirmation: "unknown", fingerprint: "f", kind: "sent" }),
       planificateurImmediat(),
     );
-    const id = magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "salut" });
+    const id = magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "salut" });
     await new Promise((resoudre) => setTimeout(resoudre, 0));
     const envoi = () => magasin.liste("w1:p1").find((candidat) => candidat.id === id);
     expect(envoi()?.state).toBe("uncertain");
@@ -280,7 +305,7 @@ describe("le SSE résout un envoi incertain — sans délai", () => {
       async () => ({ kind: "failed", message: "refusé", state: "erreur" }),
       planificateurImmediat(),
     );
-    const id = magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "salut" });
+    const id = magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "salut" });
     await new Promise((resoudre) => setTimeout(resoudre, 0));
     expect(magasin.resoutParEvenement("w1:p1")).toBe(0);
     expect(magasin.liste("w1:p1").find((candidat) => candidat.id === id)?.state).toBe("failed");
@@ -291,7 +316,7 @@ describe("le SSE résout un envoi incertain — sans délai", () => {
       async () => ({ confirmation: "unknown", fingerprint: "f", kind: "sent" }),
       planificateurImmediat(),
     );
-    const id = magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "salut" });
+    const id = magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "salut" });
     await new Promise((resoudre) => setTimeout(resoudre, 0));
     expect(magasin.resoutParEvenement("w2:p2")).toBe(0);
     expect(magasin.liste("w1:p1").find((candidat) => candidat.id === id)?.state).toBe("uncertain");
@@ -311,7 +336,7 @@ describe("une panne non prouvée n'est pas un échec certain", () => {
       async () => ({ kind: "failed", message: "pas de réponse à temps", state: "attente" }),
       planificateurImmediat(),
     );
-    const id = magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "bonjour" });
+    const id = magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "bonjour" });
     await new Promise((resoudre) => setTimeout(resoudre, 0));
     const envoi = magasin.liste("w1:p1").find((candidat) => candidat.id === id);
     expect(envoi?.state).toBe("uncertain");
@@ -323,7 +348,7 @@ describe("une panne non prouvée n'est pas un échec certain", () => {
       async () => ({ kind: "failed", message: "réponse illisible", state: "inconnu" }),
       planificateurImmediat(),
     );
-    const id = magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "bonjour" });
+    const id = magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "bonjour" });
     await new Promise((resoudre) => setTimeout(resoudre, 0));
     expect(magasin.liste("w1:p1").find((candidat) => candidat.id === id)?.state).toBe("uncertain");
   });
@@ -333,7 +358,7 @@ describe("une panne non prouvée n'est pas un échec certain", () => {
       async () => ({ kind: "failed", message: "refusé", state: "erreur" }),
       planificateurImmediat(),
     );
-    const id = magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "bonjour" });
+    const id = magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "bonjour" });
     await new Promise((resoudre) => setTimeout(resoudre, 0));
     expect(magasin.liste("w1:p1").find((candidat) => candidat.id === id)?.state).toBe("failed");
   });
@@ -352,7 +377,7 @@ describe("la preuve du fil prime sur l'état de l'envoi", () => {
       async () => ({ kind: "failed", message: "pas de réponse", state: "inconnu" }),
       planificateurImmediat(),
     );
-    const id = magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "bonjour" });
+    const id = magasin.ajoute({ apres: null, creeA: 0, pane: "w1:p1", text: "bonjour" });
     await new Promise((resoudre) => setTimeout(resoudre, 0));
     expect(magasin.liste("w1:p1").find((candidat) => candidat.id === id)?.state).toBe("uncertain");
     magasin.oublie(id);
