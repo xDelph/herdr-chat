@@ -236,3 +236,63 @@ fn les_images_arrivent_dans_la_forme_commune() {
     let contenu = serde_json::to_string(&ligne.message.content).unwrap_or_default();
     assert!(contenu.contains("\"mimeType\":\"image/png\""), "{contenu}");
 }
+
+#[test]
+fn la_file_d_attente_des_demandes_est_lisible() {
+    // Formes mesurées (2026-10-29) : enqueue avec texte, remove avec raison,
+    // dequeue sans texte ; une notification du harnais n'est pas une demande.
+    let mut registre = Registre::nouveau();
+    registre.pose(ProfilClaude::profil());
+    let enqueue = json!({"type":"queue-operation","operation":"enqueue","timestamp":"2026-10-29T17:15:08.191Z","content":"et le chrono a reset"});
+    let Some(LigneNormalisee::Message(ligne)) = registre.traite("claude", &enqueue) else {
+        panic!("l'entrée en file est lue");
+    };
+    assert_eq!(ligne.message.role.as_deref(), Some("custom"));
+    let brut = serde_json::to_string(&ligne).unwrap_or_default();
+    assert!(
+        brut.contains("queue-operation")
+            && brut.contains("enqueue")
+            && brut.contains("et le chrono a reset"),
+        "{brut}"
+    );
+
+    let retrait = json!({"type":"queue-operation","operation":"remove","reason":"absorbed_mid_turn","timestamp":"2026-10-29T17:15:25Z","content":"et le chrono a reset"});
+    assert!(registre.traite("claude", &retrait).is_some());
+    let tete =
+        json!({"type":"queue-operation","operation":"dequeue","timestamp":"2026-10-29T17:16:00Z"});
+    assert!(
+        registre.traite("claude", &tete).is_some(),
+        "dequeue sans texte reste lu"
+    );
+    let notification = json!({"type":"queue-operation","operation":"enqueue","timestamp":"2026-10-29T17:16:00Z","content":"<task-notification><task-id>x</task-id></task-notification>"});
+    assert!(
+        registre.traite("claude", &notification).is_none(),
+        "le harnais n'est pas une demande"
+    );
+}
+
+#[test]
+fn la_reflexion_de_claude_est_conservee() {
+    let mut registre = Registre::nouveau();
+    registre.pose(ProfilClaude::profil());
+    let ligne = json!({"type":"assistant","uuid":"a-1","message":{"role":"assistant","content":[
+        {"type":"thinking","thinking":"L'erreur vient de moi.","signature":"sig"}
+    ]}});
+    let Some(LigneNormalisee::Message(lue)) = registre.traite("claude", &ligne) else {
+        panic!("un message fait d'une seule réflexion est lu");
+    };
+    let contenu = serde_json::to_string(&lue.message.content).unwrap_or_default();
+    assert!(
+        contenu.contains("\"type\":\"thinking\"") && contenu.contains("L'erreur vient de moi."),
+        "{contenu}"
+    );
+    let masquee = json!({"type":"assistant","uuid":"a-2","message":{"role":"assistant","content":[{"type":"redacted_thinking","data":"x"}]}});
+    let Some(LigneNormalisee::Message(lue)) = registre.traite("claude", &masquee) else {
+        panic!("une réflexion masquée est lue");
+    };
+    assert!(
+        serde_json::to_string(&lue.message.content)
+            .unwrap_or_default()
+            .contains("\"redacted\":true")
+    );
+}

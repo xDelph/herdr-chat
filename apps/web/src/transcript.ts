@@ -22,7 +22,6 @@ import type { Action } from "./actions.ts";
 import { actionDeBloc, estBlocDeTravail } from "./actions.ts";
 import {
   creeMemoMessages,
-  estMessageDuHarnais,
   itemsDuTour,
   toMessages,
   toursDe,
@@ -126,7 +125,7 @@ export interface TourEnCours {
  * tour ne relance pas le chronomètre. La même règle que `tourDebut` du démon.
  */
 export const ouvreUnTour = (message: RenderedMessage): boolean =>
-  (message.role === "user" || estMessageDuHarnais(message)) && message.meta["pendantTour"] !== "1";
+  message.role === "user" && message.meta["pendantTour"] !== "1";
 
 /**
  * Le tour en cours : depuis la demande qui l'a **ouvert**.

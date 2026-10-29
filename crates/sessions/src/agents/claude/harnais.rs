@@ -332,3 +332,68 @@ fn pose(objet: &mut Value, clef: &str, valeur: Option<Value>) {
         objet[clef] = valeur;
     }
 }
+
+/// La sorte `custom` d'une opération de la file d'attente de Claude Code.
+pub const SORTE_FILE: &str = "queue-operation";
+
+/// Une opération de la file d'attente des demandes (`type: "queue-operation"`)
+/// → un message `custom` que la PWA lit pour montrer ce qui ATTEND.
+///
+/// ⚠️ **Retour du 2026-10-29 : « je n'ai pas vu mon message en attente,
+/// seulement quand tu l'as pris en compte ».** Claude Code écrit l'arrivée
+/// d'une demande dans la file (`enqueue`, avec son texte) dès qu'elle est
+/// tapée, puis sa sortie : `remove` (`absorbed_mid_turn`,
+/// `delivered_to_agent`) ou `dequeue` (sans texte, la tête de file). Seule
+/// l'absorption produisait jusqu'ici une ligne lisible. Mesuré : 47 + 8
+/// `enqueue`, 33 + 8 + 4 `remove`, 10 `dequeue` sur une session réelle.
+///
+/// Les entrées du harnais (texte qui commence par une balise :
+/// `<task-notification>`…) ne sont pas des demandes : écartées.
+#[must_use]
+pub fn operation_de_file(ligne: &Value) -> Option<LignePi> {
+    let objet = ligne.as_object()?;
+    if objet.get("type").and_then(Value::as_str) != Some("queue-operation") {
+        return None;
+    }
+    let operation = objet.get("operation").and_then(Value::as_str)?;
+    let texte = objet
+        .get("content")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .unwrap_or("");
+    if texte.starts_with('<') {
+        return None;
+    }
+    if operation != "dequeue" && texte.is_empty() {
+        return None;
+    }
+    let mut details = json!({ "operation": operation });
+    pose(
+        &mut details,
+        "reason",
+        objet.get("reason").and_then(Value::as_str).map(Value::from),
+    );
+    let horodatage = objet.get("timestamp").and_then(Value::as_str).unwrap_or("");
+    let mut complet = json!({
+        "type": "message",
+        "id": format!("claude-file:{horodatage}:{operation}:{:x}", empreinte_courte(texte)),
+        "message": {
+            "role": "custom",
+            "customType": SORTE_FILE,
+            "content": [{ "type": "text", "text": texte }],
+            "details": details,
+        },
+    });
+    if !horodatage.is_empty() {
+        complet["timestamp"] = json!(horodatage);
+    }
+    serde_json::from_value(complet).ok()
+}
+
+/// Une empreinte courte et stable d'un texte (identifiant d'entrée).
+fn empreinte_courte(texte: &str) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hacheur = std::collections::hash_map::DefaultHasher::new();
+    texte.hash(&mut hacheur);
+    hacheur.finish()
+}

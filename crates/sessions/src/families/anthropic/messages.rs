@@ -267,7 +267,31 @@ pub fn ligne_vers_pi(parsed: &Value) -> Option<LignePi> {
         .filter(|texte| !texte.is_empty() && !est_sans_demande(texte))
         .map(|texte| bloc_texte(texte))
         .collect();
-    let mut sortie = textes_utiles;
+    /*
+      ⚠️ **La réflexion était jetée.** Le codec ne gardait que texte, images et
+      appels : un bloc `thinking` de Claude (mesuré 2026-10-29 : un message
+      d'assistant fait d'UN seul bloc de réflexion) n'apparaissait nulle part,
+      alors que la PWA rend une réflexion repliée. Un `redacted_thinking` (ou
+      une réflexion vide, signature seule) devient une réflexion masquée —
+      jamais un texte inventé.
+    */
+    let reflexions: Vec<Value> = blocs
+        .iter()
+        .filter_map(|bloc| match bloc.get("type").and_then(Value::as_str) {
+            Some("thinking") => Some(
+                match bloc.get("thinking").and_then(Value::as_str).map(str::trim) {
+                    Some(texte) if !texte.is_empty() => {
+                        json!({ "type": "thinking", "thinking": texte })
+                    }
+                    _ => json!({ "type": "thinking", "redacted": true }),
+                },
+            ),
+            Some("redacted_thinking") => Some(json!({ "type": "thinking", "redacted": true })),
+            _ => None,
+        })
+        .collect();
+    let mut sortie = reflexions;
+    sortie.extend(textes_utiles);
     sortie.extend(images_de(contenu));
     sortie.extend(appels);
     // Un message sans bloc n'est pas un message : pas de bulle vide.

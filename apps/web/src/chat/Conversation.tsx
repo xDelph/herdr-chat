@@ -34,6 +34,8 @@ import { Fil } from "./Fil.tsx";
 import { LigneTravail } from "./LigneTravail.tsx";
 import { Question } from "./Question.tsx";
 import { useSuiviSession } from "./useSuiviSession.ts";
+import { demandesEnFile } from "../file-attente.ts";
+import { FileAttente } from "./FileAttente.tsx";
 
 type Feuille =
   | { readonly genre: "modele" }
@@ -145,7 +147,18 @@ export const Conversation = ({
   const { vue, suivi } = useSuiviSession(paneId, aUneSession);
   const [transcrire] = useState(creeTranscripteur);
   const { messages, items } = useMemo(() => transcrire(vue.entries), [transcrire, vue.entries]);
-  const tour = useMemo(() => tourEnCours(messages), [messages]);
+  /*
+    ⚠️ **Un seul chronomètre.** Le début du tour vient du démon (`tourDebut`,
+    tâches de fond comprises), comme la liste ; le calcul local n'est qu'un
+    repli. Retour du 2026-10-29 : le chrono repartait alors que le travail
+    n'était pas fini.
+  */
+  const tour = useMemo(() => {
+    const local = tourEnCours(messages);
+    const serveur = conversation?.tourDebut;
+    return serveur === undefined ? local : { ...local, debutMs: serveur };
+  }, [messages, conversation?.tourDebut]);
+  const enFile = useMemo(() => demandesEnFile(vue.entries), [vue.entries]);
   const reglages = useMemo(() => reglagesDeSession(vue.entries), [vue.entries]);
   // Les cartes du harnais se titrent avec ce que le fil ET le démon savent.
   const listeTaches = useListeTaches(paneId, conversation?.tachesDeFond);
@@ -215,10 +228,14 @@ export const Conversation = ({
     () => (
       <>
         <Envois liste={liste} onRemettre={remettre} travaille={travaille} />
+        <FileAttente
+          demandes={enFile}
+          dejaAffichees={new Set(liste.map((envoi) => envoi.text.trim()))}
+        />
         {travaille ? <LigneTravail tour={tour} debutObserve={debutObserve} cwd={cwd} /> : null}
       </>
     ),
-    [cwd, debutObserve, liste, remettre, tour, travaille],
+    [cwd, debutObserve, enFile, liste, remettre, tour, travaille],
   );
   // Le compte des fichiers modifiés n'est calculé qu'à l'ouverture du menu.
   const compteFichiers = useCallback(() => touchedFilesOf(messages).length, [messages]);

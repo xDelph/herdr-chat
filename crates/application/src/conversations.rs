@@ -569,7 +569,7 @@ impl ServiceConversations {
                 ..base
             },
             Ok(entrees) => {
-                let details = Self::details_de(&entrees);
+                let details = Self::details_de(&entrees, taches.as_deref().unwrap_or(&[]));
                 LigneConversation {
                     session_state: SessionState::Available,
                     dernier_texte: details.dernier_texte,
@@ -617,7 +617,7 @@ impl ServiceConversations {
     /// Les détails de la ligne : aperçu (dernier texte d'assistant, sinon
     /// dernier outil), dernière demande, modèle/fournisseur/pensée en
     /// vigueur, horodatage — rien n'est fabriqué (D22).
-    fn details_de(entrees: &[EntreeLu]) -> DetailsLigne {
+    fn details_de(entrees: &[EntreeLu], taches: &[TacheDeFond]) -> DetailsLigne {
         // Rognée comme le faisait le fil TS : un `\n` final n'est pas du
         // contenu (mesuré : la ligne de liste gardait un saut final).
         let dernier_texte = dernier_texte_de_role(entrees, RoleDeSession::User)
@@ -634,7 +634,7 @@ impl ServiceConversations {
             fournisseur: reglages.fournisseur,
             pensee: reglages.pensee,
             horodatage,
-            tour_debut: debut_du_tour(entrees),
+            tour_debut: debut_du_tour(entrees, taches),
         }
     }
 
@@ -750,24 +750,54 @@ struct DetailsLigne {
     tour_debut: Option<u64>,
 }
 
-/// Un message qui OUVRE un tour : une demande de l'utilisateur, ou un
-/// message du harnais (fin de tâche, rapport) arrivé agent au repos — jamais
-/// ce qui arrive pendant le travail.
+/// Un message qui PEUT ouvrir un tour : une demande de l'utilisateur, hors
+/// demande envoyée en plein tour.
+///
+/// ⚠️ **Retour du 2026-10-29 : « le timer a reset alors qu'il n'a jamais
+/// fini ».** Un message du harnais (fin de tâche, rapport de sous-agent)
+/// ouvrait un tour : le chronomètre repartait à chaque notification. Il ne
+/// l'ouvre plus — c'est la suite du même travail.
 #[must_use]
 pub fn ouvre_un_tour(entree: &EntreeLu) -> bool {
-    matches!(entree.role, RoleDeSession::User | RoleDeSession::Harnais)
+    entree.role == RoleDeSession::User
         && entree.genre == GenreDeLigne::Message
         && !entree.en_cours_de_tour
 }
 
-/// L'instant du message qui a ouvert le tour courant — absent s'il n'est
-/// pas daté (jamais l'heure courante).
-fn debut_du_tour(entrees: &[EntreeLu]) -> Option<u64> {
-    entrees
-        .iter()
-        .rev()
-        .find(|entree| ouvre_un_tour(entree))
-        .and_then(|entree| entree.horodatage)
+/// Une tâche de fond tournait-elle à cet instant ? (Une tâche sans fin
+/// connue tourne encore ; une tâche « inconnue » est bornée par sa dernière
+/// activité.)
+fn tache_en_cours_a(taches: &[TacheDeFond], instant: u64) -> bool {
+    taches.iter().any(|tache| {
+        let Some(debut) = tache.debut else {
+            return false;
+        };
+        let fin = match tache.statut {
+            StatutTache::EnCours => tache.fin.unwrap_or(u64::MAX),
+            _ => tache.fin.or(tache.derniere_activite).unwrap_or(debut),
+        };
+        debut <= instant && instant <= fin
+    })
+}
+
+/// L'instant de la demande qui a ouvert le travail en cours — absent s'il
+/// n'est pas daté (jamais l'heure courante).
+///
+/// ⚠️ Une demande envoyée pendant qu'une tâche de fond tournait ne commence
+/// pas un nouveau travail : l'agent n'avait pas fini. On remonte jusqu'à une
+/// demande faite sans tâche en cours ; à défaut, la plus ancienne vue.
+fn debut_du_tour(entrees: &[EntreeLu], taches: &[TacheDeFond]) -> Option<u64> {
+    let mut retenue: Option<u64> = None;
+    for entree in entrees.iter().rev().filter(|entree| ouvre_un_tour(entree)) {
+        let Some(instant) = entree.horodatage else {
+            continue;
+        };
+        retenue = Some(instant);
+        if !tache_en_cours_a(taches, instant) {
+            break;
+        }
+    }
+    retenue
 }
 
 /// Le dernier texte d'un rôle, en remontant le fil.

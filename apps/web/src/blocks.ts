@@ -743,6 +743,9 @@ export const toRenderedMessage = (entry: {
     rend en `custom` (`customType`). Ils ont leur carte, jamais une bulle de
     demande — c'était le défaut : un rapport s'affichait comme envoyé par soi.
   */
+  // Une opération de la file d'attente n'est pas un message : elle alimente
+  // les bulles « Queued » (`file-attente.ts`).
+  if (role === "custom" && body?.customType === "queue-operation") return undefined;
   if (role === "custom") {
     const rapport = rapportDe(body?.customType, body?.details, contentToText(body?.content));
     if (rapport !== undefined) {

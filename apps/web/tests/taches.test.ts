@@ -183,13 +183,14 @@ describe("le tour part de la demande qui l'a ouvert", () => {
     expect(html).toContain("envoyé pendant le travail");
   });
 
-  test("une fin de tâche arrivée agent au repos ouvre le tour", () => {
+  test("une fin de tâche n'ouvre jamais de tour : c'est la suite du même travail", () => {
+    // Retour du 2026-10-29 : le chronomètre repartait à chaque notification.
     const messages = toMessages([
       demande("u1", "lance", "2026-10-29T10:00:00.000Z"),
       reponse("a1", "lancé", "2026-10-29T10:00:05.000Z"),
       notification("n1", "2026-10-29T11:00:00.000Z"),
     ]);
-    expect(tourEnCours(messages).debutMs).toBe(Date.parse("2026-10-29T11:00:00.000Z"));
+    expect(tourEnCours(messages).debutMs).toBe(Date.parse("2026-10-29T10:00:00.000Z"));
   });
 });
 

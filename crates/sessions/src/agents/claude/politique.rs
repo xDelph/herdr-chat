@@ -74,6 +74,9 @@ pub fn ligne_claude_vers_pi(ligne: &Value) -> Option<LignePi> {
     if let Some(harnais) = super::harnais::message_du_harnais(ligne) {
         return Some(harnais);
     }
+    if let Some(file) = super::harnais::operation_de_file(ligne) {
+        return Some(file);
+    }
     if super::harnais::est_injection_du_harnais(ligne) {
         return None;
     }

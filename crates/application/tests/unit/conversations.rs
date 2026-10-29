@@ -734,8 +734,8 @@ fn le_tour_part_de_la_demande_qui_l_a_ouvert() {
     // La demande envoyée pendant le travail reste la dernière demande.
     assert_eq!(lignes[0].dernier_texte.as_deref(), Some("et le test aussi"));
 
-    // Un rapport arrivé agent AU REPOS ouvre un tour : le chronomètre part
-    // de lui.
+    // Un rapport arrivé agent AU REPOS n'ouvre PAS de tour (retour du
+    // 2026-10-29 : le chronomètre repartait à chaque notification).
     let faux = FauxSessions::nouveau()
         .avec_source("p1", source("/sessions/p1.jsonl"))
         .avec_lecture(
@@ -754,7 +754,7 @@ fn le_tour_part_de_la_demande_qui_l_a_ouvert() {
             None,
         )]),
     );
-    assert_eq!(lignes[0].tour_debut, Some(9_000));
+    assert_eq!(lignes[0].tour_debut, Some(1_000));
 }
 
 #[test]
@@ -876,4 +876,51 @@ fn le_fournisseur_du_meme_modele_tient_la_paire() {
     ]);
     assert_eq!(ligne.modele.as_deref(), Some("autre-modele"));
     assert_eq!(ligne.fournisseur, None);
+}
+
+#[test]
+fn une_demande_pendant_une_tache_de_fond_continue_le_meme_travail() {
+    // Le tour n'est fini qu'une fois les tâches de fond finies : une demande
+    // envoyée pendant qu'une tâche tournait ne relance pas le chronomètre.
+    let en_cours = TacheDeFond {
+        debut: Some(1_200),
+        fin: None,
+        ..tache("t1", StatutTache::EnCours)
+    };
+    let lecture = || {
+        Ok(vec![
+            entree_datee(RoleDeSession::User, "lance l'audit", 1_000, false),
+            entree_datee(RoleDeSession::Assistant, "audit lancé", 1_100, false),
+            entree_datee(RoleDeSession::User, "et ensuite ?", 5_000, false),
+        ])
+    };
+    let agents = borne(vec![agent(
+        "p1",
+        Some("claude"),
+        AgentStatus::Working,
+        None,
+    )]);
+    let faux = FauxSessions::nouveau()
+        .avec_source("p1", source("/sessions/p1.jsonl"))
+        .avec_lecture("p1", lecture())
+        .avec_taches(Ok(vec![en_cours.clone()]));
+    let lignes = service(faux).lignes(&HerdrFaux::nouveau(), &agents);
+    assert_eq!(
+        lignes[0].tour_debut,
+        Some(1_000),
+        "la tâche tournait encore"
+    );
+
+    // La tâche était finie à 3 000 : la demande de 5 000 ouvre un nouveau tour.
+    let finie = TacheDeFond {
+        statut: StatutTache::Terminee,
+        fin: Some(3_000),
+        ..en_cours
+    };
+    let faux = FauxSessions::nouveau()
+        .avec_source("p1", source("/sessions/p1.jsonl"))
+        .avec_lecture("p1", lecture())
+        .avec_taches(Ok(vec![finie]));
+    let lignes = service(faux).lignes(&HerdrFaux::nouveau(), &agents);
+    assert_eq!(lignes[0].tour_debut, Some(5_000));
 }
