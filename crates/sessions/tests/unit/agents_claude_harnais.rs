@@ -214,3 +214,32 @@ fn le_normaliseur_sert_la_forme_custom_et_n_ajoute_rien_aux_autres() {
     assert!(!entree.raw.contains("customType"), "{}", entree.raw);
     assert!(!entree.raw.contains("details"), "{}", entree.raw);
 }
+
+#[test]
+fn le_rapport_final_d_un_sous_agent_est_sa_reponse() {
+    // Dans la transcription d'un sous-agent : l'appel `SubagentHandback`
+    // porte le rapport — il devient du texte, pas une action repliée.
+    let ligne = json!({
+        "type": "assistant", "uuid": "u-h", "isSidechain": true,
+        "message": { "role": "assistant", "content": [
+            { "type": "tool_use", "id": "t1", "name": "SubagentHandback", "input": { "message": "## Rapport\n\nTout est vert." } },
+        ]},
+    });
+    let rendu = message(&ligne);
+    assert_eq!(rendu.message.role.as_deref(), Some("assistant"));
+    assert_eq!(
+        rendu.message.content,
+        json!([{ "type": "text", "text": "## Rapport\n\nTout est vert." }])
+    );
+    // Un autre outil reste un appel.
+    let autre = json!({
+        "type": "assistant",
+        "message": { "role": "assistant", "content": [
+            { "type": "tool_use", "id": "t2", "name": "Bash", "input": { "command": "ls" } },
+        ]},
+    });
+    assert_eq!(
+        message(&autre).message.content[0]["type"],
+        json!("toolCall")
+    );
+}

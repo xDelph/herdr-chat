@@ -817,13 +817,23 @@ fn reglages_en_vigueur(entrees: &[EntreeLu]) -> DetailsLigne {
                 }
                 _ => (),
             }
+        } else if reglages.fournisseur.is_none()
+            && entree.modele == reglages.modele
+            && entree.fournisseur.is_some()
+        {
+            // ⚠️ Le MÊME modèle, déclaré plus tôt avec son fournisseur : la
+            // paire tient (mesuré : codex écrit `provider` dans son
+            // `model_change`, pas sur chaque réponse — la ligne perdait
+            // « openai »). Un autre modèle, lui, n'est jamais collé.
+            reglages.fournisseur = entree.fournisseur.clone();
         }
         if reglages.pensee.is_none()
             && let Some(pensee) = &entree.niveau_pensee
         {
             reglages.pensee = Some(pensee.clone());
         }
-        if reglages.modele.is_some() && reglages.pensee.is_some() {
+        if reglages.modele.is_some() && reglages.fournisseur.is_some() && reglages.pensee.is_some()
+        {
             break;
         }
     }

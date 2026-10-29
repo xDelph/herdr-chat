@@ -198,11 +198,15 @@ struct Manques {
     modele: bool,
     /// Le message qui a ouvert le tour courant (son instant, `tourDebut`).
     ouverture: bool,
+    /// Le fournisseur du modèle — cherché seulement pour les familles qui
+    /// l'écrivent dans leurs changements de réglage (codex, pi).
+    fournisseur: bool,
 }
 
 impl Manques {
-    fn de(entrees: &[EntreeLu]) -> Self {
+    fn de(entrees: &[EntreeLu], cherche_fournisseur: bool) -> Self {
         Self {
+            fournisseur: cherche_fournisseur && !entrees.iter().any(declare_un_fournisseur),
             demande: !entrees.iter().any(est_demande),
             reponse: !entrees.iter().any(est_reponse),
             modele: !entrees.iter().any(declare_un_modele),
@@ -213,7 +217,7 @@ impl Manques {
     }
 
     fn aucun(self) -> bool {
-        !self.demande && !self.reponse && !self.modele && !self.ouverture
+        !self.demande && !self.reponse && !self.modele && !self.ouverture && !self.fournisseur
     }
 }
 
@@ -230,6 +234,15 @@ fn declare_un_modele(entree: &EntreeLu) -> bool {
     entree.modele.is_some()
 }
 
+fn declare_un_fournisseur(entree: &EntreeLu) -> bool {
+    entree.modele.is_some() && entree.fournisseur.is_some()
+}
+
+/// Les familles qui écrivent le fournisseur dans leurs changements de modèle
+/// (`model_change.provider`) — mesuré : codex (« openai »), pi. Claude ne
+/// l'écrit nulle part : le chercher relirait 32 fenêtres pour rien.
+const FAMILLES_A_FOURNISSEUR: [&str; 2] = ["codex", "pi"];
+
 impl LitSessionsViaPort {
     /// ⚠️ **Remonter le fil, borné, pour ce que la fenêtre n'a pas.** Une
     /// session Claude réelle portait 94 % de comptabilité : 64 Kio ne
@@ -243,7 +256,12 @@ impl LitSessionsViaPort {
         page: &application::sessions_types::SessionPage,
         entrees: &mut Vec<EntreeLu>,
     ) {
-        let mut manques = Manques::de(entrees);
+        let cherche_fournisseur = demande
+            .source
+            .family
+            .as_ref()
+            .is_some_and(|famille| FAMILLES_A_FOURNISSEUR.contains(&famille.as_str()));
+        let mut manques = Manques::de(entrees, cherche_fournisseur);
         let mut avant = page.previous_cursor.clone().filter(|_| page.has_more);
         let mut fenetres = 0;
         while !manques.aucun() && fenetres < FENETRES_REMONTEE {
@@ -262,6 +280,7 @@ impl LitSessionsViaPort {
                 (manques.reponse, est_reponse),
                 (manques.modele, declare_un_modele),
                 (manques.ouverture, application::conversations::ouvre_un_tour),
+                (manques.fournisseur, declare_un_fournisseur),
             ] {
                 if manque && let Some(entree) = lues.iter().rev().find(|entree| critere(entree)) {
                     retenues.push(entree.clone());
@@ -270,7 +289,7 @@ impl LitSessionsViaPort {
             if !retenues.is_empty() {
                 retenues.extend(std::mem::take(entrees));
                 *entrees = retenues;
-                manques = Manques::de(entrees);
+                manques = Manques::de(entrees, cherche_fournisseur);
             }
             avant = plus.previous_cursor.clone().filter(|_| plus.has_more);
             fenetres += 1;

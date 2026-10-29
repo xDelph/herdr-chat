@@ -834,3 +834,46 @@ fn les_taches_d_un_pane_nomment_chaque_issue() {
         IssueTaches::Erreur(String::from("permission refusée"))
     );
 }
+
+#[test]
+fn le_fournisseur_du_meme_modele_tient_la_paire() {
+    let changement = |modele: &str, fournisseur: Option<&str>| EntreeLu {
+        role: RoleDeSession::Autre,
+        genre: GenreDeLigne::ChangementModele,
+        texte: None,
+        outil: None,
+        modele: Some(String::from(modele)),
+        fournisseur: fournisseur.map(String::from),
+        niveau_pensee: None,
+        horodatage: None,
+        en_cours_de_tour: false,
+    };
+    let reponse = |modele: &str| EntreeLu {
+        modele: Some(String::from(modele)),
+        ..entree_texte(RoleDeSession::Assistant, "fait")
+    };
+    let ligne_de = |entrees: Vec<EntreeLu>| {
+        let faux = FauxSessions::nouveau()
+            .avec_source("p1", source("/sessions/p1.jsonl"))
+            .avec_lecture("p1", Ok(entrees));
+        service(faux).lignes(
+            &HerdrFaux::nouveau(),
+            &borne(vec![agent("p1", Some("codex"), AgentStatus::Done, None)]),
+        )[0]
+        .clone()
+    };
+    // codex : le changement porte « openai », les réponses du même modèle non.
+    let ligne = ligne_de(vec![
+        changement("gpt-6-luna", Some("openai")),
+        reponse("gpt-6-luna"),
+    ]);
+    assert_eq!(ligne.modele.as_deref(), Some("gpt-6-luna"));
+    assert_eq!(ligne.fournisseur.as_deref(), Some("openai"));
+    // Un AUTRE modèle plus récent : le fournisseur de l'ancien n'est pas collé.
+    let ligne = ligne_de(vec![
+        changement("gpt-6-luna", Some("openai")),
+        reponse("autre-modele"),
+    ]);
+    assert_eq!(ligne.modele.as_deref(), Some("autre-modele"));
+    assert_eq!(ligne.fournisseur, None);
+}

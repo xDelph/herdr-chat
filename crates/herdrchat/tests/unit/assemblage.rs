@@ -539,3 +539,108 @@ fn les_taches_ne_sont_lues_que_pour_une_session_claude() {
     assert!(lecteur.taches(&pi).is_none());
     let _ = std::fs::remove_dir_all(&dossier);
 }
+
+/// Un port à deux pages : la plus récente (avec un « avant »), puis la
+/// précédente — pour prouver ce que la remontée va chercher.
+struct DeuxPages {
+    recente: Vec<String>,
+    ancienne: Vec<String>,
+    lectures: Arc<AtomicUsize>,
+}
+
+impl SessionPort for DeuxPages {
+    fn resolve(&self, _hint: SessionHint) -> SessionFuture<'_, Option<ResolvedSource>> {
+        Box::pin(async { Ok(None) })
+    }
+
+    fn page(&self, request: SessionPageRequest) -> SessionFuture<'_, SessionPageOutcome> {
+        self.lectures.fetch_add(1, Ordering::SeqCst);
+        let ancienne = request.previous_cursor.is_some();
+        let lignes = if ancienne {
+            &self.ancienne
+        } else {
+            &self.recente
+        };
+        let page = SessionPage {
+            session_path: request.source.base.clone(),
+            entries: lignes
+                .iter()
+                .map(|raw| {
+                    let valeur: serde_json::Value =
+                        serde_json::from_str(raw).unwrap_or(serde_json::Value::Null);
+                    SessionEntry {
+                        kind: valeur["type"].as_str().unwrap_or("message").to_string(),
+                        id: None,
+                        parent_id: None,
+                        raw: raw.clone(),
+                        timestamp: None,
+                    }
+                })
+                .collect(),
+            incremental: false,
+            cursor: None,
+            previous_cursor: (!ancienne).then(|| String::from("avant")),
+            has_more: !ancienne,
+            reset: false,
+            rattrape: true,
+        };
+        Box::pin(async move { Ok(SessionPageOutcome::Page(page)) })
+    }
+
+    fn metadata(
+        &self,
+        _source: ResolvedSource,
+    ) -> SessionFuture<'_, domain::session::SessionMetadata> {
+        Box::pin(async { Ok(domain::session::SessionMetadata::default()) })
+    }
+}
+
+#[test]
+fn la_remontee_cherche_le_fournisseur_des_familles_qui_l_ecrivent() {
+    let recente = vec![
+        String::from(
+            r#"{"type":"message","message":{"role":"user","content":"go"},"timestamp":"2026-10-29T10:00:00Z"}"#,
+        ),
+        String::from(
+            r#"{"type":"message","message":{"role":"assistant","content":"fait","model":"gpt-6-luna"}}"#,
+        ),
+    ];
+    let ancienne = vec![String::from(
+        r#"{"type":"model_change","modelId":"gpt-6-luna","provider":"openai"}"#,
+    )];
+    for (famille, attendu, lectures_attendues) in [
+        ("codex", Some("openai"), 2),
+        // Claude n'écrit jamais de fournisseur : aucune remontée pour lui.
+        ("claude", None, 1),
+    ] {
+        let lectures = Arc::new(AtomicUsize::new(0));
+        let lecteur = LitSessionsViaPort {
+            port: Arc::new(DeuxPages {
+                recente: recente.clone(),
+                ancienne: ancienne.clone(),
+                lectures: Arc::clone(&lectures),
+            }),
+            familles: Arc::new(std::sync::Mutex::new(std::collections::HashMap::from([(
+                String::from("/sessions/s.jsonl"),
+                domain::ids::AgentKind::from(String::from(famille)),
+            )]))),
+            fenetres: Arc::new(std::sync::Mutex::new(CacheFenetres::default())),
+            taches: Arc::new(sessions::agents::claude::taches::LecteurTaches::nouveau(
+                std::env::temp_dir().join("herdrchat-taches-absentes"),
+            )),
+        };
+        let entrees = lecteur
+            .fenetre(
+                &PaneId::from(String::from("w1:p1")),
+                &source("/sessions/s.jsonl"),
+            )
+            .unwrap_or_else(|cause| panic!("fenêtre : {}", cause.cause));
+        let fournisseur = entrees.iter().find_map(|entree| entree.fournisseur.clone());
+        assert_eq!(fournisseur.as_deref(), attendu, "{famille}");
+        assert_eq!(
+            lectures.load(Ordering::SeqCst),
+            lectures_attendues,
+            "{famille}"
+        );
+    }
+}

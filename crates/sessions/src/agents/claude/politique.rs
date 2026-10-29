@@ -77,7 +77,37 @@ pub fn ligne_claude_vers_pi(ligne: &Value) -> Option<LignePi> {
     if super::harnais::est_injection_du_harnais(ligne) {
         return None;
     }
-    messages::ligne_vers_pi(ligne).or_else(|| demande_en_cours_de_tour(ligne))
+    messages::ligne_vers_pi(ligne)
+        .map(rapport_final_en_texte)
+        .or_else(|| demande_en_cours_de_tour(ligne))
+}
+
+/// Le rapport final d'un sous-agent est un APPEL d'outil (`SubagentHandback`,
+/// argument `message`) : rangé avec les actions, la transcription d'une tâche
+/// de fond finissait sur « 32 actions » sans sa conclusion (mesuré). C'est la
+/// réponse de l'agent : elle devient du texte, à sa place.
+fn rapport_final_en_texte(mut ligne: LignePi) -> LignePi {
+    if ligne.message.role.as_deref() != Some("assistant") {
+        return ligne;
+    }
+    if let Some(blocs) = ligne.message.content.as_array_mut() {
+        for bloc in blocs.iter_mut() {
+            let rapport = (bloc.get("type").and_then(Value::as_str) == Some("toolCall")
+                && bloc.get("name").and_then(Value::as_str) == Some("SubagentHandback"))
+            .then(|| {
+                bloc.get("arguments")
+                    .and_then(|arguments| arguments.get("message"))
+            })
+            .flatten()
+            .and_then(Value::as_str)
+            .filter(|texte| !texte.trim().is_empty())
+            .map(str::to_string);
+            if let Some(rapport) = rapport {
+                *bloc = json!({ "type": "text", "text": rapport });
+            }
+        }
+    }
+    ligne
 }
 
 /// Une demande envoyée pendant que l'agent travaille.
