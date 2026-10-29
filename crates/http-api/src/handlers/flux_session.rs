@@ -240,6 +240,20 @@ async fn rattrape(
                 tracing::warn!(%detail, "flux de session : lecture échouée");
                 return Etape::Continue;
             }
+            // ⚠️ **Un curseur refusé (H04 : illisible, d'une autre session)
+            // est une erreur de DEMANDE**, plus une page « la plus récente »
+            // servie en silence : le flux repart de la queue (reset), une
+            // fois — jamais des lignes d'une autre conversation mêlées (C12).
+            Err(erreur)
+                if erreur.nature == domain::errors::Nature::InvalidInput
+                    && curseur.is_some()
+                    && !deja_reparti =>
+            {
+                tracing::info!(cause = %erreur.message_sur(), "flux de session : curseur refusé, reprise depuis la queue");
+                deja_reparti = true;
+                *curseur = None;
+                continue;
+            }
             Err(erreur) => {
                 tracing::warn!(cause = %erreur.message_sur(), "flux de session : lecture échouée");
                 return Etape::Continue;

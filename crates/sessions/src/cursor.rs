@@ -69,11 +69,17 @@ pub enum Curseur {
     /// session : il ne s'attache qu'à la source de la requête qui le porte.
     LegacyFichier { dev: u64, ino: u64, offset: u64 },
     /// La forme v2 : liée à la source, à la session et à la génération.
+    ///
+    /// `fichier` : l'identité (dev, ino) du fichier lu, quand le curseur la
+    /// porte. ⚠️ Les curseurs `hc2:` émis avant elle ne la portent pas :
+    /// `None` = identité **inconnue**, la lecture continue comme avant (rien
+    /// n'est supposé, ni continuité ni rotation).
     Versionne {
         empreinte_source: String,
         session: String,
         generation: u64,
         position: i64,
+        fichier: Option<(u64, u64)>,
     },
 }
 
@@ -95,16 +101,19 @@ impl Curseur {
         session: &str,
     ) -> Result<CurseurLie, ErreurCurseur> {
         match self {
-            Curseur::LegacyFichier { .. } => Ok(CurseurLie {
+            Curseur::LegacyFichier { dev, ino, .. } => Ok(CurseurLie {
                 empreinte_source: empreinte_source.to_string(),
                 session: session.to_string(),
                 position: self.position(),
+                // Le legacy SQLite porte {0,0} : aucune identité.
+                fichier: (*dev != 0 || *ino != 0).then_some((*dev, *ino)),
             }),
             Curseur::Versionne {
                 empreinte_source: source_portee,
                 session: session_portee,
                 generation: _,
                 position,
+                fichier,
             } => {
                 if source_portee != empreinte_source || session_portee != session {
                     return Err(ErreurCurseur::SessionEtrangere);
@@ -115,6 +124,7 @@ impl Curseur {
                     empreinte_source: empreinte_source.to_string(),
                     session: session.to_string(),
                     position: *position,
+                    fichier: *fichier,
                 })
             }
         }
@@ -127,6 +137,8 @@ pub struct CurseurLie {
     pub empreinte_source: String,
     pub session: String,
     pub position: i64,
+    /// L'identité (dev, ino) du fichier lu, quand le curseur la porte.
+    pub fichier: Option<(u64, u64)>,
 }
 
 /// Encode un curseur versionné — **le seul encodage émis** : opaque, lié,
@@ -146,6 +158,33 @@ pub fn encode(empreinte_source: &str, session: &str, generation: u64, position: 
     )
 }
 
+/// Encode un curseur versionné **de fichier** : la position ET l'identité
+/// (dev, ino) du fichier lu — un fichier remplacé au même chemin se
+/// reconnaît au lieu d'être lu depuis un offset périmé.
+#[must_use]
+pub fn encode_fichier(
+    empreinte_source: &str,
+    session: &str,
+    generation: u64,
+    position: i64,
+    dev: u64,
+    ino: u64,
+) -> String {
+    let charge = json!({
+        "v": 2,
+        "src": empreinte_source,
+        "ses": session,
+        "gen": generation,
+        "pos": position,
+        "dev": dev,
+        "ino": ino,
+    });
+    format!(
+        "hc2:{}",
+        base64::engine::general_purpose::STANDARD.encode(charge.to_string())
+    )
+}
+
 /// Décode un curseur opaque — legacy fichier ou v2 ; toute illisibilité est
 /// une erreur nommée (le caller répond 400, jamais deviner).
 pub fn decode(encoded: &str) -> Result<Curseur, ErreurCurseur> {
@@ -158,6 +197,13 @@ pub fn decode(encoded: &str) -> Result<Curseur, ErreurCurseur> {
             // Une version inconnue : refusée — jamais devinée.
             return Err(ErreurCurseur::Illisible);
         }
+        // Une position absente, non entière ou négative produirait une
+        // lecture au hasard (un `0` deviné) : refusée, comme le legacy.
+        let position = parsed
+            .get("pos")
+            .and_then(Value::as_i64)
+            .filter(|position| *position >= 0)
+            .ok_or(ErreurCurseur::Illisible)?;
         return Ok(Curseur::Versionne {
             empreinte_source: parsed
                 .get("src")
@@ -170,7 +216,14 @@ pub fn decode(encoded: &str) -> Result<Curseur, ErreurCurseur> {
                 .unwrap_or("")
                 .to_string(),
             generation: parsed.get("gen").and_then(Value::as_u64).unwrap_or(1),
-            position: parsed.get("pos").and_then(Value::as_i64).unwrap_or(0),
+            position,
+            fichier: match (
+                parsed.get("dev").and_then(Value::as_u64),
+                parsed.get("ino").and_then(Value::as_u64),
+            ) {
+                (Some(dev), Some(ino)) => Some((dev, ino)),
+                _ => None,
+            },
         });
     }
     // Legacy : le base64 de {"dev","ino","offset"}.

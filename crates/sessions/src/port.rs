@@ -17,10 +17,11 @@ use crate::cursor;
 use crate::normalisation::Normaliseur;
 use crate::path_policy::{VerdictChemin, resolu_sous};
 use crate::resolver::{Emplacement, Racines, Resolveur, SourceSession, source_session_de};
-use crate::storage::jsonl::framing::prochain_debut_de_ligne;
+use crate::storage::jsonl::framing::{Cadre, prochain_debut_de_ligne};
 use crate::storage::jsonl::identity::{CurseurFichier, identite_de};
 use crate::storage::jsonl::reader::{ErreurBorne, page_arriere, page_bornee};
-use crate::storage::sqlite::worker::Ouvrier;
+use crate::storage::sqlite::worker::{ErreurOuvrier, ReserveOuvriers};
+use domain::errors::ErreurDomaine;
 use domain::ports::SessionFuture;
 use domain::session::{
     ResolvedSource, SessionEntry, SessionHint, SessionMetadata, SessionPage, SessionPageOutcome,
@@ -42,6 +43,8 @@ pub const LIGNES_PAGE_SQLITE: u32 = 400;
 pub struct PortSessions {
     resolveur: Resolveur,
     normaliseur: Normaliseur,
+    /// Un ouvrier SQLite long par base, partagé par toutes les lectures.
+    ouvriers: ReserveOuvriers,
 }
 
 impl PortSessions {
@@ -50,6 +53,7 @@ impl PortSessions {
         Self {
             resolveur: Resolveur::nouveau(racines),
             normaliseur: Normaliseur::standard(),
+            ouvriers: ReserveOuvriers::default(),
         }
     }
 
@@ -86,6 +90,12 @@ impl PortSessions {
                 }),
             },
         }
+    }
+
+    /// Combien d'ouvriers SQLite vivent — un par base lue, pas un par page.
+    #[must_use]
+    pub fn ouvriers_sqlite(&self) -> usize {
+        self.ouvriers.nombre()
     }
 
     /// Les racines utilisées — pour les tests et la composition.
@@ -157,92 +167,145 @@ pub fn resout(resolveur: &Resolveur, hint: &SessionHint) -> Option<ResolvedSourc
     })
 }
 
+/// Le refus d'un `cursor` (H04 : 400 `invalid cursor`) — la cause réelle
+/// (illisible, autre session) part dans le diagnostic.
+fn curseur_refuse(cause: &cursor::ErreurCurseur) -> ErreurDomaine {
+    ErreurDomaine::entree_invalide("invalid cursor").avec_cause(cause.to_string())
+}
+
+/// Le refus d'un `before` (H04 : 400 `invalid previous-page cursor`).
+fn avant_refuse(cause: &cursor::ErreurCurseur) -> ErreurDomaine {
+    ErreurDomaine::entree_invalide("invalid previous-page cursor").avec_cause(cause.to_string())
+}
+
+/// Un curseur d'historique qui ne décrit plus le fichier (remplacé, tronqué,
+/// disparu) : H04 409 — le client recharge la conversation.
+fn historique_perime(cause: &str) -> ErreurDomaine {
+    ErreurDomaine::source_invalide("the session changed; reload the conversation to continue")
+        .avec_cause(cause.to_string())
+}
+
+/// L'entrée servie pour un cadre : la ligne normalisée — ou, pour une ligne
+/// hors plafond, une entrée `unknown` qui **dit** qu'elle a été ignorée
+/// (jamais une ligne vide silencieuse, jamais un contenu inventé).
+fn entree_de_cadre(
+    normaliseur: &Normaliseur,
+    famille: Option<&str>,
+    cadre: &Cadre,
+) -> Option<SessionEntry> {
+    if cadre.hors_plafond {
+        let raison = format!("ligne trop grande ({} octets) ignorée", cadre.consomme);
+        return Some(SessionEntry {
+            kind: String::from("unknown"),
+            id: None,
+            parent_id: None,
+            raw: serde_json::json!({
+                "type": "unknown",
+                "ignored": true,
+                "bytes": cadre.consomme,
+                "reason": raison,
+            })
+            .to_string(),
+            timestamp: None,
+        });
+    }
+    if cadre.brut.trim().is_empty() {
+        return None;
+    }
+    Some(normaliseur.entree(famille, &cadre.brut))
+}
+
+/// Le début de la **queue** d'un fichier : `taille - fenêtre`, aligné sur
+/// le premier début de ligne (jamais une ligne coupée).
+fn debut_de_queue(chemin: &Path, taille: u64, fenetre: u32) -> std::io::Result<u64> {
+    let cible = u64::from(fenetre);
+    if taille <= cible {
+        return Ok(0);
+    }
+    let mut fichier = std::fs::File::open(chemin)?;
+    prochain_debut_de_ligne(&mut fichier, taille - cible)
+}
+
 /// Une page de fichier : le JSONL, borné, avec ses quatre clauses.
 fn page_fichier(
     normaliseur: &Normaliseur,
     source: &ResolvedSource,
     request: &SessionPageRequest,
-) -> SessionPageOutcome {
+) -> Result<SessionPageOutcome, ErreurDomaine> {
     let chemin = Path::new(&source.base);
     let empreinte = empreinte_de_source(source);
     // ⚠️ Le forward est borné par la CIBLE de T025 (2 MiB) dans `page_bornee` ;
-    // `request.limit` (la fenêtre demandée) sert à l'historique, où le client
-    // choisit combien il remonte.
-    // ⚠️ **L'identité du fichier est MESURÉE, pas portée par le curseur** : le
-    // format `hc2:` ne transporte que source/session/génération/position.
-    // Le seul reset qu'on puisse PROUVER sans dev/ino dans le jeton est une
-    // **troncature** (position au-delà de la taille) — et il est dit.
+    // `request.limit` (la fenêtre demandée) sert à la queue et à l'historique.
     let identite = match identite_de(chemin) {
         Ok(identite) => identite,
         Err(cause) if cause.kind() == std::io::ErrorKind::NotFound => {
-            return SessionPageOutcome::Absente(page_vide_de(source, request));
+            return Ok(SessionPageOutcome::Absente(page_vide_de(source, request)));
         }
         Err(cause) => {
-            return SessionPageOutcome::Io {
+            return Ok(SessionPageOutcome::Io {
                 detail: cause.to_string(),
-            };
+            });
         }
     };
-    // 1) Le curseur : absent = première page ; présent = décodé et **lié**.
+    let queue = || {
+        debut_de_queue(chemin, identite.taille, request.limit).map_err(|cause| {
+            SessionPageOutcome::Io {
+                detail: cause.to_string(),
+            }
+        })
+    };
+    // 1) Le curseur : absent = la QUEUE ; présent = décodé, **lié**, et
+    //    confronté au fichier mesuré.
     //
     // ⚠️ **Première page d'un GROS fichier = la QUEUE, pas l'origine.** Le banc
     // T065 a mesuré 18 ms pour une fenêtre de 64 Kio demandée sur un fichier de
-    // 32 Mio : la lecture partait de l'octet 0 et parcourait toute la fenêtre
-    // depuis le début de l'historique. On démarre donc à `taille - limite`,
-    // aligné sur le premier saut de ligne (jamais une ligne coupée).
-    let position: u64 = match request.cursor.as_deref() {
-        None => {
-            let cible = u64::from(request.limit);
-            if identite.taille > cible {
-                match std::fs::File::open(chemin).and_then(|mut fichier| {
-                    prochain_debut_de_ligne(&mut fichier, identite.taille - cible)
-                }) {
-                    Ok(debut) => debut,
-                    Err(cause) => {
-                        return SessionPageOutcome::Io {
-                            detail: cause.to_string(),
-                        };
-                    }
+    // 32 Mio : la lecture partait de l'octet 0.
+    //
+    // ⚠️ **Rotation et troncature repartent de la QUEUE, et le disent.** Le
+    // curseur porte l'identité (dev, ino) du fichier lu : un fichier remplacé
+    // au même chemin était lu depuis un offset périmé, et une troncature
+    // repartait de l'octet 0 (tout le fichier poussé dans le flux). Un curseur
+    // sans identité (émis avant elle) continue comme avant.
+    let (position, remplace) = match request.cursor.as_deref() {
+        None => match queue() {
+            Ok(debut) => (debut, false),
+            Err(issue) => return Ok(issue),
+        },
+        Some(brut) => {
+            let lie = cursor::decode(brut)
+                .and_then(|curseur| curseur.lie_a(&empreinte, &source.base))
+                .map_err(|cause| curseur_refuse(&cause))?;
+            let position = u64::try_from(lie.position)
+                .map_err(|_| curseur_refuse(&cursor::ErreurCurseur::Illisible))?;
+            let autre_fichier = lie.fichier.is_some_and(|(dev, ino)| {
+                dev != identite.curseur.dev || ino != identite.curseur.ino
+            });
+            if autre_fichier || position > identite.taille {
+                match queue() {
+                    Ok(debut) => (debut, true),
+                    Err(issue) => return Ok(issue),
                 }
             } else {
-                0
-            }
-        }
-        Some(brut) => {
-            let lie =
-                cursor::decode(brut).and_then(|curseur| curseur.lie_a(&empreinte, &source.base));
-            match lie {
-                Ok(lie) => u64::try_from(lie.position).unwrap_or(0),
-                Err(cause) => {
-                    return SessionPageOutcome::Invalide {
-                        detail: format!("curseur refusé : {cause}"),
-                    };
-                }
+                (position, false)
             }
         }
     };
-    let tronque = position > identite.taille;
     let curseur = CurseurFichier {
         dev: identite.curseur.dev,
         ino: identite.curseur.ino,
-        offset: if tronque { 0 } else { position },
+        offset: position,
     };
 
     // 2) Le fichier : absent = `Absente` (bénin, le JSONL naît au premier
     //    message), illisible = `Io`.
     let page = match page_bornee(chemin, &curseur, true) {
         Ok(page) => page,
-        Err(ErreurBorne::RecordHorsPlafond { taille }) => {
-            return SessionPageOutcome::Invalide {
-                detail: format!("record de {taille} octets au-delà du plafond absolu"),
-            };
-        }
         Err(ErreurBorne::Io(cause))
             if cause.contains("No such file") || cause.contains("os error 2") =>
         {
-            return SessionPageOutcome::Absente(page_vide_de(source, request));
+            return Ok(SessionPageOutcome::Absente(page_vide_de(source, request)));
         }
-        Err(ErreurBorne::Io(cause)) => return SessionPageOutcome::Io { detail: cause },
+        Err(ErreurBorne::Io(cause)) => return Ok(SessionPageOutcome::Io { detail: cause }),
     };
     // 3) Les entrées, dans l'ordre de lecture — chacune passée par le point
     //    d'entrée unique (forme commune ; brute quand rien ne la traduit).
@@ -250,56 +313,46 @@ fn page_fichier(
     let entries: Vec<SessionEntry> = page
         .cadres
         .iter()
-        .filter(|cadre| !cadre.brut.trim().is_empty())
-        .map(|cadre| normaliseur.entree(famille, &cadre.brut))
+        .filter_map(|cadre| entree_de_cadre(normaliseur, famille, cadre))
         .collect();
-    let nouveau_curseur = cursor::encode(
-        &empreinte,
-        &source.base,
-        1,
-        i64::try_from(page.curseur.offset).unwrap_or(0),
-    );
+    let encode = |offset: u64| {
+        cursor::encode_fichier(
+            &empreinte,
+            &source.base,
+            1,
+            i64::try_from(offset).unwrap_or(i64::MAX),
+            page.curseur.dev,
+            page.curseur.ino,
+        )
+    };
+    let debut_page = page
+        .cadres
+        .first()
+        .map_or(curseur.offset, |cadre| cadre.depart);
     let page = SessionPage {
         session_path: source.base.clone(),
         entries,
         incremental: request.cursor.is_some(),
-        cursor: Some(nouveau_curseur),
+        cursor: Some(encode(page.curseur.offset)),
         /*
           ⚠️ **`previous_cursor` pointe le DÉBUT DE LA PAGE SERVIE, pas zéro.**
 
-          Il était encodé avec l'offset `0` en dur : sur une session de 738 Ko
-          dont la fenêtre initiale commence à 476 Ko, la PWA demandait donc
-          `before=<offset 0>` — une page **vide**, à chaque remontée, pour
-          toujours. Mesuré : `previousCursor` présent, `hasMore: true`, et zéro
-          entrée ramenée. La remontée de l'historique ne pouvait pas fonctionner.
-
-          Le début de la page est `depart` du premier cadre rendu ; sans cadre,
-          c'est la position de lecture elle-même (rien n'a été consommé).
+          Il était encodé avec l'offset `0` en dur : la PWA demandait donc
+          `before=<offset 0>` — une page **vide**, à chaque remontée. Le début
+          de la page est `depart` du premier cadre rendu ; sans cadre, c'est la
+          position de lecture elle-même (rien n'a été consommé).
         */
-        previous_cursor: Some(cursor::encode(
-            &empreinte,
-            &source.base,
-            1,
-            i64::try_from(
-                page.cadres
-                    .first()
-                    .map_or(curseur.offset, |cadre| cadre.depart),
-            )
-            .unwrap_or(0),
-        )),
-        has_more: page
-            .cadres
-            .first()
-            .map_or(curseur.offset > 0, |cadre| cadre.depart > 0),
-        // Un reset est dit seulement s'il est PROUVÉ : troncature, ou
-        // réinitialisation constatée par le lecteur.
-        reset: tronque || page.reinitialisee,
+        previous_cursor: Some(encode(debut_page)),
+        has_more: debut_page > 0,
+        // Un reset est dit seulement s'il est PROUVÉ : identité changée,
+        // troncature, ou réinitialisation constatée par le lecteur.
+        reset: remplace || page.reinitialisee,
         rattrape: page.a_rattrape,
     };
     if page.entries.is_empty() && !page.reset {
-        return SessionPageOutcome::Vide(page);
+        return Ok(SessionPageOutcome::Vide(page));
     }
-    SessionPageOutcome::Page(page)
+    Ok(SessionPageOutcome::Page(page))
 }
 
 /// La page vide d'une source absente — le contexte de réponse (incrémental,
@@ -323,97 +376,127 @@ fn page_fichier_arriere(
     source: &ResolvedSource,
     request: &SessionPageRequest,
     avant: &str,
-) -> SessionPageOutcome {
+) -> Result<SessionPageOutcome, ErreurDomaine> {
     let empreinte = empreinte_de_source(source);
-    let lie = cursor::decode(avant).and_then(|curseur| curseur.lie_a(&empreinte, &source.base));
-    let Ok(lie) = lie else {
-        return SessionPageOutcome::Invalide {
-            detail: String::from("curseur d'historique refusé"),
-        };
-    };
-    // Même règle qu'en avant : l'identité est mesurée, la position vient du
-    // jeton. Sans cela, `continuite` échouait et la page arrière rendait la
-    // FIN du fichier au lieu de l'historique demandé.
+    let lie = cursor::decode(avant)
+        .and_then(|curseur| curseur.lie_a(&empreinte, &source.base))
+        .map_err(|cause| avant_refuse(&cause))?;
+    let position =
+        u64::try_from(lie.position).map_err(|_| avant_refuse(&cursor::ErreurCurseur::Illisible))?;
+    // L'identité est mesurée ; le jeton dit quel fichier il décrivait. Un
+    // fichier remplacé, tronqué en deçà de la borne ou disparu : la borne ne
+    // désigne plus rien — 409, jamais l'historique d'un autre fichier.
     let identite = match identite_de(Path::new(&source.base)) {
         Ok(identite) => identite,
+        Err(cause) if cause.kind() == std::io::ErrorKind::NotFound => {
+            return Err(historique_perime("fichier de session disparu"));
+        }
         Err(cause) => {
-            return SessionPageOutcome::Io {
+            return Ok(SessionPageOutcome::Io {
                 detail: cause.to_string(),
-            };
+            });
         }
     };
+    if lie
+        .fichier
+        .is_some_and(|(dev, ino)| dev != identite.curseur.dev || ino != identite.curseur.ino)
+    {
+        return Err(historique_perime("fichier de session remplacé"));
+    }
+    if position > identite.taille {
+        return Err(historique_perime("fichier de session tronqué"));
+    }
     let curseur = CurseurFichier {
         dev: identite.curseur.dev,
         ino: identite.curseur.ino,
-        offset: u64::try_from(lie.position).unwrap_or(0),
+        offset: position,
     };
     let limite = if request.limit == 0 {
         LIMITE_PAGE_DEFAUT
     } else {
         request.limit
     } as usize;
-    match page_arriere(Path::new(&source.base), &curseur, limite) {
-        Ok(arriere) => {
-            let famille = source.family.as_ref().map(|kind| kind.as_str());
-            let entries: Vec<SessionEntry> = arriere
-                .cadres
-                .iter()
-                .filter(|cadre| !cadre.brut.trim().is_empty())
-                .map(|cadre| normaliseur.entree(famille, &cadre.brut))
-                .collect();
-            SessionPageOutcome::Page(SessionPage {
-                cursor: Some(cursor::encode(
-                    &empreinte,
-                    &source.base,
-                    1,
-                    i64::try_from(curseur.offset).unwrap_or(0),
-                )),
-                entries,
-                has_more: arriere.curseur.offset > 0,
-                incremental: false,
-                previous_cursor: Some(cursor::encode(
-                    &empreinte,
-                    &source.base,
-                    1,
-                    i64::try_from(arriere.curseur.offset).unwrap_or(0),
-                )),
-                reset: false,
-                rattrape: false,
-                session_path: source.base.clone(),
-            })
+    let arriere = match page_arriere(Path::new(&source.base), &curseur, limite) {
+        Ok(arriere) => arriere,
+        Err(cause) => {
+            return Ok(SessionPageOutcome::Io {
+                detail: cause.to_string(),
+            });
         }
-        Err(cause) => SessionPageOutcome::Io {
-            detail: cause.to_string(),
-        },
-    }
+    };
+    let famille = source.family.as_ref().map(|kind| kind.as_str());
+    let entries: Vec<SessionEntry> = arriere
+        .cadres
+        .iter()
+        .filter_map(|cadre| entree_de_cadre(normaliseur, famille, cadre))
+        .collect();
+    let encode = |offset: u64| {
+        cursor::encode_fichier(
+            &empreinte,
+            &source.base,
+            1,
+            i64::try_from(offset).unwrap_or(i64::MAX),
+            arriere.curseur.dev,
+            arriere.curseur.ino,
+        )
+    };
+    Ok(SessionPageOutcome::Page(SessionPage {
+        cursor: Some(encode(curseur.offset)),
+        entries,
+        has_more: arriere.curseur.offset > 0,
+        incremental: false,
+        previous_cursor: Some(encode(arriere.curseur.offset)),
+        reset: false,
+        rattrape: false,
+        session_path: source.base.clone(),
+    }))
 }
 
 /// Une page SQLite (opencode/devin) : la famille décide de la lecture.
-fn page_sqlite(source: &ResolvedSource, request: &SessionPageRequest) -> SessionPageOutcome {
+fn page_sqlite(
+    reserve: &ReserveOuvriers,
+    source: &ResolvedSource,
+    request: &SessionPageRequest,
+) -> Result<SessionPageOutcome, ErreurDomaine> {
     let Some(identifiant) = source.session_id.as_ref() else {
-        return SessionPageOutcome::Invalide {
+        return Ok(SessionPageOutcome::Invalide {
             detail: String::from("source SQLite sans identifiant de session"),
-        };
-    };
-    let ouvrier = match Ouvrier::nouveau(Path::new(&source.base)) {
-        Ok(ouvrier) => ouvrier,
-        Err(cause) => {
-            return SessionPageOutcome::Io {
-                detail: format!("base illisible : {cause}"),
-            };
-        }
+        });
     };
     // Le curseur SQLite est la position `seq` ; `hc2:` la porte comme les
     // autres, le décodage est le même.
+    //
+    // ⚠️ **Un curseur refusé est une ERREUR, jamais la dernière page.** Le
+    // décodage et la liaison étaient avalés (`.ok()`) : un curseur illisible
+    // ou celui d'une AUTRE session rendait la page la plus récente en 200 —
+    // dans le flux, un `Last-Event-ID` d'une autre conversation y mêlait ses
+    // lignes (C12 : le curseur d'A ne lit jamais B).
     let empreinte = empreinte_de_source(source);
-    let position = |brut: &str| -> Option<i64> {
+    let position = |brut: &str| -> Result<i64, cursor::ErreurCurseur> {
         cursor::decode(brut)
-            .ok()
-            .and_then(|curseur| curseur.lie_a(&empreinte, identifiant.as_str()).ok())
+            .and_then(|curseur| curseur.lie_a(&empreinte, identifiant.as_str()))
             .map(|lie| lie.position)
     };
-    let avant = request.previous_cursor.as_deref().and_then(position);
-    let depuis = request.cursor.as_deref().and_then(position);
+    let avant = request
+        .previous_cursor
+        .as_deref()
+        .map(position)
+        .transpose()
+        .map_err(|cause| avant_refuse(&cause))?;
+    let depuis = request
+        .cursor
+        .as_deref()
+        .map(position)
+        .transpose()
+        .map_err(|cause| curseur_refuse(&cause))?;
+    let ouvrier = match reserve.ouvrier(Path::new(&source.base)) {
+        Ok(ouvrier) => ouvrier,
+        Err(cause) => {
+            return Ok(SessionPageOutcome::Io {
+                detail: format!("base illisible : {cause}"),
+            });
+        }
+    };
     let famille = source
         .family
         .as_ref()
@@ -472,9 +555,9 @@ fn page_sqlite(source: &ResolvedSource, request: &SessionPageRequest) -> Session
             })
         }
         _ => {
-            return SessionPageOutcome::Invalide {
+            return Ok(SessionPageOutcome::Invalide {
                 detail: format!("famille SQLite non composée : {famille}"),
-            };
+            });
         }
     };
     let (curseur_lu, previous_seq, incremental, has_more, entrees) = match page {
@@ -482,9 +565,14 @@ fn page_sqlite(source: &ResolvedSource, request: &SessionPageRequest) -> Session
         // ⚠️ La cause réelle est rendue : un verrou, une table absente et un
         // schéma inattendu ne se diagnostiquent pas de la même façon.
         Err(cause) => {
-            return SessionPageOutcome::Io {
+            // Un ouvrier en échec est recréé à la lecture suivante — sauf
+            // une file pleine : c'est une surcharge, pas une panne.
+            if !cause.contains(&ErreurOuvrier::FilePleine.to_string()) {
+                reserve.oublie(Path::new(&source.base), &ouvrier);
+            }
+            return Ok(SessionPageOutcome::Io {
                 detail: format!("lecture SQLite échouée ({famille}) : {cause:?}"),
-            };
+            });
         }
     };
     let entries: Vec<SessionEntry> = entrees
@@ -517,9 +605,30 @@ fn page_sqlite(source: &ResolvedSource, request: &SessionPageRequest) -> Session
         rattrape: entries_lues < LIGNES_PAGE_SQLITE as usize,
     };
     if session.entries.is_empty() {
-        return SessionPageOutcome::Vide(session);
+        // ⚠️ **Une session que la base ignore n'est pas une session vide.**
+        // `session_existe` n'était jamais appelée : un identifiant inconnu
+        // s'affichait comme une conversation vide. H04 (CURRENT.md) : une
+        // ligne de session absente rend `cause: "absente"` — la session n'a
+        // pas encore commencé (devin écrit sa ligne au premier message).
+        let existe = match famille.as_str() {
+            "opencode" => opencode::moteur::session_existe(&ouvrier, identifiant.as_str()),
+            "devin" => devin::moteur::session_existe(&ouvrier, identifiant.as_str()),
+            _ => Ok(true),
+        };
+        return Ok(match existe {
+            Ok(true) => SessionPageOutcome::Vide(session),
+            Ok(false) => SessionPageOutcome::Absente(SessionPage {
+                cursor: Some(cursor::encode(&empreinte, identifiant.as_str(), 1, 0)),
+                previous_cursor: None,
+                has_more: false,
+                ..session
+            }),
+            Err(cause) => SessionPageOutcome::Io {
+                detail: format!("lecture SQLite échouée ({famille}) : {cause}"),
+            },
+        });
     }
-    SessionPageOutcome::Page(session)
+    Ok(SessionPageOutcome::Page(session))
 }
 
 impl domain::ports::SessionPort for PortSessions {
@@ -530,9 +639,16 @@ impl domain::ports::SessionPort for PortSessions {
 
     fn page(&self, request: SessionPageRequest) -> SessionFuture<'_, SessionPageOutcome> {
         Box::pin(async move {
-            let issue = match request.source.kind {
+            // H04 : `cursor` et `before` sont exclusifs — les deux ensemble ne
+            // décrivent aucune lecture (`valide_paire` existait, jamais appelée).
+            cursor::valide_paire(
+                request.cursor.as_deref(),
+                request.previous_cursor.as_deref(),
+            )
+            .map_err(|cause| avant_refuse(&cause))?;
+            match request.source.kind {
                 SourceKind::File => match self.garde(&request.source) {
-                    Err(refus) => refus,
+                    Err(refus) => Ok(refus),
                     Ok(source) => match request.previous_cursor.as_deref() {
                         Some(avant) => {
                             page_fichier_arriere(&self.normaliseur, &source, &request, avant)
@@ -540,9 +656,8 @@ impl domain::ports::SessionPort for PortSessions {
                         None => page_fichier(&self.normaliseur, &source, &request),
                     },
                 },
-                SourceKind::Sqlite => page_sqlite(&request.source, &request),
-            };
-            Ok(issue)
+                SourceKind::Sqlite => page_sqlite(&self.ouvriers, &request.source, &request),
+            }
         })
     }
 

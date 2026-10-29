@@ -184,3 +184,71 @@ impl std::fmt::Display for ErreurOuvrier {
 }
 
 impl std::error::Error for ErreurOuvrier {}
+
+/// La **réserve** d'ouvriers : UN ouvrier long par base, partagé par toutes
+/// les lectures (T015 : un fil, une connexion read-only, une file bornée).
+///
+/// ⚠️ **Un ouvrier par page lue, c'était un fil et une connexion par lecture.**
+/// Le hub observe la base entière : chaque écriture d'opencode réveillait
+/// chaque flux opencode, et chaque réveil ouvrait sa connexion et lançait son
+/// fil. La réserve garde l'ouvrier ; elle le **recrée** quand il a échoué
+/// ([`ReserveOuvriers::oublie`]) ou quand la base a été remplacée (dev/ino
+/// changés) — une connexion ouverte sur l'ancien fichier lirait l'ancienne
+/// base pour toujours.
+#[derive(Default)]
+pub struct ReserveOuvriers {
+    ouvriers: std::sync::Mutex<std::collections::HashMap<std::path::PathBuf, OuvrierConnu>>,
+}
+
+/// Un ouvrier de la réserve et l'identité (dev, ino) de la base qu'il lit.
+type OuvrierConnu = (Option<(u64, u64)>, Arc<Ouvrier>);
+
+impl ReserveOuvriers {
+    /// L'ouvrier de cette base — le même tant qu'il sert et que la base est
+    /// le même fichier ; sinon un nouveau (l'ouverture peut échouer : la
+    /// cause réelle remonte).
+    pub fn ouvrier(&self, chemin: &Path) -> Result<Arc<Ouvrier>, String> {
+        use std::os::unix::fs::MetadataExt;
+        let identite = std::fs::metadata(chemin)
+            .ok()
+            .map(|meta| (meta.dev(), meta.ino()));
+        let mut ouvriers = self
+            .ouvriers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if let Some((connue, ouvrier)) = ouvriers.get(chemin)
+            && identite.is_some()
+            && *connue == identite
+        {
+            return Ok(Arc::clone(ouvrier));
+        }
+        let ouvrier = Arc::new(Ouvrier::nouveau(chemin)?);
+        ouvriers.insert(chemin.to_path_buf(), (identite, Arc::clone(&ouvrier)));
+        Ok(ouvrier)
+    }
+
+    /// Oublie CET ouvrier (s'il est encore celui de la base) : la prochaine
+    /// lecture en ouvre un neuf. Le fil de l'ancien s'arrête quand la
+    /// dernière référence tombe.
+    pub fn oublie(&self, chemin: &Path, ouvrier: &Arc<Ouvrier>) {
+        let mut ouvriers = self
+            .ouvriers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        if ouvriers
+            .get(chemin)
+            .is_some_and(|(_, connu)| Arc::ptr_eq(connu, ouvrier))
+        {
+            ouvriers.remove(chemin);
+        }
+    }
+
+    /// Combien d'ouvriers vivent dans la réserve — l'observation des tests.
+    #[must_use]
+    pub fn nombre(&self) -> usize {
+        self.ouvriers
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .len()
+    }
+}

@@ -64,12 +64,24 @@ impl SessionPort for PortQuiGrandit {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .clone();
-        let depuis: usize = demande
-            .cursor
-            .as_deref()
-            .and_then(|curseur| curseur.strip_prefix('c'))
-            .and_then(|indice| indice.parse().ok())
-            .unwrap_or(0);
+        // Un curseur que ce port ne reconnaît pas est refusé, comme le vrai
+        // port (H04 : 400 `invalid cursor`).
+        let depuis: usize = match demande.cursor.as_deref() {
+            None => 0,
+            Some(curseur) => match curseur
+                .strip_prefix('c')
+                .and_then(|indice| indice.parse().ok())
+            {
+                Some(indice) => indice,
+                None => {
+                    return Box::pin(async {
+                        Err(domain::errors::ErreurDomaine::entree_invalide(
+                            "invalid cursor",
+                        ))
+                    });
+                }
+            },
+        };
         let entries: Vec<SessionEntry> = lignes
             .iter()
             .skip(depuis)
@@ -275,6 +287,37 @@ async fn la_reconnexion_reprend_exactement_au_dernier_id() {
         Some("c2")
     );
     let _ = observateur;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn un_last_event_id_refuse_repart_de_la_queue() {
+    // Régression : le port rend désormais un curseur étranger ou illisible en
+    // ERREUR (400) au lieu d'une page la plus récente ; le flux doit alors
+    // repartir de la queue (reset), pas attendre en silence.
+    let (services, port, _observateur) = monde();
+    port.ajoute("m1");
+    port.ajoute("m2");
+    let (statut, mut client) = ouvre(
+        Arc::clone(&services),
+        "/api/agents/w1:p1/stream",
+        Some("hc2:curseur-d-une-autre-session"),
+    )
+    .await;
+    assert_eq!(statut, StatusCode::OK);
+    let premiere = client.suivante().await;
+    assert_eq!(premiere.genre, "reset", "un curseur refusé remplace la vue");
+    let page: SessionResponse = serde_json::from_str(&premiere.donnees)
+        .unwrap_or_else(|cause| panic!("reset se décode contre le contrat : {cause}"));
+    assert_eq!(page.entries.len(), 2);
+    let demandes = port
+        .demandes
+        .lock()
+        .unwrap_or_else(PoisonError::into_inner)
+        .clone();
+    assert_eq!(
+        demandes,
+        vec![Some(String::from("hc2:curseur-d-une-autre-session")), None]
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

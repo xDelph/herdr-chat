@@ -170,15 +170,15 @@ fn un_curseur_d_une_autre_source_est_refuse() {
         cursor: Some(curseur),
         previous_cursor: None,
         limit: 512 * 1024,
-    }))
-    .unwrap_or_else(|cause| panic!("page : {cause:?}"));
-    // Un curseur étranger est une DEMANDE invalide : on le dit (400), on ne
-    // relit pas au hasard.
+    }));
+    // Un curseur étranger est une DEMANDE invalide : on le dit (H04 : 400
+    // `invalid cursor`), on ne relit pas au hasard.
     match issue {
-        SessionPageOutcome::Invalide { detail } => {
-            assert!(detail.contains("curseur"), "{detail}");
+        Err(erreur) => {
+            assert_eq!(erreur.nature, domain::errors::Nature::InvalidInput);
+            assert_eq!(erreur.detail, "invalid cursor");
         }
-        autre_issue => panic!("un curseur étranger est refusé : {autre_issue:?}"),
+        Ok(autre_issue) => panic!("un curseur étranger est refusé : {autre_issue:?}"),
     }
     let _ = std::fs::remove_dir_all(&racine);
 }
@@ -194,12 +194,15 @@ fn un_curseur_illisible_est_refuse() {
         cursor: Some(String::from("pas-un-curseur")),
         previous_cursor: None,
         limit: 512 * 1024,
-    }))
-    .unwrap_or_else(|cause| panic!("page : {cause:?}"));
-    assert!(
-        matches!(issue, SessionPageOutcome::Invalide { .. }),
-        "{issue:?}"
-    );
+    }));
+    // H04 : 400 `invalid cursor` — la nature `InvalidInput`, pas un 422.
+    match issue {
+        Err(erreur) => {
+            assert_eq!(erreur.nature, domain::errors::Nature::InvalidInput);
+            assert_eq!(erreur.detail, "invalid cursor");
+        }
+        Ok(autre) => panic!("un curseur illisible est refusé : {autre:?}"),
+    }
     let _ = std::fs::remove_dir_all(&racine);
 }
 

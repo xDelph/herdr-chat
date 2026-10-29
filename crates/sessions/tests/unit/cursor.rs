@@ -14,7 +14,12 @@ fn l_aller_retour_versionné_est_fidèle() {
             session,
             generation,
             position,
+            fichier,
         }) => {
+            assert!(
+                fichier.is_none(),
+                "un curseur sans identité n'en invente pas"
+            );
             assert!(empreinte_source == "empreinte-source-1");
             assert!(session == "burly-stop");
             assert!(

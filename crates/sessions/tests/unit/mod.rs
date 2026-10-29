@@ -15,5 +15,6 @@ pub(crate) mod normalisation;
 pub(crate) mod path_policy;
 pub(crate) mod pipeline;
 pub(crate) mod port;
+pub(crate) mod port_curseurs;
 pub(crate) mod resolver;
 pub(crate) mod sqlite;
