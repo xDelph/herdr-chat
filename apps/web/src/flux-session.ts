@@ -38,6 +38,7 @@ import { Option, Schema } from "effect";
 import type { SessionEntry } from "@herdr-remote/shared";
 import { SessionResponse, SessionStreamEntries, SessionStreamGone } from "@herdr-remote/shared";
 import { fusionnerEntrees } from "./messages.ts";
+import { delaiDeReprise } from "./reprise.ts";
 import { decideAffichage, mentionLecturePartielle } from "./session-vue.ts";
 
 type Entree = typeof SessionEntry.Type;
@@ -159,8 +160,6 @@ export const ECHECS_FLUX_MAX = 3;
 export const DELAI_SIGNAL_MS = 120;
 /** Le filet du repli : une relecture même quand rien n'est signalé. */
 export const FILET_REPLI_MS = 15_000;
-/** Délai avant de rouvrir un flux qui s'est fermé après avoir fonctionné. */
-export const DELAI_REOUVERTURE_MS = 2_000;
 /** Pages vides consécutives tolérées en remontant l'historique. */
 export const PAGES_VIDES_MAX = 8;
 /** Pages lues au plus par remontée — un fichier sans demande ne se lit pas en entier. */
@@ -220,6 +219,9 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
   let annuleReouverture: (() => void) | null = null;
   let annuleVeille: (() => void) | null = null;
   let annuleRetour: (() => void) | null = null;
+  /** Le flux a déjà fonctionné pour ce pane : un échec ensuite se reprend, il ne replie pas. */
+  let dejaVecu = false;
+  let essaisReprise = 0;
   /** Dernier signe de vie du contenu : un événement du flux, ou une lecture réussie. */
   let dernierSigne = maintenant();
 
@@ -387,6 +389,8 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
 
   /** Recrée le flux depuis le curseur : l'ancien se tait, le nouveau reprend. */
   const rouvreFlux = (): void => {
+    annuleReouverture?.();
+    annuleReouverture = null;
     source?.close();
     source = null;
     ouvreFlux();
@@ -443,6 +447,11 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
     */
     const marqueOuvert = (): void => {
       dernierSigne = maintenant();
+      // Un signe de vie annule la recréation prévue (le navigateur a repris seul).
+      annuleReouverture?.();
+      annuleReouverture = null;
+      essaisReprise = 0;
+      dejaVecu = true;
       if (ouvert) return;
       ouvert = true;
       echecsFlux = 0;
@@ -502,7 +511,7 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
 
     courante.addEventListener("error", () => {
       if (!actuelle()) return;
-      if (!ouvert) {
+      if (!ouvert && !dejaVecu) {
         echecsFlux += 1;
         if (courante.readyState === FERME || echecsFlux >= ECHECS_FLUX_MAX) {
           passeEnRepli(
@@ -514,16 +523,20 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
         }
         return;
       }
-      // Le flux a fonctionné : le navigateur reconnecte seul (Last-Event-ID).
-      // S'il abandonne (erreur HTTP à la reconnexion), on rouvre depuis le curseur.
-      if (courante.readyState !== FERME) return;
-      courante.close();
-      source = null;
-      annuleReouverture?.();
+      /*
+        ⚠️ Le flux a fonctionné : on ne compte plus sur le seul navigateur
+        (mesuré : après une coupure de 4 s, rien ne se rouvrait en 60 s). Une
+        recréation est programmée — 1 s, 2 s, 5 s, puis 10 s — depuis le
+        DERNIER curseur appliqué ; un signe de vie de cette source l'annule.
+      */
+      if (annuleReouverture !== null) return;
+      const delai = delaiDeReprise(essaisReprise);
+      essaisReprise += 1;
       annuleReouverture = deps.planifie(() => {
         annuleReouverture = null;
-        ouvreFlux();
-      }, DELAI_REOUVERTURE_MS);
+        if (ferme || vue.fin !== null || vue.transport === "repli") return;
+        rouvreFlux();
+      }, delai);
     });
   };
 

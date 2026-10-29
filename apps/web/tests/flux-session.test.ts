@@ -469,6 +469,55 @@ describe("un flux muet n'est pas un flux vivant", () => {
   });
 });
 
+describe("un flux tombé est recréé, avec un délai croissant, depuis le dernier curseur", () => {
+  /*
+    ⚠️ Mesuré : après une coupure réseau de 4 s, aucun flux ne se rouvrait en
+    60 s — seul le filet de relecture reprenait.
+  */
+  test("CLOSED après avoir vécu : recréé à 1 s, puis 2 s, avec ?cursor= du dernier appliqué", async () => {
+    const { flux, horloge, suivi } = monte({
+      lit: async () => page({ cursor: "c1", entries: [demande("u1")] }),
+    });
+    suivi.demarre();
+    await attend();
+    flux[0]?.emet("open");
+    flux[0]?.emet("entries", { caughtUp: true, cursor: "c7", entries: [entree("a1")] });
+    if (flux[0] !== undefined) flux[0].readyState = FERME;
+    flux[0]?.emet("error");
+    expect(flux).toHaveLength(1);
+    horloge.avance(1_000);
+    expect(flux).toHaveLength(2);
+    expect(flux[1]?.url).toBe(urlDuFlux("w1:p1", "c7"));
+    expect(flux[0]?.ferme).toBe(true);
+    // Le réseau est toujours coupé : la nouvelle échoue avant d'ouvrir — on
+    // reprend (2 s), on ne bascule pas en repli.
+    flux[1]?.emet("error");
+    expect(suivi.vue().transport).toBe("flux");
+    horloge.avance(1_000);
+    expect(flux).toHaveLength(2);
+    horloge.avance(2_000);
+    expect(flux).toHaveLength(3);
+    // Elle s'ouvre : le délai repart du début.
+    flux[2]?.emet("open");
+    flux[2]?.emet("error");
+    horloge.avance(1_000);
+    expect(flux).toHaveLength(4);
+  });
+
+  test("le navigateur reprend seul avant l'échéance : pas de recréation", async () => {
+    const { flux, horloge, suivi } = monte({
+      lit: async () => page({ entries: [demande("u1")] }),
+    });
+    suivi.demarre();
+    await attend();
+    flux[0]?.emet("open");
+    flux[0]?.emet("error");
+    flux[0]?.emet("open");
+    horloge.avance(10_000);
+    expect(flux).toHaveLength(1);
+  });
+});
+
 describe("résultats périmés", () => {
   test("une lecture partie avant un `reset` est rejetée à son retour", async () => {
     let libere: ((valeur: SessionResponse) => void) | undefined;

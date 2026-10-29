@@ -14,6 +14,7 @@
  */
 import { Option, Schema } from "effect";
 import { erreurLisible } from "./erreurs-demon.ts";
+import { delaiDeReprise, SOURCE_OUVERTE } from "./reprise.ts";
 // Import **local** : `export type { X } from "…"` ne crée aucune liaison ici.
 import type { InstalledKind, RecentImage } from "@herdr-remote/shared";
 import {
@@ -566,6 +567,37 @@ export const sondeFluxSession = async (url: string): Promise<VerdictSondeFlux> =
   }
 };
 
+/** Ce que le flux global attend d'un `EventSource` — rien de plus. */
+export interface SourceGlobale {
+  readonly readyState?: number;
+  addEventListener(type: string, ecouteur: (evenement: MessageEvent<string>) => void): void;
+  close(): void;
+}
+
+/** Ce qui est injecté dans le flux global — par défaut, la plateforme. */
+export interface DependancesFluxGlobal {
+  readonly ouvre?: (url: string) => SourceGlobale;
+  readonly planifie?: (action: () => void, delai: number) => () => void;
+  /** S'abonne au retour du réseau et au retour au premier plan ; rend le désabonnement. */
+  readonly ecouteReveil?: (reveil: () => void) => () => void;
+  readonly visible?: () => boolean;
+}
+
+const planifieParDefaut = (action: () => void, delai: number): (() => void) => {
+  const minuterie = setTimeout(action, delai);
+  return () => clearTimeout(minuterie);
+};
+
+const ecouteReveilParDefaut = (reveil: () => void): (() => void) => {
+  if (typeof window === "undefined" || typeof document === "undefined") return () => undefined;
+  window.addEventListener("online", reveil);
+  document.addEventListener("visibilitychange", reveil);
+  return () => {
+    window.removeEventListener("online", reveil);
+    document.removeEventListener("visibilitychange", reveil);
+  };
+};
+
 /**
  * Ouvre le flux d'événements.
  *
@@ -573,12 +605,26 @@ export const sondeFluxSession = async (url: string): Promise<VerdictSondeFlux> =
  * le rattrapage, et c'est pourquoi le flux est en SSE et non en WebSocket
  * (D009). Un événement `resync` signifie que la continuité est rompue : il faut
  * recharger l'état complet plutôt que de croire à un flux continu.
+ *
+ * ⚠️ **Un flux tombé est recréé par nous** (`reprise.ts`) : 1 s, 2 s, 5 s, puis
+ * 10 s, et tout de suite au retour du réseau ou au premier plan s'il n'est pas
+ * ouvert. Un flux recréé n'a pas l'identifiant du dernier événement : à sa
+ * première manifestation, la liste est relue (`onResync`).
  */
-export const openEventStream = (handlers: {
-  onEvent: (kind: string, data: unknown) => void;
-  onResync: () => void;
-  onStatus: (status: "live" | "down") => void;
-}): (() => void) => {
+export const openEventStream = (
+  handlers: {
+    onEvent: (kind: string, data: unknown) => void;
+    onResync: () => void;
+    onStatus: (status: "live" | "down") => void;
+  },
+  deps: DependancesFluxGlobal = {},
+): (() => void) => {
+  const ouvre = deps.ouvre ?? ((url: string): SourceGlobale => new EventSource(url));
+  const planifie = deps.planifie ?? planifieParDefaut;
+  const visible =
+    deps.visible ??
+    (() => typeof document === "undefined" || document.visibilityState === "visible");
+
   /**
    * Anti-clignotement du statut.
    *
@@ -589,34 +635,74 @@ export const openEventStream = (handlers: {
    *
    * On attend donc quelques secondes sans rétablissement avant de l'annoncer.
    */
-  let downTimer: ReturnType<typeof setTimeout> | undefined;
+  let annuleBaisse: (() => void) | null = null;
+  let annuleReprise: (() => void) | null = null;
+  let courant: SourceGlobale | undefined;
+  let ferme = false;
+  let essais = 0;
+  let aDejaVecu = false;
+  let resynchroniser = false;
 
   const markLive = () => {
-    if (downTimer !== undefined) {
-      clearTimeout(downTimer);
-      downTimer = undefined;
-    }
+    annuleBaisse?.();
+    annuleBaisse = null;
     handlers.onStatus("live");
   };
 
   const markDownSoon = () => {
-    if (downTimer !== undefined) return;
-    downTimer = setTimeout(() => {
-      downTimer = undefined;
+    if (annuleBaisse !== null) return;
+    annuleBaisse = planifie(() => {
+      annuleBaisse = null;
       handlers.onStatus("down");
     }, 6_000);
+  };
+
+  /**
+   * Un signe de vie — `open`, ou n'importe quel événement (un mandataire peut
+   * retenir `open` jusqu'au premier octet). Il annule la recréation prévue, et
+   * un flux RECRÉÉ se resynchronise une fois.
+   */
+  const signeDeVie = () => {
+    annuleReprise?.();
+    annuleReprise = null;
+    essais = 0;
+    aDejaVecu = true;
+    markLive();
+    if (resynchroniser) {
+      resynchroniser = false;
+      handlers.onResync();
+    }
+  };
+
+  const recree = () => {
+    if (ferme) return;
+    annuleReprise?.();
+    annuleReprise = null;
+    courant?.close();
+    // L'ancien objet emporte son `Last-Event-ID` : le nouveau devra relire.
+    if (aDejaVecu) resynchroniser = true;
+    connect();
+  };
+
+  const planifierReprise = () => {
+    if (ferme || annuleReprise !== null) return;
+    const delai = delaiDeReprise(essais);
+    essais += 1;
+    annuleReprise = planifie(() => {
+      annuleReprise = null;
+      recree();
+    }, delai);
   };
 
   /**
    * Un événement **nommé** prouve lui aussi que le flux vit.
    *
    * `message` ne se déclenche que pour les événements sans nom — or le trafic
-   * utile ici est nommé (`agent_status`, `prompt`…). Sans cette ligne, une
-   * coupure de trois secondes suivie d'un `agent_status` bien reçu laissait
-   * l'indicateur « hors ligne » alors que le flux fonctionnait.
+   * utile ici est nommé (`agent_status`, `prompt`…).
    */
-  const forward = (kind: string) => (event: MessageEvent<string>) => {
-    markLive();
+  const forward = (source: SourceGlobale, kind: string) => (event: MessageEvent<string>) => {
+    if (ferme || courant !== source) return;
+    signeDeVie();
     let data: unknown = event.data;
     try {
       data = JSON.parse(event.data);
@@ -633,64 +719,46 @@ export const openEventStream = (handlers: {
     "agent-launched",
     "session_changed",
   ];
-  /** `EventSource.CLOSED`, sans dépendre de la classe (absente d'un double de test). */
-  const CLOSED = 2;
 
-  let courant: EventSource | undefined;
-  let ferme = false;
-  let reprise: ReturnType<typeof setTimeout> | undefined;
-  let essais = 0;
-
-  /**
-   * Recrée le flux, avec un délai qui double puis plafonne.
-   *
-   * ⚠️ **`EventSource` ne se reconnecte PAS toujours tout seul.** Il réessaie
-   * tant que la coupure est un simple incident réseau, mais si le serveur a
-   * répondu une **erreur HTTP** (statut non-2xx, ou type de contenu inattendu),
-   * il passe en `CLOSED` et **abandonne définitivement**. Mesuré à l'usage : le
-   * bandeau « hors ligne » restait affiché indéfiniment, et seul un redémarrage
-   * de l'application rétablissait la connexion.
-   *
-   * On reprend donc la main : c'est la seule façon de garantir une reconnexion
-   * qui n'attende pas de l'utilisateur qu'il ferme l'app.
-   */
-  const planifierReprise = () => {
-    if (ferme || reprise !== undefined) return;
-    const delai = Math.min(1_000 * 2 ** essais, 15_000);
-    essais += 1;
-    reprise = setTimeout(() => {
-      reprise = undefined;
-      courant?.close();
-      connect();
-    }, delai);
-  };
-
-  const connect = () => {
+  function connect(): void {
     if (ferme) return;
-    const source = new EventSource("/api/events");
+    const source = ouvre("/api/events");
     courant = source;
-
+    const actuelle = () => !ferme && courant === source;
     source.addEventListener("open", () => {
-      // Le flux est reparti : le prochain incident repartira du délai court.
-      essais = 0;
-      markLive();
+      if (actuelle()) signeDeVie();
     });
     source.addEventListener("error", () => {
+      if (!actuelle()) return;
       markDownSoon();
-      if (source.readyState === CLOSED) planifierReprise();
+      planifierReprise();
     });
-    source.addEventListener("ready", markLive);
-    source.addEventListener("resync", () => handlers.onResync());
-    source.addEventListener("message", markLive);
-    for (const kind of EVENEMENTS_SUIVIS) source.addEventListener(kind, forward(kind));
-  };
+    source.addEventListener("ready", () => {
+      if (actuelle()) signeDeVie();
+    });
+    source.addEventListener("resync", () => {
+      if (actuelle()) handlers.onResync();
+    });
+    source.addEventListener("message", () => {
+      if (actuelle()) signeDeVie();
+    });
+    for (const kind of EVENEMENTS_SUIVIS) source.addEventListener(kind, forward(source, kind));
+  }
+
+  // Retour du réseau ou au premier plan : un flux qui n'est pas ouvert est
+  // recréé tout de suite, sans attendre la prochaine reprise.
+  const arreteReveil = (deps.ecouteReveil ?? ecouteReveilParDefaut)(() => {
+    if (ferme || !visible()) return;
+    if (courant?.readyState !== SOURCE_OUVERTE) recree();
+  });
 
   connect();
 
   return () => {
     ferme = true;
-    if (downTimer !== undefined) clearTimeout(downTimer);
-    if (reprise !== undefined) clearTimeout(reprise);
+    annuleBaisse?.();
+    annuleReprise?.();
+    arreteReveil();
     courant?.close();
   };
 };

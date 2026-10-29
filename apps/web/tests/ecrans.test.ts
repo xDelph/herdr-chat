@@ -341,7 +341,9 @@ describe("portes invisibles à l'écran", () => {
   test("un seul flux global pour toute l'app", () => {
     // Le flux global n'est ouvert que par `openEventStream`, branché une fois
     // sur le magasin ; l'autre `EventSource` est le flux PAR SESSION.
-    expect(appelants('new EventSource("/api/events")')).toEqual(["api.ts"]);
+    // (Recréé après une coupure, mais par le même propriétaire : `ouvre`.)
+    expect(appelants('"/api/events"')).toEqual(["api.ts"]);
+    expect(appelants('ouvre("/api/events")')).toEqual(["api.ts"]);
     expect(appelants("new EventSource(")).toEqual(["api.ts", "app/services.ts"]);
     expect(appelants("ouvreEvenements: openEventStream")).toEqual(["app/services.ts"]);
   });
