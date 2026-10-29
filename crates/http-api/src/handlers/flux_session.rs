@@ -254,6 +254,13 @@ async fn rattrape(
                 *curseur = None;
                 continue;
             }
+            // Un chemin publié REFUSÉ par la garde (hors des racines) ne
+            // deviendra jamais lisible : le flux le dit et se ferme, comme
+            // pour un résultat invalide.
+            Err(erreur) if erreur.nature == domain::errors::Nature::PathDenied => {
+                let _ = emetteur.send(evenement_gone(&erreur.message_sur())).await;
+                return Etape::Termine;
+            }
             Err(erreur) => {
                 tracing::warn!(cause = %erreur.message_sur(), "session stream: read failed");
                 return Etape::Continue;

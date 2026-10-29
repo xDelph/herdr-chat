@@ -489,6 +489,15 @@ fn page_sqlite(
         .map(position)
         .transpose()
         .map_err(|cause| curseur_refuse(&cause))?;
+    // H04/C04 : une base SQLite ABSENTE est une capacité indisponible (503),
+    // distincte d'une base présente mais illisible (502) — « l'agent n'a pas
+    // encore écrit sa base » n'est pas une panne de lecture.
+    if !Path::new(&source.base).exists() {
+        return Err(ErreurDomaine::source_absente(format!(
+            "SQLite database missing: {}",
+            source.base
+        )));
+    }
     let ouvrier = match reserve.ouvrier(Path::new(&source.base)) {
         Ok(ouvrier) => ouvrier,
         Err(cause) => {
@@ -648,6 +657,12 @@ impl domain::ports::SessionPort for PortSessions {
             .map_err(|cause| avant_refuse(&cause))?;
             match request.source.kind {
                 SourceKind::File => match self.garde(&request.source) {
+                    // H04/C04 : un chemin publié HORS des racines est un REFUS
+                    // (403), pas un résultat invalide (422) — la garde a
+                    // décidé, rien n'a été lu.
+                    Err(SessionPageOutcome::Invalide { detail }) => {
+                        Err(ErreurDomaine::chemin_refuse(detail))
+                    }
                     Err(refus) => Ok(refus),
                     Ok(source) => match request.previous_cursor.as_deref() {
                         Some(avant) => {
