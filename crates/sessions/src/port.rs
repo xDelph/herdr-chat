@@ -497,6 +497,7 @@ fn page_sqlite(source: &ResolvedSource, request: &SessionPageRequest) -> Session
             timestamp: entree.timestamp.clone(),
         })
         .collect();
+    let entries_lues = entries.len();
     let curseur = cursor::encode(&empreinte, identifiant.as_str(), 1, curseur_lu);
     let precedent = previous_seq
         .map(|seq| cursor::encode(&empreinte, identifiant.as_str(), 1, seq))
@@ -509,7 +510,11 @@ fn page_sqlite(source: &ResolvedSource, request: &SessionPageRequest) -> Session
         previous_cursor: Some(precedent),
         has_more,
         reset: false,
-        rattrape: false,
+        // Une page qui n'est pas pleine a tout lu : rien ne reste derrière ce
+        // curseur. ⚠️ Sans cela, le flux de session (qui relit tant que la page
+        // n'est pas « rattrapée ») bouclait sans fin sur la ligne frontière
+        // relue par `seq >=` — 17 713 événements en 10 s, mesuré.
+        rattrape: entries_lues < LIGNES_PAGE_SQLITE as usize,
     };
     if session.entries.is_empty() {
         return SessionPageOutcome::Vide(session);

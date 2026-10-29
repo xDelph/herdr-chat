@@ -312,3 +312,80 @@ async fn le_client_parti_rend_son_permis() {
     }
     assert!(rendu, "le permis revient quand le client part");
 }
+
+/// Une base SQLite façon opencode : la lecture vers l'avant relit la ligne
+/// frontière (`seq >=`) et ne dit jamais « rattrapé ».
+#[derive(Clone, Default)]
+struct PortSqlite {
+    contenu: Arc<Mutex<String>>,
+    lectures: Arc<std::sync::atomic::AtomicUsize>,
+}
+
+impl SessionPort for PortSqlite {
+    fn resolve(&self, _hint: SessionHint) -> SessionFuture<'_, Option<ResolvedSource>> {
+        Box::pin(async { Ok(Some(source())) })
+    }
+
+    fn page(&self, _demande: SessionPageRequest) -> SessionFuture<'_, SessionPageOutcome> {
+        self.lectures
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        let contenu = self
+            .contenu
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .clone();
+        let page = SessionPage {
+            session_path: source().base,
+            entries: vec![SessionEntry {
+                kind: String::from("message"),
+                id: Some(String::from("opencode:frontiere")),
+                parent_id: None,
+                raw: contenu,
+                timestamp: None,
+            }],
+            incremental: true,
+            cursor: Some(String::from("c-frontiere")),
+            previous_cursor: None,
+            has_more: false,
+            reset: false,
+            rattrape: false,
+        };
+        Box::pin(async move { Ok(SessionPageOutcome::Page(page)) })
+    }
+
+    fn metadata(&self, _source: ResolvedSource) -> SessionFuture<'_, SessionMetadata> {
+        Box::pin(async { Ok(SessionMetadata::default()) })
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn une_ligne_frontiere_relue_ne_fait_pas_boucler_le_flux() {
+    // Mesuré sur opencode : 17 713 événements `entries` identiques en 10 s.
+    let (services, _port, observateur) = monde();
+    let port = PortSqlite::default();
+    *port.contenu.lock().unwrap_or_else(PoisonError::into_inner) =
+        String::from(r#"{"type":"message","message":{"role":"assistant","content":"Bon"}}"#);
+    let mut retouches = (*services).clone();
+    retouches.sessions = Arc::new(port.clone());
+    let services = Arc::new(retouches);
+    let (statut, mut client) = ouvre(Arc::clone(&services), "/api/agents/w1:p1/stream", None).await;
+    assert_eq!(statut, StatusCode::OK);
+    assert_eq!(client.suivante().await.genre, "reset");
+
+    // Une révision sans changement : rien ne part. (Avant le correctif, la
+    // ligne frontière repartait sans fin, sans même attendre de révision.)
+    observateur.ecrit();
+    let rien = tokio::time::timeout(Duration::from_millis(400), client.suivante()).await;
+    assert!(
+        rien.is_err(),
+        "une ligne inchangée a été réémise : {rien:?}"
+    );
+
+    // La ligne est RÉÉCRITE (la réponse grandit) : elle repart, une fois.
+    *port.contenu.lock().unwrap_or_else(PoisonError::into_inner) =
+        String::from(r#"{"type":"message","message":{"role":"assistant","content":"Bonjour"}}"#);
+    observateur.ecrit();
+    let reecrite = client.suivante().await;
+    assert_eq!(reecrite.genre, "entries");
+    assert!(reecrite.donnees.contains("Bonjour"), "{}", reecrite.donnees);
+}

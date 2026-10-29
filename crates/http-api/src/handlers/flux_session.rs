@@ -27,7 +27,9 @@ use domain::errors::ErreurDomaine;
 use domain::session::{
     ResolvedSource, SessionHint, SessionPage, SessionPageOutcome, SessionPageRequest,
 };
+use std::collections::HashMap;
 use std::convert::Infallible;
+use std::hash::{Hash, Hasher};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -44,6 +46,67 @@ const REGROUPEMENT: Duration = Duration::from_millis(40);
 /// La profondeur de la file vers la réponse — bornée : un client qui ne lit
 /// plus bloque SA tâche, jamais la mémoire du serveur ni les autres flux.
 const FILE_FLUX: usize = 8;
+
+/// Les pages lues d'affilée avant de rendre la main : un garde-fou contre une
+/// source qui ne dirait jamais « rattrapé ».
+const PAGES_PAR_REVEIL: usize = 64;
+
+/// Ce que ce flux a déjà émis : identifiant → empreinte du brut.
+///
+/// ⚠️ **Une ligne relue n'est pas une ligne nouvelle.** Une base SQLite se lit
+/// avec `seq >=` (opencode réécrit la même ligne pendant qu'une réponse
+/// grandit) : la ligne frontière revient à chaque lecture. Inchangée, elle
+/// n'est pas réémise ; réécrite (même identifiant, autre contenu), elle l'est.
+#[derive(Default)]
+struct DejaEmis {
+    empreintes: HashMap<String, u64>,
+}
+
+impl DejaEmis {
+    const CAPACITE: usize = 2048;
+
+    fn empreinte(brut: &str) -> u64 {
+        let mut hacheur = std::collections::hash_map::DefaultHasher::new();
+        brut.hash(&mut hacheur);
+        hacheur.finish()
+    }
+
+    fn reinitialise(&mut self, entrees: &[domain::session::SessionEntry]) {
+        self.empreintes.clear();
+        for entree in entrees {
+            self.note(entree);
+        }
+    }
+
+    fn note(&mut self, entree: &domain::session::SessionEntry) {
+        if let Some(id) = &entree.id {
+            if self.empreintes.len() >= Self::CAPACITE {
+                self.empreintes.clear();
+            }
+            self.empreintes
+                .insert(id.clone(), Self::empreinte(&entree.raw));
+        }
+    }
+
+    /// Garde ce qui est nouveau ou réécrit, et le note.
+    fn filtre(
+        &mut self,
+        entrees: Vec<domain::session::SessionEntry>,
+    ) -> Vec<domain::session::SessionEntry> {
+        entrees
+            .into_iter()
+            .filter(|entree| {
+                let inchangee = entree.id.as_ref().is_some_and(|id| {
+                    self.empreintes.get(id) == Some(&Self::empreinte(&entree.raw))
+                });
+                if !inchangee {
+                    self.note(entree);
+                }
+                !inchangee
+            })
+            .collect()
+    }
+}
 
 #[derive(serde::Deserialize)]
 pub struct Parametres {
@@ -98,11 +161,12 @@ async fn suit(
     emetteur: tokio::sync::mpsc::Sender<Event>,
 ) {
     let mut observation = services.observateur.observe(&source);
+    let mut deja = DejaEmis::default();
     if let Some(degradation) = observation.degradation.as_deref() {
         tracing::warn!(pane = %pane_id, %degradation, "flux de session dégradé");
     }
     loop {
-        match rattrape(&services, &source, &mut curseur, &emetteur).await {
+        match rattrape(&services, &source, &mut curseur, &mut deja, &emetteur).await {
             Etape::Continue => {}
             Etape::Termine => return,
         }
@@ -149,12 +213,13 @@ async fn rattrape(
     services: &Arc<Services>,
     source: &ResolvedSource,
     curseur: &mut Option<String>,
+    deja: &mut DejaEmis,
     emetteur: &tokio::sync::mpsc::Sender<Event>,
 ) -> Etape {
     // Un curseur refusé repart de la queue UNE fois ; un second refus est
     // une vraie erreur de source.
     let mut deja_reparti = false;
-    loop {
+    for _ in 0..PAGES_PAR_REVEIL {
         let issue = lis(services, source.clone(), curseur.clone()).await;
         let (page, cause) = match issue {
             Ok(SessionPageOutcome::Page(page)) => (page, ReadCause::Vide),
@@ -180,16 +245,23 @@ async fn rattrape(
                 return Etape::Continue;
             }
         };
-        let rattrape = page.rattrape || page.entries.is_empty();
         let remplace = curseur.is_none() || page.reset;
         let suivant = page.cursor.clone().or_else(|| curseur.clone());
+        let mut page = page;
         let evenement = if remplace {
-            Some(evenement_reset(cause, page))
-        } else if page.entries.is_empty() {
-            None
+            deja.reinitialise(&page.entries);
+            Some(evenement_reset(cause, page.clone()))
         } else {
-            evenement_entries(page, suivant.clone())
+            page.entries = deja.filtre(std::mem::take(&mut page.entries));
+            if page.entries.is_empty() {
+                None
+            } else {
+                evenement_entries(page.clone(), suivant.clone())
+            }
         };
+        // Rattrapé : la source le dit, ou cette lecture n'a rien apporté de
+        // neuf (la ligne frontière relue, inchangée).
+        let rattrape = page.rattrape || page.entries.is_empty();
         *curseur = suivant;
         if let Some(evenement) = evenement
             && emetteur.send(evenement).await.is_err()
@@ -200,6 +272,10 @@ async fn rattrape(
             return Etape::Continue;
         }
     }
+    tracing::warn!(
+        "flux de session : {PAGES_PAR_REVEIL} pages sans rattrapage, pause jusqu'à la prochaine révision"
+    );
+    Etape::Continue
 }
 
 /// La source du pane, depuis la photo partagée — hors du runtime.
