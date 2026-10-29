@@ -156,3 +156,63 @@ fn la_vérification_du_niveau_respecte_ce_que_lagent_déclare() {
     // Un thinking vide : rien à vérifier.
     assert!(niveau_supporte("codex", "gpt-5", "  ", &catalogue).is_none());
 }
+
+/// Le catalogue mesuré d'un modèle aux niveaux bornés — `xhigh` n'y est pas.
+fn catalogue_borne(_genre: &str) -> Vec<ModeleCatalogue> {
+    vec![ModeleCatalogue {
+        id: String::from("anthropic/claude-sonnet-4-5"),
+        libelle: None,
+        niveaux: vec![String::from("low"), String::from("high")],
+    }]
+}
+
+/// La validation du lancement APPELLE la vérification du niveau : un niveau
+/// non offert par le modèle est refusé avec sa cause (il était lancé).
+#[test]
+fn la_validation_du_lancement_refuse_un_niveau_non_offert() {
+    use catalog::args::args_verifies;
+
+    let refus = args_verifies(
+        "pi",
+        Some("anthropic/claude-sonnet-4-5"),
+        Some("xhigh"),
+        catalogue_borne,
+    );
+    assert_eq!(
+        refus,
+        Err(String::from(
+            "“anthropic/claude-sonnet-4-5” does not offer the level “xhigh” (available: low, high)"
+        ))
+    );
+    // Un niveau offert passe, avec les args du kind.
+    assert_eq!(
+        args_verifies(
+            "pi",
+            Some("anthropic/claude-sonnet-4-5"),
+            Some("high"),
+            catalogue_borne
+        ),
+        Ok(vec![
+            String::from("--model"),
+            String::from("anthropic/claude-sonnet-4-5"),
+            String::from("--thinking"),
+            String::from("high"),
+        ])
+    );
+    // Un modèle absent du catalogue : on ne tranche pas à sa place.
+    assert!(args_verifies("pi", Some("autre/modele"), Some("xhigh"), catalogue_borne).is_ok());
+}
+
+/// Sans niveau demandé, le catalogue n'est PAS consulté (aucun processus
+/// lancé pour rien) ; un refus d'args passe avant tout catalogue.
+#[test]
+fn le_catalogue_n_est_consulte_que_pour_un_modele_et_un_niveau() {
+    use catalog::args::args_verifies;
+
+    let jamais = |_genre: &str| -> Vec<ModeleCatalogue> {
+        panic!("le catalogue ne doit pas être consulté")
+    };
+    assert!(args_verifies("pi", Some("anthropic/claude-sonnet-4-5"), None, jamais).is_ok());
+    assert!(args_verifies("pi", None, None, jamais).is_ok());
+    assert!(args_verifies("pi", None, Some("high"), jamais).is_err());
+}

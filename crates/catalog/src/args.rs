@@ -168,3 +168,51 @@ pub fn niveau_supporte(
         }
     }
 }
+
+/// La validation COMPLÈTE d'une demande de lancement : les args
+/// ([`construit_args`]) PUIS le niveau de raisonnement contre le catalogue
+/// mesuré du kind ([`niveau_supporte`]) — l'ordre du fil (`buildModelArgs`
+/// puis `checkThinkingSupported`).
+///
+/// ⚠️ **`niveau_supporte` n'avait aucun appelant** : un niveau que le modèle
+/// n'offre pas (« xhigh » sur un modèle qui s'arrête à « high ») était lancé
+/// quand même, et l'agent démarrait avec une option qu'il refuse ou ignore.
+/// Le refus tombe ici, AVANT tout onglet (C07).
+///
+/// Le catalogue n'est demandé que si un modèle ET un niveau sont donnés ; un
+/// catalogue indisponible (liste vide) ne tranche pas à la place de l'agent.
+pub fn args_verifies(
+    kind: &str,
+    modele: Option<&str>,
+    thinking: Option<&str>,
+    catalogue: impl FnOnce(&str) -> Vec<crate::adapters::ModeleCatalogue>,
+) -> Result<Vec<String>, String> {
+    let issue = construit_args(kind, modele, thinking);
+    if let Some(erreur) = issue.erreur {
+        return Err(erreur);
+    }
+    let modele = modele.map(str::trim).filter(|m| !m.is_empty());
+    let niveau = thinking.map(str::trim).filter(|t| !t.is_empty());
+    if let (Some(modele), Some(niveau)) = (modele, niveau)
+        && let Some(refus) = niveau_supporte(kind, modele, niveau, &catalogue(kind))
+    {
+        return Err(refus);
+    }
+    Ok(issue.args)
+}
+
+/// Le validateur de production : [`args_verifies`] sur le catalogue MESURÉ
+/// (le cache partagé avec `/api/agents/:kind/models` — single-flight, TTL),
+/// avec la commande de la table d'adaptateurs.
+pub fn verificateur_args(
+    cache: std::sync::Arc<crate::cache::CacheCatalogues>,
+) -> impl Fn(&str, Option<&str>, Option<&str>) -> Result<Vec<String>, String> + Send + Sync {
+    move |kind, modele, thinking| {
+        args_verifies(kind, modele, thinking, |genre| {
+            cache
+                .catalogue(genre, &crate::adapters::commande_par_defaut(genre))
+                .modeles
+                .clone()
+        })
+    }
+}

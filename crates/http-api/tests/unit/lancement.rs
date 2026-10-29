@@ -142,9 +142,11 @@ async fn lancement_502_projet_disparu() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn lancement_502_validation_refusee_zero_onglet() {
-    // `cursor` est installé ET son type est connu, mais la validation des
-    // args refuse : le refus tombe AVANT tout onglet (C07).
+async fn lancement_400_validation_refusee_zero_onglet() {
+    // `opencode` est installé ET son type est connu, mais la validation des
+    // args refuse : le refus tombe AVANT tout onglet (C07). C'est l'ENTRÉE
+    // qui est fautive (modèle, raisonnement) : 400 avec la cause, jamais un
+    // 502 qui ferait croire à une panne d'Herdr.
     let faux = monde();
     let services = services_avec_types(
         faux.clone(),
@@ -160,7 +162,7 @@ async fn lancement_502_validation_refusee_zero_onglet() {
         corps("opencode"),
     )
     .await;
-    assert_eq!(statut, StatusCode::BAD_GATEWAY);
+    assert_eq!(statut, StatusCode::BAD_REQUEST, "corps : {corps}");
     let message = corps["error"].as_str().unwrap_or_else(|| panic!("error"));
     assert!(message.contains("invalid launch request"), "{message}");
     assert!(
@@ -211,5 +213,39 @@ async fn lancement_409_confiance_requise() {
             .iter()
             .all(|action| action.op != Op::EnvoiTouches),
         "le lancement expose la confiance, il n'y répond pas"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn lancement_400_niveau_non_offert_par_le_modele() {
+    // La validation de production refuse un niveau que le modèle n'offre pas
+    // (`niveau_supporte`) : la CAUSE arrive au client, aucun onglet n'existe.
+    let faux = monde();
+    let services = crate::unit::support::services_retouches(faux.clone(), |services| {
+        services.args = std::sync::Arc::new(
+            |_kind: &str, modele: Option<&str>, thinking: Option<&str>| match (modele, thinking) {
+                (Some(modele), Some(niveau)) if niveau == "xhigh" => Err(format!(
+                    "“{modele}” does not offer the level “{niveau}” (available: low, high)"
+                )),
+                _ => Ok(Vec::new()),
+            },
+        );
+    });
+    let (statut, corps) = envoie_post(
+        routeur(services, vec![]),
+        "/api/workspaces/w1/agents",
+        json!({ "kind": "pi", "model": "anthropic/claude-sonnet-4-5", "thinking": "xhigh" })
+            .to_string()
+            .into_bytes(),
+    )
+    .await;
+    assert_eq!(statut, StatusCode::BAD_REQUEST, "corps : {corps}");
+    let message = corps["error"].as_str().unwrap_or_else(|| panic!("error"));
+    assert!(message.contains("does not offer the level"), "{message}");
+    assert!(
+        faux.actions()
+            .iter()
+            .all(|action| action.op != Op::CreationTab),
+        "aucun onglet pour une demande refusée"
     );
 }

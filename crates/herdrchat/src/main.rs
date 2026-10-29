@@ -81,11 +81,12 @@ async fn demarre(config: &Config) -> Result<(), String> {
             .integrations()
             .map_err(|cause| cause.to_string())
     });
-    let catalogue: Arc<dyn application::ports::CatalogPort> =
-        Arc::new(catalog::port::PortCatalogue::nouveau(
-            Arc::new(catalog::cache::CacheCatalogues::nouveau()),
-            integrations,
-        ));
+    // UN cache de catalogues, partagé par `/api/agents/:kind/models` et la
+    // validation du lancement (le niveau de raisonnement y est vérifié).
+    let cache_catalogues = Arc::new(catalog::cache::CacheCatalogues::nouveau());
+    let catalogue: Arc<dyn application::ports::CatalogPort> = Arc::new(
+        catalog::port::PortCatalogue::nouveau(Arc::clone(&cache_catalogues), integrations),
+    );
     // 3) Les artefacts : confinés aux racines de CHAQUE requête.
     let artefacts = Arc::new(files::port::PortArtefacts::nouveau());
     // 4) Les notifications : le store compatible, à côté du journal.
@@ -172,7 +173,11 @@ async fn demarre(config: &Config) -> Result<(), String> {
         branche: Arc::new(herdrchat::assemblage::lecteur_de_branches(Arc::clone(
             &maintenant,
         ))),
-        args: herdrchat::assemblage::constructeur_d_args(),
+        // La validation des args ET du niveau de raisonnement contre le
+        // catalogue mesuré — refusée AVANT tout onglet (C07).
+        args: Arc::new(catalog::args::verificateur_args(Arc::clone(
+            &cache_catalogues,
+        ))),
     };
     // 7) Le journal des diagnostics : le vrai, à côté des données.
     let diagnostics = Arc::new(herdrchat::logging::Journal::nouveau(
