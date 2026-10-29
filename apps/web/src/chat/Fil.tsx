@@ -3,8 +3,9 @@
  *
  * Règles de défilement (`defilement.ts`, testées) :
  *
- * - à l'ouverture, la position mémorisée pour ce pane, sinon le bas — ou la
- *   dernière demande si la réponse n'a pas encore été vue (`done`) ;
+ * - à l'ouverture, le message retenu pour ce pane pendant cet onglet (oublié
+ *   si du neuf est arrivé depuis), sinon le bas — ou la dernière demande si la
+ *   réponse n'a pas encore été vue (`done`) ;
  * - on suit le bas tant qu'on y est ; on ne tire jamais quelqu'un de sa
  *   lecture : du neuf pendant qu'on lit plus haut affiche « Nouveaux messages » ;
  * - l'historique se charge en approchant du haut, et la vue ne saute pas
@@ -50,10 +51,10 @@ import {
 import type { SuiviSession, VueSession } from "../flux-session.ts";
 import {
   ecritPosition,
-  hauteurDeReprise,
   litPosition,
-  positionAffichee,
-  stockageNavigateur,
+  premierVisible,
+  repriseDe,
+  stockageSession,
 } from "../memoire-defilement.ts";
 import { Avis } from "../ui/atomes.tsx";
 import { Icone } from "../ui/Icone.tsx";
@@ -68,6 +69,23 @@ const debutDuJour = (): number => {
 
 /** Sans défilement depuis ce délai, l'utilisateur ne fait plus défiler. */
 const REPOS_DEFILEMENT_MS = 160;
+
+/**
+ * Les éléments du fil, dans l'ordre des `items` : chaque `ElementFil` rend un
+ * seul `.fil__el` racine. Un compte qui ne tombe pas juste ne rend rien — on ne
+ * devine pas quel élément est lequel.
+ */
+const elementsDuFil = (
+  contenu: HTMLElement,
+  items: ReadonlyArray<Item>,
+): ReadonlyArray<{ readonly cle: string; readonly element: Element }> => {
+  const elements = contenu.querySelectorAll(":scope > .fil__el");
+  if (elements.length !== items.length) return [];
+  return items.flatMap((item, index) => {
+    const element = elements[index];
+    return element === undefined ? [] : [{ cle: cleDe(item), element }];
+  });
+};
 
 /** Pose la dernière demande en haut de la vue. */
 const versDerniereDemande = (conteneur: HTMLElement): void => {
@@ -122,6 +140,10 @@ export const Fil = memo(
     const [loinDuBas, setLoinDuBas] = useState(false);
     const jour = debutDuJour();
     const dernier = items.at(-1);
+    const itemsVus = useRef(items);
+    useLayoutEffect(() => {
+      itemsVus.current = items;
+    });
 
     // 1. La première pose, une fois le contenu là.
     useLayoutEffect(() => {
@@ -129,11 +151,27 @@ export const Fil = memo(
       if (poseFaite.current || element === null || items.length === 0) return;
       poseFaite.current = true;
       statutVu.current = status;
-      const memoire = litPosition(stockageNavigateur(), paneId);
-      if (memoire !== null) {
-        element.scrollTop = hauteurDeReprise(memoire, element);
-        suitBas.current = memoire.bas;
+      const reprise = repriseDe(
+        litPosition(stockageSession(), paneId),
+        dernier === undefined ? null : cleDe(dernier),
+      );
+      if (reprise.genre === "bas") {
+        element.scrollTop = element.scrollHeight;
+        suitBas.current = true;
         return;
+      }
+      if (reprise.genre === "ancre" && contenu.current !== null) {
+        const cible = elementsDuFil(contenu.current, items).find(
+          (candidat) => candidat.cle === reprise.ancre,
+        );
+        if (cible !== undefined) {
+          element.scrollTop +=
+            cible.element.getBoundingClientRect().top -
+            element.getBoundingClientRect().top -
+            reprise.decalage;
+          suitBas.current = suitLeBas(element);
+          return;
+        }
       }
       if (status === "done") {
         versDerniereDemande(element);
@@ -142,7 +180,7 @@ export const Fil = memo(
       }
       element.scrollTop = element.scrollHeight;
       suitBas.current = true;
-    }, [items.length, paneId, status]);
+    }, [dernier, items, paneId, status]);
 
     // 2. Suivre le bas quand le contenu OU le conteneur change de taille
     //    (composeur qui grandit, clavier iOS qui monte).
@@ -252,16 +290,28 @@ export const Fil = memo(
       suitBas.current = suitLeBas(element);
       setLoinDuBas(!suitBas.current);
       if (suitBas.current) setNouveaux(false);
-      const position = positionAffichee({
-        clientHeight: element.clientHeight,
-        scrollHeight: element.scrollHeight,
-        scrollTop: element.scrollTop,
-        seuilBas: 48,
-      });
       if (enregistrement.current !== undefined) window.clearTimeout(enregistrement.current);
+      // Retenu au repos : le message en haut de l'écran, pas un ratio.
       enregistrement.current = window.setTimeout(() => {
         enregistrement.current = undefined;
-        ecritPosition(stockageNavigateur(), paneId, position);
+        const interieur = contenu.current;
+        if (interieur === null) return;
+        const vus = itemsVus.current;
+        const haut = element.getBoundingClientRect().top;
+        const visible = premierVisible(
+          elementsDuFil(interieur, vus).map(({ cle, element: el }) => {
+            const rect = el.getBoundingClientRect();
+            return { bas: rect.bottom, cle, haut: rect.top };
+          }),
+          haut,
+        );
+        const fin = vus.at(-1);
+        ecritPosition(stockageSession(), paneId, {
+          ancre: visible?.cle ?? null,
+          bas: suitLeBas(element),
+          decalage: visible?.decalage ?? 0,
+          dernier: fin === undefined ? null : cleDe(fin),
+        });
       }, 400);
     }, [paneId]);
 

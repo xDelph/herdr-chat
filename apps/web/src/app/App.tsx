@@ -11,7 +11,7 @@ import { Reglages } from "../feuilles/Reglages.tsx";
 import { Boite } from "../inbox/Boite.tsx";
 import { ecritLectures, litLectures, noteLecture, type Lectures } from "../lectures.ts";
 import { dossierDe, premierNonVide } from "../libelles.ts";
-import { stockageNavigateur } from "../memoire-defilement.ts";
+import { purgeAnciennesPositions, stockageNavigateur } from "../memoire-defilement.ts";
 import { lireGroupement, retenirGroupement, type Groupement } from "../preferences.ts";
 import { retiens } from "../pane-ouvert.ts";
 import { estAdresseDOnglet, HOME } from "../routing.ts";
@@ -62,6 +62,8 @@ export const App = () => {
   useEffect(() => {
     // Une ancienne adresse d'onglet (#/reglages…) retombe sur la liste.
     if (estAdresseDOnglet(window.location.hash)) window.location.replace(HOME);
+    // L'ancienne mémoire de défilement (ratios gardés pour toujours) part.
+    purgeAnciennesPositions(globalThis.localStorage);
     magasin.demarre();
     // ⚠️ La remise d'un envoi est prouvée par l'ÉVÉNEMENT `prompt` du démon,
     // pas par l'absence d'erreur — pour le pane qu'il nomme, et lui seul.
