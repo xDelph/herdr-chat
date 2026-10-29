@@ -17,12 +17,15 @@
 
 use crate::client::{ClientHerdr, Resultat, SourceLecture};
 use crate::transport::ErreurTransport;
-use crate::wire::{GenreRefSession, InfoAgent, InfoWorkspace, PhotoSession, StatutAgent};
+use crate::wire::{
+    GenreRefSession, InfoAgent, InfoDisposition, InfoTab, InfoWorkspace, PhotoSession, StatutAgent,
+};
 use domain::errors::PortError;
 use domain::ids::{AgentKind, AgentName, PaneId, TabId, WorkspaceId};
 use domain::observation::{
-    AgentObservation, AgentSessionRef, ReadSource, ScreenObservation, Snapshot, SnapshotProvenance,
-    WorkspaceObservation, WorkspaceWorktree,
+    AgentObservation, AgentSessionRef, LayoutPane, PaneLayoutObservation, ReadSource, RectCell,
+    ScreenObservation, Snapshot, SnapshotProvenance, TabObservation, WorkspaceObservation,
+    WorkspaceWorktree,
 };
 use domain::ports::{
     ControlPort, CreateTab, CreatedTab, FocusEvidence, PartialStep, PortFuture, PromptEvidence,
@@ -142,10 +145,49 @@ pub fn workspace_depuis(info: &InfoWorkspace) -> WorkspaceObservation {
     }
 }
 
+/// Un onglet du fil → l'observation du domaine.
+#[must_use]
+pub fn onglet_depuis(info: &InfoTab) -> TabObservation {
+    TabObservation {
+        tab_id: TabId::from(info.tab_id.clone()),
+        workspace_id: WorkspaceId::from(info.workspace_id.clone()),
+        label: info.label.clone(),
+        number: info.number,
+        agent_status: info.agent_status.clone(),
+        pane_count: info.pane_count,
+    }
+}
+
+/// Une disposition du fil → l'observation du domaine.
+#[must_use]
+pub fn disposition_depuis(info: &InfoDisposition) -> PaneLayoutObservation {
+    PaneLayoutObservation {
+        tab_id: TabId::from(info.tab_id.clone()),
+        workspace_id: WorkspaceId::from(info.workspace_id.clone()),
+        focused_pane_id: PaneId::from(info.focused_pane_id.clone()),
+        panes: info
+            .panes
+            .iter()
+            .map(|pane| LayoutPane {
+                pane_id: PaneId::from(pane.pane_id.clone()),
+                focused: pane.focused,
+                rect: RectCell {
+                    x: pane.rect.x,
+                    y: pane.rect.y,
+                    width: pane.rect.width,
+                    height: pane.rect.height,
+                },
+            })
+            .collect(),
+    }
+}
+
 /// La photo complète → le snapshot du domaine.
 ///
-/// ⚠️ **`tabs` et `layouts` restent `None`** : `session.snapshot` ne les porte
-/// pas (mesuré). Les inventer — même vides — ferait croire qu'on a regardé.
+/// ⚠️ **`tabs` et `layouts` viennent du fil quand il les porte** (PROTOCOL
+/// §2.4) ; absents du fil, ils restent `None` — les inventer, même vides,
+/// ferait croire qu'on a regardé. Ils étaient toujours `None` : numéro
+/// d'onglet, libellé et rang de pane manquaient pour 13 agents sur 13.
 #[must_use]
 pub fn observation_depuis_photo(photo: &PhotoSession) -> Snapshot {
     Snapshot {
@@ -154,12 +196,18 @@ pub fn observation_depuis_photo(photo: &PhotoSession) -> Snapshot {
         focused_pane: photo.focused_pane_id.clone().map(PaneId::from),
         focused_tab: photo.focused_tab_id.clone().map(TabId::from),
         focused_workspace: photo.focused_workspace_id.clone().map(WorkspaceId::from),
-        layouts: None,
+        layouts: photo
+            .layouts
+            .as_ref()
+            .map(|liste| liste.iter().map(disposition_depuis).collect()),
         provenance: Some(SnapshotProvenance {
             protocol: photo.protocol,
             version: photo.version.clone(),
         }),
-        tabs: None,
+        tabs: photo
+            .tabs
+            .as_ref()
+            .map(|liste| liste.iter().map(onglet_depuis).collect()),
     }
 }
 

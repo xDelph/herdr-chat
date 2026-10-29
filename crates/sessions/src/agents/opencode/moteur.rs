@@ -133,7 +133,7 @@ fn vers_entree(ligne: &LigneBase) -> EntreeBrute {
         return EntreeBrute {
             id: traduite.id.clone(),
             parent_id: None,
-            brut: serde_json::to_string(&traduite).unwrap_or_default(),
+            brut: crate::normalisation::brut_traduit(&traduite).unwrap_or_default(),
             timestamp: traduite.timestamp.clone(),
             genre: String::from("message"),
         };

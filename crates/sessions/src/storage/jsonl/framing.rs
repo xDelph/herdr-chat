@@ -11,13 +11,23 @@
 use std::fs;
 use std::io::{self, Read, Seek, SeekFrom};
 
+/// Le plafond d'une **ligne** gardée en mémoire — 16 MiB, le plafond absolu
+/// d'une réponse (T025). Au-delà, la ligne n'est plus accumulée : ses octets
+/// sont comptés, pas gardés, et elle est rendue comme cadre **hors plafond**.
+pub const PLAFOND_LIGNE_OCTETS: usize = 16 * 1024 * 1024;
+
 /// Une ligne brute consommée : ses octets (sans le saut de ligne), l'offset
 /// de départ, la taille **consommée** (saut de ligne compris).
+///
+/// ⚠️ `hors_plafond` : la ligne dépassait [`PLAFOND_LIGNE_OCTETS`]. Son `brut`
+/// est **vide** (rien n'a été gardé), `consomme` reste sa vraie taille : le
+/// curseur la franchit, et la couche réponse dit qu'elle a été ignorée.
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct Cadre {
     pub brut: String,
     pub depart: u64,
     pub consomme: u64,
+    pub hors_plafond: bool,
 }
 
 /// Lit les cadres depuis `depuis`, jusqu'à `cible_octets` **consommés** au
@@ -25,6 +35,11 @@ pub struct Cadre {
 /// seul (un lecteur qui buterait sur un enregistrement géant resterait bloqué
 /// pour toujours ; la décision de le servir ou de le refuser appartient à la
 /// couche réponse, T025).
+///
+/// ⚠️ **Mémoire bornée.** Une ligne de plus de [`PLAFOND_LIGNE_OCTETS`]
+/// n'est plus accumulée : elle était gardée en entier, octet par octet, et
+/// la page entière était ensuite refusée (422 pour toujours, flux `gone`).
+/// Elle est désormais rendue `hors_plafond`, vide, et franchie.
 ///
 /// Rend les cadres complets et l'offset nouveau — toujours ≤ octets
 /// effectivement consommés.
@@ -40,28 +55,54 @@ pub fn cadres_depuis(
     fichier.seek(SeekFrom::Start(depuis))?;
     let mut cadres = Vec::new();
     let mut consomme_total: u64 = 0;
-    let mut courant = Vec::new();
-    let mut buffer = [0_u8; 65_536];
+    let mut courant: Vec<u8> = Vec::new();
+    // La taille réelle de la ligne en cours (gardée ou non).
+    let mut taille_courante: u64 = 0;
+    let mut hors_plafond = false;
+    let mut buffer = vec![0_u8; 65_536];
     loop {
         let lus = fichier.read(&mut buffer)?;
         if lus == 0 {
             break;
         }
-        for &octet in &buffer[..lus] {
-            courant.push(octet);
-            if octet == b'\n' {
-                let taille_cadre = courant.len() as u64;
-                let texte = String::from_utf8_lossy(&courant[..courant.len() - 1]).to_string();
-                cadres.push(Cadre {
-                    brut: texte,
-                    depart: depuis + consomme_total,
-                    consomme: taille_cadre,
-                });
-                consomme_total += taille_cadre;
-                courant.clear();
-                if consomme_total as usize >= cible_octets {
-                    return Ok((cadres, depuis + consomme_total));
+        let mut reste = &buffer[..lus];
+        while !reste.is_empty() {
+            let fin = reste.iter().position(|octet| *octet == b'\n');
+            let morceau = match fin {
+                Some(index) => &reste[..index],
+                None => reste,
+            };
+            taille_courante += morceau.len() as u64;
+            if !hors_plafond {
+                if courant.len() + morceau.len() > PLAFOND_LIGNE_OCTETS {
+                    hors_plafond = true;
+                    courant = Vec::new();
+                } else {
+                    courant.extend_from_slice(morceau);
                 }
+            }
+            let Some(index) = fin else {
+                break;
+            };
+            reste = &reste[index + 1..];
+            let taille_cadre = taille_courante + 1;
+            let brut = if hors_plafond {
+                String::new()
+            } else {
+                String::from_utf8_lossy(&courant).into_owned()
+            };
+            cadres.push(Cadre {
+                brut,
+                depart: depuis + consomme_total,
+                consomme: taille_cadre,
+                hors_plafond,
+            });
+            consomme_total += taille_cadre;
+            courant.clear();
+            taille_courante = 0;
+            hors_plafond = false;
+            if consomme_total as usize >= cible_octets {
+                return Ok((cadres, depuis + consomme_total));
             }
         }
     }

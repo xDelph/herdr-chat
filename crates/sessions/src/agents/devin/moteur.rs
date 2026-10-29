@@ -72,7 +72,7 @@ fn vers_entree(row_id: i64, chat_message: &str, created_at: i64) -> EntreeBrute 
         return EntreeBrute {
             id: traduite.id.clone(),
             parent_id: None,
-            brut: serde_json::to_string(&traduite).unwrap_or_default(),
+            brut: crate::normalisation::brut_traduit(&traduite).unwrap_or_default(),
             timestamp: traduite.timestamp.clone(),
             genre: String::from("message"),
         };

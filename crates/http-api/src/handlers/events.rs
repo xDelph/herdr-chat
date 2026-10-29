@@ -91,8 +91,10 @@ fn travaille(
     battement: std::time::Duration,
 ) {
     let frontiere = abonnement.dernier_id().map_or(0, |id| id.sequence);
-    let mut curseur = frontiere;
-    let mut resync_emis = false;
+    let mut suivi = Suivi {
+        curseur: frontiere,
+        dernier_resync: None,
+    };
     // 1) `ready` — sans identifiant, immédiatement à l'ouverture.
     if !envoie(
         &emetteur,
@@ -102,25 +104,15 @@ fn travaille(
     }
     // 2) Le rattrapage : un resync UNIQUE, ou les événements retenus.
     let rattrapage = abonnement.rattrapage().clone();
-    if rattrapage.resync_requis {
-        resync_emis = true;
-        curseur = rattrapage.reprendre_de.sequence;
-        if !envoie(&emetteur, evenement_de_resync(&rattrapage)) {
-            return;
-        }
-    } else {
-        for evenement in &rattrapage.evenements {
-            curseur = evenement.id.sequence;
-            if !envoie(&emetteur, EvenementSse::du_journal(evenement)) {
-                return;
-            }
-        }
+    if !suivi.comble(&rattrapage, &emetteur) {
+        return;
     }
     // 3) Le direct — la sonnette, puis le journal quand elle se tait.
     loop {
         if let Some(evenement) = abonnement.attend(battement) {
-            // Déjà émis (rattrapage) : rien à renvoyer.
-            if evenement.id.sequence <= curseur && !resync_emis {
+            // Déjà émis (rattrapage, ou couvert par un resync) : rien à
+            // renvoyer.
+            if evenement.id.sequence <= suivi.curseur {
                 continue;
             }
             /*
@@ -130,25 +122,14 @@ fn travaille(
               par-dessus les tombés, perdus pour toujours. On relit le journal
               depuis le dernier émis : il contient les tombés ET celui-ci.
             */
-            if evenement.id.sequence > curseur.saturating_add(1) && !resync_emis {
-                let manquants = abonnement.rattrapage_apres(curseur);
-                if manquants.resync_requis {
-                    resync_emis = true;
-                    curseur = manquants.reprendre_de.sequence;
-                    if !envoie(&emetteur, evenement_de_resync(&manquants)) {
-                        return;
-                    }
-                    continue;
-                }
-                for manquant in &manquants.evenements {
-                    curseur = manquant.id.sequence;
-                    if !envoie(&emetteur, EvenementSse::du_journal(manquant)) {
-                        return;
-                    }
+            if evenement.id.sequence > suivi.curseur.saturating_add(1) {
+                let manquants = abonnement.rattrapage_apres(suivi.curseur);
+                if !suivi.comble(&manquants, &emetteur) {
+                    return;
                 }
                 continue;
             }
-            curseur = evenement.id.sequence;
+            suivi.curseur = evenement.id.sequence;
             if !envoie(&emetteur, EvenementSse::du_journal(&evenement)) {
                 return;
             }
@@ -162,23 +143,56 @@ fn travaille(
         }
         // La sonnette s'est tue : le journal peut avoir plus que ce qu'une
         // file bornée a laissé passer. On relit depuis le curseur émis.
-        let manquants = abonnement.rattrapage_apres(curseur);
-        if manquants.resync_requis && !resync_emis {
-            resync_emis = true;
-            curseur = manquants.reprendre_de.sequence;
-            if !envoie(&emetteur, evenement_de_resync(&manquants)) {
-                return;
-            }
-            continue;
-        }
-        for evenement in &manquants.evenements {
-            curseur = evenement.id.sequence;
-            if !envoie(&emetteur, EvenementSse::du_journal(evenement)) {
-                return;
-            }
+        let manquants = abonnement.rattrapage_apres(suivi.curseur);
+        if !suivi.comble(&manquants, &emetteur) {
+            return;
         }
         // Rien : on n'invente pas d'événement. Le keep-alive d'axum écrit le
         // commentaire `:` qui empêche un proxy de couper une connexion muette.
+    }
+}
+
+/// Ce que le flux a émis : le curseur, et le point de reprise du dernier
+/// resync.
+///
+/// ⚠️ **Un resync RE-BASE le curseur, il ne suspend rien.** Un drapeau
+/// `resync_emis` jamais remis à zéro coupait, après le PREMIER resync et pour
+/// toute la vie du flux, la déduplication (un événement déjà couvert
+/// repartait) et le comblement des trous (un événement tombé de la sonnette
+/// était perdu). Désormais le curseur repart du point de reprise et le
+/// traitement ordinaire reprend ; un seul resync par discontinuité — le même
+/// point de reprise n'en produit pas un second.
+struct Suivi {
+    curseur: u64,
+    dernier_resync: Option<u64>,
+}
+
+impl Suivi {
+    /// Émet un rattrapage : le resync (une fois par point de reprise) ou les
+    /// événements manquants. `false` quand la réponse est tombée.
+    fn comble(
+        &mut self,
+        rattrapage: &Rattrapage,
+        emetteur: &tokio::sync::mpsc::Sender<Event>,
+    ) -> bool {
+        if rattrapage.resync_requis {
+            let reprise = rattrapage.reprendre_de.sequence;
+            self.curseur = reprise;
+            if self.dernier_resync == Some(reprise) {
+                return true;
+            }
+            self.dernier_resync = Some(reprise);
+            return envoie(emetteur, evenement_de_resync(rattrapage));
+        }
+        // Le journal rend ce qui SUIT la position demandée : émis tel quel
+        // (au préambule, la frontière n'est pas encore une position émise).
+        for evenement in &rattrapage.evenements {
+            self.curseur = evenement.id.sequence;
+            if !envoie(emetteur, EvenementSse::du_journal(evenement)) {
+                return false;
+            }
+        }
+        true
     }
 }
 

@@ -60,8 +60,16 @@ pub fn page_avant(
             reinitialisee: false,
         })
     } else {
-        // Rotation ou troncature : repartir de zéro — et le DIRE.
-        let (cadres, nouvel_offset) = framing::cadres_depuis(&mut fichier, 0, cible_octets)?;
+        // Rotation ou troncature : repartir de la QUEUE — et le DIRE.
+        //
+        // ⚠️ Elle repartait de l'octet 0 : un fichier remplacé de 30 Mo
+        // était poussé en entier dans le flux. La queue est la même fenêtre
+        // qu'une première ouverture, alignée sur un début de ligne.
+        let depart = framing::prochain_debut_de_ligne(
+            &mut fichier,
+            mesuree.taille.saturating_sub(cible_octets as u64),
+        )?;
+        let (cadres, nouvel_offset) = framing::cadres_depuis(&mut fichier, depart, cible_octets)?;
         Ok(PageAvant {
             a_rattrape: nouvel_offset >= mesuree.taille,
             cadres,
@@ -139,20 +147,19 @@ pub const CIBLE_PAGE_OCTETS: usize = 2 * 1024 * 1024;
 /// Le plafond **absolu** d'une réponse — 16 MiB (T025).
 pub const PLAFOND_ABSOLU_OCTETS: usize = 16 * 1024 * 1024;
 
-/// L'erreur du bornage — le record hors plafond : **422 sans avancer son
-/// curseur** (le client peut demander la suite autrement, la position reste
-/// la sienne).
+/// L'erreur du bornage — une panne d'I/O réelle, rapportée telle quelle.
+///
+/// ⚠️ Le refus « record hors plafond » (422, curseur intact) n'existe plus :
+/// il rendait la session illisible **pour toujours** (le curseur ne pouvait
+/// jamais franchir la ligne). Une ligne hors plafond est désormais rendue
+/// comme cadre `hors_plafond` et franchie (voir [`framing::cadres_depuis`]).
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub enum ErreurBorne {
-    /// Un SEUL record dépasse le plafond absolu : il ne sera jamais servi
-    /// — 422, curseur intact (T025 : « sans avancer son curseur »).
-    RecordHorsPlafond { taille: u64 },
-    /// Une panne d'I/O réelle — rapportée telle quelle, jamais requalifiée
-    /// en refus de taille.
+    /// Une panne d'I/O réelle — rapportée telle quelle.
     Io(String),
 }
 
-/// La page **bornée** du forward : cible 2 MiB, plafond absolu 16 MiB, et
+/// La page **bornée** du forward : cible 2 MiB, plafond de ligne 16 MiB, et
 /// `caught_up` — **vrai au seul watermark complet observé** (aucune queue
 /// en attente derrière).
 ///
@@ -166,19 +173,8 @@ pub fn page_bornee(
     // Le paramètre observe est porté (la RENEWAL du lease appartient à
     // l'index T027) — la lecture elle-même ne dépend pas de lui.
     let _ = observe;
-    let page = page_avant(chemin, curseur, CIBLE_PAGE_OCTETS)
+    page_avant(chemin, curseur, CIBLE_PAGE_OCTETS)
         .map_err(|cause| ErreurBorne::Io(cause.to_string()))
-        .and_then(|page| {
-            for cadre in &page.cadres {
-                if cadre.consomme as usize > PLAFOND_ABSOLU_OCTETS {
-                    return Err(ErreurBorne::RecordHorsPlafond {
-                        taille: cadre.consomme,
-                    });
-                }
-            }
-            Ok(page)
-        })?;
-    Ok(page)
 }
 
 /// L'erreur du paramètre `observe` — toute autre valeur que `0`/`1`.

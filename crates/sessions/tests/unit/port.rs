@@ -170,15 +170,15 @@ fn un_curseur_d_une_autre_source_est_refuse() {
         cursor: Some(curseur),
         previous_cursor: None,
         limit: 512 * 1024,
-    }))
-    .unwrap_or_else(|cause| panic!("page : {cause:?}"));
-    // Un curseur étranger est une DEMANDE invalide : on le dit (400), on ne
-    // relit pas au hasard.
+    }));
+    // Un curseur étranger est une DEMANDE invalide : on le dit (H04 : 400
+    // `invalid cursor`), on ne relit pas au hasard.
     match issue {
-        SessionPageOutcome::Invalide { detail } => {
-            assert!(detail.contains("curseur"), "{detail}");
+        Err(erreur) => {
+            assert_eq!(erreur.nature, domain::errors::Nature::InvalidInput);
+            assert_eq!(erreur.detail, "invalid cursor");
         }
-        autre_issue => panic!("un curseur étranger est refusé : {autre_issue:?}"),
+        Ok(autre_issue) => panic!("un curseur étranger est refusé : {autre_issue:?}"),
     }
     let _ = std::fs::remove_dir_all(&racine);
 }
@@ -194,12 +194,15 @@ fn un_curseur_illisible_est_refuse() {
         cursor: Some(String::from("pas-un-curseur")),
         previous_cursor: None,
         limit: 512 * 1024,
-    }))
-    .unwrap_or_else(|cause| panic!("page : {cause:?}"));
-    assert!(
-        matches!(issue, SessionPageOutcome::Invalide { .. }),
-        "{issue:?}"
-    );
+    }));
+    // H04 : 400 `invalid cursor` — la nature `InvalidInput`, pas un 422.
+    match issue {
+        Err(erreur) => {
+            assert_eq!(erreur.nature, domain::errors::Nature::InvalidInput);
+            assert_eq!(erreur.detail, "invalid cursor");
+        }
+        Ok(autre) => panic!("un curseur illisible est refusé : {autre:?}"),
+    }
     let _ = std::fs::remove_dir_all(&racine);
 }
 
@@ -287,6 +290,57 @@ fn les_metadonnees_ne_supposent_aucun_modele() {
     assert!(metadonnees.model.is_none(), "aucun modèle supposé");
     assert!(metadonnees.provider.is_none());
     let _ = std::fs::remove_dir_all(&racine);
+}
+
+#[test]
+fn les_metadonnees_rendent_ce_que_l_en_tete_declare() {
+    // Régression : l'en-tête était lu puis jeté — `sessionCwd`,
+    // `sessionId` et `parentSession` restaient absents pour toute session.
+    let racine = dossier();
+    let chemin = racine.join("sessions/entete.jsonl");
+    std::fs::create_dir_all(racine.join("sessions")).unwrap_or_else(|cause| panic!("{cause}"));
+    std::fs::write(
+        &chemin,
+        concat!(
+            r#"{"type":"session","version":3,"id":"s-42","cwd":"/tmp/projet","parentSession":"/tmp/parent.jsonl"}"#,
+            "\n",
+            r#"{"type":"message","id":"m1","message":{"role":"user","content":"x"}}"#,
+            "\n"
+        ),
+    )
+    .unwrap_or_else(|cause| panic!("écriture : {cause}"));
+    let port = PortSessions::nouveau(racines(&racine));
+    let metadonnees = attend(port.metadata(source_fichier(&chemin)))
+        .unwrap_or_else(|cause| panic!("métadonnées : {cause:?}"));
+    assert_eq!(metadonnees.session_id.as_deref(), Some("s-42"));
+    assert_eq!(metadonnees.cwd.as_deref(), Some("/tmp/projet"));
+    assert_eq!(
+        metadonnees.parent_session.as_deref(),
+        Some("/tmp/parent.jsonl")
+    );
+    assert!(metadonnees.model.is_none(), "aucun modèle supposé");
+    let _ = std::fs::remove_dir_all(&racine);
+}
+
+#[test]
+fn les_metadonnees_d_un_chemin_hors_racines_ne_sont_pas_lues() {
+    let racine = dossier();
+    let dehors = dossier();
+    let chemin = dehors.join("entete.jsonl");
+    std::fs::write(
+        &chemin,
+        concat!(r#"{"type":"session","id":"x","cwd":"/secret"}"#, "\n"),
+    )
+    .unwrap_or_else(|cause| panic!("écriture : {cause}"));
+    let port = PortSessions::nouveau(racines(&racine));
+    let metadonnees = attend(port.metadata(source_fichier(&chemin)))
+        .unwrap_or_else(|cause| panic!("métadonnées : {cause:?}"));
+    assert!(
+        metadonnees.cwd.is_none(),
+        "S03 : hors racines, rien n'est lu"
+    );
+    let _ = std::fs::remove_dir_all(&racine);
+    let _ = std::fs::remove_dir_all(&dehors);
 }
 
 #[test]

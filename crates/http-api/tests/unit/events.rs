@@ -447,3 +447,79 @@ async fn un_client_lent_recoit_tout_sans_trou_ni_doublon() {
         .collect();
     assert!(recus == attendus, "tous, une fois, dans l'ordre");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn apres_un_resync_les_trous_se_comblent_encore() {
+    // Régression : `resync_emis` n'était jamais remis à zéro — après le
+    // premier resync, la déduplication et le comblement des trous étaient
+    // coupés pour toute la vie du flux : un client lent perdait des
+    // événements tombés de la sonnette bornée.
+    let journal = Arc::new(ServiceAbonnements::nouveau(Arc::new(Journal::nouveau())));
+    journal
+        .publie("agent_status", b"{}".to_vec())
+        .unwrap_or_else(|cause| panic!("publication : {cause:?}"));
+    let partage = Arc::clone(&journal);
+    let services = services_retouches(HerdrFaux::nouveau(), move |services| {
+        services.journal = partage;
+    });
+    // Un curseur legacy : un resync d'entrée.
+    let reponse = ouvre(services, Some("42")).await;
+    let mut flux = reponse.into_body().into_data_stream();
+    let mut tampon = String::new();
+    let mut trames: Vec<Trame> = Vec::new();
+    while trames.len() < 2 {
+        let portion = tokio::time::timeout(Duration::from_secs(5), flux.next())
+            .await
+            .unwrap_or_else(|_| panic!("rien reçu"))
+            .unwrap_or_else(|| panic!("flux fermé"))
+            .unwrap_or_else(|cause| panic!("flux : {cause:?}"));
+        tampon.push_str(&String::from_utf8_lossy(&portion));
+        while let Some(fin) = tampon.find("\n\n") {
+            let bloc: String = tampon.drain(..fin + 2).collect();
+            if let Some(trame) = decode_trame(&bloc) {
+                trames.push(trame);
+            }
+        }
+    }
+    assert_eq!(trames[0].genre, "ready");
+    assert_eq!(trames[1].genre, "resync");
+    // Le client ne lit pas : la sonnette (16) déborde.
+    for n in 0..200 {
+        journal
+            .publie(
+                "session_changed",
+                format!(r#"{{"paneId":"w1:p{n}","sourceRevision":"0123456789abcdef"}}"#)
+                    .into_bytes(),
+            )
+            .unwrap_or_else(|cause| panic!("publication : {cause:?}"));
+    }
+    let mut recus: Vec<String> = Vec::new();
+    let mut resyncs = 0_usize;
+    while recus.len() < 200 {
+        let portion = tokio::time::timeout(Duration::from_secs(5), flux.next())
+            .await
+            .unwrap_or_else(|_| panic!("il manque des événements : {} reçus", recus.len()))
+            .unwrap_or_else(|| panic!("flux fermé"))
+            .unwrap_or_else(|cause| panic!("flux : {cause:?}"));
+        tampon.push_str(&String::from_utf8_lossy(&portion));
+        while let Some(fin) = tampon.find("\n\n") {
+            let bloc: String = tampon.drain(..fin + 2).collect();
+            match decode_trame(&bloc) {
+                Some(trame) if trame.genre == "session_changed" => recus.push(trame.donnees),
+                Some(trame) if trame.genre == "resync" => resyncs += 1,
+                _ => {}
+            }
+        }
+    }
+    let attendus: Vec<String> = (0..200)
+        .map(|n| format!(r#"{{"paneId":"w1:p{n}","sourceRevision":"0123456789abcdef"}}"#))
+        .collect();
+    assert!(
+        recus == attendus,
+        "tous, une fois, dans l'ordre, après le resync"
+    );
+    assert_eq!(
+        resyncs, 0,
+        "aucun second resync sans nouvelle discontinuité"
+    );
+}

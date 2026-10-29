@@ -137,7 +137,7 @@ fn la_photo_ne_declare_pas_de_tabs_qu_elle_ne_porte_pas() {
     }))
     .unwrap_or_else(|cause| panic!("photo : {cause}"));
     let snapshot = observation_depuis_photo(&photo);
-    // ⚠️ `session.snapshot` ne porte ni tabs ni layouts : les déclarer (même
+    // ⚠️ Une photo qui ne porte ni tabs ni layouts : les déclarer (même
     // vides) ferait croire qu'on a regardé.
     assert!(snapshot.tabs.is_none());
     assert!(snapshot.layouts.is_none());
@@ -148,6 +148,51 @@ fn la_photo_ne_declare_pas_de_tabs_qu_elle_ne_porte_pas() {
     assert_eq!(provenance.protocol, 22);
     assert_eq!(provenance.version, "0.9.3");
     assert_eq!(snapshot.workspaces.len(), 1);
+}
+
+#[test]
+fn la_photo_porte_les_tabs_et_dispositions_que_le_fil_livre() {
+    // Régression (P0) : `tabs[]` et `layouts[]` du snapshot étaient jetés —
+    // `tabNumber`, `tabLabel` et `paneRank` restaient null pour tous.
+    let photo: PhotoSession = serde_json::from_value(json!({
+        "agents": [],
+        "workspaces": [{ "workspace_id": "w1" }],
+        "tabs": [
+            { "tab_id": "w1:t1", "workspace_id": "w1", "label": "1", "number": 1 },
+            { "tab_id": "w1:t2", "workspace_id": "w1", "label": "atelier", "number": 2,
+              "agent_status": "idle", "pane_count": 2 }
+        ],
+        "layouts": [{
+            "tab_id": "w1:t2", "workspace_id": "w1", "focused_pane_id": "w1:p3",
+            "zoomed": false, "splits": [],
+            "panes": [
+                { "pane_id": "w1:p3", "focused": true,
+                  "rect": { "x": 95, "y": 0, "width": 95, "height": 82 } },
+                { "pane_id": "w1:p2", "focused": false,
+                  "rect": { "x": 0, "y": 0, "width": 95, "height": 82 } }
+            ]
+        }],
+        "protocol": 22,
+        "version": "0.9.3"
+    }))
+    .unwrap_or_else(|cause| panic!("photo : {cause}"));
+    let snapshot = observation_depuis_photo(&photo);
+    let tabs = snapshot
+        .tabs
+        .as_ref()
+        .unwrap_or_else(|| panic!("tabs portés"));
+    assert_eq!(tabs.len(), 2);
+    assert_eq!(tabs[1].number, 2);
+    assert_eq!(tabs[1].label.as_deref(), Some("atelier"));
+    let nommage = domain::naming::NamingContext::from_snapshot(&snapshot);
+    let rang = |pane: &str| {
+        nommage
+            .panes
+            .get(&domain::ids::PaneId::from(String::from(pane)))
+            .and_then(|situation| situation.rank)
+    };
+    assert_eq!(rang("w1:p2"), Some(1), "gauche d'abord");
+    assert_eq!(rang("w1:p3"), Some(2));
 }
 
 #[test]

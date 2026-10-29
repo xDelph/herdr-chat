@@ -264,6 +264,14 @@ pub struct SessionMetadata {
     pub preview: Option<String>,
     /// Horodatage de la dernière activité connue. **Absent plutôt qu'à 0.**
     pub timestamp: Option<u64>,
+    /// L'identifiant que l'**en-tête** de la session déclare (Pi :
+    /// `{"type":"session","id":…}`) — absent quand la source n'en a pas.
+    pub session_id: Option<String>,
+    /// Le dossier de travail que l'en-tête déclare — la moitié « session »
+    /// du tri-état `sessionCwdMatches` (D03).
+    pub cwd: Option<String>,
+    /// La session parente que l'en-tête déclare (`parentSession`).
+    pub parent_session: Option<String>,
 }
 
 /// La relation pane ⇄ source, **les deux clés ensemble**.

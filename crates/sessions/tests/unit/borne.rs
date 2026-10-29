@@ -3,9 +3,7 @@
 
 use sessions::cursor::{Curseur, decode, encode};
 use sessions::storage::jsonl::identity::CurseurFichier;
-use sessions::storage::jsonl::reader::{
-    ErreurBorne, PLAFOND_ABSOLU_OCTETS, observe_valide, page_bornee,
-};
+use sessions::storage::jsonl::reader::{PLAFOND_ABSOLU_OCTETS, observe_valide, page_bornee};
 use std::fs;
 use std::io::Write;
 use std::path::PathBuf;
@@ -210,15 +208,27 @@ fn un_record_hors_plafond_refuse_422_sans_avancer() {
             Err(cause) => panic!("flush refusé : {cause}"),
         }
     }
+    // ⚠️ Régression : ce record rendait la page refusée (422) POUR TOUJOURS —
+    // le curseur ne pouvait pas le franchir. Il est désormais rendu hors
+    // plafond, sans son contenu, et franchi.
     match page_bornee(&fichier, &curseur, true) {
-        Err(ErreurBorne::RecordHorsPlafond { taille }) => {
+        Ok(page) => {
+            assert_eq!(page.cadres.len(), 1, "le géant seul");
+            let cadre = &page.cadres[0];
+            assert!(cadre.hors_plafond, "le géant est dit hors plafond");
+            assert!(cadre.brut.is_empty(), "rien n'est gardé en mémoire");
             assert!(
-                taille as usize > PLAFOND_ABSOLU_OCTETS,
-                "la taille parle : {taille}"
+                cadre.consomme as usize > PLAFOND_ABSOLU_OCTETS,
+                "la taille parle : {}",
+                cadre.consomme
+            );
+            assert_eq!(
+                page.curseur.offset,
+                curseur.offset + cadre.consomme,
+                "le curseur franchit le géant"
             );
         }
-        Ok(_) => panic!("un record de 17 MiB ne se sert PAS"),
-        Err(cause) => panic!("hors plafond attendu : {cause:?}"),
+        Err(cause) => panic!("un géant hors plafond se franchit : {cause:?}"),
     }
     // Un record au-dessus de la CIBLE mais sous le PLAFOND : rendu SEUL
     // (le curseur avance — c'est la règle du géant).

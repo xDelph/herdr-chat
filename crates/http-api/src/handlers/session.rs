@@ -130,10 +130,14 @@ fn entree_de_fil(entree: &SessionEntry) -> EntreeDeFil {
     EntreeDeFil {
         genre: entree.kind.clone(),
         id: Field::de_option(entree.id.clone()),
-        parent_id: entree
-            .parent_id
-            .clone()
-            .map(contracts::presence::Nullable::Valeur),
+        // ⚠️ **Toujours présent, `null` quand la ligne n'en porte pas** —
+        // comme le fil TS (`parentId: decoded.parentId ?? null`, et `null`
+        // en dur pour opencode/devin). La clé était omise : le contrat
+        // distingue absent et null, et la PWA recevait deux formes.
+        parent_id: Some(match entree.parent_id.clone() {
+            Some(parent) => contracts::presence::Nullable::Valeur(parent),
+            None => contracts::presence::Nullable::Nulle,
+        }),
         raw: entree.raw.clone(),
         timestamp: Field::de_option(entree.timestamp.clone()),
     }
