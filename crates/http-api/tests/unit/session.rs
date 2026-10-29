@@ -83,6 +83,16 @@ async fn session_200_page_avec_entrees() {
     assert_eq!(entrees[0]["type"], "message");
     assert_eq!(entrees[0]["id"], "m-1");
     assert_eq!(entrees[0]["parentId"], serde_json::Value::Null);
+    // Régression : la clé était OMISE (l'index JSON rend `Null` pour une
+    // clé absente — l'assertion ci-dessus ne le voyait pas). Le fil TS
+    // l'écrit toujours, `null` compris.
+    assert!(
+        entrees[0]
+            .as_object()
+            .is_some_and(|entree| entree.contains_key("parentId")),
+        "parentId présent, null : {:?}",
+        entrees[0]
+    );
     assert_eq!(entrees[0]["timestamp"], "2026-10-15T10:00:00Z");
 }
 

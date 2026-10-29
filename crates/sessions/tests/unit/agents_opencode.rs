@@ -95,6 +95,12 @@ fn les_requetes_mesurees_passent_par_l_ouvrier() {
         page.entrees[0].brut.contains("liste les fichiers"),
         "le prompt du corpus reste"
     );
+    // Régression : la forme traduite portait ses champs optionnels à `null`.
+    assert!(
+        !page.entrees[0].brut.contains(":null"),
+        "aucun champ optionnel nul : {}",
+        page.entrees[0].brut
+    );
     assert!(
         page.entrees[2].genre == "idle",
         "la ligne non traduite garde son type : {}",

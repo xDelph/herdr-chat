@@ -102,10 +102,57 @@ impl Normaliseur {
     }
 }
 
+/// Les champs **optionnels** de la forme commune (`LignePi`, `PiMessage`,
+/// `ChangePi`) : absents de la traduction, ils sont retirés du `raw` plutôt
+/// qu'écrits `null`.
+const CHAMPS_OPTIONNELS: [&str; 15] = [
+    "id",
+    "timestamp",
+    "role",
+    "toolName",
+    "phase",
+    "command",
+    "output",
+    "exitCode",
+    "cancelled",
+    "truncated",
+    "isError",
+    "model",
+    "provider",
+    "thinkingLevel",
+    "modelId",
+];
+
+/// La forme commune **sans ses champs optionnels nuls**.
+///
+/// ⚠️ Un message traduit (codex, claude, opencode, devin) portait 8 à 11 clés
+/// `null` (`output`, `exitCode`, `isError`, `toolName`…) : du poids sur le
+/// fil pour rien dire, et le décodage strict de la PWA échouait sur ces
+/// `null`. Seuls les champs optionnels nommés sont retirés, et seulement
+/// quand ils valent `null` — le contenu (`content`) n'est jamais touché.
+#[must_use]
+pub fn sans_champs_nuls(mut valeur: Value) -> Value {
+    fn retire(objet: &mut serde_json::Map<String, Value>) {
+        objet.retain(|cle, champ| !(champ.is_null() && CHAMPS_OPTIONNELS.contains(&cle.as_str())));
+    }
+    if let Some(objet) = valeur.as_object_mut() {
+        retire(objet);
+        if let Some(message) = objet.get_mut("message").and_then(Value::as_object_mut) {
+            retire(message);
+        }
+    }
+    valeur
+}
+
+/// Le `raw` d'une forme traduite : sa sérialisation, sans champs nuls.
+pub fn brut_traduit<T: serde::Serialize>(forme: &T) -> serde_json::Result<String> {
+    serde_json::to_value(forme).map(|valeur| sans_champs_nuls(valeur).to_string())
+}
+
 /// L'entrée d'une forme traduite : le `raw` est la forme commune, pas la
 /// ligne d'origine — c'est elle que la PWA et le résumé lisent.
 fn entree_serialisee<T: serde::Serialize>(forme: &T, brut: &str) -> SessionEntry {
-    match serde_json::to_value(forme) {
+    match serde_json::to_value(forme).map(sans_champs_nuls) {
         Ok(valeur) => {
             let texte = valeur.to_string();
             entree_de_valeur(&valeur, texte)
