@@ -11,7 +11,6 @@
 //! ⚠️ **Aucun substitut** : une page illisible devient une `ErreurDeLecture`
 //! avec sa cause ; un type absent n'est pas inventé.
 
-use application::commands::launch::ConstructeurArgs;
 use application::conversations::{
     EntreeLu, ErreurDeLecture, GenreDeLigne, GenreTache, LitSessions, OutilAppele, RoleDeSession,
     StatutTache, TacheDeFond,
@@ -660,20 +659,6 @@ impl InventaireTypes for TypesViaCatalogue {
             }),
         }
     }
-}
-
-/// La validation des args : la fonction du catalogue, telle quelle.
-#[must_use]
-pub fn constructeur_d_args() -> Arc<ConstructeurArgs> {
-    Arc::new(Box::new(
-        |kind: &str, modele: Option<&str>, thinking: Option<&str>| {
-            let issue = catalog::args::construit_args(kind, modele, thinking);
-            match issue.erreur {
-                Some(erreur) => Err(erreur),
-                None => Ok(issue.args),
-            }
-        },
-    ))
 }
 
 /// Le lecteur de branches — git, borné, injecté.
