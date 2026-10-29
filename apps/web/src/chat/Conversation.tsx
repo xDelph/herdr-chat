@@ -123,6 +123,8 @@ export const Conversation = ({
       restants.set(message.text, (restants.get(message.text) ?? 0) + 1);
     }
     for (const local of envois.liste(paneId)) {
+      // Un doublon évité n'est pas parti : seul l'utilisateur ferme sa bulle.
+      if (local.state === "suppressed") continue;
       const compte = restants.get(local.text) ?? 0;
       if (compte > local.baseline) {
         restants.set(local.text, compte - 1);

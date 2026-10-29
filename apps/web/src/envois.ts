@@ -21,8 +21,14 @@
  * avec l'onglet — le produit n'écrit pas de texte non envoyé sur le disque.
  */
 
-/** Où en est un envoi — les états du composeur, pas ceux du serveur. */
-export type EtatEnvoi = "queued" | "sending" | "delivered" | "uncertain" | "failed";
+/**
+ * Où en est un envoi — les états du composeur, pas ceux du serveur.
+ *
+ * ⚠️ `suppressed` n'est **pas** `delivered` : Herdr a refusé de renvoyer un
+ * texte identique à un envoi récent. Rien n'est parti ; l'écran le dit, et ne
+ * compte jamais cet envoi parmi les messages remis.
+ */
+export type EtatEnvoi = "queued" | "sending" | "delivered" | "suppressed" | "uncertain" | "failed";
 
 /** Un envoi — sa cible est **capturée**, jamais relue depuis l'écran. */
 export interface Envoi {
@@ -41,8 +47,11 @@ export interface Envoi {
   readonly failureState: EtatEchec | null;
 }
 
-/** L'état d'un échec d'envoi — les trois valeurs du contrat (B05). */
-export type EtatEchec = "attente" | "erreur" | "inconnu";
+/**
+ * L'état d'un échec d'envoi — les trois valeurs du contrat (B05), plus
+ * `hors-ligne` : l'appareil n'avait pas de réseau, la requête n'est pas partie.
+ */
+export type EtatEchec = "attente" | "erreur" | "inconnu" | "hors-ligne";
 
 /** Ce que le magasin demande au serveur — injecté, donc testable sans réseau. */
 export type Lanceur = (
@@ -139,10 +148,14 @@ export const creeMagasinEnvois = (lance: Lanceur, planifie: Planificateur): Maga
     try {
       const resultat = await lance(pane, text);
       if (resultat.kind === "suppressed") {
-        remplace(id, {
-          detail: `Herdr avait déjà confirmé un envoi identique : ${resultat.reason}`,
-          state: "delivered",
-        });
+        /*
+          ⚠️ **Un doublon évité n'est pas un message remis.** L'état était
+          `delivered` : la bulle disait « en attente : l'agent le lira » pendant
+          un tour, puis ne partait jamais — le texte n'arrive pas dans la session
+          puisque rien n'a été envoyé. `suppressed` est un état à part, que seul
+          l'utilisateur ferme (ou reprend pour le modifier).
+        */
+        remplace(id, { detail: resultat.reason, state: "suppressed" });
         return;
       }
       if (resultat.kind === "sent") {
@@ -163,12 +176,14 @@ export const creeMagasinEnvois = (lance: Lanceur, planifie: Planificateur): Maga
         échec certain, alors qu'elles ne prouvent rien : c'est exactement la
         bulle rouge observée sur un message pourtant parti. Seul `erreur` est un
         échec ; les deux autres restent `uncertain` (orange), avec le détail et
-        un renvoi possible.
+        un renvoi possible. `hors-ligne` est un échec certain : rien n'a quitté
+        le téléphone.
       */
       remplace(id, {
         detail: resultat.message,
         failureState: resultat.state,
-        state: resultat.state === "erreur" ? "failed" : "uncertain",
+        state:
+          resultat.state === "erreur" || resultat.state === "hors-ligne" ? "failed" : "uncertain",
       });
     } catch (cause) {
       // Même règle : une exception réseau ne prouve pas que la requête n'est

@@ -20,6 +20,7 @@ import "./styles/base.css";
 import "./styles/boite.css";
 import "./styles/conversation.css";
 import "./styles/feuilles.css";
+import "./styles/fiabilite.css";
 
 poserTheme(lireTheme());
 window.addEventListener("load", rafraichirCouleurDeBarre, { once: true });

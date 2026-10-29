@@ -192,19 +192,43 @@ describe("T058 — les états du fil, sans mensonge", () => {
     expect(envoi?.detail).toContain("pas confirmé");
   });
 
-  test("un double supprimé est un succès assumé, pas une erreur", async () => {
+  test("un double supprimé n'est PAS remis : état `suppressed`, jamais `delivered`", async () => {
+    /*
+      ⚠️ Le défaut : l'état était `delivered`. La bulle disait « en attente :
+      l'agent le lira » et ne partait jamais — rien n'avait été envoyé, donc
+      rien n'arrivait dans la session.
+    */
     const { lance } = lanceurNote({
       kind: "suppressed",
       reason: "consecutive identical send",
     });
     const { avance, planifie } = planificateurManuel();
     const magasin = creeMagasinEnvois(lance, planifie);
+    const id = magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "x" });
+    avance(DELAI_ENVOI_MS);
+    await souffle();
+    const envoi = magasin.liste("w1:p1")[0];
+    expect(envoi?.state).toBe("suppressed");
+    expect(envoi?.detail).toBe("consecutive identical send");
+    // Un `prompt` publié pour le pane ne le transforme pas en remise.
+    expect(magasin.resoutParEvenement("w1:p1")).toBe(0);
+    expect(magasin.liste("w1:p1")[0]?.state).toBe("suppressed");
+    // Et on ne le « réessaie » pas : seul l'utilisateur le ferme ou le reprend.
+    expect(magasin.reessaye(id)).toBe(false);
+    magasin.oublie(id);
+    expect(magasin.liste("w1:p1")).toHaveLength(0);
+  });
+
+  test("hors ligne : un échec certain (`failed`), pas un « peut-être parti »", async () => {
+    const { lance } = lanceurNote({ kind: "failed", message: "", state: "hors-ligne" });
+    const { avance, planifie } = planificateurManuel();
+    const magasin = creeMagasinEnvois(lance, planifie);
     magasin.ajoute({ baseline: 0, pane: "w1:p1", text: "x" });
     avance(DELAI_ENVOI_MS);
     await souffle();
     const envoi = magasin.liste("w1:p1")[0];
-    expect(envoi?.state).toBe("delivered");
-    expect(envoi?.detail).toContain("déjà confirmé");
+    expect(envoi?.state).toBe("failed");
+    expect(envoi?.failureState).toBe("hors-ligne");
   });
 
   test("le lanceur qui LÈVE donne un état `inconnu`, jamais un échec", async () => {

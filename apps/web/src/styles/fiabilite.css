@@ -1,0 +1,18 @@
+/*
+  Les états de fiabilité : ce qui n'est pas parti, ce qui n'est plus là, la
+  connexion. Un fichier à part pour que ces règles restent lisibles ensemble.
+*/
+
+/* Un doublon évité : rien n'est parti — ni vert (remis), ni rouge (échec). */
+.moi--suppressed {
+  border-style: dashed;
+  border-color: var(--line);
+}
+.moi--suppressed .moi__etat {
+  color: var(--ink-2);
+}
+.moi__cause {
+  flex-basis: 100%;
+  font-size: 11px;
+  color: var(--ink-3);
+}

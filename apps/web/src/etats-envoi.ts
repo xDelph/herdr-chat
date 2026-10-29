@@ -23,34 +23,43 @@ export type Explication = {
  * Un envoi qui a échoué, selon son état réel.
  *
  * - `attente` — Herdr n'a pas tranché. **Le message est peut-être parti** :
- *   l'action est de le renvoyer, pas de le retaper au hasard.
+ *   l'action est de le renvoyer (Herdr ignore un doublon identique récent).
  * - `erreur` — Herdr a refusé, rien n'est parti. L'action est de retaper.
  * - `inconnu` — seul le transport a répondu. Ni Herdr n'a dit oui, ni non :
- *   on ne prétend pas savoir, et on ne propose pas de renvoyer en double.
+ *   renvoyer reste possible, mais le bouton **dit** le risque de doublon.
+ * - `hors-ligne` — l'appareil était hors ligne : la requête n'a pas quitté le
+ *   téléphone. Rien n'est parti, réessayer est sans risque.
+ *
+ * ⚠️ **Le texte et le bouton disent la même chose.** `inconnu` annonçait
+ * « aucune action » pendant que la bulle montrait un bouton « Réessayer » : le
+ * bouton est désormais l'action nommée ici, et nulle part ailleurs.
  */
-export const expliquerEchec = (
-  etat: "attente" | "erreur" | "inconnu",
-  message: string,
-): Explication => {
+export const expliquerEchec = (etat: EtatEchecAffiche, message: string): Explication => {
+  const suite = message.length > 0 ? ` ${message}` : "";
   switch (etat) {
     case "attente":
       return {
-        texte: `Herdr n'a pas confirmé à temps — le message est peut-être parti. ${message}`,
+        texte: `Non confirmé — le message est peut-être parti.${suite}`,
         // Renvoyer plutôt que retaper : la saisie est encore là, et Herdr
         // ignorera un doublon identique.
         action: "Réessayer",
       };
     case "erreur":
       return {
-        texte: `Envoi refusé — ${message}`,
+        texte: `Envoi refusé —${suite.length > 0 ? suite : " sans cause donnée"}`,
         action: "Modifier le message",
       };
     case "inconnu":
       return {
-        texte: `Aucune réponse d'Herdr — remise inconnue. ${message}`,
-        // Aucune action : renvoyer pourrait doubler le message, et c'est
-        // précisément ce que l'écran ne peut pas trancher.
-        action: null,
+        texte: `Aucune réponse d'Herdr — remise inconnue.${suite}`,
+        // Le risque est dans le libellé : c'est précisément ce que l'écran ne
+        // peut pas trancher, donc l'utilisateur décide en le sachant.
+        action: "Renvoyer (doublon possible)",
+      };
+    case "hors-ligne":
+      return {
+        texte: `Hors ligne : rien n'est parti.${suite}`,
+        action: "Réessayer",
       };
   }
 
@@ -65,6 +74,9 @@ export const expliquerEchec = (
   };
 };
 
+/** Les états d'échec affichés : les trois du contrat (B05), plus le nôtre. */
+export type EtatEchecAffiche = "attente" | "erreur" | "inconnu" | "hors-ligne";
+
 /**
  * Un envoi effectué sans confirmation.
  *
@@ -77,9 +89,15 @@ export const expliquerEnvoi = (confirmation: "confirmed" | "unknown"): Explicati
     ? { texte: "Envoyé, remise confirmée par Herdr", action: null }
     : { texte: "Envoyé, remise non confirmée", action: null };
 
-/** Un double envoi supprimé : un état **normal**, jamais une alerte rouge. */
+/**
+ * Un double envoi supprimé : un état **normal**, jamais une alerte rouge — mais
+ * jamais non plus un envoi : rien n'est parti.
+ */
+export const NON_ENVOYE_DOUBLON =
+  "Non envoyé : identique à un message déjà remis il y a moins d'une minute";
+
 export const expliquerSuppression = (raison: string): Explication => ({
-  texte: `Doublon évité — ${raison}`,
+  texte: raison.length > 0 ? `${NON_ENVOYE_DOUBLON} (${raison})` : NON_ENVOYE_DOUBLON,
   action: null,
 });
 

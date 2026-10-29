@@ -220,7 +220,8 @@ export type SendResult =
   | {
       kind: "failed";
       message: string;
-      state: "attente" | "erreur" | "inconnu";
+      /** `hors-ligne` est le nôtre : l'appareil n'avait pas de réseau. */
+      state: "attente" | "erreur" | "inconnu" | "hors-ligne";
     };
 
 const ErrorPayload = ApiErrorResponse;
@@ -362,6 +363,10 @@ export const reportError = (message: string, detail?: unknown): void => {
   })();
 };
 
+/** L'appareil se dit hors ligne (`navigator.onLine`, absent hors navigateur). */
+export const horsLigne = (): boolean =>
+  typeof navigator !== "undefined" && "onLine" in navigator && !navigator.onLine;
+
 /**
  * Le délai d'un envoi.
  *
@@ -388,13 +393,20 @@ export const sendPrompt = async (paneId: string, text: string): Promise<SendResu
     });
   } catch (cause) {
     const expire = cause instanceof DOMException && cause.name === "TimeoutError";
+    /*
+      ⚠️ **Hors ligne, rien n'est parti.** WebKit rejette `fetch` avec « Load
+      failed » quand l'appareil n'a pas de réseau : la bulle disait « Herdr n'a
+      pas confirmé à temps — peut-être parti », ce qui est faux. Sans réseau,
+      la requête n'a pas quitté le téléphone.
+    */
+    if (!expire && horsLigne()) {
+      return { kind: "failed", message: "", state: "hors-ligne" };
+    }
     return {
       kind: "failed",
       message: expire
-        ? "Herdr n'a pas répondu à temps — le message est peut-être parti."
-        : cause instanceof Error
-          ? cause.message
-          : String(cause),
+        ? "Herdr n'a pas répondu dans les 15 s."
+        : `Connexion au démon interrompue (${cause instanceof Error ? cause.message : String(cause)}).`,
       state: "attente",
     };
   }
