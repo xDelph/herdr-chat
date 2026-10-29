@@ -16,11 +16,13 @@ import type { EtatDonnees } from "../donnees.ts";
 import { etatLecture, FENETRE_DEMARRAGE_MS, heureLue } from "../etats.ts";
 import { estNonLue, type Lectures } from "../lectures.ts";
 import { dossierDe, marqueAgent, premierNonVide, titrePropre } from "../libelles.ts";
-import { GROUPEMENT_LABEL, GROUPEMENTS, type Groupement } from "../preferences.ts";
-import { groupesDe, type Groupe } from "../sections.ts";
+import { GROUPEMENT_LABEL, GROUPEMENTS, type Groupement, type OrdreListe } from "../preferences.ts";
+import { routeToHash } from "../routing.ts";
+import { groupesDe, ORDRE_LABEL, SECTIONS, type Groupe } from "../sections.ts";
 import { Avis } from "../ui/atomes.tsx";
 import { Icone } from "../ui/Icone.tsx";
 import { CarteAttention } from "./CarteAttention.tsx";
+import { EnTeteProjet } from "./EnTeteProjet.tsx";
 import { LigneAgent } from "./LigneAgent.tsx";
 
 const OUVERTURE = Date.now();
@@ -81,6 +83,9 @@ export const Boite = ({
   lectures,
   groupement,
   onGroupement,
+  ordre,
+  onOrdre,
+  projet = null,
   onLancer,
   onReglages,
   onReessayer,
@@ -91,6 +96,10 @@ export const Boite = ({
   readonly lectures: Lectures;
   readonly groupement: Groupement;
   readonly onGroupement: (suivant: Groupement) => void;
+  readonly ordre: OrdreListe;
+  readonly onOrdre: (suivant: OrdreListe) => void;
+  /** `#/projet/<id>` : la liste filtrée sur ce projet, avec « Nouvel agent ». */
+  readonly projet?: string | null;
   readonly onLancer: () => void;
   readonly onReglages: () => void;
   /** Relire tout de suite (liste en erreur ou hors ligne). */
@@ -131,18 +140,26 @@ export const Boite = ({
     [projets],
   );
 
+  const duProjet = useMemo(
+    () =>
+      projet === null
+        ? (conversations ?? [])
+        : (conversations ?? []).filter((conversation) => conversation.workspaceId === projet),
+    [conversations, projet],
+  );
+
   const filtrees = useMemo(() => {
     const motif = rechercheDifferee.trim().toLowerCase();
-    const toutes = conversations ?? [];
-    if (motif.length === 0) return toutes;
-    return toutes.filter((conversation) =>
+    if (motif.length === 0) return duProjet;
+    return duProjet.filter((conversation) =>
       botteDe(conversation, nomDuProjet(conversation.workspaceId)).includes(motif),
     );
-  }, [conversations, nomDuProjet, rechercheDifferee]);
+  }, [duProjet, nomDuProjet, rechercheDifferee]);
 
+  // Dans un projet, regrouper par projet n'aurait qu'un groupe : par état.
   const groupes: ReadonlyArray<Groupe> = useMemo(
-    () => groupesDe(filtrees, "recent", groupement, nomDuProjet),
-    [filtrees, groupement, nomDuProjet],
+    () => groupesDe(filtrees, ordre, projet === null ? groupement : "statut", nomDuProjet),
+    [filtrees, groupement, nomDuProjet, ordre, projet],
   );
 
   const etat = etatLecture({
@@ -153,7 +170,7 @@ export const Boite = ({
     live: donnees.direct === "live",
     total: conversations?.length ?? 0,
   });
-  const total = conversations?.length ?? 0;
+  const total = duProjet.length;
 
   return (
     <section className="boite" aria-label="Agents">
@@ -172,6 +189,14 @@ export const Boite = ({
           <Icone nom="gear" />
         </button>
       </header>
+      {projet === null ? null : (
+        <EnTeteProjet
+          nom={nomDuProjet(projet)}
+          existe={projets.has(projet)}
+          lu={overview !== null}
+          onLancer={onLancer}
+        />
+      )}
       <label className="recherche">
         <Icone nom="search" petite />
         <span className="sr">Rechercher</span>
@@ -183,22 +208,39 @@ export const Boite = ({
         />
       </label>
       <div className="boite__outils">
-        <fieldset className="seg" aria-label="Regrouper">
-          {GROUPEMENTS.map((option) => (
-            <button
-              key={option}
-              type="button"
-              aria-pressed={groupement === option}
-              onClick={() => onGroupement(option)}
-            >
-              {GROUPEMENT_LABEL[option]}
-            </button>
-          ))}
-        </fieldset>
-        <span className="discret num">
-          {recherche.trim().length > 0
-            ? `${String(filtrees.length)} sur ${String(total)}`
-            : `${String(total)} agent${total > 1 ? "s" : ""}`}
+        {projet === null ? (
+          <fieldset className="seg" aria-label="Regrouper">
+            {GROUPEMENTS.map((option) => (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={groupement === option}
+                onClick={() => onGroupement(option)}
+              >
+                {GROUPEMENT_LABEL[option]}
+              </button>
+            ))}
+          </fieldset>
+        ) : (
+          <span />
+        )}
+        <span className="boite__tri">
+          <button
+            type="button"
+            className="bouton-tri"
+            aria-pressed={ordre === "nom"}
+            aria-label={
+              ordre === "nom" ? "Trié par nom — trier par date" : "Trié par date — trier par nom"
+            }
+            onClick={() => onOrdre(ordre === "nom" ? "recent" : "nom")}
+          >
+            {ORDRE_LABEL[ordre]}
+          </button>
+          <span className="discret num">
+            {recherche.trim().length > 0
+              ? `${String(filtrees.length)} sur ${String(total)}`
+              : `${String(total)} agent${total > 1 ? "s" : ""}`}
+          </span>
         </span>
       </div>
 
@@ -243,6 +285,11 @@ export const Boite = ({
         {etat.phase === "vide" ? (
           <p className="boite__vide">Aucun agent ouvert dans Herdr. Lancez-en un avec +.</p>
         ) : null}
+        {projet !== null && etat.phase !== "vide" && total === 0 && conversations !== null ? (
+          <p className="boite__vide">
+            Aucun agent dans ce projet. Lancez-en un avec « Nouvel agent ».
+          </p>
+        ) : null}
         {total > 0 && filtrees.length === 0 ? (
           <p className="boite__vide">Rien ne correspond à « {recherche.trim()} ».</p>
         ) : null}
@@ -254,7 +301,18 @@ export const Boite = ({
             aria-labelledby={`groupe-${groupe.cle}`}
           >
             <div className="groupe__tete">
-              <h2 id={`groupe-${groupe.cle}`}>{groupe.titre}</h2>
+              <h2 id={`groupe-${groupe.cle}`}>
+                {/* Un groupe de projet mène au détail du projet. */}
+                {groupement === "projet" &&
+                projet === null &&
+                !(SECTIONS as ReadonlyArray<string>).includes(groupe.cle) ? (
+                  <a href={routeToHash({ kind: "projet", workspaceId: groupe.cle })}>
+                    {groupe.titre}
+                  </a>
+                ) : (
+                  groupe.titre
+                )}
+              </h2>
               <span className="num">{groupe.conversations.length}</span>
             </div>
             {groupe.cle === "a-traiter" ? (

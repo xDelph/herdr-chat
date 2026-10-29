@@ -23,6 +23,7 @@ import { creeMagasinEnvois, planificateurReel, type Lanceur } from "../envois.ts
 import { creeJournal } from "../journal.ts";
 import { creeMagasinNotifications } from "../notifications-ecran.ts";
 import { creeMagasinPleinEcran } from "../plein-ecran.ts";
+import { creeMagasinVersion } from "../nouvelle-version.ts";
 import type { SourceDEvenements } from "../flux-session.ts";
 
 const planifie = (action: () => void, delai: number): (() => void) => {
@@ -101,3 +102,19 @@ export const causeDuFluxIndisponible = (): string | null =>
 
 export const ouvreurDeFlux = (): ((url: string) => SourceDEvenements) | null =>
   Date.now() < fluxIndisponibleJusqua ? null : (url) => new EventSource(url);
+
+/** La version servie, comparée à celle de la page (`nouvelle-version.ts`). */
+export const version = creeMagasinVersion({
+  actuelle: () => document.querySelector('script[type="module"][src]')?.getAttribute("src") ?? null,
+  litServie: async () => {
+    const reponse = await fetch("/", { cache: "no-store", signal: AbortSignal.timeout(10_000) });
+    if (!reponse.ok) throw new Error(`HTTP ${String(reponse.status)}`);
+    return reponse.text();
+  },
+  maintenant: () => Date.now(),
+  metAJourWorker: async () => {
+    if (!("serviceWorker" in navigator)) return;
+    const enregistrement = await navigator.serviceWorker.getRegistration();
+    await enregistrement?.update();
+  },
+});

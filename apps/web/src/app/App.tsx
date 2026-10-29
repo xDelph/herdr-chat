@@ -12,11 +12,19 @@ import { Boite } from "../inbox/Boite.tsx";
 import { ecritLectures, litLectures, noteLecture, type Lectures } from "../lectures.ts";
 import { dossierDe, premierNonVide } from "../libelles.ts";
 import { purgeAnciennesPositions, stockageNavigateur } from "../memoire-defilement.ts";
-import { lireGroupement, retenirGroupement, type Groupement } from "../preferences.ts";
+import {
+  lireGroupement,
+  lireOrdre,
+  retenirGroupement,
+  retenirOrdre,
+  type Groupement,
+  type OrdreListe,
+} from "../preferences.ts";
 import { retiens } from "../pane-ouvert.ts";
 import { estAdresseDOnglet, HOME } from "../routing.ts";
 import { useDonnees, useEtroit, useHauteurVisible, useRoute } from "./hooks.ts";
 import { Notifications } from "../ui/Notifications.tsx";
+import { NouvelleVersion } from "../ui/NouvelleVersion.tsx";
 import { PleinEcran } from "../ui/PleinEcran.tsx";
 import { envois, magasin } from "./services.ts";
 
@@ -50,6 +58,7 @@ export const App = () => {
   const [route, navigue] = useRoute();
   const etroit = useEtroit();
   const [groupement, setGroupement] = useState<Groupement>(lireGroupement);
+  const [ordre, setOrdre] = useState<OrdreListe>(lireOrdre);
   const [lectures, setLectures] = useState<Lectures>(() => litLectures(stockageNavigateur()));
   const [feuille, setFeuille] = useState<FeuilleApp>(null);
   /**
@@ -99,6 +108,11 @@ export const App = () => {
   const changeGroupement = useCallback((suivant: Groupement) => {
     retenirGroupement(suivant);
     setGroupement(suivant);
+  }, []);
+
+  const changeOrdre = useCallback((suivant: OrdreListe) => {
+    retenirOrdre(suivant);
+    setOrdre(suivant);
   }, []);
 
   const noteVue = useCallback((paneId: string, instant: number) => {
@@ -152,12 +166,16 @@ export const App = () => {
     <div className="app" data-vue={route.kind === "agent" ? "agent" : "liste"}>
       <div className="barre-etat" aria-hidden="true" />
       <Notifications />
+      <NouvelleVersion />
       <PleinEcran />
       <Boite
         donnees={donnees}
         lectures={lectures}
         groupement={groupement}
         onGroupement={changeGroupement}
+        ordre={ordre}
+        onOrdre={changeOrdre}
+        projet={route.kind === "projet" ? route.workspaceId : null}
         onLancer={() => setFeuille({ genre: "lancement" })}
         onReglages={() => setFeuille({ genre: "reglages" })}
         onReessayer={() => void magasin.rafraichit()}

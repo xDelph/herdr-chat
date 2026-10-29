@@ -14,13 +14,18 @@ import {
   pushSupported,
 } from "../notifications.ts";
 import {
+  appliquerStyleMarque,
   appliquerTheme,
   GROUPEMENT_LABEL,
   GROUPEMENTS,
+  lireStyleMarque,
   lireTheme,
+  STYLE_MARQUE_LABEL,
+  STYLES_MARQUE,
   THEME_LABEL,
   THEMES,
   type Groupement,
+  type StyleMarque,
   type Theme,
 } from "../preferences.ts";
 import { dureeLongue } from "../libelles.ts";
@@ -119,6 +124,7 @@ export const Reglages = ({
   readonly onClose: () => void;
 }) => {
   const [theme, setTheme] = useState<Theme>(lireTheme);
+  const [marques, setMarques] = useState<StyleMarque>(lireStyleMarque);
   return (
     <Feuille titre="Réglages" onClose={onClose}>
       <fieldset className="champ">
@@ -139,6 +145,27 @@ export const Reglages = ({
           ))}
         </fieldset>
         <p className="discret">Auto suit le réglage clair/sombre de l'appareil.</p>
+      </fieldset>
+      <fieldset className="champ">
+        <legend>Logos des agents</legend>
+        <fieldset className="seg seg--plein" aria-label="Logos des agents">
+          {STYLES_MARQUE.map((option) => (
+            <button
+              key={option}
+              type="button"
+              aria-pressed={marques === option}
+              onClick={() => {
+                appliquerStyleMarque(option);
+                setMarques(option);
+              }}
+            >
+              {STYLE_MARQUE_LABEL[option]}
+            </button>
+          ))}
+        </fieldset>
+        <p className="discret">
+          Standard garde les couleurs de chaque marque ; « Couleur du thème » les dessine à l'encre.
+        </p>
       </fieldset>
       <fieldset className="champ">
         <legend>Liste</legend>

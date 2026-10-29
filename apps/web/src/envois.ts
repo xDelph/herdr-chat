@@ -112,6 +112,11 @@ export interface MagasinEnvois {
   readonly liste: (pane: string) => ReadonlyArray<Envoi>;
   /** S'abonner aux changements — rend le désabonnement. */
   readonly souscrire: (abonne: () => void) => () => void;
+  /**
+   * Un envoi attend-il encore une issue (en file, en cours, non confirmé) ?
+   * Recharger la page le perdrait : il n'est écrit nulle part.
+   */
+  readonly enAttente: () => boolean;
   /** Le nombre d'appels réseau réellement partis (la mesure des tests). */
   readonly lancements: () => number;
 }
@@ -253,6 +258,11 @@ export const creeMagasinEnvois = (lance: Lanceur, planifie: Planificateur): Maga
       previent();
       return envoi.text;
     },
+    enAttente: () =>
+      [...envois.values()].some(
+        (envoi) =>
+          envoi.state === "queued" || envoi.state === "sending" || envoi.state === "uncertain",
+      ),
     lancements: () => appels,
     oublie: (id) => {
       const envoi = envois.get(id);

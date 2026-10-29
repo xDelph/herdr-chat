@@ -7,14 +7,21 @@
  * ⚠️ **Le service worker ne sert qu'aux notifications push** (`public/sw.js`) :
  * il ne met rien en cache et ne se désinscrit jamais — se désinscrire détruirait
  * l'abonnement push. La fraîcheur de l'app vient du serveur : `index.html` en
- * `no-cache`, les fichiers hachés en `immutable`. Aucun identifiant de build,
- * aucun bandeau de mise à jour : un rechargement charge la dernière version.
+ * `no-cache`, les fichiers hachés en `immutable`. Au retour au premier plan,
+ * `nouvelle-version.ts` compare le script d'entrée servi à celui de la page et
+ * offre de recharger — jamais pendant une saisie.
  */
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app/App.tsx";
 import { reportError } from "./api.ts";
-import { lireTheme, poserTheme, rafraichirCouleurDeBarre } from "./preferences.ts";
+import {
+  lireStyleMarque,
+  lireTheme,
+  poserStyleMarque,
+  poserTheme,
+  rafraichirCouleurDeBarre,
+} from "./preferences.ts";
 import "./styles/tokens.css";
 import "./styles/base.css";
 import "./styles/boite.css";
@@ -23,6 +30,7 @@ import "./styles/feuilles.css";
 import "./styles/fiabilite.css";
 
 poserTheme(lireTheme());
+poserStyleMarque(lireStyleMarque());
 window.addEventListener("load", rafraichirCouleurDeBarre, { once: true });
 // Le thème « Auto » suit l'appareil : la barre système suit aussi.
 window
