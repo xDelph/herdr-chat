@@ -16,6 +16,7 @@ import { useAction, useEnvois } from "../app/hooks.ts";
 import { envois } from "../app/services.ts";
 import { creeTranscripteur, tourEnCours } from "../transcript.ts";
 import { marqueAgent, premierNonVide, titrePropre } from "../libelles.ts";
+import { presenceDuPane, raisonSansEnvoi } from "../pane-ouvert.ts";
 import { Avis } from "../ui/atomes.tsx";
 import { Fichiers } from "../feuilles/Fichiers.tsx";
 import { Modele } from "../feuilles/Modele.tsx";
@@ -70,9 +71,27 @@ const reglagesDeSession = (
   };
 };
 
+/** Ce que l'agent attend et que l'écran montre au-dessus du composeur. */
+const attenteAffichee = (
+  conversation: ConversationSummary | null,
+): "question" | "confiance" | null => {
+  if (conversation === null) return null;
+  if (conversation.trust !== undefined) return "confiance";
+  return conversation.question === undefined ? null : "question";
+};
+
+/** La ligne sous le composeur : pourquoi l'envoi est fermé, sinon où le texte ira. */
+const aideDuComposeur = (sansEnvoi: string | null, saisieBrute: boolean): string | null => {
+  if (sansEnvoi !== null) return sansEnvoi;
+  return saisieBrute ? "L'agent attend : votre message est tapé dans son invite." : null;
+};
+
 export const Conversation = ({
   paneId,
   agent,
+  souvenir,
+  overviewLu,
+  vuAvant,
   conversation,
   projet,
   voisins,
@@ -82,8 +101,14 @@ export const Conversation = ({
   onVue,
 }: {
   readonly paneId: string;
-  /** `null` : Herdr ne connaît pas (ou plus) ce pane. */
+  /** L'agent dans la DERNIÈRE lecture d'Herdr — `null` s'il n'y est pas. */
   readonly agent: AgentView | null;
+  /** Son dernier état connu : pour les libellés seulement, jamais pour l'état. */
+  readonly souvenir: AgentView | undefined;
+  /** Une lecture de l'overview a déjà réussi. */
+  readonly overviewLu: boolean;
+  /** Le pane a été vu dans une lecture précédente. */
+  readonly vuAvant: boolean;
   readonly conversation: ConversationSummary | null;
   readonly projet: string;
   readonly voisins: ReadonlyArray<AgentView>;
@@ -93,11 +118,22 @@ export const Conversation = ({
   /** Note la lecture locale (point « non lu » de la liste). */
   readonly onVue: (paneId: string, instant: number) => void;
 }) => {
-  const status = conversation?.status ?? agent?.status ?? "unknown";
-  const kind = conversation?.agent ?? agent?.agent ?? null;
+  const [ouvertA] = useState(Date.now);
+  const presence = presenceDuPane({
+    lueA,
+    ouvertA,
+    overviewLu,
+    present: agent !== null,
+    vuAvant,
+  });
+  const disparu = presence === "disparu";
+  // Les libellés peuvent venir du souvenir ; l'état, jamais.
+  const connu = agent ?? souvenir ?? null;
+  const status = disparu ? "unknown" : (conversation?.status ?? agent?.status ?? "unknown");
+  const kind = conversation?.agent ?? connu?.agent ?? null;
   const agentNom = marqueAgent(kind).nom;
-  const cwd = agent?.cwd ?? null;
-  const aUneSession = agent === null ? true : agent.sessionPath !== null;
+  const cwd = connu?.cwd ?? null;
+  const aUneSession = connu === null ? true : connu.sessionPath !== null;
 
   const { vue, suivi } = useSuiviSession(paneId, aUneSession);
   const [transcrire] = useState(creeTranscripteur);
@@ -151,7 +187,8 @@ export const Conversation = ({
   const remettre = useCallback((texte: string) => composeur.current?.remettre(texte), []);
   const ouvrirFichier = useCallback(
     (chemin: string) => setFeuille({ chemin, depuisFichiers: false, genre: "fichier" }),
-    [],
+    // `setFeuille` est stable ; le nommer garde la mémoïsation lisible au compilateur.
+    [setFeuille],
   );
   const fichiers = useMemo(
     () =>
@@ -161,13 +198,12 @@ export const Conversation = ({
     [feuille, messages],
   );
 
-  const titre = premierNonVide(titrePropre(conversation?.title ?? agent?.title), projet);
+  const titre = premierNonVide(titrePropre(conversation?.title ?? connu?.title), projet);
   const bloque = status === "blocked";
+  const attente = bloque ? attenteAffichee(conversation) : null;
+  const sansEnvoi = raisonSansEnvoi({ attente, phase: vue.phase, presence });
   // L'issue de l'arrêt part en notification en haut de l'écran (`gestes.ts`).
-  const aide =
-    bloque && conversation?.question === undefined && conversation?.trust === undefined
-      ? "L'agent attend : votre message est tapé dans son invite."
-      : null;
+  const aide = aideDuComposeur(sansEnvoi, bloque && attente === null);
 
   return (
     <section className="conversation" aria-label={`Conversation ${titre}`}>
@@ -179,6 +215,7 @@ export const Conversation = ({
         reflexion={conversation?.thinking ?? reglages.reflexion}
         status={status}
         transport={vue.transport}
+        inactif={disparu}
         nombreFichiers={fichiers === null ? null : fichiers.length}
         onRetour={onRetour}
         onMac={() => void montrerSurMac(paneId)}
@@ -186,9 +223,10 @@ export const Conversation = ({
         onFichiers={() => setFeuille({ genre: "fichiers" })}
       />
       <Voisins agents={voisins} courant={paneId} />
-      {agent === null ? (
-        <Avis ton="attention">
-          Herdr ne connaît plus ce pane — affichage des derniers éléments lus.
+      {disparu ? (
+        <Avis ton="attention" annonce="statut">
+          Herdr ne connaît plus ce pane — il a été fermé. Affichage des derniers éléments lus ; rien
+          ne peut plus lui être envoyé.
         </Avis>
       ) : null}
       {vue.fin === null ? null : (
@@ -233,6 +271,8 @@ export const Conversation = ({
         travaille={status === "working"}
         arretEnCours={arret?.phase === "en-cours"}
         aide={aide}
+        envoiImpossible={sansEnvoi !== null}
+        inactif={disparu}
         onEnvoie={envoie}
         onArrete={arrete}
       />

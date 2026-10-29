@@ -30,6 +30,7 @@ export const EnTete = memo(
     reflexion,
     status,
     transport,
+    inactif = false,
     nombreFichiers,
     onRetour,
     onMac,
@@ -43,6 +44,8 @@ export const EnTete = memo(
     readonly reflexion: string | undefined;
     readonly status: AgentStatus;
     readonly transport: Transport;
+    /** Le pane n'existe plus : les gestes qui lui écrivent sont désactivés. */
+    readonly inactif?: boolean;
     readonly nombreFichiers: number | null;
     readonly onRetour: () => void;
     readonly onMac: () => void;
@@ -114,11 +117,11 @@ export const EnTete = memo(
           </button>
           {menu ? (
             <div className="menu__liste" role="menu">
-              <button type="button" role="menuitem" onClick={choisit(onMac)}>
+              <button type="button" role="menuitem" onClick={choisit(onMac)} disabled={inactif}>
                 <Icone nom="mac" petite />
                 Afficher sur le Mac
               </button>
-              <button type="button" role="menuitem" onClick={choisit(onModele)}>
+              <button type="button" role="menuitem" onClick={choisit(onModele)} disabled={inactif}>
                 <Icone nom="sliders" petite />
                 Modèle et réflexion…
               </button>

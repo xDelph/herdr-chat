@@ -39,6 +39,8 @@ export const Composeur = memo(
     travaille,
     arretEnCours,
     aide,
+    envoiImpossible = false,
+    inactif = false,
     onEnvoie,
     onArrete,
     ref,
@@ -48,6 +50,13 @@ export const Composeur = memo(
     readonly travaille: boolean;
     readonly arretEnCours: boolean;
     readonly aide: string | null;
+    /**
+     * L'envoi n'est pas possible maintenant (session en lecture, question à
+     * l'écran…) : le brouillon reste modifiable, `aide` dit pourquoi.
+     */
+    readonly envoiImpossible?: boolean;
+    /** Le pane n'existe plus : ni saisie, ni envoi, ni arrêt. */
+    readonly inactif?: boolean;
     readonly onEnvoie: (texte: string) => void;
     readonly onArrete: () => void;
     readonly ref?: Ref<PoigneeComposeur>;
@@ -86,12 +95,13 @@ export const Composeur = memo(
       [change],
     );
 
+    const bloque = envoiImpossible || inactif;
     const envoie = useCallback(() => {
       const texte = brouillon.trim();
-      if (texte.length === 0) return;
+      if (texte.length === 0 || bloque) return;
       onEnvoie(texte);
       change("");
-    }, [brouillon, change, onEnvoie]);
+    }, [bloque, brouillon, change, onEnvoie]);
 
     const vide = brouillon.trim().length === 0;
 
@@ -112,8 +122,11 @@ export const Composeur = memo(
             id={id}
             rows={1}
             value={brouillon}
-            placeholder={`Message à ${agentNom}…`}
-            enterKeyHint="send"
+            placeholder={inactif ? "Pane fermé" : `Message à ${agentNom}…`}
+            disabled={inactif}
+            aria-describedby={aide === null || aide === "" ? undefined : `${id}-aide`}
+            // Entrée insère une ligne : la touche du clavier le dit.
+            enterKeyHint="enter"
             onChange={(evenement) => change(evenement.target.value)}
             onKeyDown={(evenement) => {
               // Entrée seule fait un retour à la ligne (un téléphone n'a pas
@@ -124,7 +137,7 @@ export const Composeur = memo(
               }
             }}
           />
-          {travaille ? (
+          {travaille && !inactif ? (
             <button
               type="button"
               className="rond rond--stop"
@@ -136,7 +149,12 @@ export const Composeur = memo(
             </button>
           ) : null}
           {!travaille || !vide ? (
-            <button type="submit" className="rond rond--envoi" aria-label="Envoyer" disabled={vide}>
+            <button
+              type="submit"
+              className="rond rond--envoi"
+              aria-label="Envoyer"
+              disabled={vide || bloque}
+            >
               <Icone nom="up" />
             </button>
           ) : null}
@@ -145,7 +163,11 @@ export const Composeur = memo(
           ⚠️ Plus d'identifiant de pane ici (`wB:p1D`) : c'est un repère interne
           d'Herdr, il ne dit rien à l'utilisateur (même retour que D015.2).
         */}
-        {aide === null || aide === "" ? null : <div className="composeur__aide">{aide}</div>}
+        {aide === null || aide === "" ? null : (
+          <div className="composeur__aide" id={`${id}-aide`}>
+            {aide}
+          </div>
+        )}
       </form>
     );
   },
