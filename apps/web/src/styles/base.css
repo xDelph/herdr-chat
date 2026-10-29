@@ -531,6 +531,26 @@ svg.i.s {
   color: var(--work);
 }
 
+/* ---------- barre d'état ---------- */
+/*
+  ⚠️ **Le flou en haut de l'écran.** Safari 26 (iOS) ne lit plus
+  `theme-color` : il floute le contenu sous la barre d'état, SAUF s'il trouve
+  un élément fixe, opaque et pleine largeur collé au bord haut — il en reprend
+  alors la couleur. Nos en-têtes sont dans le flux : rien à reprendre, donc du
+  flou. Ce bandeau fixe, de la hauteur de la zone sûre, lui donne la couleur
+  du fond.
+*/
+.barre-etat {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: max(var(--haut-sur), 1px);
+  background: var(--ground);
+  z-index: 40;
+  pointer-events: none;
+}
+
 /* ---------- notifications d'écran ---------- */
 /*
   En haut, sous la barre d'état (zone sûre), au-dessus de tout : l'issue d'un

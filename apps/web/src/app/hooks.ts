@@ -7,6 +7,7 @@ import type { EtatDonnees } from "../donnees.ts";
 import type { Envoi } from "../envois.ts";
 import { parseRoute, routeToHash, type Route } from "../routing.ts";
 import { actions, envois, magasin } from "./services.ts";
+import { creeSuiviViewport } from "../viewport.ts";
 
 export const useDonnees = (): EtatDonnees =>
   useSyncExternalStore(magasin.souscrire, magasin.etat, magasin.etat);
@@ -84,16 +85,21 @@ export const useMaintenant = (intervalle: number | null): number => {
 export const useHauteurVisible = (): void => {
   useEffect(() => {
     const vue = window.visualViewport;
+    const suivi = creeSuiviViewport();
     let derniere = "";
     const applique = () => {
-      const hauteur = Math.round(vue?.height ?? window.innerHeight);
-      const haut = Math.max(0, Math.round(vue?.offsetTop ?? 0));
-      const cle = `${String(hauteur)}:${String(haut)}`;
+      const mesure = suivi({
+        haut: Math.round(vue?.offsetTop ?? 0),
+        hauteur: Math.round(vue?.height ?? window.innerHeight),
+        largeur: Math.round(vue?.width ?? window.innerWidth),
+      });
+      const cle = `${String(mesure.hauteur)}:${String(mesure.haut)}:${String(mesure.clavier)}`;
       if (cle === derniere) return;
       derniere = cle;
-      const racine = document.documentElement.style;
-      racine.setProperty("--hauteur-app", `${String(hauteur)}px`);
-      racine.setProperty("--haut-visible", `${String(haut)}px`);
+      const racine = document.documentElement;
+      racine.style.setProperty("--hauteur-app", `${String(mesure.hauteur)}px`);
+      racine.style.setProperty("--haut-visible", `${String(mesure.haut)}px`);
+      racine.classList.toggle("clavier-ouvert", mesure.clavier);
     };
     applique();
     vue?.addEventListener("resize", applique);

@@ -54,6 +54,11 @@
   color-scheme: light;
 }
 
+/* Clavier ouvert : il recouvre la barre d'accueil, sa marge n'a plus lieu d'être. */
+:root.clavier-ouvert {
+  --bas-sur: 0px;
+}
+
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --ground: #0c0e12;

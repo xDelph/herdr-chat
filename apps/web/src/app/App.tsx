@@ -133,6 +133,7 @@ export const App = () => {
 
   return (
     <div className="app" data-vue={route.kind === "agent" ? "agent" : "liste"}>
+      <div className="barre-etat" aria-hidden="true" />
       <Notifications />
       <Boite
         donnees={donnees}
