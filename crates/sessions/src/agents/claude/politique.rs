@@ -50,7 +50,7 @@ impl ProfilClaude {
 #[must_use]
 pub fn ligne_traitee(ligne: &Value) -> Value {
     if messages::est_ligne_de_conversation(ligne) {
-        if messages::ligne_vers_pi(ligne).is_some() {
+        if ligne_claude_vers_pi(ligne).is_some() {
             return ligne.clone();
         }
         // Refusée ET de forme pi : privée de son message — sinon l'aperçu
@@ -61,10 +61,22 @@ pub fn ligne_traitee(ligne: &Value) -> Value {
     ligne.clone()
 }
 
-/// Une ligne Claude Code → forme commune : le codec Anthropic, puis les
-/// demandes envoyées **pendant** un tour.
+/// Une ligne Claude Code → forme commune : d'abord ce que le **harnais**
+/// injecte (rapports de sous-agents, fins de tâches de fond), puis le codec
+/// Anthropic, puis les demandes envoyées **pendant** un tour.
+///
+/// ⚠️ **L'ordre compte.** Le harnais écrit ses messages en rôle `user` : sans
+/// ce premier filtre, le codec les rendait comme des demandes de
+/// l'utilisateur (mesuré le 2026-10-29 : « Another Claude session sent a
+/// message: <agent-message …> » affiché comme une bulle de l'utilisateur).
 #[must_use]
 pub fn ligne_claude_vers_pi(ligne: &Value) -> Option<LignePi> {
+    if let Some(harnais) = super::harnais::message_du_harnais(ligne) {
+        return Some(harnais);
+    }
+    if super::harnais::est_injection_du_harnais(ligne) {
+        return None;
+    }
     messages::ligne_vers_pi(ligne).or_else(|| demande_en_cours_de_tour(ligne))
 }
 
@@ -79,7 +91,7 @@ pub fn ligne_claude_vers_pi(ligne: &Value) -> Option<LignePi> {
 ///
 /// Les notifications internes du harnais (`commandMode: "task-notification"`,
 /// origine non humaine) passent par le même canal : elles ne sont PAS des
-/// demandes et restent écartées.
+/// demandes — [`super::harnais`] les rend comme messages `custom`.
 #[must_use]
 pub fn demande_en_cours_de_tour(ligne: &Value) -> Option<LignePi> {
     let objet = ligne.as_object()?;
@@ -101,9 +113,16 @@ pub fn demande_en_cours_de_tour(ligne: &Value) -> Option<LignePi> {
     if texte.is_empty() {
         return None;
     }
+    // `details.midTurn` : la demande est arrivée PENDANT le travail — elle
+    // reste une demande de l'utilisateur, mais n'ouvre pas un nouveau tour
+    // (le chronomètre ne repart pas d'elle).
     let mut complet = json!({
         "type": "message",
-        "message": { "role": "user", "content": [{ "type": "text", "text": texte }] },
+        "message": {
+            "role": "user",
+            "content": [{ "type": "text", "text": texte }],
+            "details": { "midTurn": true },
+        },
     });
     if let Some(horodatage) = objet.get("timestamp").and_then(Value::as_str) {
         complet["timestamp"] = json!(horodatage);

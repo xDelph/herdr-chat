@@ -186,6 +186,27 @@ pub fn definitions() -> Vec<(&'static str, Value)> {
             "ConversationsResponse",
             schema_de::<crate::http::conversations::ConversationsResponse>(),
         ),
+        // http::taches (H20/H21)
+        (
+            "BackgroundTasksResponse",
+            schema_de::<crate::http::taches::BackgroundTasksResponse>(),
+        ),
+        (
+            "BackgroundTask",
+            schema_de::<crate::http::taches::BackgroundTask>(),
+        ),
+        (
+            "BackgroundTaskCount",
+            schema_de::<crate::http::taches::BackgroundTaskCount>(),
+        ),
+        (
+            "BackgroundTaskKind",
+            schema_de::<crate::http::taches::BackgroundTaskKind>(),
+        ),
+        (
+            "BackgroundTaskStatus",
+            schema_de::<crate::http::taches::BackgroundTaskStatus>(),
+        ),
         // http::errors
         (
             "ApiErrorResponse",

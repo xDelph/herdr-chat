@@ -13,7 +13,8 @@
 
 use application::commands::launch::ConstructeurArgs;
 use application::conversations::{
-    EntreeLu, ErreurDeLecture, GenreDeLigne, LitSessions, OutilAppele, RoleDeSession,
+    EntreeLu, ErreurDeLecture, GenreDeLigne, GenreTache, LitSessions, OutilAppele, RoleDeSession,
+    StatutTache, TacheDeFond,
 };
 use application::git::{LanceurGitReel, LecteurBranches};
 use application::noyau::{AgentObservation, PaneId, SessionRefKind};
@@ -85,6 +86,20 @@ pub struct LitSessionsViaPort {
     /// besoin (opencode ≠ devin). Sans elle, toutes les sessions SQLite
     /// échouaient — constaté sur le vrai démon.
     pub familles: Arc<Mutex<HashMap<String, application::noyau::AgentKind>>>,
+    /// Les tâches de fond de Claude (sous-agents, commandes en fond) — le
+    /// lecteur garde l'état incrémental de chaque session, borné.
+    pub taches: Arc<sessions::agents::claude::taches::LecteurTaches>,
+}
+
+/// Le lecteur de tâches de fond, sur la racine des projets Claude de la
+/// configuration — rien n'est lu hors d'elle.
+#[must_use]
+pub fn lecteur_de_taches(
+    config: &crate::config::Config,
+) -> Arc<sessions::agents::claude::taches::LecteurTaches> {
+    Arc::new(sessions::agents::claude::taches::LecteurTaches::nouveau(
+        config.session_roots.claude.clone(),
+    ))
 }
 
 /// La fenêtre lue pour un résumé — bornée (le résumé n'a pas besoin de tout).
@@ -99,13 +114,11 @@ pub const CAPACITE_FENETRES: usize = 256;
 pub struct Signature {
     pub octets: u64,
     pub mtime_ns: u128,
+    /// Le journal WAL d'une base SQLite (`<base>-wal`), quand il existe.
+    pub wal: Option<(u64, u128)>,
 }
 
-/// Lit la signature d'un chemin ; une erreur n'est pas une panne (le fichier
-/// peut disparaître entre deux requêtes) : l'absence de signature = pas de
-/// cache, donc une lecture fraîche.
-#[must_use]
-pub fn signature_de(chemin: &str) -> Option<Signature> {
+fn taille_et_mtime(chemin: &str) -> Option<(u64, u128)> {
     let metadonnees = std::fs::metadata(chemin).ok()?;
     let mtime_ns = metadonnees
         .modified()
@@ -113,9 +126,25 @@ pub fn signature_de(chemin: &str) -> Option<Signature> {
         .and_then(|instant| instant.duration_since(std::time::UNIX_EPOCH).ok())
         .map(|duree| duree.as_nanos())
         .unwrap_or(0);
+    Some((metadonnees.len(), mtime_ns))
+}
+
+/// Lit la signature d'un chemin ; une erreur n'est pas une panne (le fichier
+/// peut disparaître entre deux requêtes) : l'absence de signature = pas de
+/// cache, donc une lecture fraîche.
+///
+/// ⚠️ **Le WAL compte.** opencode et Devin écrivent leur base en mode WAL :
+/// un nouveau message va d'abord dans `<base>-wal`, la base elle-même ne
+/// bouge (ni taille ni mtime) qu'au checkpoint. Une signature sur la seule
+/// base servait donc un résumé périmé tant que le checkpoint n'avait pas eu
+/// lieu.
+#[must_use]
+pub fn signature_de(chemin: &str) -> Option<Signature> {
+    let (octets, mtime_ns) = taille_et_mtime(chemin)?;
     Some(Signature {
-        octets: metadonnees.len(),
+        octets,
         mtime_ns,
+        wal: taille_et_mtime(&format!("{chemin}-wal")),
     })
 }
 
@@ -167,6 +196,8 @@ struct Manques {
     demande: bool,
     reponse: bool,
     modele: bool,
+    /// Le message qui a ouvert le tour courant (son instant, `tourDebut`).
+    ouverture: bool,
 }
 
 impl Manques {
@@ -175,11 +206,14 @@ impl Manques {
             demande: !entrees.iter().any(est_demande),
             reponse: !entrees.iter().any(est_reponse),
             modele: !entrees.iter().any(declare_un_modele),
+            ouverture: !entrees
+                .iter()
+                .any(application::conversations::ouvre_un_tour),
         }
     }
 
     fn aucun(self) -> bool {
-        !self.demande && !self.reponse && !self.modele
+        !self.demande && !self.reponse && !self.modele && !self.ouverture
     }
 }
 
@@ -227,6 +261,7 @@ impl LitSessionsViaPort {
                 (manques.demande, est_demande as fn(&EntreeLu) -> bool),
                 (manques.reponse, est_reponse),
                 (manques.modele, declare_un_modele),
+                (manques.ouverture, application::conversations::ouvre_un_tour),
             ] {
                 if manque && let Some(entree) = lues.iter().rev().find(|entree| critere(entree)) {
                     retenues.push(entree.clone());
@@ -256,7 +291,73 @@ impl ResoutSessions for LitSessionsViaPort {
     }
 }
 
+impl LitSessionsViaPort {
+    /// La session Claude d'une source — `None` pour toute autre famille (une
+    /// capacité absente, jamais le profil d'un autre agent).
+    fn session_claude(&self, source: &SourceDeSession) -> Option<String> {
+        let base = source.base.as_ref()?;
+        let famille = self
+            .familles
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .get(base)
+            .cloned()?;
+        (famille.as_str() == sessions::agents::claude::ProfilClaude::genre()
+            && source.kind == SessionRefKind::Path)
+            .then(|| base.clone())
+    }
+}
+
+fn maintenant_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .ok()
+        .and_then(|duree| u64::try_from(duree.as_millis()).ok())
+        .unwrap_or(0)
+}
+
+fn tache_de(tache: sessions::agents::claude::taches::Tache) -> TacheDeFond {
+    use sessions::agents::claude::taches::{GenreTache as Genre, StatutTache as Statut};
+    TacheDeFond {
+        id: tache.id,
+        genre: match tache.genre {
+            Genre::Agent => GenreTache::Agent,
+            Genre::Commande => GenreTache::Commande,
+        },
+        description: tache.description,
+        type_agent: tache.type_agent,
+        statut: match tache.statut {
+            Statut::EnCours => StatutTache::EnCours,
+            Statut::Terminee => StatutTache::Terminee,
+            Statut::Echouee => StatutTache::Echouee,
+            Statut::Arretee => StatutTache::Arretee,
+            Statut::Inconnu => StatutTache::Inconnu,
+        },
+        debut: tache.debut_ms,
+        fin: tache.fin_ms,
+        derniere_activite: tache.derniere_activite_ms,
+        resume: tache.resume,
+        transcription: tache.transcription,
+    }
+}
+
 impl LitSessions for LitSessionsViaPort {
+    fn taches(&self, source: &SourceDeSession) -> Option<Result<Vec<TacheDeFond>, String>> {
+        let base = self.session_claude(source)?;
+        Some(
+            self.taches
+                .taches(std::path::Path::new(&base), maintenant_ms())
+                .map(|taches| taches.into_iter().map(tache_de).collect()),
+        )
+    }
+
+    fn transcription_de_tache(&self, source: &SourceDeSession, id: &str) -> Option<String> {
+        let base = self.session_claude(source)?;
+        self.taches
+            .transcription(std::path::Path::new(&base), id)
+            .map(|chemin| chemin.display().to_string())
+    }
+
     fn fenetre(
         &self,
         _pane: &PaneId,
@@ -342,9 +443,9 @@ impl LitSessions for LitSessionsViaPort {
 /// Une ligne de session → ce que le résumé consomme.
 ///
 /// ⚠️ **La forme pi est la forme commune** : `message.role`, `message.content`
-/// (chaîne ou blocs `text`), `message.toolName` pour un appel d'outil, et
-/// `timestamp`. Ce qui n'est pas reconnu reste `Autre` avec son texte brut —
-/// on ne devine ni rôle ni contenu.
+/// (chaîne ou blocs `text`), les blocs `toolCall` d'un message d'assistant
+/// pour un appel d'outil, et `timestamp`. Ce qui n'est pas reconnu reste
+/// `Autre` avec son texte brut — on ne devine ni rôle ni contenu.
 #[must_use]
 pub fn entree_lue(entree: &application::sessions_types::SessionEntry) -> EntreeLu {
     let valeur: serde_json::Value =
@@ -370,13 +471,24 @@ pub fn entree_lue(entree: &application::sessions_types::SessionEntry) -> EntreeL
     let texte = message
         .and_then(|m| m.get("content"))
         .and_then(texte_de_contenu);
+    // ⚠️ **L'appel est sur l'assistant, pas sur le résultat.** `toolName`
+    // n'existe que sur les lignes `toolResult` : un agent qui n'avait fait
+    // QUE des appels d'outils avait un aperçu vide. On lit le premier bloc
+    // `toolCall` du message (nom + indice), comme le fil TS.
     let outil = message
-        .and_then(|m| m.get("toolName"))
-        .and_then(serde_json::Value::as_str)
-        .map(|nom| OutilAppele {
-            nom: nom.to_string(),
-            indice: None,
+        .and_then(|m| m.get("content"))
+        .and_then(serde_json::Value::as_array)
+        .and_then(|blocs| blocs.iter().find_map(appel_d_outil))
+        .or_else(|| {
+            message
+                .and_then(|m| m.get("toolName"))
+                .and_then(serde_json::Value::as_str)
+                .map(|nom| OutilAppele {
+                    nom: nom.to_string(),
+                    indice: None,
+                })
         });
+    let details = message.and_then(|m| m.get("details"));
     EntreeLu {
         role: role.unwrap_or(RoleDeSession::Autre),
         genre,
@@ -389,16 +501,61 @@ pub fn entree_lue(entree: &application::sessions_types::SessionEntry) -> EntreeL
             .or_else(|| valeur.get("modelId"))
             .and_then(serde_json::Value::as_str)
             .map(str::to_string),
+        // ⚠️ `model_change` / `thinking_level_change` (pi, et codex traduit)
+        // portent fournisseur et niveau À LA RACINE : lus seulement dans
+        // `message`, la ligne codex perdait son fournisseur « openai ».
         fournisseur: message
             .and_then(|m| m.get("provider"))
+            .or_else(|| valeur.get("provider"))
             .and_then(serde_json::Value::as_str)
             .map(str::to_string),
         niveau_pensee: message
             .and_then(|m| m.get("thinkingLevel"))
+            .or_else(|| valeur.get("thinkingLevel"))
             .and_then(serde_json::Value::as_str)
             .map(str::to_string),
         horodatage: entree.timestamp.as_deref().and_then(horodatage_ms),
+        en_cours_de_tour: details
+            .and_then(|details| details.get("midTurn"))
+            .and_then(serde_json::Value::as_bool)
+            == Some(true),
     }
+}
+
+/// Un bloc `toolCall` → l'appel résumé : le nom, et l'indice lisible des
+/// arguments (`title`, `cmd`, `command`, `path`, `code` — 80 caractères).
+fn appel_d_outil(bloc: &serde_json::Value) -> Option<OutilAppele> {
+    if bloc.get("type").and_then(serde_json::Value::as_str) != Some("toolCall") {
+        return None;
+    }
+    let nom = bloc
+        .get("name")
+        .and_then(serde_json::Value::as_str)
+        .filter(|nom| !nom.is_empty())?;
+    let coupe = |texte: &str| texte.chars().take(80).collect::<String>();
+    let indice = match bloc.get("arguments") {
+        Some(serde_json::Value::String(texte)) => texte
+            .split('\n')
+            .next()
+            .map(str::trim)
+            .filter(|ligne| !ligne.is_empty())
+            .map(coupe),
+        Some(serde_json::Value::Object(arguments)) => ["title", "cmd", "command", "path", "code"]
+            .iter()
+            .find_map(|cle| {
+                arguments
+                    .get(*cle)
+                    .and_then(serde_json::Value::as_str)
+                    .map(str::trim)
+                    .filter(|valeur| !valeur.is_empty())
+            })
+            .map(coupe),
+        _ => None,
+    };
+    Some(OutilAppele {
+        nom: nom.to_string(),
+        indice,
+    })
 }
 
 fn role_de(role: &str) -> RoleDeSession {
@@ -407,6 +564,7 @@ fn role_de(role: &str) -> RoleDeSession {
         "assistant" => RoleDeSession::Assistant,
         "system" => RoleDeSession::System,
         "tool" => RoleDeSession::Outil,
+        "custom" => RoleDeSession::Harnais,
         _ => RoleDeSession::Autre,
     }
 }

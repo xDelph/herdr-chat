@@ -25,6 +25,8 @@ fn ligne_simple() -> LignePi {
             model: None,
             provider: None,
             thinking_level: None,
+            custom_type: None,
+            details: None,
         },
     }
 }
@@ -80,6 +82,8 @@ fn les_renseignements_portes_par_chaque_message_tourisent() {
             model: Some("glm-5".to_string()),
             provider: Some("zai".to_string()),
             thinking_level: Some("high".to_string()),
+            custom_type: None,
+            details: None,
         },
     };
     match serde_json::to_string(&ligne) {

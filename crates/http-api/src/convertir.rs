@@ -89,6 +89,13 @@ fn ligne_conversation(ligne: &LigneConversation) -> ConversationSummary {
         thinking: Field::de_option(ligne.pensee.clone()),
         session_state: ligne.session_state,
         timestamp: Field::de_option(ligne.horodatage),
+        tour_debut: Field::de_option(ligne.tour_debut),
+        taches_de_fond: Field::de_option(ligne.taches_de_fond.map(|compte| {
+            contracts::http::taches::BackgroundTaskCount {
+                en_cours: compte.en_cours,
+                total: compte.total,
+            }
+        })),
         title: ligne.title.clone(),
         status: ligne.status,
         workspace_id: ligne.workspace_id.to_string(),

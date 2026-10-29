@@ -1,4 +1,4 @@
-//! Le registre typé des **18 routes** — le manifeste unique (TECH §5).
+//! Le registre typé des **21 routes** — le manifeste unique (TECH §5).
 //!
 //! ⚠️ **Ni table à la main dans le routeur, ni table à la main dans
 //! l'export.** Le routeur (T050+) s'enregistre depuis ici, l'export OpenAPI
@@ -30,7 +30,7 @@ pub enum Politique {
     Mutation,
 }
 
-/// Les 19 routes, nommées — l'ordre du manifeste suit H01…H19.
+/// Les 21 routes, nommées — l'ordre du manifeste suit H01…H21.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum RouteId {
@@ -72,6 +72,11 @@ pub enum RouteId {
     Images,
     /// H19 — `GET /api/agents/{paneId}/stream` (SSE de session, STREAMING.md).
     FluxSession,
+    /// H20 — `GET /api/agents/{paneId}/taches` (tâches de fond de l'agent).
+    TachesDeFond,
+    /// H21 — `GET /api/agents/{paneId}/taches/{id}/session` (transcription
+    /// d'une tâche de fond, page de session).
+    SessionDeTache,
 }
 
 /// La forme d'une réponse — le Content-Type est un fait du manifeste, pas
@@ -185,9 +190,9 @@ const fn json(statut: u16, schema: &'static str) -> Variante {
     }
 }
 
-/// Le manifeste complet — 18 entrées, dans l'ordre H01…H18, formes et
+/// Le manifeste complet — 21 entrées, dans l'ordre H01…H21, formes et
 /// statuts exacts de CURRENT.md §2.
-pub const ROUTES: [Route; 19] = [
+pub const ROUTES: [Route; 21] = [
     Route {
         id: RouteId::Sante,
         methode: Methode::Get,
@@ -569,6 +574,63 @@ pub const ROUTES: [Route; 19] = [
                 forme: Forme::FluxSse,
             },
             json(404, "ApiErrorResponse"),
+            json(503, "ApiErrorResponse"),
+        ],
+    },
+    Route {
+        id: RouteId::TachesDeFond,
+        methode: Methode::Get,
+        chemin: "/api/agents/{paneId}/taches",
+        politique: Politique::Lecture,
+        entree: Entree {
+            chemin: &["paneId"],
+            requete: &[],
+            entete: &[],
+            corps: None,
+        },
+        // 200 : la liste — ou `supported:false` (capacité absente, une
+        // VALEUR) ; 404 pane inconnu ou sans session ; 502 lecture en
+        // échec ; 503 Herdr sans snapshot.
+        variantes: &[
+            json(200, "BackgroundTasksResponse"),
+            json(404, "ApiErrorResponse"),
+            json(502, "ApiErrorResponse"),
+            json(503, "ApiErrorResponse"),
+        ],
+    },
+    Route {
+        id: RouteId::SessionDeTache,
+        methode: Methode::Get,
+        chemin: "/api/agents/{paneId}/taches/{id}/session",
+        politique: Politique::Lecture,
+        entree: Entree {
+            chemin: &["paneId", "id"],
+            requete: &[
+                ParametreRequete {
+                    nom: "tail",
+                    requis: false,
+                },
+                ParametreRequete {
+                    nom: "cursor",
+                    requis: false,
+                },
+                ParametreRequete {
+                    nom: "before",
+                    requis: false,
+                },
+            ],
+            entete: &[],
+            corps: None,
+        },
+        // Les clauses de H04, appliquées à la transcription de la tâche.
+        variantes: &[
+            json(200, "SessionResponse"),
+            json(400, "ApiErrorResponse"),
+            json(403, "ApiErrorResponse"),
+            json(404, "ApiErrorResponse"),
+            json(409, "ApiErrorResponse"),
+            json(422, "ApiErrorResponse"),
+            json(502, "ApiErrorResponse"),
             json(503, "ApiErrorResponse"),
         ],
     },

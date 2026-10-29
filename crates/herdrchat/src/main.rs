@@ -109,6 +109,7 @@ async fn demarre(config: &Config) -> Result<(), String> {
             fenetres: Arc::new(std::sync::Mutex::new(
                 herdrchat::assemblage::CacheFenetres::default(),
             )),
+            taches: herdrchat::assemblage::lecteur_de_taches(config),
         }),
         types: Arc::new(herdrchat::assemblage::TypesViaCatalogue {
             port: Arc::clone(&catalogue),

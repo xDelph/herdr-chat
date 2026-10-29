@@ -36,6 +36,15 @@ pub struct ConversationSummary {
     pub session_state: SessionState,
     #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
     pub timestamp: Field<u64>,
+    /// L'instant (ms) du message qui a ouvert le tour courant, lu dans la
+    /// session — la dernière vraie demande (ni une demande envoyée pendant
+    /// le travail, ni un message du harnais injecté dans le tour).
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
+    pub tour_debut: Field<u64>,
+    /// Les tâches de fond de l'agent — présent seulement pour une famille
+    /// qui les expose (Claude) ; absent = capacité absente.
+    #[serde(default, skip_serializing_if = "crate::presence::Field::est_absente")]
+    pub taches_de_fond: Field<crate::http::taches::BackgroundTaskCount>,
     pub title: String,
     pub status: AgentStatus,
     pub workspace_id: String,

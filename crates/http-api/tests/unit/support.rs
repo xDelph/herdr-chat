@@ -6,7 +6,7 @@ use application::commands::launch::{HorlogeMoteur, LanceurAgent};
 use application::commands::prompt::EnvoieurPrompt;
 use application::commands::stop::ArreteurAgent;
 use application::conversations::{
-    BrancheDeProjet, EntreeLu, ErreurDeLecture, LitSessions, ServiceConversations,
+    BrancheDeProjet, EntreeLu, ErreurDeLecture, LitSessions, ServiceConversations, TacheDeFond,
 };
 use application::diagnostics::SinkMuet;
 use application::events::journal::Journal;
@@ -140,6 +140,8 @@ pub(crate) struct FauxSessions {
     pub en_vol: Arc<AtomicU64>,
     pub pics: Arc<AtomicU64>,
     pub porte: Arc<(Mutex<bool>, Condvar)>,
+    /// Les tâches de fond (H20) — `None` : capacité absente.
+    pub taches: Option<Result<Vec<TacheDeFond>, String>>,
 }
 
 /// La variante vide par défaut : sources et fenêtres vides, porte ouverte.
@@ -157,7 +159,13 @@ impl FauxSessions {
             en_vol: Arc::new(AtomicU64::new(0)),
             pics: Arc::new(AtomicU64::new(0)),
             porte: Arc::new((Mutex::new(true), Condvar::new())),
+            taches: None,
         }
+    }
+
+    pub(crate) fn avec_taches(mut self, taches: Result<Vec<TacheDeFond>, String>) -> Self {
+        self.taches = Some(taches);
+        self
     }
 
     pub(crate) fn avec_source(mut self, pane: &str, source: Option<SourceDeSession>) -> Self {
@@ -205,6 +213,18 @@ impl LitSessions for FauxSessions {
             Some(Err(panne)) => Err(panne.clone()),
             None => Ok(Vec::new()),
         }
+    }
+
+    fn taches(&self, _source: &SourceDeSession) -> Option<Result<Vec<TacheDeFond>, String>> {
+        self.taches.clone()
+    }
+
+    fn transcription_de_tache(&self, _source: &SourceDeSession, id: &str) -> Option<String> {
+        let taches = self.taches.clone()?.ok()?;
+        taches
+            .iter()
+            .any(|tache| tache.id == id && tache.transcription)
+            .then(|| format!("/claude/-projet/s1/subagents/agent-{id}.jsonl"))
     }
 }
 

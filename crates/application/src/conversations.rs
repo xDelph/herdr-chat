@@ -74,6 +74,10 @@ pub struct EntreeLu {
     pub niveau_pensee: Option<String>,
     /// Horodatage en millisecondes UTC — jamais déduit, jamais remplacé.
     pub horodatage: Option<u64>,
+    /// `true` : arrivée PENDANT un tour (`details.midTurn`) — une demande
+    /// envoyée pendant le travail, ou un message du harnais injecté dans le
+    /// tour. Elle n'ouvre pas de tour : le chronomètre ne repart pas d'elle.
+    pub en_cours_de_tour: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -82,6 +86,10 @@ pub enum RoleDeSession {
     Assistant,
     System,
     Outil,
+    /// Un message `custom` : ce que le harnais de l'agent injecte (rapport
+    /// de sous-agent, fin de tâche de fond). **Jamais** une demande de
+    /// l'utilisateur — ni « dernière demande », ni aperçu.
+    Harnais,
     Autre,
 }
 
@@ -100,6 +108,76 @@ pub struct OutilAppele {
     pub nom: String,
     /// L'indice lisible dans les args (`title`, `cmd`, `path`, …), 80 max.
     pub indice: Option<String>,
+}
+
+/// La sorte d'une tâche de fond.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum GenreTache {
+    Agent,
+    Commande,
+}
+
+/// L'état d'une tâche de fond — `Inconnu` quand rien ne le prouve (ni fin
+/// écrite, ni activité récente) : jamais « en cours » par défaut.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum StatutTache {
+    EnCours,
+    Terminee,
+    Echouee,
+    Arretee,
+    Inconnu,
+}
+
+/// Une tâche de fond d'une session (sous-agent ou commande en arrière-plan),
+/// telle que les fichiers de l'agent la prouvent.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub struct TacheDeFond {
+    pub id: String,
+    pub genre: GenreTache,
+    pub description: Option<String>,
+    pub type_agent: Option<String>,
+    pub statut: StatutTache,
+    pub debut: Option<u64>,
+    pub fin: Option<u64>,
+    pub derniere_activite: Option<u64>,
+    pub resume: Option<String>,
+    /// La transcription de la tâche est lisible (`/taches/{id}/session`).
+    pub transcription: bool,
+}
+
+/// Le décompte des tâches de fond d'une ligne de liste.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct CompteTaches {
+    pub en_cours: u64,
+    pub total: u64,
+}
+
+impl CompteTaches {
+    #[must_use]
+    pub fn de(taches: &[TacheDeFond]) -> Self {
+        Self {
+            en_cours: taches
+                .iter()
+                .filter(|tache| tache.statut == StatutTache::EnCours)
+                .count() as u64,
+            total: taches.len() as u64,
+        }
+    }
+}
+
+/// L'issue d'une lecture de tâches de fond — chaque cas nommé.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum IssueTaches {
+    /// Le pane n'existe pas dans la génération observée.
+    PaneInconnu,
+    /// Aucune session n'est résolue pour ce pane.
+    SansSource,
+    /// La famille de l'agent n'a pas de tâches de fond lisibles : capacité
+    /// ABSENTE, pas une liste vide.
+    NonPrisEnCharge,
+    Liste(Vec<TacheDeFond>),
+    /// La lecture a échoué — sa cause réelle.
+    Erreur(String),
 }
 
 /// La panne d'une lecture de session — classée, jamais devinée : une
@@ -156,6 +234,12 @@ pub struct LigneConversation {
     /// branche ET du dossier à approuver) ; porté par la ligne, jamais
     /// deviné ailleurs.
     pub dossier_pane: Option<String>,
+    /// L'instant (ms) du message qui a ouvert le tour courant, lu dans la
+    /// session : la dernière vraie demande, ou un message du harnais arrivé
+    /// agent au repos — jamais une demande envoyée pendant le travail.
+    pub tour_debut: Option<u64>,
+    /// Les tâches de fond — `None` quand la famille n'en a pas de lisibles.
+    pub taches_de_fond: Option<CompteTaches>,
 }
 
 /// La branche git du dossier d'un pane — INJECTÉE (T040 installe le vrai
@@ -175,6 +259,18 @@ pub trait LitSessions: ResoutSessions {
         pane: &PaneId,
         source: &SourceDeSession,
     ) -> Result<Vec<EntreeLu>, ErreurDeLecture>;
+
+    /// Les tâches de fond de la source — `None` : la famille n'en a pas de
+    /// lisibles (capacité absente, jamais une liste vide inventée).
+    fn taches(&self, _source: &SourceDeSession) -> Option<Result<Vec<TacheDeFond>, String>> {
+        None
+    }
+
+    /// Le chemin de la transcription d'une tâche, gardé sous la racine de
+    /// la famille — `None` si la tâche n'en a pas (ou hors racine).
+    fn transcription_de_tache(&self, _source: &SourceDeSession, _id: &str) -> Option<String> {
+        None
+    }
 }
 
 /// Le service de liste — sans état propre : assemble lignes par génération.
@@ -187,6 +283,58 @@ impl ServiceConversations {
     #[must_use]
     pub fn nouveau(lit: Arc<dyn LitSessions>, branche: Arc<dyn BrancheDeProjet>) -> Self {
         Self { lit, branche }
+    }
+
+    /// Les tâches de fond d'un pane de la génération observée.
+    #[must_use]
+    pub fn taches_de(&self, borne: &ObservationBorne, pane: &str) -> IssueTaches {
+        let Some(agent) = borne
+            .snapshot
+            .agents
+            .iter()
+            .find(|agent| agent.pane_id.as_str() == pane)
+        else {
+            return IssueTaches::PaneInconnu;
+        };
+        let Some(source) = self.lit.source_de(agent) else {
+            return IssueTaches::SansSource;
+        };
+        match self.lit.taches(&source) {
+            None => IssueTaches::NonPrisEnCharge,
+            Some(Ok(taches)) => IssueTaches::Liste(taches),
+            Some(Err(cause)) => IssueTaches::Erreur(cause),
+        }
+    }
+
+    /// Le chemin de la transcription d'une tâche d'un pane — `Err` nomme
+    /// pourquoi il n'y en a pas.
+    ///
+    /// # Errors
+    /// Le pane est inconnu, sans source, d'une famille sans tâches, ou la
+    /// tâche n'a pas de transcription lisible.
+    pub fn transcription_de_tache(
+        &self,
+        borne: &ObservationBorne,
+        pane: &str,
+        id: &str,
+    ) -> Result<String, IssueTaches> {
+        let Some(agent) = borne
+            .snapshot
+            .agents
+            .iter()
+            .find(|agent| agent.pane_id.as_str() == pane)
+        else {
+            return Err(IssueTaches::PaneInconnu);
+        };
+        let Some(source) = self.lit.source_de(agent) else {
+            return Err(IssueTaches::SansSource);
+        };
+        if self.lit.taches(&source).is_none() {
+            return Err(IssueTaches::NonPrisEnCharge);
+        }
+        self.lit
+            .transcription_de_tache(&source, id)
+            .ok_or_else(|| IssueTaches::Erreur(format!("aucune transcription pour la tâche {id}")))
     }
 
     /// Toutes les lignes d'une génération : pré-filtre de visibilité,
@@ -381,6 +529,8 @@ impl ServiceConversations {
             question: None,
             confiance: None,
             attente: None,
+            tour_debut: None,
+            taches_de_fond: None,
         };
         let Some(source) = source else {
             // Pas de source du tout : ni aperçu, ni horodatage, pas de
@@ -389,7 +539,17 @@ impl ServiceConversations {
         };
         sas.acquiere();
         let lu = self.lit.fenetre(&base.pane_id, &source);
+        // Les tâches de fond se lisent sous le même permis — et seulement
+        // quand la session elle-même a pu être lue.
+        let taches = match &lu {
+            Ok(_) => self.lit.taches(&source).and_then(Result::ok),
+            Err(_) => None,
+        };
         sas.relache();
+        let base = LigneConversation {
+            taches_de_fond: taches.as_deref().map(CompteTaches::de),
+            ..base
+        };
         match lu {
             Err(panne) if !panne.benin => LigneConversation {
                 session_state: SessionState::Error,
@@ -418,6 +578,7 @@ impl ServiceConversations {
                     fournisseur: details.fournisseur,
                     pensee: details.pensee,
                     horodatage: details.horodatage,
+                    tour_debut: details.tour_debut,
                     ..base
                 }
             }
@@ -457,7 +618,11 @@ impl ServiceConversations {
     /// dernier outil), dernière demande, modèle/fournisseur/pensée en
     /// vigueur, horodatage — rien n'est fabriqué (D22).
     fn details_de(entrees: &[EntreeLu]) -> DetailsLigne {
-        let dernier_texte = dernier_texte_de_role(entrees, RoleDeSession::User);
+        // Rognée comme le faisait le fil TS : un `\n` final n'est pas du
+        // contenu (mesuré : la ligne de liste gardait un saut final).
+        let dernier_texte = dernier_texte_de_role(entrees, RoleDeSession::User)
+            .map(|texte| texte.trim().to_string())
+            .filter(|texte| !texte.is_empty());
         let apercu = dernier_texte_assistant(entrees)
             .or_else(|| dernier_outil_assistant(entrees).map(apercu_d_outil));
         let reglages = reglages_en_vigueur(entrees);
@@ -469,6 +634,7 @@ impl ServiceConversations {
             fournisseur: reglages.fournisseur,
             pensee: reglages.pensee,
             horodatage,
+            tour_debut: debut_du_tour(entrees),
         }
     }
 
@@ -581,6 +747,27 @@ struct DetailsLigne {
     fournisseur: Option<String>,
     pensee: Option<String>,
     horodatage: Option<u64>,
+    tour_debut: Option<u64>,
+}
+
+/// Un message qui OUVRE un tour : une demande de l'utilisateur, ou un
+/// message du harnais (fin de tâche, rapport) arrivé agent au repos — jamais
+/// ce qui arrive pendant le travail.
+#[must_use]
+pub fn ouvre_un_tour(entree: &EntreeLu) -> bool {
+    matches!(entree.role, RoleDeSession::User | RoleDeSession::Harnais)
+        && entree.genre == GenreDeLigne::Message
+        && !entree.en_cours_de_tour
+}
+
+/// L'instant du message qui a ouvert le tour courant — absent s'il n'est
+/// pas daté (jamais l'heure courante).
+fn debut_du_tour(entrees: &[EntreeLu]) -> Option<u64> {
+    entrees
+        .iter()
+        .rev()
+        .find(|entree| ouvre_un_tour(entree))
+        .and_then(|entree| entree.horodatage)
 }
 
 /// Le dernier texte d'un rôle, en remontant le fil.
