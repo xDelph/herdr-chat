@@ -50,7 +50,7 @@ export const PleinEcran = () => {
       <button
         type="button"
         className="plein-ecran__fond"
-        aria-label="Fermer l'image"
+        aria-label="Close the image"
         tabIndex={-1}
         onClick={() => pleinEcran.ferme()}
       />
@@ -59,7 +59,7 @@ export const PleinEcran = () => {
           type="button"
           className="plein-ecran__image"
           onClick={() => setReelle((valeur) => !valeur)}
-          aria-label={reelle ? "Ajuster à l'écran" : "Taille réelle"}
+          aria-label={reelle ? "Fit to screen" : "Actual size"}
         >
           <img src={image.source} alt={image.legende} />
         </button>
@@ -68,7 +68,7 @@ export const PleinEcran = () => {
         type="button"
         ref={fermer}
         className="plein-ecran__fermer"
-        aria-label="Fermer"
+        aria-label="Close"
         onClick={() => pleinEcran.ferme()}
       >
         <Icone nom="x" />

@@ -16,7 +16,7 @@ import type { Envoi } from "../envois.ts";
 import { envois } from "../app/services.ts";
 
 /** Ce que dit la bulle d'un message remis pendant que l'agent travaille. */
-export const EN_ATTENTE_DE_LECTURE = "En attente : l'agent le lira à sa prochaine étape";
+export const EN_ATTENTE_DE_LECTURE = "Waiting: the agent will read it at its next step";
 
 /**
  * Ce que dit la bulle, et le renvoi qu'elle propose (`action`, ou `null`).
@@ -27,9 +27,9 @@ export const EN_ATTENTE_DE_LECTURE = "En attente : l'agent le lira à sa prochai
 export const explicationDe = (envoi: Envoi, travaille: boolean): Explication => {
   switch (envoi.state) {
     case "queued":
-      return { action: null, texte: "En file — part dans un instant" };
+      return { action: null, texte: "Queued — sending in a moment" };
     case "sending":
-      return { action: null, texte: "Envoi…" };
+      return { action: null, texte: "Sending…" };
     case "delivered":
       /*
         ⚠️ **Remis n'est pas lu.** Pendant un tour, l'agent met le message en
@@ -39,7 +39,7 @@ export const explicationDe = (envoi: Envoi, travaille: boolean): Explication => 
       */
       return {
         action: null,
-        texte: travaille ? EN_ATTENTE_DE_LECTURE : (envoi.detail ?? "Remis à Herdr"),
+        texte: travaille ? EN_ATTENTE_DE_LECTURE : (envoi.detail ?? "Delivered to Herdr"),
       };
     case "suppressed":
       // Rien n'est parti : ni « remis », ni « en attente ».
@@ -49,13 +49,13 @@ export const explicationDe = (envoi: Envoi, travaille: boolean): Explication => 
         ? {
             // Herdr a pris le message sans confirmer la remise : renvoyer peut
             // doubler, et le bouton le dit.
-            action: "Renvoyer (doublon possible)",
-            texte: "Remise non confirmée par Herdr — le message est peut-être arrivé.",
+            action: "Resend (may duplicate)",
+            texte: "Delivery not confirmed by Herdr — the message may have arrived.",
           }
         : expliquerEchec(envoi.failureState, envoi.detail ?? "");
     case "failed":
       return envoi.failureState === null
-        ? { action: "Réessayer", texte: `Échec : ${envoi.detail ?? "cause inconnue"}` }
+        ? { action: "Retry", texte: `Failed: ${envoi.detail ?? "unknown cause"}` }
         : expliquerEchec(envoi.failureState, envoi.detail ?? "");
   }
   return { action: null, texte: String(envoi.state) };
@@ -64,8 +64,8 @@ export const explicationDe = (envoi: Envoi, travaille: boolean): Explication => 
 /** Le renvoi proposé, quand l'explication en propose un qui renvoie. */
 const libelleRenvoi = (envoi: Envoi, explication: Explication): string | null => {
   if (envoi.state !== "uncertain" && envoi.state !== "failed") return null;
-  // « Modifier le message » n'est pas un renvoi : il a son propre bouton.
-  if (explication.action === null || explication.action === "Modifier le message") return null;
+  // « Edit message » n'est pas un renvoi : il a son propre bouton.
+  if (explication.action === null || explication.action === "Edit message") return null;
   return explication.action;
 };
 
@@ -102,7 +102,7 @@ export const Envois = memo(
                 {enFile ? <span className="moi__file" aria-hidden="true" /> : null}
                 {explication.texte}
                 {envoi.state === "suppressed" && envoi.detail !== null && envoi.detail !== "" ? (
-                  <small className="moi__cause">Herdr : {envoi.detail}</small>
+                  <small className="moi__cause">Herdr: {envoi.detail}</small>
                 ) : null}
                 {envoi.state === "queued" ? (
                   <button
@@ -112,7 +112,7 @@ export const Envois = memo(
                       if (texte !== null) onRemettre(texte);
                     }}
                   >
-                    Annuler
+                    Cancel
                   </button>
                 ) : null}
                 {renvoi === null ? null : (
@@ -122,7 +122,7 @@ export const Envois = memo(
                 )}
                 {envoi.state === "suppressed" ? (
                   <button type="button" onClick={() => envois.oublie(envoi.id)}>
-                    Fermer
+                    Dismiss
                   </button>
                 ) : null}
                 {envoi.state === "failed" || envoi.state === "suppressed" ? (
@@ -133,7 +133,7 @@ export const Envois = memo(
                       onRemettre(envoi.text);
                     }}
                   >
-                    Modifier
+                    Edit
                   </button>
                 ) : null}
               </output>

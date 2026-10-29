@@ -19,32 +19,32 @@ import {
 describe("U08 — les trois échecs se distinguent", () => {
   test("attente : le message est peut-être parti, on renvoie", () => {
     const e = expliquerEchec("attente", "aucune réponse en 5 s");
-    expect(e.texte).toContain("peut-être parti");
+    expect(e.texte).toContain("may have gone through");
     // L'action distingue ce cas des deux autres : renvoyer, pas retaper.
-    expect(e.action).toBe("Réessayer");
+    expect(e.action).toBe("Retry");
   });
 
   test("erreur : Herdr a refusé, rien n'est parti, on corrige", () => {
     const e = expliquerEchec("erreur", "prompt trop long");
-    expect(e.texte).toContain("Envoi refusé");
+    expect(e.texte).toContain("Send rejected");
     expect(e.texte).toContain("prompt trop long");
-    expect(e.action).toBe("Modifier le message");
+    expect(e.action).toBe("Edit message");
   });
 
   test("inconnu : ni Herdr n'a dit oui, ni non — le renvoi dit son risque", () => {
     const e = expliquerEchec("inconnu", "connexion coupée");
-    expect(e.texte).toContain("remise inconnue");
+    expect(e.texte).toContain("delivery unknown");
     // ⚠️ Le texte et le bouton disent la même chose : la bulle montrait un
     // bouton pendant que le texte annonçait « aucune action ». Le renvoi existe,
     // et il nomme le doublon possible.
-    expect(e.action).toBe("Renvoyer (doublon possible)");
+    expect(e.action).toBe("Resend (may duplicate)");
   });
 
   test("hors ligne : rien n'est parti, et le texte ne dit pas « à temps »", () => {
     const e = expliquerEchec("hors-ligne", "");
-    expect(e.texte).toBe("Hors ligne : rien n'est parti.");
-    expect(e.texte).not.toContain("peut-être");
-    expect(e.action).toBe("Réessayer");
+    expect(e.texte).toBe("Offline: nothing was sent.");
+    expect(e.texte).not.toContain("may have");
+    expect(e.action).toBe("Retry");
   });
 
   test("les trois textes ne partagent aucun préfixe", () => {
@@ -72,19 +72,19 @@ describe("U08 — les trois échecs se distinguent", () => {
 
 describe("U08 — aucun envoi n'est annoncé sans preuve", () => {
   test("confirmé : on peut le dire", () => {
-    expect(expliquerEnvoi("confirmed").texte).toBe("Envoyé, remise confirmée par Herdr");
+    expect(expliquerEnvoi("confirmed").texte).toBe("Sent, delivery confirmed by Herdr");
   });
 
   test("non confirmé : la nuance reste, et elle se voit", () => {
     const e = expliquerEnvoi("unknown");
-    expect(e.texte).toContain("remise non confirmée");
+    expect(e.texte).toContain("delivery not confirmed");
     // Pas de « envoyé » nu : c'est la promesse que rien ne prouve.
-    expect(e.texte).not.toBe("Envoyé");
+    expect(e.texte).not.toBe("Sent");
   });
 
   test("un double envoi est un état normal, pas une alerte — et pas un envoi", () => {
     const e = expliquerSuppression("identique au précédent");
-    expect(e.texte).toContain("Non envoyé : identique à un message déjà remis");
+    expect(e.texte).toContain("Not sent: identical to a message delivered");
     expect(e.texte).toContain("identique au précédent");
     expect(e.action).toBeNull();
   });
@@ -94,7 +94,7 @@ describe("U08 — « transmise » n'est pas « accordée »", () => {
   test("transmise : la carte reste, et le mot reste", () => {
     const issue = expliquerConfiance("transmise");
     expect(issue.resolue).toBe(false);
-    expect(issue.texte).toContain("pas encore confirmée");
+    expect(issue.texte).toContain("has not confirmed it yet");
   });
 
   test("transmise ne se lit jamais comme un accord", () => {
@@ -102,9 +102,9 @@ describe("U08 — « transmise » n'est pas « accordée »", () => {
     // ⚠️ Pas une simple absence du mot : il est présent, **négaté**. Ce qui
     // compte est que la négation le précède — « ce n'est pas accordée » ne peut
     // pas se lire comme un accord, contrairement à un « peut-être accordée ».
-    expect(issue.texte).toContain("pas encore confirmée");
+    expect(issue.texte).toContain("has not confirmed it yet");
     // Et surtout pas la formule vacillante, qui se lirait comme un accord.
-    expect(issue.texte).not.toContain("accordé");
+    expect(issue.texte).not.toContain("granted");
   });
 
   test("acceptée : seule issue qui libère l'écran", () => {
@@ -114,7 +114,7 @@ describe("U08 — « transmise » n'est pas « accordée »", () => {
   test("refusée : une décision, pas une panne", () => {
     const issue = expliquerConfiance("refusee");
     expect(issue.resolue).toBe(true);
-    expect(issue.texte).toContain("rien n'a été écrit");
+    expect(issue.texte).toContain("nothing was written");
   });
 
   /*
@@ -123,7 +123,7 @@ describe("U08 — « transmise » n'est pas « accordée »", () => {
     written » et laissait croire que l'agent restait bloqué.
   */
   test("refusée : le texte dit que l'agent s'arrête", () => {
-    expect(expliquerConfiance("refusee").texte).toContain("arrêté");
+    expect(expliquerConfiance("refusee").texte).toContain("stopped");
   });
 
   test("non applicable : rien à demander", () => {
@@ -135,7 +135,7 @@ describe("U08 — « transmise » n'est pas « accordée »", () => {
     expect(issue.resolue).toBe(false);
     // La prudence coûte un écran qui reste ouvert ; l'inverse costait une
     // permission permanente supposée donnée.
-    expect(issue.texte).toContain("état inconnu");
+    expect(issue.texte).toContain("unknown state");
   });
 
   test("les quatre états connus donnent quatre textes différents", () => {
@@ -158,11 +158,11 @@ describe("U08 — le libellé du refus dit ce que le refus fait", () => {
   test("il nomme la famille et l'arrêt", () => {
     const libelle = libelleRefus("claude");
     expect(libelle).toContain("claude");
-    expect(libelle.toLowerCase()).toContain("arrêter");
+    expect(libelle.toLowerCase()).toContain("stop");
   });
 
   test("sans famille connue, il reste lisible plutôt que troué", () => {
-    expect(libelleRefus(null)).toBe("Refuser et arrêter l'agent");
+    expect(libelleRefus(null)).toBe("Deny and stop the agent");
   });
 });
 
@@ -186,7 +186,7 @@ describe("U08 — la décision ne se perd plus en route", () => {
   });
 
   test("une réponse illisible n'est lue ni comme un accord ni comme un refus", () => {
-    expect(api).toContain('detail: "réponse illisible", state: "inconnu"');
+    expect(api).toContain('detail: "unreadable response", state: "inconnu"');
   });
 
   test("l'issue d'une confiance passe par `expliquerConfiance`, jamais par `accepted`", () => {

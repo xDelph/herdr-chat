@@ -28,7 +28,7 @@ pub fn preuve_reconnue(
         PromptEvidence::Confirmed { fingerprint } => Some(PromptEvidence::Unknown {
             partial: Vec::new(),
             detail: format!(
-                "l'empreinte confirmée ({}) n'est pas celle demandée ({}) — rien n'est prouvé",
+                "the confirmed fingerprint ({}) is not the requested one ({}) — nothing is proven",
                 fingerprint.as_str(),
                 demandee.as_str()
             ),

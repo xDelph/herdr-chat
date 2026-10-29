@@ -120,7 +120,7 @@ describe("le harnais n'est pas l'utilisateur", () => {
         onOuvrirFichier: () => undefined,
       }),
     );
-    expect(html).toContain("Rapport de sous-agent");
+    expect(html).toContain("Subagent report");
     expect(html).not.toContain('data-demande=""');
     expect(html).toContain(">Diagnostic</h3>");
   });
@@ -142,10 +142,10 @@ describe("le harnais n'est pas l'utilisateur", () => {
         createElement(CarteRapport, { message: seul(messages[1]) }),
       ),
     );
-    expect(html).toContain("Rapport de sous-agent · Audit du flux · terminée");
+    expect(html).toContain("Subagent report · Audit du flux · completed");
     // La fin de tâche renvoie au rapport déjà présent : une ligne, sans corps.
-    expect(html).toContain("Tâche de fond · Audit du flux · terminée");
-    expect(html).toContain("pendant le travail");
+    expect(html).toContain("Background task · Audit du flux · completed");
+    expect(html).toContain("during the turn");
     expect(html).toContain("5 min");
   });
 
@@ -153,7 +153,7 @@ describe("le harnais n'est pas l'utilisateur", () => {
     const [message] = toMessages([rapport("r1", "x".repeat(900), "2026-10-29T10:05:00.000Z")]);
     const html = rendu(createElement(CarteRapport, { message: seul(message) }));
     expect(html).toContain("rapport__corps--replie");
-    expect(html).toContain("Tout lire");
+    expect(html).toContain("Read all");
   });
 });
 
@@ -180,7 +180,7 @@ describe("le tour part de la demande qui l'a ouvert", () => {
         onOuvrirFichier: () => undefined,
       }),
     );
-    expect(html).toContain("envoyé pendant le travail");
+    expect(html).toContain("sent during the turn");
   });
 
   test("une fin de tâche arrivée agent au repos ouvre le tour", () => {
@@ -223,9 +223,9 @@ describe("la liste suit les tâches de fond et la session", () => {
     expect(sectionDe(bloque)).toBe("a-traiter");
     const groupes = sectionConversations([attend, finies, bloque]);
     expect(groupes.map((groupe) => groupe.cle)).toEqual(["a-traiter", "en-cours", "recents"]);
-    expect(attenteDeTaches(attend.tachesDeFond)).toBe("Attend 2 tâches de fond");
+    expect(attenteDeTaches(attend.tachesDeFond)).toBe("Waiting on 2 background tasks");
     expect(attenteDeTaches(finies.tachesDeFond)).toBeNull();
-    expect(nombreDeTaches(1)).toBe("1 tâche de fond");
+    expect(nombreDeTaches(1)).toBe("1 background task");
   });
 
   test("la ligne affiche l'attente, et le chronomètre part de la session", () => {
@@ -240,7 +240,7 @@ describe("la liste suit les tâches de fond et la session", () => {
         titre: "",
       }),
     );
-    expect(attend).toContain("Attend 2 tâches de fond");
+    expect(attend).toContain("Waiting on 2 background tasks");
     const travaille = rendu(
       createElement(LigneAgent, {
         conversation: conversation("p1", { status: "working", tourDebut: 1_000 }),
@@ -263,7 +263,7 @@ describe("la liste suit les tâches de fond et la session", () => {
     const html = rendu(
       createElement(PuceTaches, { compte: { enCours: 2, total: 5 }, onOuvrir: () => undefined }),
     );
-    expect(html).toContain("2 tâches de fond");
+    expect(html).toContain("2 background tasks");
     expect(html).toContain("spin");
   });
 });
@@ -290,14 +290,14 @@ describe("les libellés des tâches", () => {
   test("les durées ne se calculent qu'avec leurs bornes", () => {
     const maintenant = Date.parse("2026-10-29T11:00:00.000Z");
     // Inconnu : pas de « depuis » (ce serait affirmer qu'elle tourne).
-    expect(dureesDe(tache, maintenant).join(" · ")).toBe("lancée 1 h · activité 50 min");
+    expect(dureesDe(tache, maintenant).join(" · ")).toBe("started 1h · last activity 50 min");
     expect(
       dureesDe(
         { ...tache, endedAt: Date.parse("2026-10-29T10:07:00.000Z"), status: "terminee" },
         maintenant,
       ),
-    ).toEqual(["durée 7 min"]);
-    expect(dureesDe({ ...tache, status: "en_cours" }, maintenant)[0]).toBe("depuis 1:00:00");
+    ).toEqual(["took 7 min"]);
+    expect(dureesDe({ ...tache, status: "en_cours" }, maintenant)[0]).toBe("running for 1:00:00");
   });
 
   test("un résumé qui répète le titre n'est pas montré", () => {
@@ -314,10 +314,6 @@ describe("les libellés des tâches", () => {
     const [message] = toMessages([rapport("r1", "x", "2026-10-29T10:05:00.000Z")]);
     const bloc = message?.blocks[0];
     if (bloc?.kind !== "rapportTache") throw new Error("bloc attendu");
-    expect(titreDuRapport(bloc, infos.get("a1"))).toEqual([
-      "Rapport de sous-agent",
-      "Audit",
-      "en cours",
-    ]);
+    expect(titreDuRapport(bloc, infos.get("a1"))).toEqual(["Subagent report", "Audit", "running"]);
   });
 });

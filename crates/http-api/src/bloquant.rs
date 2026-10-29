@@ -23,7 +23,7 @@ where
         Ok(reponse) => reponse,
         Err(cause) => (
             axum::http::StatusCode::INTERNAL_SERVER_ERROR,
-            axum::Json(serde_json::json!({ "error": format!("requête interrompue : {cause}") })),
+            axum::Json(serde_json::json!({ "error": format!("request interrupted: {cause}") })),
         )
             .into_response(),
     }

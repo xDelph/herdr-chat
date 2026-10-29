@@ -148,10 +148,10 @@ pub fn erreur_en_domaine(erreur: ErreurLancement) -> ErreurDomaine {
             ErreurDomaine::entree_invalide(format!("invalid launch request: {erreur}"))
         }
         ErreurLancement::SnapshotIndisponible { detail } => {
-            ErreurDomaine::amont_refus(format!("snapshot Herdr indisponible: {detail}"))
+            ErreurDomaine::amont_refus(format!("Herdr snapshot unavailable: {detail}"))
         }
         ErreurLancement::SnapshotIllisible { detail } => {
-            ErreurDomaine::amont_refus(format!("snapshot Herdr illisible: {detail}"))
+            ErreurDomaine::amont_refus(format!("unreadable Herdr snapshot: {detail}"))
         }
         ErreurLancement::WorkspaceAbsent => {
             ErreurDomaine::amont_refus("this project no longer exists")

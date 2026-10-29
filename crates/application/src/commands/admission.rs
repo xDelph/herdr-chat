@@ -58,7 +58,7 @@ pub enum ErreurAdmission {
 
 impl std::fmt::Display for ErreurAdmission {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("la file du pane est pleine (8)")
+        f.write_str("the pane queue is full (8)")
     }
 }
 

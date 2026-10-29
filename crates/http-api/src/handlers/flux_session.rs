@@ -122,7 +122,7 @@ pub async fn flux_session(
 ) -> Response {
     let Ok(permis) = Arc::clone(&services.permis_flux_session).try_acquire_owned() else {
         return reponse_erreur(ErreurDomaine::sature(format!(
-            "trop de flux de session ouverts (maximum {FLUX_SESSION_MAX}) — réessayez"
+            "too many session streams open (maximum {FLUX_SESSION_MAX}) — retry"
         )));
     };
     let source = match resous(&services, &pane_id).await {
@@ -163,7 +163,7 @@ async fn suit(
     let mut observation = services.observateur.observe(&source);
     let mut deja = DejaEmis::default();
     if let Some(degradation) = observation.degradation.as_deref() {
-        tracing::warn!(pane = %pane_id, %degradation, "flux de session dégradé");
+        tracing::warn!(pane = %pane_id, %degradation, "session stream degraded");
     }
     loop {
         match rattrape(&services, &source, &mut curseur, &mut deja, &emetteur).await {
@@ -237,7 +237,7 @@ async fn rattrape(
             // Une lecture qui échoue (verrou, droits) n'est pas une fin : on
             // attend la révision suivante. La cause est journalisée.
             Ok(SessionPageOutcome::Io { detail }) => {
-                tracing::warn!(%detail, "flux de session : lecture échouée");
+                tracing::warn!(%detail, "session stream: read failed");
                 return Etape::Continue;
             }
             // ⚠️ **Un curseur refusé (H04 : illisible, d'une autre session)
@@ -249,13 +249,13 @@ async fn rattrape(
                     && curseur.is_some()
                     && !deja_reparti =>
             {
-                tracing::info!(cause = %erreur.message_sur(), "flux de session : curseur refusé, reprise depuis la queue");
+                tracing::info!(cause = %erreur.message_sur(), "session stream: cursor rejected, resuming from the tail");
                 deja_reparti = true;
                 *curseur = None;
                 continue;
             }
             Err(erreur) => {
-                tracing::warn!(cause = %erreur.message_sur(), "flux de session : lecture échouée");
+                tracing::warn!(cause = %erreur.message_sur(), "session stream: read failed");
                 return Etape::Continue;
             }
         };
@@ -287,7 +287,7 @@ async fn rattrape(
         }
     }
     tracing::warn!(
-        "flux de session : {PAGES_PAR_REVEIL} pages sans rattrapage, pause jusqu'à la prochaine révision"
+        "session stream: {PAGES_PAR_REVEIL} pages without catching up, pausing until the next revision"
     );
     Etape::Continue
 }
@@ -345,7 +345,7 @@ async fn bloquant<T: Send + 'static>(
 ) -> Result<T, ErreurDomaine> {
     tokio::task::spawn_blocking(travail)
         .await
-        .map_err(|cause| ErreurDomaine::invariant_viole(format!("lecture interrompue : {cause}")))
+        .map_err(|cause| ErreurDomaine::invariant_viole(format!("read interrupted: {cause}")))
 }
 
 fn evenement_reset(cause: ReadCause, page: SessionPage) -> Event {

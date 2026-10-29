@@ -44,20 +44,20 @@ const composeur = (travaille: boolean, paneId = "w1:p1") =>
 describe("Arrêter reste visible tant que l'agent travaille", () => {
   test("champ vide : Arrêter, sans Envoyer", () => {
     const html = composeur(true, "vide:p1");
-    expect(html).toContain('aria-label="Arrêter l\'agent"');
-    expect(html).not.toContain('aria-label="Envoyer"');
+    expect(html).toContain('aria-label="Stop the agent"');
+    expect(html).not.toContain('aria-label="Send"');
   });
 
   test("champ rempli : Arrêter ET Envoyer — taper ne cache jamais l'arrêt", () => {
     ecrireBrouillon("rempli:p1", "corrige plutôt le test");
     const html = composeur(true, "rempli:p1");
-    expect(html).toContain('aria-label="Arrêter l\'agent"');
-    expect(html).toContain('aria-label="Envoyer"');
+    expect(html).toContain('aria-label="Stop the agent"');
+    expect(html).toContain('aria-label="Send"');
     expect(html).toContain("corrige plutôt le test");
   });
 
   test("au repos : pas d'Arrêter", () => {
-    expect(composeur(false, "repos:p1")).not.toContain("Arrêter");
+    expect(composeur(false, "repos:p1")).not.toContain("Stop the agent");
   });
 
   test("le brouillon est celui du pane, jamais celui d'un autre", () => {
@@ -90,13 +90,13 @@ describe("un message envoyé pendant le travail", () => {
         travaille: true,
       }),
     );
-    expect(html).toContain("En attente : l'agent le lira à sa prochaine étape");
+    expect(html).toContain("Waiting: the agent will read it at its next step");
     expect(html).toContain("moi--en-file");
   });
 
   test("remis au repos : remis, sans file", () => {
     const html = envois([envoi({ state: "delivered" })]);
-    expect(html).toContain("Remis à Herdr");
+    expect(html).toContain("Delivered to Herdr");
     expect(html).not.toContain("moi--en-file");
   });
 });
@@ -110,25 +110,25 @@ describe("le composeur ne montre pas d'identifiant interne", () => {
 describe("un envoi non confirmé n'est jamais affiché comme envoyé", () => {
   test("incertain : dit qu'il n'est pas confirmé, propose de renvoyer", () => {
     const html = envois([envoi({ state: "uncertain" })]);
-    expect(html).toContain("Remise non confirmée par Herdr");
-    expect(html).toContain("Renvoyer");
-    expect(html).not.toContain("Remis à Herdr");
+    expect(html).toContain("Delivery not confirmed by Herdr");
+    expect(html).toContain("Resend");
+    expect(html).not.toContain("Delivered to Herdr");
   });
 
   test("délai dépassé : peut-être parti, réessayer", () => {
     const html = envois([envoi({ detail: "délai", failureState: "attente", state: "uncertain" })]);
-    expect(html).toContain("peut-être parti");
+    expect(html).toContain("may have gone through");
   });
 
   test("transport muet : le renvoi est signalé comme un doublon possible", () => {
     const html = envois([envoi({ detail: "x", failureState: "inconnu", state: "uncertain" })]);
-    expect(html).toContain("doublon possible");
+    expect(html).toContain("may duplicate");
   });
 
   test("envoyé sans confirmation : le renvoi dit aussi le doublon possible", () => {
     const html = envois([envoi({ failureState: null, state: "uncertain" })]);
-    expect(html).toContain("Renvoyer (doublon possible)");
-    expect(html).not.toContain(">Réessayer<");
+    expect(html).toContain("Resend (may duplicate)");
+    expect(html).not.toContain(">Retry<");
   });
 
   test("doublon évité : « non envoyé », Fermer et Modifier — jamais « en attente »", () => {
@@ -139,19 +139,19 @@ describe("un envoi non confirmé n'est jamais affiché comme envoyé", () => {
         travaille: true,
       }),
     );
-    expect(html).toContain("Non envoyé : identique à un message déjà remis");
-    expect(html).toContain("Fermer");
-    expect(html).toContain("Modifier");
-    expect(html).not.toContain("En attente");
-    expect(html).not.toContain("Remis à Herdr");
+    expect(html).toContain("Not sent: identical to a message delivered");
+    expect(html).toContain("Dismiss");
+    expect(html).toContain("Edit");
+    expect(html).not.toContain("Waiting");
+    expect(html).not.toContain("Delivered to Herdr");
     expect(html).not.toContain("moi--en-file");
   });
 
   test("hors ligne : « rien n'est parti », réessayer et modifier", () => {
     const html = envois([envoi({ detail: "", failureState: "hors-ligne", state: "failed" })]);
-    expect(html).toContain("Hors ligne : rien n'est parti.");
-    expect(html).toContain("Réessayer");
-    expect(html).toContain("Modifier");
+    expect(html).toContain("Offline: nothing was sent.");
+    expect(html).toContain("Retry");
+    expect(html).toContain("Edit");
   });
 
   test("refus : la cause est affichée, et on peut modifier", () => {
@@ -159,11 +159,11 @@ describe("un envoi non confirmé n'est jamais affiché comme envoyé", () => {
       envoi({ detail: "prompt trop long", failureState: "erreur", state: "failed" }),
     ]);
     expect(html).toContain("prompt trop long");
-    expect(html).toContain("Modifier");
+    expect(html).toContain("Edit");
   });
 
   test("en file : annulable", () => {
-    expect(envois([envoi({})])).toContain("Annuler");
+    expect(envois([envoi({})])).toContain("Cancel");
   });
 });
 
@@ -200,11 +200,11 @@ describe("le travail se lit en lignes", () => {
     const html = rendu(
       createElement(GroupeOutils, { cwd: "/p", enCours: true, messages, onOuvrirFichier: rien }),
     );
-    expect(html).toContain("Modifié");
+    expect(html).toContain("Edited");
     expect(html).toContain("src/main.rs");
     expect(html).not.toContain("/p/src/main.rs</span>");
     expect(html).toContain("+1 −1");
-    expect(html).toContain("Lancé");
+    expect(html).toContain("Ran");
     expect(html).toContain("cargo test");
   });
 
@@ -212,7 +212,7 @@ describe("le travail se lit en lignes", () => {
     const html = rendu(
       createElement(GroupeOutils, { cwd: "/p", enCours: false, messages, onOuvrirFichier: rien }),
     );
-    expect(html).toContain("1 échec");
+    expect(html).toContain("1 failed");
     expect(html).toContain('aria-expanded="false"');
   });
 });
@@ -273,8 +273,8 @@ describe("répondre depuis la liste", () => {
         titre: "",
       }),
     );
-    expect(html).toContain("Faire confiance");
-    expect(html).toContain("Refuser et arrêter codex");
+    expect(html).toContain("Trust");
+    expect(html).toContain("Deny and stop codex");
     expect(html).toContain("/Users/x/pixel");
   });
 
@@ -310,8 +310,8 @@ describe("la question ancrée dit d'où elle vient", () => {
         lueA: null,
       }),
     );
-    expect(html).toContain("Lue sur l'écran de l'agent");
-    expect(html).toContain("Autre réponse");
+    expect(html).toContain("Read from the agent's screen");
+    expect(html).toContain("Other answer");
     // L'option de saisie libre n'est pas un bouton qui partirait seul.
     expect(html).not.toContain("Type your own answer");
   });

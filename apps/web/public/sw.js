@@ -13,7 +13,7 @@
 */
 
 const TITRE_PAR_DEFAUT = "Herdr Chat";
-const CORPS_PAR_DEFAUT = "Un agent a du nouveau.";
+const CORPS_PAR_DEFAUT = "An agent has an update.";
 const TAG_PAR_DEFAUT = "herdr-agent";
 
 /** Une erreur du worker ne doit jamais être muette : console ET journal du démon. */
@@ -84,7 +84,7 @@ self.addEventListener("push", (event) => {
           },
         );
       } catch (cause) {
-        await signale("notification non affichée", cause);
+        await signale("notification not shown", cause);
       }
     })(),
   );
@@ -115,11 +115,11 @@ self.addEventListener("notificationclick", (event) => {
       try {
         fenetre = (await existante.focus()) ?? existante;
       } catch (cause) {
-        await signale("fenêtre non focalisée", cause);
+        await signale("window not focused", cause);
       }
       if (fenetre.url === cible.href) return;
       try {
-        if (typeof fenetre.navigate !== "function") throw new Error("navigate indisponible");
+        if (typeof fenetre.navigate !== "function") throw new Error("navigate unavailable");
         await fenetre.navigate(cible.href);
       } catch {
         // Une fenêtre non contrôlée ne se navigue pas : on lui dit où aller.
@@ -135,7 +135,7 @@ self.addEventListener("notificationclick", (event) => {
 const cleDuServeur = async () => {
   const reponse = await fetch("/api/notifications/vapid-key", { cache: "no-store" });
   if (!reponse.ok) {
-    throw new Error(`clé VAPID indisponible (${String(reponse.status)})`);
+    throw new Error(`VAPID key unavailable (${String(reponse.status)})`);
   }
   const encodee = (await reponse.text()).trim();
   const completee = `${encodee}${"=".repeat((4 - (encodee.length % 4)) % 4)}`;
@@ -154,7 +154,7 @@ const posteAbonnement = async (corps) => {
   });
   if (!reponse.ok) {
     throw new Error(
-      `abonnement refusé par le démon (${String(reponse.status)}) : ${await reponse.text()}`,
+      `subscription rejected by the daemon (${String(reponse.status)}): ${await reponse.text()}`,
     );
   }
 };
@@ -185,7 +185,7 @@ self.addEventListener("pushsubscriptionchange", (event) => {
           await posteAbonnement({ unsubscribe: ancienne.endpoint });
         }
       } catch (cause) {
-        await signale("réabonnement push impossible", cause);
+        await signale("push resubscription failed", cause);
       }
     })(),
   );

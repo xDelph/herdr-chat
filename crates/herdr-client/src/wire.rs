@@ -103,16 +103,16 @@ where
     impl<'de, T: serde::de::DeserializeOwned> serde::de::Visitor<'de> for Visiteur<T> {
         type Value = Option<T>;
         fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.write_str("valeur ou absence — null refusé (omissible simple)")
+            f.write_str("value or absence — null refused (simple omissible)")
         }
         fn visit_some<D2: serde::Deserializer<'de>>(self, d: D2) -> Result<Option<T>, D2::Error> {
             T::deserialize(d).map(Some)
         }
         fn visit_none<E: serde::de::Error>(self) -> Result<Option<T>, E> {
-            Err(E::custom("null refusé sur champ omissible du fil amont"))
+            Err(E::custom("null refused on an omissible upstream field"))
         }
         fn visit_unit<E: serde::de::Error>(self) -> Result<Option<T>, E> {
-            Err(E::custom("null refusé sur champ omissible du fil amont"))
+            Err(E::custom("null refused on an omissible upstream field"))
         }
     }
     deserialiseur.deserialize_option(Visiteur(std::marker::PhantomData))
@@ -127,7 +127,7 @@ where
     impl<'de, T: serde::de::DeserializeOwned> serde::de::Visitor<'de> for Visiteur<T> {
         type Value = Option<Option<T>>;
         fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.write_str("valeur, null ou absence — trois faits distincts")
+            f.write_str("value, null or absence — three distinct facts")
         }
         fn visit_some<D2: serde::Deserializer<'de>>(
             self,

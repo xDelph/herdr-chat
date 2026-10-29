@@ -17,9 +17,9 @@ import { Icone } from "../ui/Icone.tsx";
 import { PuceTaches } from "./PuceTaches.tsx";
 
 const TRANSPORT: Record<Transport, string> = {
-  aucun: "Contenu : pas de lecture en cours",
-  flux: "Contenu : flux en direct",
-  repli: "Contenu : relecture sur signal",
+  aucun: "Content: not reading",
+  flux: "Content: live stream",
+  repli: "Content: reread on signal",
 };
 
 export const EnTete = memo(
@@ -103,7 +103,7 @@ export const EnTete = memo(
         <button
           type="button"
           className="bouton-icone retour"
-          aria-label="Retour aux agents"
+          aria-label="Back to agents"
           onClick={onRetour}
         >
           <Icone nom="back" />
@@ -125,7 +125,7 @@ export const EnTete = memo(
           <button
             type="button"
             className="bouton-icone"
-            aria-label="Plus d'actions"
+            aria-label="More actions"
             aria-controls={menu ? idMenu : undefined}
             aria-expanded={menu}
             onClick={() => setMenu((valeur) => !valeur)}
@@ -136,15 +136,15 @@ export const EnTete = memo(
             <div className="menu__liste" id={idMenu}>
               <button type="button" onClick={choisit(onMac)} disabled={inactif}>
                 <Icone nom="mac" petite />
-                Afficher sur le Mac
+                Show on the Mac
               </button>
               <button type="button" onClick={choisit(onModele)} disabled={inactif}>
                 <Icone nom="sliders" petite />
-                Modèle et réflexion…
+                Model and thinking…
               </button>
               <button type="button" onClick={choisit(onFichiers)} disabled={nombreFichiers === 0}>
                 <Icone nom="file" petite />
-                Fichiers modifiés ({String(nombreFichiers)})
+                Changed files ({String(nombreFichiers)})
               </button>
               <p className="menu__info">
                 {TRANSPORT[transport]}
@@ -170,7 +170,7 @@ export const Voisins = memo(
   }) => {
     if (agents.length < 2) return null;
     return (
-      <nav className="voisins" aria-label="Agents de cet onglet">
+      <nav className="voisins" aria-label="Agents in this tab">
         {agents.map((agent) => {
           const libelle =
             etiquetteDePane(agent) ??

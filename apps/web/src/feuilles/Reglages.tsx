@@ -32,12 +32,12 @@ import { dureeLongue } from "../libelles.ts";
 import { Avis } from "../ui/atomes.tsx";
 import { Feuille } from "../ui/Feuille.tsx";
 
-/** La permission du navigateur, en français — jamais `granted/denied/default` bruts. */
+/** La permission du navigateur, en mots — jamais `granted/denied/default` bruts. */
 export const LIBELLE_PERMISSION: Record<NotificationPermission | "non-pris-en-charge", string> = {
-  default: "pas encore demandée",
-  denied: "refusée (à rétablir dans les réglages du navigateur)",
-  granted: "accordée",
-  "non-pris-en-charge": "non prise en charge",
+  default: "not requested yet",
+  denied: "denied (re-enable it in the browser settings)",
+  granted: "granted",
+  "non-pris-en-charge": "not supported",
 };
 
 const Notifications = () => {
@@ -86,8 +86,8 @@ const Notifications = () => {
   if (!pushSupported) {
     return (
       <p className="discret">
-        Ce navigateur ne prend pas en charge les notifications push. Sur iPhone, installez d'abord
-        Herdr Chat sur l'écran d'accueil (menu Partager).
+        This browser does not support push notifications. On iPhone, first add Herdr Chat to the
+        Home Screen (Share menu).
       </p>
     );
   }
@@ -95,8 +95,8 @@ const Notifications = () => {
     <>
       <div className="reglage">
         <span>
-          {active === null ? "État inconnu" : active ? "Activées sur cet appareil" : "Désactivées"}
-          <small className="discret"> · permission : {LIBELLE_PERMISSION[permission]}</small>
+          {active === null ? "Unknown state" : active ? "On for this device" : "Off"}
+          <small className="discret"> · permission: {LIBELLE_PERMISSION[permission]}</small>
         </span>
         <button
           type="button"
@@ -104,7 +104,7 @@ const Notifications = () => {
           disabled={occupe || active === null}
           onClick={() => void bascule()}
         >
-          {occupe ? "…" : active === true ? "Désactiver" : "Activer"}
+          {occupe ? "…" : active === true ? "Turn off" : "Turn on"}
         </button>
       </div>
       {erreur === null ? null : (
@@ -134,10 +134,10 @@ export const Reglages = ({
   const [theme, setTheme] = useState<Theme>(lireTheme);
   const [marques, setMarques] = useState<StyleMarque>(lireStyleMarque);
   return (
-    <Feuille titre="Réglages" onClose={onClose}>
+    <Feuille titre="Settings" onClose={onClose}>
       <fieldset className="champ">
-        <legend>Thème</legend>
-        <fieldset className="seg seg--plein" aria-label="Thème">
+        <legend>Theme</legend>
+        <fieldset className="seg seg--plein" aria-label="Theme">
           {THEMES.map((option) => (
             <button
               key={option}
@@ -152,11 +152,11 @@ export const Reglages = ({
             </button>
           ))}
         </fieldset>
-        <p className="discret">Auto suit le réglage clair/sombre de l'appareil.</p>
+        <p className="discret">Auto follows the device's light/dark setting.</p>
       </fieldset>
       <fieldset className="champ">
-        <legend>Logos des agents</legend>
-        <fieldset className="seg seg--plein" aria-label="Logos des agents">
+        <legend>Agent logos</legend>
+        <fieldset className="seg seg--plein" aria-label="Agent logos">
           {STYLES_MARQUE.map((option) => (
             <button
               key={option}
@@ -172,12 +172,12 @@ export const Reglages = ({
           ))}
         </fieldset>
         <p className="discret">
-          Standard garde les couleurs de chaque marque ; « Couleur du thème » les dessine à l'encre.
+          Standard keeps each brand's colors; “Theme color” draws them in the theme's ink.
         </p>
       </fieldset>
       <fieldset className="champ">
-        <legend>Liste</legend>
-        <fieldset className="seg seg--plein" aria-label="Regroupement de la liste">
+        <legend>List</legend>
+        <fieldset className="seg seg--plein" aria-label="List grouping">
           {GROUPEMENTS.map((option) => (
             <button
               key={option}
@@ -190,8 +190,7 @@ export const Reglages = ({
           ))}
         </fieldset>
         <p className="discret">
-          Ce qui attend une décision et ce qui travaille restent en tête ; « Par projet » range le
-          reste par projet.
+          Agents that need you or are working stay on top; “By project” groups the rest by project.
         </p>
       </fieldset>
       <fieldset className="champ">
@@ -199,38 +198,38 @@ export const Reglages = ({
         <Notifications />
       </fieldset>
       <fieldset className="champ">
-        <legend>Démon</legend>
-        {erreurHealth === null ? null : <Avis ton="erreur">Santé illisible : {erreurHealth}</Avis>}
+        <legend>Daemon</legend>
+        {erreurHealth === null ? null : <Avis ton="erreur">Unreadable health: {erreurHealth}</Avis>}
         <dl className="sante">
           <dt>Herdr</dt>
           <dd>
             {health === null
-              ? "inconnu"
+              ? "unknown"
               : health.herdr.reachable
-                ? `joignable${health.herdr.version === undefined ? "" : ` · ${health.herdr.version}`}${health.herdr.protocol === undefined ? "" : ` · protocole ${String(health.herdr.protocol)}`}`
-                : "injoignable"}
+                ? `reachable${health.herdr.version === undefined ? "" : ` · ${health.herdr.version}`}${health.herdr.protocol === undefined ? "" : ` · protocol ${String(health.herdr.protocol)}`}`
+                : "unreachable"}
           </dd>
           <dt>Socket</dt>
-          <dd className="mono">{health?.herdr.socket ?? "inconnu"}</dd>
-          <dt>Démon actif depuis</dt>
+          <dd className="mono">{health?.herdr.socket ?? "unknown"}</dd>
+          <dt>Daemon uptime</dt>
           <dd className="num">
-            {health?.uptimeMs === undefined ? "inconnu" : dureeLongue(health.uptimeMs)}
+            {health?.uptimeMs === undefined ? "unknown" : dureeLongue(health.uptimeMs)}
           </dd>
           <dt>Sessions</dt>
           <dd>
             {overview === null
-              ? "inconnu"
+              ? "unknown"
               : overview.withoutSession === 0
-                ? "toutes lisibles"
-                : `${String(overview.withoutSession)} agent(s) sans session lisible`}
+                ? "all readable"
+                : `${String(overview.withoutSession)} agent(s) without a readable session`}
           </dd>
-          <dt>Version de l'app</dt>
+          <dt>App version</dt>
           <dd className="mono">{__HERDR_PWA_BUILD_ID__}</dd>
         </dl>
       </fieldset>
       <p className="discret">
-        Le contenu des conversations vient du magasin de session de chaque agent (fichier ou base
-        que Herdr désigne). Herdr ne fournit que le contrôle et l'état.
+        Conversation content comes from each agent's session store (the file or database Herdr
+        points to). Herdr only provides control and state.
       </p>
     </Feuille>
   );

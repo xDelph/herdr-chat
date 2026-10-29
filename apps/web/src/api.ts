@@ -13,7 +13,7 @@
  * diverger entre le décodage et le type affiché. Aucune assertion de type.
  */
 import { Option, Schema } from "effect";
-import { erreurLisible } from "./erreurs-demon.ts";
+import { erreurLisible, estRouteInconnue } from "./erreurs-demon.ts";
 import { delaiDeReprise, SOURCE_OUVERTE } from "./reprise.ts";
 // Import **local** : `export type { X } from "…"` ne crée aucune liaison ici.
 import type { InstalledKind, RecentImage } from "@herdr-remote/shared";
@@ -113,14 +113,16 @@ export const answerTrust = async (paneId: string, accept: boolean): Promise<Trus
     return {
       accepted: false,
       detail:
-        failure === undefined ? `échec (${String(response.status)})` : erreurLisible(failure.error),
+        failure === undefined
+          ? `failed (${String(response.status)})`
+          : erreurLisible(failure.error),
       state: "inconnu",
     };
   }
   const decoded = decoderOf(TrustResolvedResponse)(payload);
   if (decoded === undefined) {
     // Réponse illisible : on ne la lit pas comme un refus, ni comme un accord.
-    return { accepted: false, detail: "réponse illisible", state: "inconnu" };
+    return { accepted: false, detail: "unreadable response", state: "inconnu" };
   }
   return {
     accepted: decoded.accepted,
@@ -191,7 +193,7 @@ export const launchAgent = async (
 
   const decoded = decoderOf(LaunchAgentResponse)(payload);
   if (decoded === undefined) {
-    throw new Error("forme de réponse inattendue : lancement");
+    throw new Error("unexpected response shape: launch");
   }
   return decoded;
 };
@@ -252,7 +254,7 @@ export const horsLigne = (): boolean =>
 /** La cause d'une réponse d'erreur, traduite quand on la reconnaît (`erreurs-demon.ts`). */
 const erreurDe = (payload: unknown, statut: number): string => {
   const failure = decodeError(payload);
-  return failure === undefined ? `échec (${String(statut)})` : erreurLisible(failure.error);
+  return failure === undefined ? `failed (${String(statut)})` : erreurLisible(failure.error);
 };
 
 /** Lit le corps une seule fois et le renvoie analysé, ou lève une erreur lisible. */
@@ -261,7 +263,7 @@ const readJson = async (response: Response): Promise<unknown> => {
   try {
     return JSON.parse(text);
   } catch {
-    throw new Error(`réponse illisible (${response.status})`);
+    throw new Error(`unreadable response (${response.status})`);
   }
 };
 
@@ -284,11 +286,11 @@ const request = async (path: string, init?: RequestInit): Promise<unknown> => {
     });
   } catch (cause) {
     if (cause instanceof DOMException && cause.name === "TimeoutError") {
-      throw new Error(`Le démon n'a pas répondu en ${String(DELAI_LECTURE_MS / 1000)} s`, {
+      throw new Error(`The daemon did not respond within ${String(DELAI_LECTURE_MS / 1000)}s`, {
         cause,
       });
     }
-    if (horsLigne()) throw new Error("Hors ligne : l'appareil n'a pas de réseau", { cause });
+    if (horsLigne()) throw new Error("Offline: the device has no network", { cause });
     throw new Error(erreurLisible(cause instanceof Error ? cause.message : String(cause)), {
       cause,
     });
@@ -297,7 +299,7 @@ const request = async (path: string, init?: RequestInit): Promise<unknown> => {
   if (!response.ok) {
     const failure = decodeError(payload);
     throw new Error(
-      failure === undefined ? `échec (${String(response.status)})` : erreurLisible(failure.error),
+      failure === undefined ? `failed (${String(response.status)})` : erreurLisible(failure.error),
     );
   }
   return payload;
@@ -312,7 +314,7 @@ const decoded = async <A>(
   const payload = await request(path);
   const value = decodePayload(payload);
   if (value === undefined) {
-    throw new Error(`forme de réponse inattendue : ${label}`);
+    throw new Error(`unexpected response shape: ${label}`);
   }
   return value;
 };
@@ -366,7 +368,7 @@ export const fetchSession = (
 export const fetchAgentKinds = async (): Promise<ReadonlyArray<InstalledKind>> => {
   const payload = await request("/api/agents/kinds");
   const kinds = decoderOf(InstalledKindsResponse)(payload);
-  if (kinds === undefined) throw new Error("forme de réponse inattendue : types d'agents");
+  if (kinds === undefined) throw new Error("unexpected response shape: agent kinds");
   return kinds.kinds;
 };
 
@@ -374,7 +376,7 @@ export const fetchAgentKinds = async (): Promise<ReadonlyArray<InstalledKind>> =
 export const fetchRecentImages = async (): Promise<ReadonlyArray<RecentImage>> => {
   const payload = await request("/api/images");
   const images = decoderOf(RecentImagesResponse)(payload);
-  if (images === undefined) throw new Error("forme de réponse inattendue : images");
+  if (images === undefined) throw new Error("unexpected response shape: images");
   return images.images;
 };
 
@@ -438,8 +440,8 @@ export const sendPrompt = async (paneId: string, text: string): Promise<SendResu
     return {
       kind: "failed",
       message: expire
-        ? "Herdr n'a pas répondu dans les 15 s."
-        : `Connexion au démon interrompue (${cause instanceof Error ? cause.message : String(cause)}).`,
+        ? "Herdr did not respond within 15s."
+        : `Connection to the daemon interrupted (${cause instanceof Error ? cause.message : String(cause)}).`,
       state: "attente",
     };
   }
@@ -450,7 +452,7 @@ export const sendPrompt = async (paneId: string, text: string): Promise<SendResu
   } catch {
     return {
       kind: "failed",
-      message: `réponse illisible (${response.status})`,
+      message: `unreadable response (${response.status})`,
       state: "inconnu",
     };
   }
@@ -504,7 +506,7 @@ export const stopAgent = async (paneId: string): Promise<StopAgentResponse> => {
     throw new Error(erreurDe(payload, response.status));
   }
   const lu = decoderOf(StopAgentResponse)(payload);
-  if (lu === undefined) throw new Error("forme de réponse inattendue : arrêt");
+  if (lu === undefined) throw new Error("unexpected response shape: stop");
   return lu;
 };
 
@@ -539,7 +541,7 @@ export const sondeFluxSession = async (url: string): Promise<VerdictSondeFlux> =
       return type.includes("text/event-stream")
         ? { detail: null, nature: "passager" }
         : {
-            detail: `réponse ${type.length > 0 ? type : "sans type"} au lieu d'un flux`,
+            detail: `${type.length > 0 ? type : "untyped"} response instead of a stream`,
             nature: "route-absente",
           };
     }
@@ -551,7 +553,7 @@ export const sondeFluxSession = async (url: string): Promise<VerdictSondeFlux> =
     }
     const erreur = decodeError(corps);
     if (reponse.status === 404 || reponse.status === 405) {
-      if (reponse.status === 405 || erreur === undefined || erreur.error === "route inconnue") {
+      if (reponse.status === 405 || erreur === undefined || estRouteInconnue(erreur.error)) {
         return { detail: erreur?.error ?? null, nature: "route-absente" };
       }
       return { detail: erreur.error, nature: "pane" };
@@ -817,7 +819,7 @@ export const answerQuestion = async (
     payload = await readJson(response);
   } catch {
     return {
-      detail: `réponse illisible (${response.status})`,
+      detail: `unreadable response (${response.status})`,
       state: "refusee",
     };
   }
@@ -827,9 +829,9 @@ export const answerQuestion = async (
     const message =
       typeof payload === "object" && payload !== null && "error" in payload
         ? String((payload as { error?: unknown }).error)
-        : `échec (${response.status})`;
+        : `failed (${response.status})`;
     return {
-      detail: message.length > 0 ? message : `échec (${response.status})`,
+      detail: message.length > 0 ? message : `failed (${response.status})`,
       state: "refusee",
     };
   }
@@ -838,7 +840,7 @@ export const answerQuestion = async (
   const valeur = Option.getOrUndefined(decode(payload));
   return valeur === undefined
     ? {
-        detail: "réponse illisible : l'état n'a pas pu être lu",
+        detail: "unreadable response: the state could not be read",
         state: "refusee",
       }
     : { detail: valeur.detail, state: valeur.state };
@@ -867,7 +869,7 @@ export const focusAgent = async (paneId: string): Promise<AgentFocusedResponse> 
     throw new Error(erreurDe(payload, response.status));
   }
   const lu = decoderOf(AgentFocusedResponse)(payload);
-  if (lu === undefined) throw new Error("forme de réponse inattendue : focus");
-  if (!lu.focused) throw new Error("Herdr n'a pas appliqué le focus");
+  if (lu === undefined) throw new Error("unexpected response shape: focus");
+  if (!lu.focused) throw new Error("Herdr did not apply the focus");
   return lu;
 };

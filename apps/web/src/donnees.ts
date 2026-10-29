@@ -158,7 +158,7 @@ export const creeMagasinDonnees = (deps: DependancesDonnees): MagasinDonnees => 
       ["health", resultat.health],
       ["conversations", resultat.conversations],
     ] as const) {
-      if (!issue.ok) deps.signale?.(`lecture ${ressource} en échec`, { cause: issue.cause });
+      if (!issue.ok) deps.signale?.(`failed to read ${ressource}`, { cause: issue.cause });
     }
     publie({
       conversations: resultat.conversations.ok

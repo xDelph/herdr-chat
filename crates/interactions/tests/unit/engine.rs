@@ -185,7 +185,7 @@ fn le_moteur_du_prompt_rapporte_l_identité_reconnue() {
     match rendu {
         PromptEvidence::Unknown { detail, .. } => {
             assert!(
-                detail.contains("pas celle demandée"),
+                detail.contains("not the requested one"),
                 "le faux succès se rapporte en inconnu : {detail}"
             );
         }

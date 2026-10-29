@@ -396,7 +396,7 @@ impl LitSessions for LitSessionsViaPort {
         let Some(base) = source.base.as_ref() else {
             return Err(ErreurDeLecture {
                 benin: true,
-                cause: String::from("aucune base de session"),
+                cause: String::from("no session database"),
             });
         };
         let demande = SessionPageRequest {
@@ -456,7 +456,7 @@ impl LitSessions for LitSessionsViaPort {
             }
             SessionPageOutcome::Absente(_) => Err(ErreurDeLecture {
                 benin: true,
-                cause: String::from("session absente"),
+                cause: String::from("missing session"),
             }),
             SessionPageOutcome::Invalide { detail } => Err(ErreurDeLecture {
                 benin: false,

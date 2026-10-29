@@ -194,7 +194,7 @@ fn entree_de_cadre(
     cadre: &Cadre,
 ) -> Option<SessionEntry> {
     if cadre.hors_plafond {
-        let raison = format!("ligne trop grande ({} octets) ignorée", cadre.consomme);
+        let raison = format!("line too large ({} bytes) skipped", cadre.consomme);
         return Some(SessionEntry {
             kind: String::from("unknown"),
             id: None,
@@ -389,7 +389,7 @@ fn page_fichier_arriere(
     let identite = match identite_de(Path::new(&source.base)) {
         Ok(identite) => identite,
         Err(cause) if cause.kind() == std::io::ErrorKind::NotFound => {
-            return Err(historique_perime("fichier de session disparu"));
+            return Err(historique_perime("session file disappeared"));
         }
         Err(cause) => {
             return Ok(SessionPageOutcome::Io {
@@ -401,10 +401,10 @@ fn page_fichier_arriere(
         .fichier
         .is_some_and(|(dev, ino)| dev != identite.curseur.dev || ino != identite.curseur.ino)
     {
-        return Err(historique_perime("fichier de session remplacé"));
+        return Err(historique_perime("session file replaced"));
     }
     if position > identite.taille {
-        return Err(historique_perime("fichier de session tronqué"));
+        return Err(historique_perime("session file truncated"));
     }
     let curseur = CurseurFichier {
         dev: identite.curseur.dev,
@@ -460,7 +460,7 @@ fn page_sqlite(
 ) -> Result<SessionPageOutcome, ErreurDomaine> {
     let Some(identifiant) = source.session_id.as_ref() else {
         return Ok(SessionPageOutcome::Invalide {
-            detail: String::from("source SQLite sans identifiant de session"),
+            detail: String::from("SQLite source without a session id"),
         });
     };
     // Le curseur SQLite est la position `seq` ; `hc2:` la porte comme les
@@ -493,7 +493,7 @@ fn page_sqlite(
         Ok(ouvrier) => ouvrier,
         Err(cause) => {
             return Ok(SessionPageOutcome::Io {
-                detail: format!("base illisible : {cause}"),
+                detail: format!("unreadable database: {cause}"),
             });
         }
     };
@@ -556,7 +556,7 @@ fn page_sqlite(
         }
         _ => {
             return Ok(SessionPageOutcome::Invalide {
-                detail: format!("famille SQLite non composée : {famille}"),
+                detail: format!("SQLite family not composed: {famille}"),
             });
         }
     };
@@ -571,7 +571,7 @@ fn page_sqlite(
                 reserve.oublie(Path::new(&source.base), &ouvrier);
             }
             return Ok(SessionPageOutcome::Io {
-                detail: format!("lecture SQLite échouée ({famille}) : {cause:?}"),
+                detail: format!("SQLite read failed ({famille}): {cause:?}"),
             });
         }
     };
@@ -624,7 +624,7 @@ fn page_sqlite(
                 ..session
             }),
             Err(cause) => SessionPageOutcome::Io {
-                detail: format!("lecture SQLite échouée ({famille}) : {cause}"),
+                detail: format!("SQLite read failed ({famille}): {cause}"),
             },
         });
     }

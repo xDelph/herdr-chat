@@ -38,7 +38,7 @@ export const LigneTravail = memo(
       <output className="travail">
         <span className="spin" aria-hidden="true" />
         {debut === null ? (
-          <span>Travaille</span>
+          <span>Working</span>
         ) : (
           <span className="num">{chrono(maintenant - debut)}</span>
         )}
@@ -47,7 +47,7 @@ export const LigneTravail = memo(
             <span className="travail__sep" aria-hidden="true">
               ·
             </span>
-            <span className="num">{jetons(tour.jetons)} jetons</span>
+            <span className="num">{jetons(tour.jetons)} tokens</span>
           </>
         )}
         {action === null ? null : (

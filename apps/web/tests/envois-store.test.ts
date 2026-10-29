@@ -190,7 +190,7 @@ describe("T058 — les états du fil, sans mensonge", () => {
     await souffle();
     const envoi = magasin.liste("w1:p1")[0];
     expect(envoi?.state).toBe("uncertain");
-    expect(envoi?.detail).toContain("pas confirmé");
+    expect(envoi?.detail).toContain("did not confirm");
   });
 
   test("un double supprimé n'est PAS remis : état `suppressed`, jamais `delivered`", async () => {

@@ -68,7 +68,7 @@ export const LigneAgent = memo(
           {nonLue ? (
             <>
               <span className="ligne__point" aria-hidden="true" />
-              <span className="sr">Non lu : </span>
+              <span className="sr">Unread: </span>
             </>
           ) : null}
           {projet}
@@ -77,7 +77,7 @@ export const LigneAgent = memo(
         {auTravail ? (
           <Etat status="working">
             <span className="num">
-              {debut === undefined ? "Travaille" : chrono(maintenant - debut)}
+              {debut === undefined ? "Working" : chrono(maintenant - debut)}
             </span>
           </Etat>
         ) : attente !== null ? (
@@ -101,8 +101,8 @@ export const LigneAgent = memo(
         ) : conversation.sessionState !== "available" ? (
           <span className="ligne__texte ligne__texte--absent">
             {conversation.sessionState === "absent"
-              ? "Pas de session lisible pour cet agent"
-              : "Session illisible"}
+              ? "No readable session for this agent"
+              : "Unreadable session"}
           </span>
         ) : null}
         {reglages.length > 0 ? <span className="ligne__details">{reglages}</span> : null}

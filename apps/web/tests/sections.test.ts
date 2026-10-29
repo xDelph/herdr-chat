@@ -211,9 +211,9 @@ describe("U04 — structure et libellés", () => {
   });
 
   test("chaque section a un libellé exact", () => {
-    expect(SECTION_LABEL["a-traiter"]).toBe("Attend une décision");
-    expect(SECTION_LABEL["en-cours"]).toBe("En cours");
-    expect(SECTION_LABEL["recents"]).toBe("Récents");
+    expect(SECTION_LABEL["a-traiter"]).toBe("Needs you");
+    expect(SECTION_LABEL["en-cours"]).toBe("Working");
+    expect(SECTION_LABEL["recents"]).toBe("Recent");
   });
 
   test("la réponse est stable à conversation identique", () => {
@@ -434,7 +434,7 @@ describe("U18 — le dispatcher ne dérive pas", () => {
     // n'a plus de table à consulter.
     expect(
       groupesDe([ligne("w1:p1", "blocked", 1_000)], "recent", "statut", nomDeProjet)[0]?.titre,
-    ).toBe("Attend une décision");
+    ).toBe("Needs you");
   });
 });
 
@@ -466,8 +466,8 @@ describe("U18 — l'attention passe avant le rangement", () => {
     // `blocked` avant `working` : un agent bloqué demande une action, un agent
     // qui travaille n'en demande pas.
     expect(groupes.map((g) => g.cle)).toEqual(["a-traiter", "en-cours", "w2", "w1"]);
-    expect(groupes[0]?.titre).toBe("Attend une décision");
-    expect(groupes[1]?.titre).toBe("En cours");
+    expect(groupes[0]?.titre).toBe("Needs you");
+    expect(groupes[1]?.titre).toBe("Working");
   });
 
   test("le groupe d'un projet ne contient QUE ses agents au repos", () => {

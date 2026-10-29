@@ -57,12 +57,12 @@ pub fn erreur_de_snapshot(cause: &PortError) -> ErreurDomaine {
         PortError::Transport { detail } => {
             ErreurDomaine::amont_injoignable(format!("transport: {detail}"))
         }
-        PortError::Timeout => ErreurDomaine::delai_depasse("délai Herdr dépassé"),
+        PortError::Timeout => ErreurDomaine::delai_depasse("Herdr timed out"),
         PortError::Unsupported { feature } => {
-            ErreurDomaine::amont_malforme(format!("snapshot hors forme : {feature}"))
+            ErreurDomaine::amont_malforme(format!("malformed snapshot: {feature}"))
         }
         PortError::PathRejected { detail } => {
-            ErreurDomaine::chemin_refuse(format!("chemin refusé : {detail}"))
+            ErreurDomaine::chemin_refuse(format!("path refused: {detail}"))
         }
     }
 }

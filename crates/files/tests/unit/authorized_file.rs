@@ -120,7 +120,7 @@ fn un_repertoire_est_refuse_et_une_absence_est_indisponible() {
     let manquant = racine.join("absent.txt");
     match lit_fichier_autorise(&[racine.to_path_buf()], &manquant) {
         Err(ErreurFichier::Indisponible { raison }) => {
-            assert_eq!(raison, "fichier introuvable");
+            assert_eq!(raison, "file not found");
         }
         Err(ErreurFichier::Refuse { raison }) => {
             panic!("indisponible attendu, refus « {raison} »")
@@ -139,9 +139,9 @@ fn un_fichier_trop_gros_est_refuse_pas_tronque() {
     ecrit(&fichier, &contenu);
     match lit_fichier_autorise(&[racine.to_path_buf()], &fichier) {
         Err(ErreurFichier::Refuse { raison }) => {
-            assert!(raison.contains("trop gros"), "raison : {raison}");
+            assert!(raison.contains("too large"), "raison : {raison}");
             assert!(
-                raison.contains("12 Mo"),
+                raison.contains("12 MB"),
                 "taille réelle dans la raison : {raison}"
             );
         }

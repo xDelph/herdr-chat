@@ -175,7 +175,7 @@ async fn routes_non_servies(routes: &[contracts::registry::Route]) -> Vec<String
                 .await
                 .unwrap_or_else(|cause| panic!("corps lu : {cause:?}"));
             let corps: serde_json::Value = serde_json::from_slice(&octets).unwrap_or_default();
-            if corps["error"] == "route inconnue" {
+            if corps["error"] == "unknown route" {
                 manquantes.push(format!("{methode} {chemin} → repli route inconnue"));
             }
         }
@@ -326,7 +326,7 @@ async fn api_inconnu_json_404() {
         .unwrap_or_else(|cause| panic!("corps lu : {cause:?}"));
     let valeur: serde_json::Value = serde_json::from_slice(&octets)
         .unwrap_or_else(|cause| panic!("JSON illisible : {cause:?}"));
-    assert_eq!(valeur["error"], "route inconnue");
+    assert_eq!(valeur["error"], "unknown route");
 }
 
 /// Hors `/api` : les assets de la PWA (T054) — ici le faux en porte un, donc
@@ -418,7 +418,7 @@ fn la_cause_d_une_erreur_est_celle_du_corps_rendu() {
         cause_de_reponse(b"Web Push not configured"),
         "Web Push not configured"
     );
-    assert_eq!(cause_de_reponse(b""), "(corps vide)");
+    assert_eq!(cause_de_reponse(b""), "(empty body)");
     assert_eq!(
         cause_de_reponse("é".repeat(500).as_bytes()).chars().count(),
         300

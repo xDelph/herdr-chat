@@ -40,7 +40,7 @@ const Fichier = ({
         <button
           type="button"
           className="bouton-icone"
-          aria-label={`Ouvrir ${fichier.path}`}
+          aria-label={`Open ${fichier.path}`}
           onClick={() => onOuvrir(fichier.path)}
         >
           <Icone nom="file" petite />
@@ -50,7 +50,7 @@ const Fichier = ({
         fichier.edits.length > 0 ? (
           <Diff editions={fichier.edits.slice(0, 6)} />
         ) : (
-          <p className="discret">Écriture complète — ouvrez le fichier pour le lire.</p>
+          <p className="discret">Full rewrite — open the file to read it.</p>
         )
       ) : null}
     </li>
@@ -68,9 +68,9 @@ export const Fichiers = ({
   readonly onClose: () => void;
   readonly onOuvrir: (chemin: string) => void;
 }) => (
-  <Feuille titre="Fichiers modifiés" onClose={onClose}>
+  <Feuille titre="Changed files" onClose={onClose}>
     {fichiers.length === 0 ? (
-      <p className="discret">Aucune écriture dans la partie chargée de la session.</p>
+      <p className="discret">No writes in the loaded part of the session.</p>
     ) : (
       <ul className="fichiers">
         {fichiers.map((fichier) => (
@@ -79,7 +79,7 @@ export const Fichiers = ({
       </ul>
     )}
     <p className="discret">
-      D'après les outils déclarés dans la session chargée — pas une lecture du dépôt.
+      Based on the tools declared in the loaded session — not a read of the repository.
     </p>
   </Feuille>
 );

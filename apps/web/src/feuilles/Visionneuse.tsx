@@ -30,7 +30,7 @@ const Texte = ({ chemin }: { readonly chemin: string }) => {
             corps = undefined;
           }
           const lu = Option.getOrUndefined(lireErreur(corps));
-          if (vivant) setErreur(lu?.error ?? `lecture impossible (${String(reponse.status)})`);
+          if (vivant) setErreur(lu?.error ?? `could not read the file (${String(reponse.status)})`);
           return;
         }
         const brut = await reponse.text();
@@ -46,7 +46,7 @@ const Texte = ({ chemin }: { readonly chemin: string }) => {
 
   if (erreur !== null) return <Avis ton="erreur">{erreur}</Avis>;
   if (texte === null) {
-    return <output className="discret">Lecture…</output>;
+    return <output className="discret">Loading…</output>;
   }
   const lignes = texte.split("\n");
   return (
@@ -64,7 +64,7 @@ const Texte = ({ chemin }: { readonly chemin: string }) => {
         ))}
       </pre>
       {lignes.length > LIGNES_MAX ? (
-        <p className="discret">Seules les {LIGNES_MAX} premières lignes sont affichées.</p>
+        <p className="discret">Only the first {LIGNES_MAX} lines are shown.</p>
       ) : null}
     </>
   );
@@ -84,8 +84,7 @@ export const Visionneuse = ({
   const nom = distant ? (chemin.split("/").pop() ?? chemin) : baseName(chemin);
   const source = distant ? chemin : fileUrl(chemin);
   const retour = useMemo(
-    () =>
-      onRetour === undefined ? undefined : { action: onRetour, libelle: "Retour aux fichiers" },
+    () => (onRetour === undefined ? undefined : { action: onRetour, libelle: "Back to files" }),
     [onRetour],
   );
   return (
@@ -96,7 +95,7 @@ export const Visionneuse = ({
           type="button"
           className={zoom ? "visionneuse__image visionneuse__image--zoom" : "visionneuse__image"}
           onClick={() => setZoom((valeur) => !valeur)}
-          aria-label={zoom ? "Réduire l'image" : "Agrandir l'image"}
+          aria-label={zoom ? "Zoom out" : "Zoom in"}
         >
           <img src={source} alt={nom} />
         </button>

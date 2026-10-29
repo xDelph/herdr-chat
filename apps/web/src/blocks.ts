@@ -427,7 +427,7 @@ export const toSubagent = (
       exitCode: result.exitCode ?? null,
       id: result.id ?? "sa",
       model: result.model ?? null,
-      status: result.status ?? "inconnu",
+      status: result.status ?? "unknown",
       stopReason: result.stopReason ?? null,
     })),
   };

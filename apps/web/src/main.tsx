@@ -58,7 +58,7 @@ if ("serviceWorker" in navigator) {
 }
 
 const racine = document.getElementById("root");
-if (racine === null) throw new Error("élément #root introuvable");
+if (racine === null) throw new Error("#root element not found");
 
 createRoot(racine).render(
   <StrictMode>

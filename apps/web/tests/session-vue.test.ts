@@ -111,6 +111,6 @@ describe("une erreur de transport ne fait pas perdre la conversation", () => {
   test("la mention dit la cause réelle, sans la masquer", () => {
     const mention = mentionLecturePartielle("transport: 502");
     expect(mention).toContain("transport: 502");
-    expect(mention).toContain("Derniers messages connus");
+    expect(mention).toContain("Last known messages");
   });
 });

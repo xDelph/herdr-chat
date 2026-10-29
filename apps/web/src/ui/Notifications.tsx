@@ -30,7 +30,7 @@ export const Notifications = () => {
           <button
             type="button"
             className="notif__fermer"
-            aria-label="Fermer la notification"
+            aria-label="Dismiss the notification"
             onClick={() => notifications.ferme(notification.id)}
           >
             <Icone nom="x" />

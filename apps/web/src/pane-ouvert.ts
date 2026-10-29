@@ -52,13 +52,13 @@ export const raisonSansEnvoi = (etat: {
   readonly attente: "question" | "confiance" | null;
 }): string | null => {
   if (etat.presence === "disparu") {
-    return "Herdr ne connaît plus ce pane : rien ne peut lui être envoyé.";
+    return "Herdr no longer knows this pane: nothing can be sent to it.";
   }
   if (etat.attente === "confiance") {
-    return "Répondez d'abord à la demande d'accès ci-dessus : un message serait tapé dans l'invite de l'agent.";
+    return "Answer the access request above first: a message would be typed into the agent's prompt.";
   }
   if (etat.attente === "question") {
-    return "Répondez avec les choix ci-dessus : un message serait tapé dans l'invite de l'agent, pas comme réponse.";
+    return "Answer with the choices above: a message would be typed into the agent's prompt, not as an answer.";
   }
   /*
     ⚠️ Envoyer avant la première page faisait oublier la bulle à tort : son
@@ -66,7 +66,7 @@ export const raisonSansEnvoi = (etat: {
     l'historique plus ancien. On attend la page — c'est l'affaire d'un instant.
   */
   if (etat.phase === "chargement") {
-    return "Lecture de la conversation… l'envoi s'ouvre dès qu'elle est chargée.";
+    return "Reading the conversation… sending opens once it has loaded.";
   }
   return null;
 };

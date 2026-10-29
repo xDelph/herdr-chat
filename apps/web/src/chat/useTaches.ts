@@ -29,7 +29,7 @@ export const useListeTaches = (
         // Une liste illisible n'empêche pas de lire le fil : les cartes gardent
         // ce que leurs propres messages disent. La cause est journalisée, et la
         // feuille des tâches, elle, l'affiche.
-        reportError("tâches de fond illisibles", String(cause));
+        reportError("unreadable background tasks", String(cause));
       }
     };
     void lit();

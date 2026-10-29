@@ -286,14 +286,14 @@ pub fn preuve_de_prompt(valeur: &serde_json::Value, demandee: &str) -> PromptEvi
                 PartialStep::LiteralTextWritten,
                 PartialStep::EnterSequenceSent,
             ],
-            detail: format!("confirmation étrangère : {empreinte}"),
+            detail: format!("foreign confirmation: {empreinte}"),
         },
         None => PromptEvidence::Unknown {
             partial: vec![
                 PartialStep::LiteralTextWritten,
                 PartialStep::EnterSequenceSent,
             ],
-            detail: String::from("réponse sans empreinte : envoi non prouvé"),
+            detail: String::from("response without fingerprint: send not proven"),
         },
     }
 }
@@ -382,13 +382,13 @@ pub fn erreur_de_port(cause: &ErreurTransport) -> PortError {
             detail: detail.clone(),
         },
         ErreurTransport::Ferme => PortError::Transport {
-            detail: String::from("socket fermé par l'amont"),
+            detail: String::from("socket closed by upstream"),
         },
         ErreurTransport::CadreTropGrand => PortError::Transport {
-            detail: String::from("cadre au-delà de 16 MiB"),
+            detail: String::from("frame beyond 16 MiB"),
         },
         ErreurTransport::MauvaiseCorrelation { attendu, recu } => PortError::Transport {
-            detail: format!("corrélation rompue : attendu {attendu}, reçu {recu}"),
+            detail: format!("correlation broken: expected {attendu}, got {recu}"),
         },
     }
 }
@@ -550,7 +550,7 @@ impl ControlPort for PortHerdr {
         self.bloquant(move |client| {
             client
                 .texte_brut(&cible, &texte)
-                .map(|_| preuve_de_transport("texte écrit", PartialStep::LiteralTextWritten))
+                .map(|_| preuve_de_transport("text written", PartialStep::LiteralTextWritten))
         })
     }
 
@@ -560,7 +560,7 @@ impl ControlPort for PortHerdr {
         self.bloquant(move |client| {
             client
                 .touches(&cible, &touches)
-                .map(|_| preuve_de_transport("touches envoyées", PartialStep::KeysSent))
+                .map(|_| preuve_de_transport("keys sent", PartialStep::KeysSent))
         })
     }
 

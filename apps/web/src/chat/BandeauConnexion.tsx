@@ -37,7 +37,7 @@ export const BandeauConnexion = memo(() => {
         disabled={donnees.chargement}
         onClick={() => void magasin.rafraichit(true)}
       >
-        {donnees.chargement ? "Lecture…" : "Réessayer"}
+        {donnees.chargement ? "Loading…" : "Retry"}
       </button>
     );
 
@@ -45,16 +45,16 @@ export const BandeauConnexion = memo(() => {
     <output className={`bandeau-connexion bandeau-connexion--${etat.phase}`}>
       {etat.phase === "hors-ligne" ? (
         <span>
-          Hors ligne — dernière lecture à {heureLue(etat.dernierSucces) ?? "?"} · {etat.cause}
+          Offline — last read at {heureLue(etat.dernierSucces) ?? "?"} · {etat.cause}
         </span>
       ) : etat.phase === "reconnexion" ? (
         <span>
-          <span className="spin" aria-hidden="true" /> Reconnexion au direct… le fil peut avoir du
-          retard.
+          <span className="spin" aria-hidden="true" /> Reconnecting to live… the thread may lag
+          behind.
         </span>
       ) : (
         <span>
-          <span className="spin" aria-hidden="true" /> Connexion au démon…
+          <span className="spin" aria-hidden="true" /> Connecting to the daemon…
         </span>
       )}
       {reessayer}

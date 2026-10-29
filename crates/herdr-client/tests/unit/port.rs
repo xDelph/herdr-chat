@@ -224,7 +224,7 @@ fn la_confirmation_du_prompt_doit_etre_la_notre() {
     let etrangere = preuve_de_prompt(&json!({ "fingerprint": "autre" }), "abc");
     match etrangere {
         PromptEvidence::Unknown { detail, partial } => {
-            assert!(detail.contains("étrangère"), "{detail}");
+            assert!(detail.contains("foreign"), "{detail}");
             assert!(partial.contains(&PartialStep::LiteralTextWritten));
         }
         autre => panic!("une empreinte étrangère n'est pas une preuve : {autre:?}"),

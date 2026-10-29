@@ -7,16 +7,21 @@
  */
 import { memo, useState } from "react";
 import { fileUrl } from "../api.ts";
-import { estMessageDuHarnais, type Block, type Item, type RenderedMessage } from "../blocks.ts";
+import {
+  estMessageDuHarnais,
+  type Block,
+  type Item,
+  type RenderedMessage,
+} from "../blocks.ts";
 import { heureDe } from "../libelles.ts";
 import { Markdown } from "../Markdown.tsx";
 import { CarteRapport } from "./CarteRapport.tsx";
 import { GroupeOutils } from "./Outils.tsx";
 import { pleinEcran } from "../app/services.ts";
 
-const JOURS = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
+const JOURS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-/** « Aujourd'hui · 13:52 », « Hier · 18:04 », « lun. 26/10 · 09:00 ». */
+/** « Today · 13:52 », « Yesterday · 18:04 », « Mon 10/26 · 09:00 ». */
 export const repereDe = (iso: string | null, maintenant: number): string | null => {
   if (iso === null) return null;
   const date = new Date(iso);
@@ -25,16 +30,16 @@ export const repereDe = (iso: string | null, maintenant: number): string | null 
   const jour = new Date(date.getFullYear(), date.getMonth(), date.getDate()).getTime();
   const auj = new Date(maintenant);
   const aujourdhui = new Date(auj.getFullYear(), auj.getMonth(), auj.getDate()).getTime();
-  if (jour === aujourdhui) return `Aujourd'hui · ${heure}`;
-  if (aujourdhui - jour === 86_400_000) return `Hier · ${heure}`;
+  if (jour === aujourdhui) return `Today · ${heure}`;
+  if (aujourdhui - jour === 86_400_000) return `Yesterday · ${heure}`;
   const jj = String(date.getDate()).padStart(2, "0");
   const mm = String(date.getMonth() + 1).padStart(2, "0");
-  return `${JOURS[date.getDay()] ?? ""} ${jj}/${mm} · ${heure}`;
+  return `${JOURS[date.getDay()] ?? ""} ${mm}/${jj} · ${heure}`;
 };
 
 const ImageCitee = ({ source, libelle }: { readonly source: string; readonly libelle: string }) => {
   const [rate, setRate] = useState(false);
-  if (rate) return <p className="discret">Image indisponible : {libelle}</p>;
+  if (rate) return <p className="discret">Image unavailable: {libelle}</p>;
   return (
     <button
       type="button"
@@ -57,10 +62,10 @@ const BlocProse = ({ block }: { readonly block: Block }) => {
         <button
           type="button"
           className="fil__vignette"
-          onClick={() => pleinEcran.ouvre({ legende: "Pièce jointe", source })}
-          aria-label="Afficher la pièce jointe en plein écran"
+          onClick={() => pleinEcran.ouvre({ legende: "Attachment", source })}
+          aria-label="Show attachment full screen"
         >
-          <img src={source} alt="Pièce jointe" />
+          <img src={source} alt="Attachment" />
         </button>
       );
     }
@@ -91,7 +96,7 @@ const Demande = ({
       <div className="moi" data-demande="">
         <p className="moi__texte">{texte}</p>
         {message.meta["pendantTour"] === "1" ? (
-          <span className="moi__etat">envoyé pendant le travail</span>
+          <span className="moi__etat">sent during the turn</span>
         ) : null}
         {message.blocks
           .filter((block) => block.kind !== "text")

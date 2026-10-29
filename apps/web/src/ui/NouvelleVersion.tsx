@@ -30,9 +30,9 @@ export const NouvelleVersion = () => {
   if (!nouvelle || enAttente || unBrouillonExiste()) return null;
   return (
     <output className="nouvelle-version">
-      Nouvelle version disponible
+      New version available
       <button type="button" className="lien" onClick={() => window.location.reload()}>
-        Recharger
+        Reload
       </button>
     </output>
   );

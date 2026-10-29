@@ -129,9 +129,7 @@ fn kind_de(commande: &str, cible: &str) -> String {
 pub fn valide(choice: &LaunchChoice) -> Result<ValidatedArgs, PortError> {
     let Some(nom) = choice.name.clone() else {
         return Err(PortError::Unsupported {
-            feature: String::from(
-                "nom automatique : la politique de nom appartient au moteur de lancement",
-            ),
+            feature: String::from("automatic name: the naming policy belongs to the launch engine"),
         });
     };
     let args = construit_args(

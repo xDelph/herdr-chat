@@ -347,33 +347,33 @@ export const Fil = memo(
             {items.length > 0 ? (
               <div className="fil__haut">
                 {vue.chargementAncien ? (
-                  <output className="fil__info">Chargement de l'historique…</output>
+                  <output className="fil__info">Loading history…</output>
                 ) : vue.precedent === null ? (
-                  <p className="fil__info">Début de la conversation</p>
+                  <p className="fil__info">Start of the conversation</p>
                 ) : null}
               </div>
             ) : null}
             {vue.erreurAncien === null ? null : (
               <p className="fil__info fil__info--erreur" role="alert">
-                Historique illisible : {vue.erreurAncien}{" "}
+                Unreadable history: {vue.erreurAncien}{" "}
                 <button type="button" className="lien" onClick={chargeAncien}>
-                  Réessayer
+                  Retry
                 </button>
               </p>
             )}
             {items.length > 0 ? null : vue.phase === "chargement" ? (
-              <output className="fil__info">Lecture de la conversation…</output>
+              <output className="fil__info">Loading the conversation…</output>
             ) : vue.phase === "erreur" ? (
               <Avis ton="erreur" annonce="alerte">
-                Conversation illisible : {vue.erreur}
+                Unreadable conversation: {vue.erreur}
               </Avis>
             ) : envoisEnAttente === 0 ? (
               <div className="fil__vide">
-                <strong>Aucun message</strong>
+                <strong>No messages</strong>
                 <p className="discret">
                   {aUneSession
-                    ? "La session est vide pour l'instant."
-                    : "Herdr n'expose pas encore de session pour cet agent : certains agents ne l'annoncent qu'après leur premier message."}
+                    ? "The session is empty for now."
+                    : "Herdr does not expose a session for this agent yet: some agents only announce it after their first message."}
                 </p>
               </div>
             ) : null}
@@ -401,11 +401,9 @@ export const Fil = memo(
             type="button"
             className={nouveaux ? "fil__bas fil__bas--nouveaux" : "fil__bas"}
             onClick={versLeBas}
-            aria-label={
-              nouveaux ? "Nouveaux messages — aller en bas" : "Aller aux derniers messages"
-            }
+            aria-label={nouveaux ? "New messages — jump to bottom" : "Jump to latest messages"}
           >
-            {nouveaux ? <span>Nouveaux messages</span> : null}
+            {nouveaux ? <span>New messages</span> : null}
             <Icone nom="down" petite={nouveaux} />
           </button>
         ) : null}

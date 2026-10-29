@@ -169,8 +169,8 @@ export const creeMagasinEnvois = (lance: Lanceur, planifie: Planificateur): Maga
         remplace(id, {
           detail:
             resultat.confirmation === "confirmed"
-              ? "Herdr a confirmé la réception du message."
-              : "Herdr n'a pas confirmé la réception du message.",
+              ? "Herdr confirmed receipt of the message."
+              : "Herdr did not confirm receipt of the message.",
           state: resultat.confirmation === "confirmed" ? "delivered" : "uncertain",
         });
         return;
@@ -211,7 +211,7 @@ export const creeMagasinEnvois = (lance: Lanceur, planifie: Planificateur): Maga
       // ne devient pas un succès parce qu'un autre prompt est passé.
       if (envoi.state !== "sending" && envoi.state !== "uncertain") continue;
       remplace(id, {
-        detail: "Herdr a publié la remise du message pour ce pane.",
+        detail: "Herdr reported the message delivered to this pane.",
         state: "delivered",
       });
       resolus += 1;

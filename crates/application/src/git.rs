@@ -74,7 +74,7 @@ impl ProcessusReel {
         let mut tube = enfant
             .stdout
             .take()
-            .ok_or_else(|| String::from("git n'a pas ouvert sa sortie (forme inattendue)"))?;
+            .ok_or_else(|| String::from("git did not open its output (unexpected shape)"))?;
         let (emetteur, recepteur) = mpsc::channel();
         std::thread::spawn(move || {
             let mut capturé = Vec::new();

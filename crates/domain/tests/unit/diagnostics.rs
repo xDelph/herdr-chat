@@ -42,7 +42,7 @@ fn le_diagnostic_refuse_les_cles_privees_nommeement() {
     let erreur = ErreurDomaine::sature("plafond de flux atteint");
     let refusee = erreur.avec_entree("cle-privee", "matériel");
     match refusee {
-        Err(motif) => assert!(motif.contains("privé"), "le refus dit pourquoi : {motif}"),
+        Err(motif) => assert!(motif.contains("private"), "le refus dit pourquoi : {motif}"),
         Ok(_) => panic!("une clé « cle-privee » doit être refusée, pas insérée"),
     }
     for cle in [
@@ -70,12 +70,11 @@ fn le_diagnostic_refuse_les_cles_privees_nommeement() {
 #[test]
 fn les_messages_sur_remplacent_les_identifiants_mesures() {
     assert!(
-        supprime_identifiants("l'envoi a échoué sur wA:p7")
-            == "l'envoi a échoué sur le nouvel onglet",
+        supprime_identifiants("l'envoi a échoué sur wA:p7") == "l'envoi a échoué sur the new tab",
         "wX:pY → le nouvel onglet"
     );
     assert!(
-        supprime_identifiants("l'onglet wB:t3 est occupé") == "l'onglet son onglet est occupé",
+        supprime_identifiants("l'onglet wB:t3 est occupé") == "l'onglet its tab est occupé",
         "wX:tY → son onglet"
     );
     assert!(
@@ -92,7 +91,7 @@ fn les_messages_sur_remplacent_les_identifiants_mesures() {
         "sans w préfixe ni p/t de sens, rien ne bouge"
     );
     assert!(
-        supprime_identifiants("adresse http://wA:p7x/fin") == "adresse http://le nouvel onglet/fin",
+        supprime_identifiants("adresse http://wA:p7x/fin") == "adresse http://the new tab/fin",
         "les frontières de mots sont celles du fil"
     );
 }
@@ -114,12 +113,12 @@ fn le_message_sur_plafonne_a_300_et_ne_sait_pas_vide() {
     );
     let erreur = ErreurDomaine::amont_injoignable("   ");
     assert!(
-        erreur.message_sur() == "erreur sans message",
+        erreur.message_sur() == "error without a message",
         "jamais un message vide"
     );
     let erreur = ErreurDomaine::amont_injoignable("pane_id=wA:p7");
     assert!(
-        erreur.message_sur() == "erreur sans message",
+        erreur.message_sur() == "error without a message",
         "tout retiré → le repli parle"
     );
 }

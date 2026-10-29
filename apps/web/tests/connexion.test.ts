@@ -26,8 +26,8 @@ describe("connexion : Connexion ≠ Reconnexion ≠ Hors ligne", () => {
   test("le flux est tombé : reconnexion, pas « connexion »", () => {
     const etat = etatConnexion({ ...base, direct: "down" });
     expect(etat.phase).toBe("reconnexion");
-    expect(LIBELLE_CONNEXION[etat.phase]).toBe("Reconnexion…");
-    expect(LIBELLE_CONNEXION.connexion).toBe("Connexion…");
+    expect(LIBELLE_CONNEXION[etat.phase]).toBe("Reconnecting…");
+    expect(LIBELLE_CONNEXION.connexion).toBe("Connecting…");
   });
 
   test("la liste ne se lit plus : hors ligne, avec la cause réelle", () => {
@@ -89,7 +89,7 @@ describe("une lecture ratée de la liste part au journal", () => {
     });
     await magasin.rafraichit();
     expect(signales).toEqual([
-      { detail: { cause: "Load failed" }, message: "lecture conversations en échec" },
+      { detail: { cause: "Load failed" }, message: "failed to read conversations" },
     ]);
   });
 });

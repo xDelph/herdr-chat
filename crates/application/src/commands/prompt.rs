@@ -79,14 +79,14 @@ impl std::fmt::Display for RefusEnvoi {
             RefusEnvoi::Doublon { empreinte, cible } => {
                 write!(
                     f,
-                    "doublon confirmé dans la fenêtre ({cible}) : {empreinte}"
+                    "duplicate confirmed within the window ({cible}): {empreinte}"
                 )
             }
             RefusEnvoi::NonConfirme { cible, detail, .. } => {
-                write!(f, "envoi non confirmé ({cible}) : {detail}")
+                write!(f, "send not confirmed ({cible}): {detail}")
             }
             RefusEnvoi::Sature { cible, detail } => {
-                write!(f, "file du pane saturée ({cible}) : {detail}")
+                write!(f, "pane queue saturated ({cible}): {detail}")
             }
         }
     }

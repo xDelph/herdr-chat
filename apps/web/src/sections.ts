@@ -28,9 +28,9 @@ export type Section = (typeof SECTIONS)[number];
 
 /** Libellés exacts, utilisés par l'interface. */
 export const SECTION_LABEL: Record<Section, string> = {
-  "a-traiter": "Attend une décision",
-  "en-cours": "En cours",
-  recents: "Récents",
+  "a-traiter": "Needs you",
+  "en-cours": "Working",
+  recents: "Recent",
 };
 
 /**
@@ -89,7 +89,7 @@ export const sectionDe = (conversation: ConversationSummary): Section => {
  */
 /** Comparateur par nom, avec repli sur `paneId` : l'ordre reste déterministe. */
 const comparerParNom = (a: ConversationSummary, b: ConversationSummary): number =>
-  nomDe(a).localeCompare(nomDe(b), "fr", { sensitivity: "base" }) ||
+  nomDe(a).localeCompare(nomDe(b), "en", { sensitivity: "base" }) ||
   a.paneId.localeCompare(b.paneId);
 
 const comparerParDate = (a: ConversationSummary, b: ConversationSummary): number => {
@@ -119,8 +119,8 @@ export type Ordre = (typeof ORDRES)[number];
 
 /** Libellés exacts, utilisés par le sélecteur. */
 export const ORDRE_LABEL: Record<Ordre, string> = {
-  recent: "Plus récent",
-  nom: "Par nom",
+  recent: "Most recent",
+  nom: "By name",
 };
 
 /**
@@ -303,7 +303,7 @@ const comparerGroupesParDate = (a: Groupe, b: Groupe): number => {
 };
 
 const comparerGroupesParTitre = (a: Groupe, b: Groupe): number =>
-  a.titre.localeCompare(b.titre, "fr", { sensitivity: "base" }) || a.cle.localeCompare(b.cle);
+  a.titre.localeCompare(b.titre, "en", { sensitivity: "base" }) || a.cle.localeCompare(b.cle);
 
 /** Nombre de conversations d'un groupe, pour l'en-tête. */
 export const countOf = (groupes: ReadonlyArray<Groupe>, cle: string): number =>

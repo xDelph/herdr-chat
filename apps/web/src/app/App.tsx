@@ -40,7 +40,7 @@ const Conversation = lazy(async () => {
 
 const ATTENTE_CONVERSATION = (
   <section className="conversation" aria-busy="true">
-    <output className="fil__info conversation__attente">Ouverture de la conversation…</output>
+    <output className="fil__info conversation__attente">Opening the conversation…</output>
   </section>
 );
 
@@ -184,7 +184,7 @@ export const App = () => {
       />
       {paneOuvert === null ? (
         <div className="vide-large">
-          <p>Choisissez une conversation, ou lancez un agent avec +.</p>
+          <p>Choose a conversation, or launch an agent with +.</p>
         </div>
       ) : (
         <Suspense fallback={ATTENTE_CONVERSATION}>

@@ -65,7 +65,7 @@ impl SourceDeVues for VuesDesServices {
             .services
             .snapshots
             .lecture()
-            .map_err(|cause| format!("observation indisponible : {cause:?}"))?;
+            .map_err(|cause| format!("observation unavailable: {cause:?}"))?;
         let vue = ComposeurOverview::nouveau().compose(&borne, self.services.resout.as_ref());
         Ok(vue.agents)
     }

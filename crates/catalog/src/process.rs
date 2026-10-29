@@ -75,12 +75,10 @@ pub enum ErreurProcess {
 impl std::fmt::Display for ErreurProcess {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ErreurProcess::Delai => {
-                f.write_str("délai de commande dépassé (enfant tué et ramassé)")
-            }
-            ErreurProcess::SortieTropGrande => f.write_str("sortie au-delà de la borne"),
-            ErreurProcess::Annule => f.write_str("commande annulée"),
-            ErreurProcess::Lancement(detail) => write!(f, "lancement : {detail}"),
+            ErreurProcess::Delai => f.write_str("command timed out (child killed and reaped)"),
+            ErreurProcess::SortieTropGrande => f.write_str("output beyond the limit"),
+            ErreurProcess::Annule => f.write_str("command cancelled"),
+            ErreurProcess::Lancement(detail) => write!(f, "launch: {detail}"),
         }
     }
 }
@@ -115,7 +113,7 @@ pub fn execute(
     annulation: &Annulation,
 ) -> Result<Resultat, ErreurProcess> {
     let Some(programme) = argv.first() else {
-        return Err(ErreurProcess::Lancement(String::from("argv vide")));
+        return Err(ErreurProcess::Lancement(String::from("empty argv")));
     };
     let mut enfant = Command::new(programme)
         .args(&argv[1..])

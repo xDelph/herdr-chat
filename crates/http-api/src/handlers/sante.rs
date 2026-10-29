@@ -42,7 +42,7 @@ async fn sante_sur_place(
                     cause: Field(None),
                     error: erreur.message_sur(),
                     hint: Field::de_option(Some(format!(
-                        "code diagnostic : {}",
+                        "diagnostic code: {}",
                         erreur.diagnostic.code
                     ))),
                 };
@@ -82,10 +82,7 @@ pub fn reponse_erreur_500(erreur: &ErreurDomaine) -> axum::response::Response {
     let corps = ApiErrorResponse {
         cause: Field(None),
         error: erreur.message_sur(),
-        hint: Field::de_option(Some(format!(
-            "code diagnostic : {}",
-            erreur.diagnostic.code
-        ))),
+        hint: Field::de_option(Some(format!("diagnostic code: {}", erreur.diagnostic.code))),
     };
     (
         axum::http::StatusCode::INTERNAL_SERVER_ERROR,

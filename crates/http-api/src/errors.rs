@@ -29,10 +29,7 @@ pub fn corps(erreur: &ErreurDomaine) -> ApiErrorResponse {
     ApiErrorResponse {
         cause: Field(None),
         error: erreur.message_sur(),
-        hint: Field::de_option(Some(format!(
-            "code diagnostic : {}",
-            erreur.diagnostic.code
-        ))),
+        hint: Field::de_option(Some(format!("diagnostic code: {}", erreur.diagnostic.code))),
     }
 }
 
@@ -43,10 +40,7 @@ pub fn corps_de_lecture(cause: ReadCause, erreur: &ErreurDomaine) -> ApiErrorRes
     ApiErrorResponse {
         cause: Field::de_option(Some(cause)),
         error: erreur.message_sur(),
-        hint: Field::de_option(Some(format!(
-            "code diagnostic : {}",
-            erreur.diagnostic.code
-        ))),
+        hint: Field::de_option(Some(format!("diagnostic code: {}", erreur.diagnostic.code))),
     }
 }
 

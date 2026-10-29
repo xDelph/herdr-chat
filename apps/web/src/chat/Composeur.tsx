@@ -115,14 +115,14 @@ export const Composeur = memo(
       >
         <div className="composeur__champ">
           <label className="sr" htmlFor={id}>
-            Message à {agentNom}
+            Message {agentNom}
           </label>
           <textarea
             ref={champ}
             id={id}
             rows={1}
             value={brouillon}
-            placeholder={inactif ? "Pane fermé" : `Message à ${agentNom}…`}
+            placeholder={inactif ? "Pane closed" : `Message ${agentNom}…`}
             disabled={inactif}
             aria-describedby={aide === null || aide === "" ? undefined : `${id}-aide`}
             // Entrée insère une ligne : la touche du clavier le dit.
@@ -141,7 +141,7 @@ export const Composeur = memo(
             <button
               type="button"
               className="rond rond--stop"
-              aria-label="Arrêter l'agent"
+              aria-label="Stop the agent"
               disabled={arretEnCours}
               onClick={onArrete}
             >
@@ -152,7 +152,7 @@ export const Composeur = memo(
             <button
               type="submit"
               className="rond rond--envoi"
-              aria-label="Envoyer"
+              aria-label="Send"
               disabled={vide || bloque}
             >
               <Icone nom="up" />

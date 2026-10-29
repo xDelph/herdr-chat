@@ -161,7 +161,7 @@ fn demarre(cibles: &[PathBuf], filet: Duration) -> Etat {
         Ok(surveillant) => Some(surveillant),
         Err(cause) => {
             tracing::warn!(%cause, "observation de session : filet seul");
-            degradations.push(format!("observation système indisponible : {cause}"));
+            degradations.push(format!("system watch unavailable: {cause}"));
             None
         }
     };
@@ -172,7 +172,9 @@ fn demarre(cibles: &[PathBuf], filet: Duration) -> Etat {
             filet,
         ))),
         Err(_) => {
-            degradations.push(String::from("filet indisponible hors runtime"));
+            degradations.push(String::from(
+                "polling fallback unavailable outside a runtime",
+            ));
             None
         }
     };

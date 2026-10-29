@@ -76,7 +76,7 @@ export const Feuille = ({
             </button>
           )}
           <h2 id={idTitre}>{titre}</h2>
-          <button type="button" className="bouton-icone" onClick={onClose} aria-label="Fermer">
+          <button type="button" className="bouton-icone" onClick={onClose} aria-label="Close">
             <Icone nom="x" />
           </button>
         </header>

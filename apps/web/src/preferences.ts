@@ -24,8 +24,8 @@ export const THEME_DEFAUT: Theme = "auto";
 
 export const THEME_LABEL: Record<Theme, string> = {
   auto: "Auto",
-  clair: "Clair",
-  sombre: "Sombre",
+  clair: "Light",
+  sombre: "Dark",
 };
 
 const CLE_THEME = "herdr-chat.theme";
@@ -101,8 +101,8 @@ export type Groupement = (typeof GROUPEMENTS)[number];
 export const GROUPEMENT_DEFAUT: Groupement = "statut";
 
 export const GROUPEMENT_LABEL: Record<Groupement, string> = {
-  projet: "Par projet",
-  statut: "Par état",
+  projet: "By project",
+  statut: "By status",
 };
 
 export const estGroupement = (valeur: string | null | undefined): valeur is Groupement =>
@@ -152,7 +152,7 @@ export type StyleMarque = (typeof STYLES_MARQUE)[number];
 
 export const STYLE_MARQUE_LABEL: Record<StyleMarque, string> = {
   standard: "Standard",
-  theme: "Couleur du thème",
+  theme: "Theme color",
 };
 
 export const styleMarqueEnregistre = (valeur: string | null | undefined): StyleMarque =>

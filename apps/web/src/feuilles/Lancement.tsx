@@ -44,12 +44,12 @@ const Confiance = ({ demande }: { readonly demande: TrustRequired }) => {
   return (
     <div className="carte">
       <p className="carte__q">
-        {marqueAgent(demande.kind).nom} demande l'accès au dossier{" "}
+        {marqueAgent(demande.kind).nom} requests access to the folder{" "}
         <span className="mono">{demande.folder}</span>
       </p>
       <p className="discret">
-        Il pourra y lire, écrire et exécuter du code sans redemander. Le choix est enregistré sur le
-        Mac.
+        It will be able to read, write and run code there without asking again. The choice is saved
+        on the Mac.
       </p>
       <div className="carte__options">
         <button
@@ -58,7 +58,7 @@ const Confiance = ({ demande }: { readonly demande: TrustRequired }) => {
           disabled={occupe}
           onClick={() => void faireConfiance(demande.paneId, demande.folder, true)}
         >
-          Faire confiance
+          Trust
         </button>
         <button
           type="button"
@@ -69,7 +69,7 @@ const Confiance = ({ demande }: { readonly demande: TrustRequired }) => {
           {libelleRefus(demande.kind)}
         </button>
       </div>
-      <IssueAction issue={issue} enCours="Envoi de la décision…" />
+      <IssueAction issue={issue} enCours="Sending the decision…" />
     </div>
   );
 };
@@ -193,16 +193,16 @@ export const Lancement = ({
   };
 
   return (
-    <Feuille titre="Nouvel agent" onClose={onClose}>
+    <Feuille titre="New agent" onClose={onClose}>
       <fieldset className="champ">
-        <legend>Projet</legend>
+        <legend>Project</legend>
         {espaces.length === 0 ? (
-          <Avis ton="attention">Aucun projet ouvert dans Herdr.</Avis>
+          <Avis ton="attention">No project open in Herdr.</Avis>
         ) : (
           <select
             className="choix-liste"
             value={espace}
-            aria-label="Projet"
+            aria-label="Project"
             onChange={(evenement) => setEspace(evenement.target.value)}
           >
             {espaces.map((candidat) => (
@@ -219,17 +219,17 @@ export const Lancement = ({
         <legend>Agent</legend>
         {kinds === null ? (
           erreurKinds === null ? (
-            <p className="discret">Lecture des agents installés…</p>
+            <p className="discret">Loading installed agents…</p>
           ) : (
             <Avis ton="erreur">
-              Agents installés illisibles : {erreurKinds}
+              Unreadable installed agents: {erreurKinds}
               <button type="button" className="lien" onClick={() => void magasin.lectureDesKinds()}>
-                Réessayer
+                Retry
               </button>
             </Avis>
           )
         ) : kinds.length === 0 ? (
-          <Avis ton="attention">Herdr ne signale aucun agent installé.</Avis>
+          <Avis ton="attention">Herdr reports no installed agent.</Avis>
         ) : (
           <div className="types">
             {kinds.map((candidat) => (
@@ -239,7 +239,7 @@ export const Lancement = ({
                 className="type"
                 aria-pressed={kind === candidat.kind}
                 onClick={() => choisirKind(candidat.kind)}
-                title={candidat.state === "current" ? undefined : `état : ${candidat.state}`}
+                title={candidat.state === "current" ? undefined : `state: ${candidat.state}`}
               >
                 <Marque kind={candidat.kind} />
                 {marqueAgent(candidat.kind).nom}
@@ -252,24 +252,24 @@ export const Lancement = ({
 
       {kind === "" ? null : (
         <fieldset className="champ">
-          <legend>Modèle</legend>
+          <legend>Model</legend>
           {lecture === "en-cours" ? (
-            <output className="discret">Lecture du catalogue de {kind}…</output>
+            <output className="discret">Loading the {kind} catalog…</output>
           ) : erreurCatalogue !== null ? (
             <Avis ton="erreur">
-              Catalogue de {kind} illisible : {erreurCatalogue}
+              Unreadable {kind} catalog: {erreurCatalogue}
             </Avis>
           ) : catalogue === null || catalogue.models.length === 0 ? (
             <p className="discret">
-              {catalogue?.error ?? `Aucun catalogue vérifié pour ${kind}`} — l'agent démarrera avec
-              ses propres valeurs.
+              {catalogue?.error ?? `No verified catalog for ${kind}`} — the agent will start with
+              its own defaults.
             </p>
           ) : (
             <>
               {kind === "pi" ? (
                 <select
                   className="choix-liste"
-                  aria-label="Fournisseur"
+                  aria-label="Provider"
                   value={fournisseur ?? ""}
                   onChange={(evenement) => {
                     setFournisseur(evenement.target.value || null);
@@ -278,7 +278,7 @@ export const Lancement = ({
                     setFiltre("");
                   }}
                 >
-                  <option value="">Modèle par défaut de Pi</option>
+                  <option value="">Pi's default model</option>
                   {fournisseurs.map((candidat) => (
                     <option key={candidat} value={candidat}>
                       {candidat}
@@ -290,8 +290,8 @@ export const Lancement = ({
                 <input
                   type="search"
                   className="champ__filtre"
-                  placeholder={`Filtrer ${String(catalogue.models.length)} modèles…`}
-                  aria-label="Filtrer les modèles"
+                  placeholder={`Filter ${String(catalogue.models.length)} models…`}
+                  aria-label="Filter models"
                   value={filtre}
                   onChange={(evenement) => setFiltre(evenement.target.value)}
                 />
@@ -308,7 +308,7 @@ export const Lancement = ({
                         setReflexion("");
                       }}
                     />
-                    <span>Par défaut de l'agent</span>
+                    <span>Agent default</span>
                   </label>
                   {visibles.slice(0, MAX_MODELES_AFFICHES).map((candidat) => (
                     <label key={candidat.id} className="modele">
@@ -327,7 +327,7 @@ export const Lancement = ({
                     </label>
                   ))}
                   {filtre.length > 0 && visibles.length === 0 ? (
-                    <p className="discret modele">Aucun modèle ne contient « {filtre} ».</p>
+                    <p className="discret modele">No model contains “{filtre}”.</p>
                   ) : null}
                 </div>
               ) : null}
@@ -338,10 +338,10 @@ export const Lancement = ({
 
       {choisi === undefined || choisi.thinkingLevels.length === 0 ? null : (
         <fieldset className="champ">
-          <legend>Réflexion</legend>
-          <fieldset className="seg seg--plein" aria-label="Niveau de réflexion">
+          <legend>Thinking</legend>
+          <fieldset className="seg seg--plein" aria-label="Thinking level">
             <button type="button" aria-pressed={reflexion === ""} onClick={() => setReflexion("")}>
-              Défaut
+              Default
             </button>
             {choisi.thinkingLevels.map((niveau) => (
               <button
@@ -360,7 +360,7 @@ export const Lancement = ({
       {verdict.envoyable ? null : <Avis ton="erreur">{verdict.raison}</Avis>}
       {echec === null ? null : (
         <Avis ton="erreur" annonce="alerte">
-          Lancement impossible : {echec}
+          Launch failed: {echec}
         </Avis>
       )}
       {confiance === null ? null : <Confiance demande={confiance} />}
@@ -370,7 +370,7 @@ export const Lancement = ({
           className="bouton bouton--plein"
           onClick={() => onLance(confiance.paneId)}
         >
-          Ouvrir l'agent
+          Open the agent
         </button>
       ) : (
         <button
@@ -379,12 +379,12 @@ export const Lancement = ({
           disabled={!verdict.envoyable || lancement === "en-cours" || espace === "" || kind === ""}
           onClick={() => void lancer()}
         >
-          {lancement === "en-cours" ? "Lancement…" : "Lancer dans un nouvel onglet"}
+          {lancement === "en-cours" ? "Launching…" : "Launch in a new tab"}
         </button>
       )}
       <p className="discret">
-        Herdr ne change pas le modèle d'un agent déjà lancé ; ensuite, la commande passe par le menu
-        « Modèle et réflexion ».
+        Herdr does not change the model of an agent already running; after launch, use the “Model
+        and thinking” menu.
       </p>
     </Feuille>
   );

@@ -39,27 +39,27 @@ export const expliquerEchec = (etat: EtatEchecAffiche, message: string): Explica
   switch (etat) {
     case "attente":
       return {
-        texte: `Non confirmé — le message est peut-être parti.${suite}`,
+        texte: `Not confirmed — the message may have gone through.${suite}`,
         // Renvoyer plutôt que retaper : la saisie est encore là, et Herdr
         // ignorera un doublon identique.
-        action: "Réessayer",
+        action: "Retry",
       };
     case "erreur":
       return {
-        texte: `Envoi refusé —${suite.length > 0 ? suite : " sans cause donnée"}`,
-        action: "Modifier le message",
+        texte: `Send rejected —${suite.length > 0 ? suite : " no reason given"}`,
+        action: "Edit message",
       };
     case "inconnu":
       return {
-        texte: `Aucune réponse d'Herdr — remise inconnue.${suite}`,
+        texte: `No response from Herdr — delivery unknown.${suite}`,
         // Le risque est dans le libellé : c'est précisément ce que l'écran ne
         // peut pas trancher, donc l'utilisateur décide en le sachant.
-        action: "Renvoyer (doublon possible)",
+        action: "Resend (may duplicate)",
       };
     case "hors-ligne":
       return {
-        texte: `Hors ligne : rien n'est parti.${suite}`,
-        action: "Réessayer",
+        texte: `Offline: nothing was sent.${suite}`,
+        action: "Retry",
       };
   }
 
@@ -69,7 +69,7 @@ export const expliquerEchec = (etat: EtatEchecAffiche, message: string): Explica
     se voir, pas disparaître en silence.
   */
   return {
-    texte: `Envoi en échec, état inconnu : ${String(etat)}`,
+    texte: `Send failed, unknown state: ${String(etat)}`,
     action: null,
   };
 };
@@ -86,15 +86,15 @@ export type EtatEchecAffiche = "attente" | "erreur" | "inconnu" | "hors-ligne";
  */
 export const expliquerEnvoi = (confirmation: "confirmed" | "unknown"): Explication =>
   confirmation === "confirmed"
-    ? { texte: "Envoyé, remise confirmée par Herdr", action: null }
-    : { texte: "Envoyé, remise non confirmée", action: null };
+    ? { texte: "Sent, delivery confirmed by Herdr", action: null }
+    : { texte: "Sent, delivery not confirmed", action: null };
 
 /**
  * Un double envoi supprimé : un état **normal**, jamais une alerte rouge — mais
  * jamais non plus un envoi : rien n'est parti.
  */
 export const NON_ENVOYE_DOUBLON =
-  "Non envoyé : identique à un message déjà remis il y a moins d'une minute";
+  "Not sent: identical to a message delivered less than a minute ago";
 
 export const expliquerSuppression = (raison: string): Explication => ({
   texte: raison.length > 0 ? `${NON_ENVOYE_DOUBLON} (${raison})` : NON_ENVOYE_DOUBLON,
@@ -122,8 +122,7 @@ export type IssueConfiance = {
  * codex l'étiquette `2. Quit`, claude `No, exit`. « Deny » seul laissait croire
  * à un « non, mais je continue ». Le libellé porte donc la conséquence.
  */
-export const libelleRefus = (kind: string | null): string =>
-  `Refuser et arrêter ${kind ?? "l'agent"}`;
+export const libelleRefus = (kind: string | null): string => `Deny and stop ${kind ?? "the agent"}`;
 
 export const expliquerConfiance = (state: string): IssueConfiance => {
   switch (state) {
@@ -131,7 +130,7 @@ export const expliquerConfiance = (state: string): IssueConfiance => {
       // Seule issue favorable : la permission est écrite, l'agent démarre.
       return {
         resolue: true,
-        texte: "Accès au dossier accordé — l'agent peut démarrer",
+        texte: "Folder access granted — the agent can start",
       };
     case "refusee":
       /*
@@ -144,23 +143,23 @@ export const expliquerConfiance = (state: string): IssueConfiance => {
       */
       return {
         resolue: true,
-        texte: "Accès refusé — rien n'a été écrit, et l'agent s'est arrêté",
+        texte: "Access denied — nothing was written, and the agent stopped",
       };
     case "transmise":
       return {
         resolue: false,
-        texte: "Décision transmise — Herdr ne l'a pas encore confirmée.",
+        texte: "Decision sent — Herdr has not confirmed it yet.",
       };
     case "inconnu":
       // Le transport n'a rien dit. Ni Herdr n'a dit oui, ni non.
       return {
         resolue: false,
-        texte: "Herdr n'a pas confirmé la décision — état inconnu",
+        texte: "Herdr did not confirm the decision — state unknown",
       };
     case "non-applicable":
       return {
         resolue: true,
-        texte: "Aucune décision d'accès n'est nécessaire pour cet agent",
+        texte: "No access decision is needed for this agent",
       };
     default:
       /*
@@ -170,7 +169,7 @@ export const expliquerConfiance = (state: string): IssueConfiance => {
       */
       return {
         resolue: false,
-        texte: `Décision d'accès dans un état inconnu : ${state}`,
+        texte: `Access decision in an unknown state: ${state}`,
       };
   }
 };

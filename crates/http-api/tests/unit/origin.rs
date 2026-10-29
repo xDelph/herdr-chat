@@ -233,6 +233,6 @@ fn messages_la_cause_jamais_muette() {
     );
     assert_eq!(
         describe_refus(RaisonGarde::CorpsTropGrand, None, None),
-        "corps trop grand (maximum 65536 octets)"
+        "body too large (maximum 65536 bytes)"
     );
 }

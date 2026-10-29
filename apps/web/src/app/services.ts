@@ -53,11 +53,11 @@ const lanceur: Lanceur = async (pane, text) => {
   try {
     const resultat = await sendPrompt(pane, text);
     if (resultat.kind === "failed") {
-      journal("envoi en échec", { message: resultat.message, pane, state: resultat.state });
+      journal("send failed", { message: resultat.message, pane, state: resultat.state });
     }
     return resultat;
   } catch (cause) {
-    journal("envoi en échec", {
+    journal("send failed", {
       message: cause instanceof Error ? cause.message : String(cause),
       pane,
     });
