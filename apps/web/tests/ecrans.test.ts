@@ -67,7 +67,8 @@ describe("Arrêter reste visible tant que l'agent travaille", () => {
 });
 
 const envoi = (changement: Partial<Envoi>): Envoi => ({
-  baseline: 0,
+  apres: null,
+  creeA: 0,
   detail: null,
   failureState: null,
   id: "local-1",

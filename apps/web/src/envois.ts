@@ -37,11 +37,12 @@ export interface Envoi {
   readonly pane: string;
   readonly text: string;
   /**
-   * Combien de messages identiques étaient déjà dans l'historique à l'envoi.
-   * Sert à reconnaître l'apparition du message dans la session (il ne faut pas
-   * le compter deux fois).
+   * L'instant de l'envoi, et le dernier message connu à ce moment : seul un
+   * message arrivé APRÈS prouve la remise (`apparition-envois.ts`) — jamais un
+   * message identique de l'historique plus ancien.
    */
-  readonly baseline: number;
+  readonly creeA: number;
+  readonly apres: string | null;
   readonly state: EtatEnvoi;
   readonly detail: string | null;
   readonly failureState: EtatEchec | null;
@@ -78,7 +79,8 @@ export interface MagasinEnvois {
   readonly ajoute: (envoi: {
     readonly pane: string;
     readonly text: string;
-    readonly baseline: number;
+    readonly creeA: number;
+    readonly apres: string | null;
   }) => string;
   /** Réessaie un envoi **échoué ou incertain** — sur SA cible capturée. */
   readonly reessaye: (id: string) => boolean;
@@ -212,11 +214,12 @@ export const creeMagasinEnvois = (lance: Lanceur, planifie: Planificateur): Maga
     return resolus;
   };
 
-  const ajoute: MagasinEnvois["ajoute"] = ({ pane, text, baseline }) => {
+  const ajoute: MagasinEnvois["ajoute"] = ({ pane, text, creeA, apres }) => {
     compteur += 1;
-    const id = `local-${String(Date.now())}-${String(compteur)}`;
+    const id = `local-${String(creeA)}-${String(compteur)}`;
     envois.set(id, {
-      baseline,
+      apres,
+      creeA,
       detail: null,
       failureState: null,
       id,

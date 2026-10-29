@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { AgentView, ConversationSummary } from "@herdr-remote/shared";
 import { cleAction } from "../actions-locales.ts";
+import { envoisApparus } from "../apparition-envois.ts";
 import { touchedFilesOf } from "../blocks.ts";
 import { arreter, montrerSurMac } from "../app/gestes.ts";
 import { useAction, useEnvois } from "../app/hooks.ts";
@@ -152,22 +153,10 @@ export const Conversation = ({
     onVue(paneId, Math.max(Date.now(), derniereActivite ?? 0));
   }, [derniereActivite, onVue, paneId]);
 
-  // Une bulle locale disparaît quand la session porte son texte : c'est la preuve.
+  // Une bulle locale disparaît quand la session porte CE message : c'est la
+  // preuve. Seul ce qui est arrivé après l'envoi compte (`apparition-envois.ts`).
   useEffect(() => {
-    const restants = new Map<string, number>();
-    for (const message of messages) {
-      if (message.role !== "user") continue;
-      restants.set(message.text, (restants.get(message.text) ?? 0) + 1);
-    }
-    for (const local of envois.liste(paneId)) {
-      // Un doublon évité n'est pas parti : seul l'utilisateur ferme sa bulle.
-      if (local.state === "suppressed") continue;
-      const compte = restants.get(local.text) ?? 0;
-      if (compte > local.baseline) {
-        restants.set(local.text, compte - 1);
-        envois.oublie(local.id);
-      }
-    }
+    for (const id of envoisApparus(messages, envois.liste(paneId))) envois.oublie(id);
   }, [messages, paneId]);
 
   const messagesRef = useRef(messages);
@@ -176,11 +165,13 @@ export const Conversation = ({
   });
   const envoie = useCallback(
     (texte: string) => {
-      const baseline = messagesRef.current.filter(
-        (message) => message.role === "user" && message.text === texte,
-      ).length;
       // ⚠️ La cible est capturée ICI : elle ne changera plus (envois.ts).
-      envois.ajoute({ baseline, pane: paneId, text: texte });
+      envois.ajoute({
+        apres: messagesRef.current.at(-1)?.id ?? null,
+        creeA: Date.now(),
+        pane: paneId,
+        text: texte,
+      });
     },
     [paneId],
   );
