@@ -112,7 +112,7 @@ fn tail_borne(tail: Option<&str>) -> u32 {
     }
 }
 
-fn session_reponse(cause: ReadCause, page: SessionPage) -> SessionResponse {
+pub(crate) fn session_reponse(cause: ReadCause, page: SessionPage) -> SessionResponse {
     SessionResponse {
         cause,
         entries: page.entries.iter().map(entree_de_fil).collect(),
@@ -157,7 +157,7 @@ fn reponse_erreur(erreur: ErreurDomaine) -> axum::response::Response {
         .into_response()
 }
 
-fn erreur_de_snapshot(cause: &PortError) -> ErreurDomaine {
+pub(crate) fn erreur_de_snapshot(cause: &PortError) -> ErreurDomaine {
     match cause {
         PortError::Upstream { code, message } => {
             ErreurDomaine::amont_injoignable(format!("upstream {code}: {message}"))

@@ -11,6 +11,7 @@ pub(crate) mod corps;
 pub(crate) mod errors;
 pub(crate) mod events;
 pub(crate) mod fichiers;
+pub(crate) mod flux_session;
 pub(crate) mod focus;
 pub(crate) mod journal_client;
 pub(crate) mod lancement;

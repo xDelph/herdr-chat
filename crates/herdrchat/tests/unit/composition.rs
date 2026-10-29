@@ -166,6 +166,19 @@ impl application::conversations::BrancheDeProjet for SansBranche {
     }
 }
 
+/// Une observation qui ne bouge jamais.
+struct SansObservation;
+
+impl application::observation::ObservateurDeSessions for SansObservation {
+    fn observe(
+        &self,
+        _source: &application::sessions_types::ResolvedSource,
+    ) -> application::observation::ObservationDeSession {
+        let (_emetteur, revisions) = tokio::sync::watch::channel(0_u64);
+        application::observation::ObservationDeSession::nouvelle(revisions, None, ())
+    }
+}
+
 /// Les ports du câblage — tous factices, aucun I/O.
 fn ports(controle: Arc<dyn ControlPort>) -> Ports {
     let args: Arc<ConstructeurArgs> = Arc::new(Box::new(
@@ -176,6 +189,7 @@ fn ports(controle: Arc<dyn ControlPort>) -> Ports {
     Ports {
         controle,
         sessions: Arc::new(SansSessions),
+        observateur: Arc::new(SansObservation),
         catalogue: Arc::new(SansCatalogue),
         artefacts: Arc::new(SansArtefacts),
         notifications: None,

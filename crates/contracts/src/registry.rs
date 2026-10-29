@@ -30,7 +30,7 @@ pub enum Politique {
     Mutation,
 }
 
-/// Les 18 routes, nommées — l'ordre du manifeste suit H01…H18.
+/// Les 19 routes, nommées — l'ordre du manifeste suit H01…H19.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum RouteId {
@@ -70,6 +70,8 @@ pub enum RouteId {
     Fichier,
     /// H18 — `GET /api/images`.
     Images,
+    /// H19 — `GET /api/agents/{paneId}/stream` (SSE de session, STREAMING.md).
+    FluxSession,
 }
 
 /// La forme d'une réponse — le Content-Type est un fait du manifeste, pas
@@ -185,7 +187,7 @@ const fn json(statut: u16, schema: &'static str) -> Variante {
 
 /// Le manifeste complet — 18 entrées, dans l'ordre H01…H18, formes et
 /// statuts exacts de CURRENT.md §2.
-pub const ROUTES: [Route; 18] = [
+pub const ROUTES: [Route; 19] = [
     Route {
         id: RouteId::Sante,
         methode: Methode::Get,
@@ -545,6 +547,29 @@ pub const ROUTES: [Route; 18] = [
         variantes: &[
             json(200, "RecentImagesResponse"),
             json(502, "ApiErrorResponse"),
+        ],
+    },
+    Route {
+        id: RouteId::FluxSession,
+        methode: Methode::Get,
+        chemin: "/api/agents/{paneId}/stream",
+        politique: Politique::Lecture,
+        entree: Entree {
+            chemin: &["paneId"],
+            requete: &[ParametreRequete {
+                nom: "cursor",
+                requis: false,
+            }],
+            entete: &["Last-Event-ID"],
+            corps: None,
+        },
+        variantes: &[
+            Variante {
+                statut: 200,
+                forme: Forme::FluxSse,
+            },
+            json(404, "ApiErrorResponse"),
+            json(503, "ApiErrorResponse"),
         ],
     },
 ];

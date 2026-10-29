@@ -9,10 +9,10 @@ use contracts::registry::{
 use contracts::{limits, registry};
 
 #[test]
-fn le_manifeste_compte_18_routes_distinctes() {
+fn le_manifeste_compte_19_routes_distinctes() {
     assert!(
-        ROUTES.len() == 18,
-        "18 routes documentées, pas {}",
+        ROUTES.len() == 19,
+        "19 routes documentées, pas {}",
         ROUTES.len()
     );
     for (rang, route) in ROUTES.iter().enumerate() {
@@ -34,7 +34,8 @@ fn le_manifeste_compte_18_routes_distinctes() {
             14 => RouteId::CleVapid,
             15 => RouteId::Abonnements,
             16 => RouteId::Fichier,
-            _ => RouteId::Images,
+            17 => RouteId::Images,
+            _ => RouteId::FluxSession,
         };
         assert!(
             route.id == attendu,
@@ -105,7 +106,7 @@ fn la_politique_mutante_est_mesuree() {
 fn les_variantes_explicites_sont_toutes_documentees() {
     // Statuts explicites par route — transcription de CURRENT.md §2, une
     // ligne par route, dans l'ordre H01…H18.
-    let attendues: [&[u16]; 18] = [
+    let attendues: [&[u16]; 19] = [
         &[200, 503, 500],                          // H01 santé
         &[200, 500],                               // H02 overview
         &[200, 503, 502],                          // H03 conversations
@@ -124,6 +125,7 @@ fn les_variantes_explicites_sont_toutes_documentees() {
         &[204, 400, 503, 500], // H16 subscriptions
         &[200, 403, 500],      // H17 file
         &[200, 502],           // H18 images
+        &[200, 404, 503],      // H19 flux de session
     ];
     for (route, attendu) in ROUTES.iter().zip(attendues.iter()) {
         let trouves: Vec<u16> = route.variantes.iter().map(|v| v.statut).collect();
@@ -356,5 +358,5 @@ fn la_recherche_par_identifiant_est_totale() {
             "chaque route porte des variantes"
         );
     }
-    assert!(registry::ROUTES.len() == 18, "le manifeste reste complet");
+    assert!(registry::ROUTES.len() == 19, "le manifeste reste complet");
 }

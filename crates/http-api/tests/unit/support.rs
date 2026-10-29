@@ -357,6 +357,10 @@ pub(crate) fn services(
         conversations: Arc::new(conversations),
         resout: Arc::new(faux_sessions),
         sessions: session_port,
+        observateur: Arc::new(FauxObservateur::nouveau()),
+        permis_flux_session: Arc::new(tokio::sync::Semaphore::new(
+            http_api::handlers::flux_session::FLUX_SESSION_MAX,
+        )),
         socket: "/tmp/herdr-remote/herdr.sock".to_string(),
         maintenant,
         debut,
@@ -793,5 +797,43 @@ impl FournisseurAssets for FauxAssets {
 
     fn index(&self) -> Option<FichierAsset> {
         self.index.clone().map(FichierAsset::nouveau)
+    }
+}
+
+/// Un observateur de sessions factice : le test fait bouger la révision à la
+/// main, et compte les observations ouvertes.
+#[derive(Clone)]
+pub(crate) struct FauxObservateur {
+    pub(crate) emetteur: Arc<tokio::sync::watch::Sender<u64>>,
+    pub(crate) observations: Arc<std::sync::atomic::AtomicUsize>,
+}
+
+impl FauxObservateur {
+    pub(crate) fn nouveau() -> Self {
+        let (emetteur, _) = tokio::sync::watch::channel(0_u64);
+        Self {
+            emetteur: Arc::new(emetteur),
+            observations: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
+        }
+    }
+
+    /// Une écriture dans la source.
+    pub(crate) fn ecrit(&self) {
+        self.emetteur.send_modify(|revision| *revision += 1);
+    }
+}
+
+impl application::observation::ObservateurDeSessions for FauxObservateur {
+    fn observe(
+        &self,
+        _source: &domain::session::ResolvedSource,
+    ) -> application::observation::ObservationDeSession {
+        self.observations
+            .fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        application::observation::ObservationDeSession::nouvelle(
+            self.emetteur.subscribe(),
+            None,
+            (),
+        )
     }
 }

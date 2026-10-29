@@ -239,6 +239,19 @@ pub fn definitions() -> Vec<(&'static str, Value)> {
             "SessionChanged",
             schema_de::<crate::events::SessionChanged>(),
         ),
+        // Le flux de session (H19).
+        (
+            "EvenementDeSession",
+            schema_de::<crate::events::EvenementDeSession>(),
+        ),
+        (
+            "SessionStreamEntries",
+            schema_de::<crate::events::SessionStreamEntries>(),
+        ),
+        (
+            "SessionStreamGone",
+            schema_de::<crate::events::SessionStreamGone>(),
+        ),
         ("PromptStatus", schema_de::<crate::events::PromptStatus>()),
         ("Confirmation", schema_de::<crate::events::Confirmation>()),
         ("ChangeKind", schema_de::<crate::events::ChangeKind>()),
@@ -287,6 +300,9 @@ pub fn cibles() -> Vec<(&'static str, &'static str)> {
         ("SSE.prompt-suppressed", "EvenementSse"),
         ("SSE.ready", "EvenementSse"),
         ("SSE.resync", "EvenementSse"),
+        ("SSE-session.entries", "EvenementDeSession"),
+        ("SSE-session.gone", "EvenementDeSession"),
+        ("SSE-session.reset", "EvenementDeSession"),
         ("SessionEntry", "SessionEntry"),
         ("SessionResponse", "SessionResponse"),
         ("SessionState", "SessionState"),

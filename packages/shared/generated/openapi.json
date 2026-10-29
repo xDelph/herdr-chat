@@ -914,6 +914,223 @@
         "title": "ConversationsResponse",
         "type": "object"
       },
+      "EvenementDeSession": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Les événements du **flux de session** (H19, STREAMING.md) — un pane, ses\nlignes en direct. `event:` nommé, `data:` = la charge seule, `id:` = le\ncurseur opaque (la reconnexion native reprend exactement là).",
+        "oneOf": [
+          {
+            "description": "Des lignes après le curseur du client — fusion par `id`, sinon ajout.",
+            "properties": {
+              "data": {
+                "description": "`event: entries`.",
+                "properties": {
+                  "caughtUp": {
+                    "description": "Vrai quand rien ne reste derrière ce curseur.",
+                    "type": "boolean"
+                  },
+                  "cursor": {
+                    "description": "Le curseur APRÈS ces lignes — aussi l'`id:` de l'événement.",
+                    "type": "string"
+                  },
+                  "entries": {
+                    "items": {
+                      "description": "Une entrée de session **rendue au client** : la ligne brute entière, plus\nles trois champs de position (mesuré sur `SessionEntrySchema`).",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "parentId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Le parent, omissible ET nullable (`Schema.optional(Schema.NullOr)`) :\nabsent ≠ null — deux faits distincts."
+                        },
+                        "raw": {
+                          "description": "La ligne JSONL **entière**, telle qu'écrite — aucun raw perdu.",
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Le type de la ligne, tel que la source l'a écrit — chaîne libre du\nfil : les lecteurs tranchent, le contrat transporte.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "raw"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  }
+                },
+                "required": [
+                  "entries",
+                  "cursor",
+                  "caughtUp"
+                ],
+                "type": "object"
+              },
+              "event": {
+                "const": "entries",
+                "type": "string"
+              }
+            },
+            "required": [
+              "event",
+              "data"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "La vue entière est à remplacer (rotation, troncature, curseur refusé,\nnouvelle session du pane) — la forme de `GET /session`.",
+            "properties": {
+              "data": {
+                "description": "La réponse de session : quatre clauses nommées du fil (l'union\n[`ReadCause`]), la page, et les curseurs **opaques** (le codec interne\nappartient à `sessions`, TECH §5).",
+                "properties": {
+                  "caughtUp": {
+                    "description": "**Additif T025** : `caughtUp` = vrai au seul watermark COMPLET\nobservé — le client sait que rien ne reste derrière lui. Présent sur\nle fil seulement quand vrai : les réponses du fil actuel (sans ce\nchamp) restent fidèles, et le corpus gelé passe inchangé.",
+                    "type": "boolean"
+                  },
+                  "cause": {
+                    "description": "Cause d'une réponse de session : `absente | vide | invalide | io`.\n\n⚠️ Ces quatre cas se confondent de loin, et les confondre produit soit une\nerreur rouge en boucle, soit — pire — une vue qui ment :\n\n| Cause       | Sens                                     | Réponse          |\n|-------------|------------------------------------------|------------------|\n| [`Absente`] | le fichier n'existe pas encore            | 200, vide        |\n| [`Vide`]    | le fichier existe, zéro entrée            | 200, vide        |\n| [`Invalide`]| contenu illisible ou ligne tronquée       | 422              |\n| [`Io`]      | permission, disque, erreur du système     | 502              |\n\n`absente` n'est **pas** une panne : Herdr annonce un `agent_session` valide\nvers un fichier que Pi n'a pas encore créé (le JSONL naît au premier\nmessage — mesuré sur un vrai agent devin). Les codes d'orthographe viennent\ndu fil actuel ; ne jamais requalifier un autre code.",
+                    "oneOf": [
+                      {
+                        "const": "absente",
+                        "description": "Le fichier n'existe pas encore.",
+                        "type": "string"
+                      },
+                      {
+                        "const": "vide",
+                        "description": "Le fichier existe, zéro entrée.",
+                        "type": "string"
+                      },
+                      {
+                        "const": "invalide",
+                        "description": "Contenu illisible ou ligne tronquée.",
+                        "type": "string"
+                      },
+                      {
+                        "const": "io",
+                        "description": "Permission, disque, erreur du système.",
+                        "type": "string"
+                      }
+                    ]
+                  },
+                  "cursor": {
+                    "type": "string"
+                  },
+                  "entries": {
+                    "items": {
+                      "description": "Une entrée de session **rendue au client** : la ligne brute entière, plus\nles trois champs de position (mesuré sur `SessionEntrySchema`).",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "parentId": {
+                          "anyOf": [
+                            {
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "description": "Le parent, omissible ET nullable (`Schema.optional(Schema.NullOr)`) :\nabsent ≠ null — deux faits distincts."
+                        },
+                        "raw": {
+                          "description": "La ligne JSONL **entière**, telle qu'écrite — aucun raw perdu.",
+                          "type": "string"
+                        },
+                        "timestamp": {
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Le type de la ligne, tel que la source l'a écrit — chaîne libre du\nfil : les lecteurs tranchent, le contrat transporte.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "raw"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "hasMore": {
+                    "type": "boolean"
+                  },
+                  "incremental": {
+                    "type": "boolean"
+                  },
+                  "previousCursor": {
+                    "type": "string"
+                  },
+                  "reset": {
+                    "type": "boolean"
+                  },
+                  "sessionPath": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "cause",
+                  "entries",
+                  "incremental",
+                  "hasMore",
+                  "reset",
+                  "sessionPath"
+                ],
+                "type": "object"
+              },
+              "event": {
+                "const": "reset",
+                "type": "string"
+              }
+            },
+            "required": [
+              "event",
+              "data"
+            ],
+            "type": "object"
+          },
+          {
+            "description": "Le pane n'a plus de source lisible : le flux se ferme.",
+            "properties": {
+              "data": {
+                "description": "`event: gone` — la cause, telle quelle ; le client l'affiche.",
+                "properties": {
+                  "reason": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "reason"
+                ],
+                "type": "object"
+              },
+              "event": {
+                "const": "gone",
+                "type": "string"
+              }
+            },
+            "required": [
+              "event",
+              "data"
+            ],
+            "type": "object"
+          }
+        ],
+        "title": "EvenementDeSession"
+      },
       "EvenementSse": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "description": "L'enveloppe SSE entière — `{\"event\": nom, \"data\": charge}` telle que la\nboucle de flux l'écrit (mesuré sur routes-events.ts) : le nom d'événement\net sa charge sont **inséparables** au décodage. `agent_status` porte un\nsoulignement (mesuré), les autres des traits d'union.",
@@ -2471,6 +2688,79 @@
         "title": "SessionState",
         "type": "string"
       },
+      "SessionStreamEntries": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "`event: entries`.",
+        "properties": {
+          "caughtUp": {
+            "description": "Vrai quand rien ne reste derrière ce curseur.",
+            "type": "boolean"
+          },
+          "cursor": {
+            "description": "Le curseur APRÈS ces lignes — aussi l'`id:` de l'événement.",
+            "type": "string"
+          },
+          "entries": {
+            "items": {
+              "description": "Une entrée de session **rendue au client** : la ligne brute entière, plus\nles trois champs de position (mesuré sur `SessionEntrySchema`).",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "parentId": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Le parent, omissible ET nullable (`Schema.optional(Schema.NullOr)`) :\nabsent ≠ null — deux faits distincts."
+                },
+                "raw": {
+                  "description": "La ligne JSONL **entière**, telle qu'écrite — aucun raw perdu.",
+                  "type": "string"
+                },
+                "timestamp": {
+                  "type": "string"
+                },
+                "type": {
+                  "description": "Le type de la ligne, tel que la source l'a écrit — chaîne libre du\nfil : les lecteurs tranchent, le contrat transporte.",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "type",
+                "raw"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "entries",
+          "cursor",
+          "caughtUp"
+        ],
+        "title": "SessionStreamEntries",
+        "type": "object"
+      },
+      "SessionStreamGone": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "`event: gone` — la cause, telle quelle ; le client l'affiche.",
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "title": "SessionStreamGone",
+        "type": "object"
+      },
       "StopAgentResponse": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "description": "Une interruption demandée (`StopAgentResponse`).",
@@ -3354,6 +3644,78 @@
               }
             },
             "description": "Réponse 502 — ApiErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/agents/{paneId}/stream": {
+      "get": {
+        "operationId": "h19-flux-session",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "paneId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Last-Event-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "corps ignoré après garde",
+              "schema": {}
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "Réponse 200 — flux text/event-stream"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 404 — ApiErrorResponse"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 503 — ApiErrorResponse"
           }
         }
       }

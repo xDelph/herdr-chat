@@ -8,6 +8,7 @@ pub(crate) mod agents_pi;
 pub(crate) mod borne;
 pub(crate) mod codecs;
 pub(crate) mod cursor;
+pub(crate) mod hub;
 pub(crate) mod jsonl;
 pub(crate) mod metadata;
 pub(crate) mod normalisation;

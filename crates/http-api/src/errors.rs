@@ -137,6 +137,12 @@ pub fn statut(route: RouteId, erreur: &ErreurDomaine) -> u16 {
             Nature::InternalInvariant => 500,
             _ => 503,
         },
+        // H19 : 404 pane inconnu ou sans source ; 503 plafond de flux.
+        RouteId::FluxSession => match nature {
+            Nature::NoSource => 404,
+            Nature::InternalInvariant => 500,
+            _ => 503,
+        },
         // H15 : 503 service absent — TEXTE brut ; 500 JSON panne de setup.
         RouteId::CleVapid => match nature {
             Nature::UpstreamUnavailable

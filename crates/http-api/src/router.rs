@@ -49,6 +49,11 @@ pub fn routeur(services: Arc<Services>, origines: Vec<String>) -> Router<()> {
                 .fallback(en_async(methode_non_autorisee_lecture)),
         )
         .route(
+            "/api/agents/{paneId}/stream",
+            get(handlers::flux_session::flux_session)
+                .fallback(en_async(methode_non_autorisee_lecture)),
+        )
+        .route(
             "/api/agents/kinds",
             get(handlers::catalogues::types)
                 .head(handlers::catalogues::types)

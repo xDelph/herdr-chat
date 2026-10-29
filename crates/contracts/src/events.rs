@@ -147,3 +147,38 @@ pub struct AgentStatusChanged {
     pub pane_id: String,
     pub to: String,
 }
+
+/// Les événements du **flux de session** (H19, STREAMING.md) — un pane, ses
+/// lignes en direct. `event:` nommé, `data:` = la charge seule, `id:` = le
+/// curseur opaque (la reconnexion native reprend exactement là).
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(tag = "event", content = "data")]
+pub enum EvenementDeSession {
+    /// Des lignes après le curseur du client — fusion par `id`, sinon ajout.
+    #[serde(rename = "entries")]
+    Entries(SessionStreamEntries),
+    /// La vue entière est à remplacer (rotation, troncature, curseur refusé,
+    /// nouvelle session du pane) — la forme de `GET /session`.
+    #[serde(rename = "reset")]
+    Reset(crate::http::sessions::SessionResponse),
+    /// Le pane n'a plus de source lisible : le flux se ferme.
+    #[serde(rename = "gone")]
+    Gone(SessionStreamGone),
+}
+
+/// `event: entries`.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionStreamEntries {
+    pub entries: Vec<crate::http::sessions::SessionEntry>,
+    /// Le curseur APRÈS ces lignes — aussi l'`id:` de l'événement.
+    pub cursor: String,
+    /// Vrai quand rien ne reste derrière ce curseur.
+    pub caught_up: bool,
+}
+
+/// `event: gone` — la cause, telle quelle ; le client l'affiche.
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize, schemars::JsonSchema)]
+pub struct SessionStreamGone {
+    pub reason: String,
+}

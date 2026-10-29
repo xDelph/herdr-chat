@@ -92,6 +92,9 @@ async fn demarre(config: &Config) -> Result<(), String> {
     let ports = herdrchat::composition::Ports {
         controle: Arc::clone(&controle_port),
         sessions: Arc::clone(&port_sessions),
+        observateur: Arc::new(herdrchat::assemblage::ObservateurViaHub {
+            hub: sessions::hub::SessionHub::nouveau(),
+        }),
         catalogue: Arc::clone(&catalogue),
         artefacts: Arc::clone(&artefacts) as Arc<dyn application::ports::ArtifactPort>,
         notifications: Some(

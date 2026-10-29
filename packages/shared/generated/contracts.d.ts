@@ -1,5 +1,5 @@
 // Généré par `cargo xtask contracts export` — ne pas éditer.
-// Source : contracts.schema.json (61 définitions).
+// Source : contracts.schema.json (64 définitions).
 
 /**
  * Un focus appliqué (`AgentFocusedResponse`).
@@ -672,6 +672,124 @@ export interface ConversationsResponse {
     workspaceId: string;
   }[];
 }
+
+/**
+ * Les événements du **flux de session** (H19, STREAMING.md) — un pane, ses
+ * lignes en direct. `event:` nommé, `data:` = la charge seule, `id:` = le
+ * curseur opaque (la reconnexion native reprend exactement là).
+ */
+export type EvenementDeSession =
+  | {
+      /**
+       * `event: entries`.
+       */
+      data: {
+        /**
+         * Vrai quand rien ne reste derrière ce curseur.
+         */
+        caughtUp: boolean;
+        /**
+         * Le curseur APRÈS ces lignes — aussi l'`id:` de l'événement.
+         */
+        cursor: string;
+        /**
+         * Items: Une entrée de session **rendue au client** : la ligne brute entière, plus
+         * les trois champs de position (mesuré sur `SessionEntrySchema`).
+         */
+        entries: {
+          id?: string;
+          /**
+           * Le parent, omissible ET nullable (`Schema.optional(Schema.NullOr)`) :
+           * absent ≠ null — deux faits distincts.
+           */
+          parentId?: string | null;
+          /**
+           * La ligne JSONL **entière**, telle qu'écrite — aucun raw perdu.
+           */
+          raw: string;
+          timestamp?: string;
+          /**
+           * Le type de la ligne, tel que la source l'a écrit — chaîne libre du
+           * fil : les lecteurs tranchent, le contrat transporte.
+           */
+          type: string;
+        }[];
+      };
+      event: "entries";
+    }
+  | {
+      /**
+       * La réponse de session : quatre clauses nommées du fil (l'union
+       * [`ReadCause`]), la page, et les curseurs **opaques** (le codec interne
+       * appartient à `sessions`, TECH §5).
+       */
+      data: {
+        /**
+         * **Additif T025** : `caughtUp` = vrai au seul watermark COMPLET
+         * observé — le client sait que rien ne reste derrière lui. Présent sur
+         * le fil seulement quand vrai : les réponses du fil actuel (sans ce
+         * champ) restent fidèles, et le corpus gelé passe inchangé.
+         */
+        caughtUp?: boolean;
+        /**
+         * Cause d'une réponse de session : `absente | vide | invalide | io`.
+         *
+         * ⚠️ Ces quatre cas se confondent de loin, et les confondre produit soit une
+         * erreur rouge en boucle, soit — pire — une vue qui ment :
+         *
+         * | Cause       | Sens                                     | Réponse          |
+         * |-------------|------------------------------------------|------------------|
+         * | [`Absente`] | le fichier n'existe pas encore            | 200, vide        |
+         * | [`Vide`]    | le fichier existe, zéro entrée            | 200, vide        |
+         * | [`Invalide`]| contenu illisible ou ligne tronquée       | 422              |
+         * | [`Io`]      | permission, disque, erreur du système     | 502              |
+         *
+         * `absente` n'est **pas** une panne : Herdr annonce un `agent_session` valide
+         * vers un fichier que Pi n'a pas encore créé (le JSONL naît au premier
+         * message — mesuré sur un vrai agent devin). Les codes d'orthographe viennent
+         * du fil actuel ; ne jamais requalifier un autre code.
+         */
+        cause: "absente" | "vide" | "invalide" | "io";
+        cursor?: string;
+        /**
+         * Items: Une entrée de session **rendue au client** : la ligne brute entière, plus
+         * les trois champs de position (mesuré sur `SessionEntrySchema`).
+         */
+        entries: {
+          id?: string;
+          /**
+           * Le parent, omissible ET nullable (`Schema.optional(Schema.NullOr)`) :
+           * absent ≠ null — deux faits distincts.
+           */
+          parentId?: string | null;
+          /**
+           * La ligne JSONL **entière**, telle qu'écrite — aucun raw perdu.
+           */
+          raw: string;
+          timestamp?: string;
+          /**
+           * Le type de la ligne, tel que la source l'a écrit — chaîne libre du
+           * fil : les lecteurs tranchent, le contrat transporte.
+           */
+          type: string;
+        }[];
+        hasMore: boolean;
+        incremental: boolean;
+        previousCursor?: string;
+        reset: boolean;
+        sessionPath: string;
+      };
+      event: "reset";
+    }
+  | {
+      /**
+       * `event: gone` — la cause, telle quelle ; le client l'affiche.
+       */
+      data: {
+        reason: string;
+      };
+      event: "gone";
+    };
 
 /**
  * L'enveloppe SSE entière — `{"event": nom, "data": charge}` telle que la
@@ -1700,6 +1818,49 @@ export interface SessionResponse {
  * (`available | absent | error`, B10).
  */
 export type SessionState = "available" | "absent" | "error";
+
+/**
+ * `event: entries`.
+ */
+export interface SessionStreamEntries {
+  /**
+   * Vrai quand rien ne reste derrière ce curseur.
+   */
+  caughtUp: boolean;
+  /**
+   * Le curseur APRÈS ces lignes — aussi l'`id:` de l'événement.
+   */
+  cursor: string;
+  /**
+   * Items: Une entrée de session **rendue au client** : la ligne brute entière, plus
+   * les trois champs de position (mesuré sur `SessionEntrySchema`).
+   */
+  entries: {
+    id?: string;
+    /**
+     * Le parent, omissible ET nullable (`Schema.optional(Schema.NullOr)`) :
+     * absent ≠ null — deux faits distincts.
+     */
+    parentId?: string | null;
+    /**
+     * La ligne JSONL **entière**, telle qu'écrite — aucun raw perdu.
+     */
+    raw: string;
+    timestamp?: string;
+    /**
+     * Le type de la ligne, tel que la source l'a écrit — chaîne libre du
+     * fil : les lecteurs tranchent, le contrat transporte.
+     */
+    type: string;
+  }[];
+}
+
+/**
+ * `event: gone` — la cause, telle quelle ; le client l'affiche.
+ */
+export interface SessionStreamGone {
+  reason: string;
+}
 
 /**
  * Une interruption demandée (`StopAgentResponse`).

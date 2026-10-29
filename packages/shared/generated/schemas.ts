@@ -1,5 +1,5 @@
 // Généré par `cargo xtask contracts export` — ne pas éditer.
-// Source : contracts.schema.json (61 définitions).
+// Source : contracts.schema.json (64 définitions).
 // Schemas Effect : le client décode avec EUX, comme le serveur sérialise avec le contrat.
 import { Schema } from "effect";
 
@@ -197,6 +197,47 @@ export const ConversationsResponse = Schema.Struct({
 })),
 });
 export type ConversationsResponse = typeof ConversationsResponse.Type;
+
+/** Les événements du **flux de session** (H19, STREAMING.md) — un pane, ses */
+export const EvenementDeSession = Schema.Union([Schema.Struct({
+  "data": Schema.Struct({
+  "caughtUp": Schema.Boolean,
+  "cursor": Schema.String,
+  "entries": Schema.Array(Schema.Struct({
+  "id": Schema.optional(Schema.String),
+  "parentId": Schema.optional(Schema.NullOr(Schema.String)),
+  "raw": Schema.String,
+  "timestamp": Schema.optional(Schema.String),
+  "type": Schema.String,
+})),
+}),
+  "event": Schema.Literal("entries"),
+}), Schema.Struct({
+  "data": Schema.Struct({
+  "caughtUp": Schema.optional(Schema.Boolean),
+  "cause": Schema.Literals(["absente", "vide", "invalide", "io"]),
+  "cursor": Schema.optional(Schema.String),
+  "entries": Schema.Array(Schema.Struct({
+  "id": Schema.optional(Schema.String),
+  "parentId": Schema.optional(Schema.NullOr(Schema.String)),
+  "raw": Schema.String,
+  "timestamp": Schema.optional(Schema.String),
+  "type": Schema.String,
+})),
+  "hasMore": Schema.Boolean,
+  "incremental": Schema.Boolean,
+  "previousCursor": Schema.optional(Schema.String),
+  "reset": Schema.Boolean,
+  "sessionPath": Schema.String,
+}),
+  "event": Schema.Literal("reset"),
+}), Schema.Struct({
+  "data": Schema.Struct({
+  "reason": Schema.String,
+}),
+  "event": Schema.Literal("gone"),
+})]);
+export type EvenementDeSession = typeof EvenementDeSession.Type;
 
 /** L'enveloppe SSE entière — `{"event": nom, "data": charge}` telle que la */
 export const EvenementSse = Schema.Union([Schema.Struct({
@@ -558,6 +599,26 @@ export type SessionResponse = typeof SessionResponse.Type;
 /** État de la conversation visible sur une ligne de conversation */
 export const SessionState = Schema.Literals(["available", "absent", "error"]);
 export type SessionState = typeof SessionState.Type;
+
+/** `event: entries`. */
+export const SessionStreamEntries = Schema.Struct({
+  "caughtUp": Schema.Boolean,
+  "cursor": Schema.String,
+  "entries": Schema.Array(Schema.Struct({
+  "id": Schema.optional(Schema.String),
+  "parentId": Schema.optional(Schema.NullOr(Schema.String)),
+  "raw": Schema.String,
+  "timestamp": Schema.optional(Schema.String),
+  "type": Schema.String,
+})),
+});
+export type SessionStreamEntries = typeof SessionStreamEntries.Type;
+
+/** `event: gone` — la cause, telle quelle ; le client l'affiche. */
+export const SessionStreamGone = Schema.Struct({
+  "reason": Schema.String,
+});
+export type SessionStreamGone = typeof SessionStreamGone.Type;
 
 /** Une interruption demandée (`StopAgentResponse`). */
 export const StopAgentResponse = Schema.Struct({

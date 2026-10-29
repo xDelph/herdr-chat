@@ -514,3 +514,22 @@ fn attend_session<T: Send>(
         }
     }
 }
+
+/// L'observation des sessions par le hub (`sessions::hub`) — l'adaptateur du
+/// port `application::observation` : la garde est l'observation elle-même.
+pub struct ObservateurViaHub {
+    pub hub: sessions::hub::SessionHub,
+}
+
+impl application::observation::ObservateurDeSessions for ObservateurViaHub {
+    fn observe(&self, source: &ResolvedSource) -> application::observation::ObservationDeSession {
+        let observation = self.hub.observe(source);
+        let revisions = observation.revisions.clone();
+        let degradation = observation.degradation().map(str::to_string);
+        application::observation::ObservationDeSession::nouvelle(
+            revisions,
+            degradation,
+            observation,
+        )
+    }
+}

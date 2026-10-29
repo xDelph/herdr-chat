@@ -10,6 +10,7 @@ pub mod confiance;
 pub mod conversations;
 pub mod events;
 pub mod fichiers;
+pub mod flux_session;
 pub mod focus;
 pub mod journal_client;
 pub mod lancement;

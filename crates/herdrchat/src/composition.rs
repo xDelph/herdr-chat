@@ -34,6 +34,8 @@ use std::time::Instant;
 pub struct Ports {
     pub controle: Arc<dyn ControlPort>,
     pub sessions: Arc<dyn SessionPort>,
+    /// L'observation des sources de session (H19, STREAMING.md).
+    pub observateur: Arc<dyn application::observation::ObservateurDeSessions>,
     pub catalogue: Arc<dyn CatalogPort>,
     pub artefacts: Arc<dyn ArtifactPort>,
     /// `None` = capacité absente (Web Push non configuré) : les routes
@@ -93,6 +95,10 @@ pub fn services(
         conversations: Arc::new(conversations),
         resout: Arc::clone(&ports.resout),
         sessions: Arc::clone(&ports.sessions),
+        observateur: Arc::clone(&ports.observateur),
+        permis_flux_session: Arc::new(tokio::sync::Semaphore::new(
+            http_api::handlers::flux_session::FLUX_SESSION_MAX,
+        )),
         socket: config.herdr_socket_path.display().to_string(),
         maintenant,
         debut: Instant::now(),

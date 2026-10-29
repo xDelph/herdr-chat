@@ -14,6 +14,7 @@ use application::commands::stop::ArreteurAgent;
 use application::conversations::ServiceConversations;
 use application::diagnostics::SinkDiagnostic;
 use application::events::subscription::ServiceAbonnements;
+use application::observation::ObservateurDeSessions;
 use application::overview::ResoutSessions;
 use application::refresh::{ServiceSnapshots, SourceMaintenant};
 use application::types_installes::InventaireTypes;
@@ -33,6 +34,11 @@ pub struct Services {
     /// Le résolveur de sources — la matière de l'overview (D03).
     pub resout: Arc<dyn ResoutSessions>,
     pub sessions: Arc<dyn SessionPort>,
+    /// L'observation des sources de session (H19) — la révision qui réveille
+    /// un flux de chat, sans attendre la veille.
+    pub observateur: Arc<dyn ObservateurDeSessions>,
+    /// Le plafond des flux de session ouverts (H19).
+    pub permis_flux_session: Arc<tokio::sync::Semaphore>,
     /// Le chemin du socket Herdr — H01 le renvoie tel quel.
     pub socket: String,
     /// L'horloge partagée — l'uptime de H01 (jamais une dépendance au réel
