@@ -35,6 +35,11 @@ brew install xDelph/herdr-chat
 brew services start herdr-chat
 ```
 
+> The formula published today (`v0.1.x`) still installs the former TypeScript
+> daemon. The native formula (`packaging/herdr-chat.rb`, single `herdrchat`
+> binary, same port and variables) is prepared but **not published**; it replaces
+> the old one only through the reviewed switch-over in `docs/BASCULE.md`.
+
 Then expose it to your tailnet:
 
 ```bash
@@ -93,24 +98,52 @@ Every variable is optional — a bare install works.
 
 Each agent type is only offered once its session store has actually been read and
 measured. Types whose store could not be read are refused rather than guessed —
-see `apps/server/src/agents/Lisibilite.ts` for the current list and the date it was
-measured.
+see `type_lisible` in `crates/application/src/visibilite.rs` for the current list.
 
 The VAPID key pair for push notifications is generated on first run and stored
-alongside the subscriptions.
+alongside the subscriptions. `HERDR_REMOTE_VAPID_SUBJECT`,
+`HERDR_REMOTE_VAPID_PUBLIC_KEY` and `HERDR_REMOTE_VAPID_PRIVATE_KEY` override it;
+`HERDR_SOCKET_PATH` (or `HERDR_SOCKET`) points at a non-default Herdr socket and
+`HERDR_REMOTE_FILES_ROOTS` adds readable file roots.
+
+## Running from a checkout
+
+The daemon is a single native binary, `herdrchat` (Rust, `crates/herdrchat`),
+with the PWA embedded at build time. Bun is only needed to **build** the PWA; it
+is never needed to run the daemon.
+
+```bash
+bun install --frozen-lockfile
+bun run build                                 # apps/web/dist, embedded by the next step
+cargo build --release --locked -p herdrchat   # target/release/herdrchat
+bin/herdrchat                                 # or: bun run start
+```
+
+`bin/herdrchat` execs `target/release/herdrchat` (else `target/debug/herdrchat`,
+or `HERDRCHAT_BIN` when set) and fails with the build commands when none exists.
+Release archives (`.github/workflows/release-rust.yml`) contain the binary itself:
+macOS arm64/x86_64 and Linux x86_64/aarch64, each with a `.sha256`.
+
+The switch-over procedure from the former TS service, and its rollback, are in
+`docs/BASCULE.md`.
 
 ## Development
 
 ```bash
 nvm use          # reads .nvmrc
 bun install
-bun run verify   # format → lint → typecheck → tests
+bun run verify   # web + shared: format → lint → typecheck → tests
+cargo run --locked -p xtask -- verify   # Rust: layout, coverage, graph, fmt, clippy, tests
 bun run dev      # Vite dev server
 ```
 
-`bun run verify` must be green before any commit. The test suite is the design
+Both gates must be green before any commit. The test suite is the design
 contract: each test carries a requirement id, and changing a rule is expected to
-break a test.
+break a test. `docs/FINAL-GATE.md` lists the complete pre-release gate.
+
+The former TypeScript daemon (`apps/server`, Bun + Effect) was removed at T068;
+`docs/BASCULE.md` explains how to run it from git history if a comparison is
+ever needed.
 
 ## License
 

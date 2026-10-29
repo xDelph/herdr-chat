@@ -1,5 +1,11 @@
 # Herdr Chat — packaging Homebrew
 
+> ⚠️ **Mise à jour T068 (2026-10-29) : la forme A est remplacée par la forme B.**
+> Le démon livré est le binaire Rust `herdrchat`, PWA embarquée à la
+> compilation ; Bun ne sert plus qu'à construire la PWA en CI. Voir la section
+> « Forme B — binaire natif » en fin de document. Les décisions ci-dessous
+> restent l'historique de la forme A (formule publiée `v0.1.x`).
+
 > Décisions prises le 2026-10-14, **avant** toute modification de code.
 > Le produit s'appelle désormais **Herdr Chat** (le dépôt reste `herdr-pwa` pour l'instant).
 
@@ -93,3 +99,32 @@ Et le nom de la formule est **imposé par celui du tap** : `homebrew-herdr-chat`
 Publié : `v0.1.0` sur `xDelph/herdr-chat`, formule dans
 `xDelph/homebrew-herdr-chat`. Vérifié de bout en bout : `brew services list`
 → `started`, l'API répond en local et à travers le tailnet.
+
+
+## Forme B — binaire natif (T066/T068)
+
+Ce qui a changé, et pourquoi la forme B est maintenant possible :
+
+| Sujet | Forme A (TS, publiée `v0.1.x`) | Forme B (Rust, préparée) |
+|---|---|---|
+| Exécutable | `bin/herdrchat` → `bun run apps/server/src/main.ts` | binaire `herdrchat`, aucun Bun/Node à l'exécution |
+| PWA | lue dans le keg (`apps/web/dist`) | **embarquée** dans le binaire par `crates/herdrchat/build.rs` ; un build de release sans `apps/web/dist` échoue |
+| Archive | tarball de l'arborescence + `bun install` dans la formule | `herdr-chat-<cible>.tar.gz` : `herdrchat`, `LICENSE`, `README.md`, `manifest.json`, gabarits de service ; `.sha256` à côté |
+| Cibles | une (arborescence) | macOS arm64 (`macos-15`), macOS x86_64 (`macos-15-intel`), Linux x86_64 (`ubuntu-22.04`), Linux aarch64 (`ubuntu-22.04-arm`) — chacune construite ET exécutée sur son runner natif |
+| Workflow | `release.yml` (retiré) | `.github/workflows/release-rust.yml` : portes (`xtask verify`, `xtask coverage`, `bun run verify`) → binaires → release GitHub sur étiquette `v*` |
+| Formule | `xDelph/homebrew-herdr-chat` (publiée) | gabarit `packaging/herdr-chat.rb` (non publié : URL/empreintes à remplir depuis la release) |
+| Service macOS | `brew services` (bloc `service` + `PATH` pour trouver `bun`) | `brew services` (aucun `PATH` requis) **ou** LaunchAgent `packaging/dev.herdr.chat.plist` |
+| Service Linux | — | `packaging/herdr-chat.service` (systemd utilisateur) |
+
+Les variables d'environnement sont **inchangées** (`HERDR_REMOTE_*`,
+`HERDR_SOCKET_PATH`, racines de sessions) : le même service peut changer de
+binaire sans changer de configuration. Le magasin push garde le même chemin
+par défaut (`~/.herdr-remote/push.json`).
+
+Les deux pièges mesurés de la forme A (`bun install` après `prefix.install`,
+`PATH` du bloc `service`) **disparaissent** : il n'y a plus de `node_modules`
+ni d'interpréteur à trouver.
+
+Rien n'est publié ni basculé par ce dépôt : la procédure, les contrôles et le
+retour arrière sont dans [`BASCULE.md`](BASCULE.md) et attendent une
+instruction explicite.

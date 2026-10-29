@@ -12,7 +12,8 @@
     "packages/*"
   ],
   "scripts": {
-    "start": "bun run apps/server/src/main.ts",
+    "start": "bin/herdrchat",
+    "build:daemon": "bun run build && cargo build --release --locked -p herdrchat",
     "dev": "cd apps/web && bun run dev",
     "build": "cd apps/web && bun run build",
     "lint": "oxlint --type-aware --react-plugin --jsx-a11y-plugin --react-perf-plugin --promise-plugin --deny-warnings --report-unused-disable-directives -c .oxlintrc.json apps packages",

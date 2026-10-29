@@ -21,7 +21,7 @@ import { createHash } from "node:crypto";
 import { mkdirSync, statSync, writeFileSync, readFileSync, unlinkSync } from "node:fs";
 import { Database } from "bun:sqlite";
 import { dirname, join } from "node:path";
-import { ecrireFixture } from "../../apps/server/src/sessions/Fixture.ts";
+import { ecrireFixture } from "./fixture-pi.ts";
 
 const OUT = new URL("fixtures/", import.meta.url).pathname;
 const SEED = 20_240_310; // distinct from any other fixture seed so bundles stay independent
