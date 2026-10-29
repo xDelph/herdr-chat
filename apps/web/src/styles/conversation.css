@@ -655,7 +655,9 @@
 /* ---------- composeur ---------- */
 .composeur {
   flex: none;
-  padding: 8px 12px calc(10px + var(--bas-sur));
+  /* La barre d'accueil réserve ~34 pt : le champ peut s'en approcher (comme
+     Messages) sans la recouvrir. Clavier ouvert, --bas-sur vaut 0. */
+  padding: 8px 12px max(8px, calc(var(--bas-sur) - 14px));
   border-top: 1px solid var(--line);
   background: var(--surface);
   display: grid;

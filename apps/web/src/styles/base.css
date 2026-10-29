@@ -76,17 +76,24 @@ fieldset.seg {
 
 /* ---------- disposition ---------- */
 /*
-  La boîte de l'application : la hauteur VISIBLE mesurée (clavier compris) et
-  son décalage. Quand le clavier iOS monte, Safari fait glisser le viewport
-  visuel ; `top` suit ce décalage pour que l'en-tête reste sous la barre
-  d'état au lieu de partir dessous. `100dvh` ment en mode installé : la
-  mesure gagne toujours.
+  ⚠️ **La boîte de l'application est FIXE, posée sur la zone visible.**
+
+  - Clavier : iOS fait défiler le document pour montrer le champ, même avec
+    `overflow: hidden`. Un conteneur relatif suivait donc deux décalages à la
+    fois, et un vide restait sous le composeur. Fixe, il ne dépend que du
+    viewport visuel (`--haut-visible`, `--hauteur-app`, mesurés).
+  - Flou en haut : Safari 26 floute le haut de l'écran sauf s'il trouve, par
+    un test de toucher au bord, un élément FIXE et opaque — il en reprend
+    alors la couleur. La boîte fixe, avec son fond, est cet élément.
 */
 #root {
+  position: fixed;
+  left: 0;
+  right: 0;
+  top: var(--haut-visible, 0px);
   height: var(--hauteur-app, 100dvh);
   overflow: hidden;
-  position: relative;
-  top: var(--haut-visible, 0px);
+  background: var(--ground);
 }
 .app {
   height: 100%;
@@ -548,7 +555,8 @@ svg.i.s {
   height: max(var(--haut-sur), 1px);
   background: var(--ground);
   z-index: 40;
-  pointer-events: none;
+  /* Pas de `pointer-events: none` : Safari cherche cet élément par un test
+     de toucher, qui ignore ce qui ne reçoit pas les touchers. */
 }
 
 /* ---------- notifications d'écran ---------- */
