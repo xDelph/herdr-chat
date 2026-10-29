@@ -272,3 +272,65 @@ fn une_reponse_muette_reste_inconnue_et_n_echoue_pas() {
     let preuve = preuve_de_prompt(&json!({}), "abc");
     assert!(matches!(preuve, PromptEvidence::Unknown { .. }));
 }
+
+/// `agent.start` : le refus « coquille pas prête » d'Herdr est REJOUABLE
+/// (`ShellNotReady`), tout autre refus structuré est `Failed` avec la cause
+/// d'Herdr (le moteur y lit « blocked »), une panne reste une erreur de port.
+#[test]
+fn les_refus_de_agent_start_sont_traduits_comme_le_fil() {
+    use herdr_client::port::issue_de_lancement;
+    use herdr_client::transport::ErreurTransport;
+
+    let pane = domain::ids::PaneId::from(String::from("w1:p4"));
+    match issue_de_lancement(
+        Err(ErreurTransport::AmontRefus {
+            code: String::from("invalid_request"),
+            message: String::from("pane w1:p4 is not an available shell"),
+        }),
+        &pane,
+    ) {
+        Ok(StartEvidence::ShellNotReady { detail }) => {
+            assert!(detail.contains("not an available shell"), "{detail}");
+        }
+        autre => panic!("la coquille pas prête doit être rejouable : {autre:?}"),
+    }
+    match issue_de_lancement(
+        Err(ErreurTransport::AmontRefus {
+            code: String::from("agent_start_failed"),
+            message: String::from("agent did not become ready: blocked"),
+        }),
+        &pane,
+    ) {
+        Ok(StartEvidence::Failed { detail }) => {
+            assert!(detail.to_lowercase().contains("blocked"), "{detail}");
+            assert!(detail.contains("agent_start_failed"), "{detail}");
+        }
+        autre => panic!("un refus amont est `Failed` : {autre:?}"),
+    }
+    match issue_de_lancement(Ok(json!({ "type": "agent_started" })), &pane) {
+        Ok(StartEvidence::Started { pane: occupe }) => assert_eq!(occupe, pane),
+        autre => panic!("un démarrage accepté est `Started` : {autre:?}"),
+    }
+    assert_eq!(
+        issue_de_lancement(Err(ErreurTransport::DelaiDepasse), &pane),
+        Err(domain::errors::PortError::Timeout),
+        "un délai sans verdict n'est jamais un refus"
+    );
+}
+
+/// Le socket attend PLUS longtemps qu'Herdr : le verdict d'`agent.start`
+/// (120 s côté Herdr) arrive toujours avant l'abandon du socket — sinon un
+/// démarrage lent était déclaré « délai dépassé » à 15 s.
+#[test]
+fn le_socket_attend_le_verdict_de_agent_start() {
+    use herdr_client::port::DELAI_AGENT_MS;
+    use herdr_client::transport::{DELAI_PAR_DEFAUT, delai_de};
+
+    let demande_a_herdr = std::time::Duration::from_millis(DELAI_AGENT_MS);
+    assert!(delai_de("agent.start") > demande_a_herdr);
+    assert!(delai_de("agent.start") > DELAI_PAR_DEFAUT);
+    // La borne de Herdr : « greater than 3000 and at most 300000 ».
+    assert!((3_001..=300_000).contains(&std::hint::black_box(DELAI_AGENT_MS)));
+    // Les autres méthodes gardent le défaut mesuré.
+    assert_eq!(delai_de("agent.prompt"), DELAI_PAR_DEFAUT);
+}
