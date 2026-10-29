@@ -1,33 +1,33 @@
-# Formule Homebrew (T066) — préparée, non publiée.
+# Formule Homebrew — GABARIT de la formule publiée dans le tap
+# `xDelph/homebrew-herdr-chat` (`Formula/herdr-chat.rb`).
 #
-# ⚠️ Rien n'est publié ici : la formule est un GABARIT de ce que `brew install`
-# devra faire, et « elle existe » ne veut pas dire « elle a été testée sur une
-# installation réelle ». Les empreintes seront remplies par l'assemblage
-# (`xtask release`), jamais recopiées à la main d'un run à l'autre.
+# ⚠️ Les empreintes sont celles de la release GitHub `v<version>` (fichiers
+# `.sha256` produits par `xtask release` dans la CI `release-rust`), jamais
+# recopiées d'un run à l'autre : le gabarit garde des marqueurs.
 class HerdrChat < Formula
   desc "Drive Herdr and its coding agents from your phone (single Rust binary)"
-  homepage "https://github.com/herdr/remote"
+  homepage "https://github.com/xDelph/herdr-chat"
   version "0.2.0"
-  license "MIT"
+  license "PolyForm-Noncommercial-1.0.0"
 
   on_macos do
     on_arm do
-      url "https://example.invalid/herdr-chat-macos-arm64.tar.gz"
+      url "https://github.com/xDelph/herdr-chat/releases/download/v#{version}/herdr-chat-macos-arm64.tar.gz"
       sha256 "A_REMPLACER_PAR_XTASK_RELEASE"
     end
     on_intel do
-      url "https://example.invalid/herdr-chat-macos-x86_64.tar.gz"
+      url "https://github.com/xDelph/herdr-chat/releases/download/v#{version}/herdr-chat-macos-x86_64.tar.gz"
       sha256 "A_REMPLACER_PAR_XTASK_RELEASE"
     end
   end
 
   on_linux do
     on_arm do
-      url "https://example.invalid/herdr-chat-linux-aarch64.tar.gz"
+      url "https://github.com/xDelph/herdr-chat/releases/download/v#{version}/herdr-chat-linux-aarch64.tar.gz"
       sha256 "A_REMPLACER_PAR_XTASK_RELEASE"
     end
     on_intel do
-      url "https://example.invalid/herdr-chat-linux-x86_64.tar.gz"
+      url "https://github.com/xDelph/herdr-chat/releases/download/v#{version}/herdr-chat-linux-x86_64.tar.gz"
       sha256 "A_REMPLACER_PAR_XTASK_RELEASE"
     end
   end
