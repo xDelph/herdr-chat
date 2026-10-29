@@ -169,3 +169,23 @@ fn le_journal_par_defaut_vit_a_cote_des_donnees() {
         std::path::PathBuf::from("/Users/moi/.herdr-remote/herdr-remote.log")
     );
 }
+
+/// Le filtre des traces : `info` par défaut (les `warn!` du démon sortent),
+/// `RUST_LOG` respecté, une directive illisible REFUSÉE avec sa cause.
+#[test]
+fn le_filtre_des_traces_respecte_rust_log() {
+    use herdrchat::logging::filtre_de_traces;
+    use tracing::level_filters::LevelFilter;
+
+    let defaut = filtre_de_traces(None).unwrap_or_else(|cause| panic!("{cause}"));
+    assert_eq!(defaut.max_level_hint(), Some(LevelFilter::INFO));
+    let vide = filtre_de_traces(Some("  ")).unwrap_or_else(|cause| panic!("{cause}"));
+    assert_eq!(vide.max_level_hint(), Some(LevelFilter::INFO));
+    let debug = filtre_de_traces(Some("debug")).unwrap_or_else(|cause| panic!("{cause}"));
+    assert_eq!(debug.max_level_hint(), Some(LevelFilter::DEBUG));
+    let refus = filtre_de_traces(Some("herdrchat=pas-un-niveau"));
+    assert!(
+        matches!(&refus, Err(cause) if cause.contains("RUST_LOG")),
+        "une directive illisible doit être refusée"
+    );
+}

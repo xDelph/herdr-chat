@@ -30,13 +30,8 @@ impl PortNotifications {
     /// ⚠️ La livraison a besoin des clés VAPID **privées** : si le magasin ne
     /// peut pas les fournir, le port est composé **sans** livraison possible —
     /// et `deliver` répond `Unknown` avec la cause, jamais un faux succès.
-    pub fn nouveau(store: Arc<GardienDeStore>) -> Self {
-        // Le client Web Push n'est construit que si les clés existent ; sinon
-        // la remise échoue avec la cause réelle (voir `livre`).
-        let livraison: Arc<dyn LivraisonPush> = match store.clefs() {
-            Ok(clefs) => Arc::new(LivraisonWebPush::nouvelle(clefs)),
-            Err(_) => Arc::new(SansLivraison),
-        };
+    pub fn nouveau(store: Arc<GardienDeStore>, sujet: String) -> Self {
+        let livraison = livraison_reelle(&store, sujet);
         Self { livraison, store }
     }
 
@@ -48,8 +43,23 @@ impl PortNotifications {
     }
 }
 
+/// La livraison RÉELLE, partagée par le port (H15/H16) et le notifieur de
+/// la veille : le client Web Push n'est construit que si les clés existent ;
+/// sinon chaque remise échoue avec la cause réelle, jamais un faux succès.
+#[must_use]
+pub fn livraison_reelle(store: &GardienDeStore, sujet: String) -> Arc<dyn LivraisonPush> {
+    match store.clefs() {
+        Ok(clefs) => Arc::new(LivraisonWebPush::nouvelle(clefs, sujet)),
+        Err(erreur) => Arc::new(SansLivraison {
+            cause: erreur_de_port(&erreur).description(),
+        }),
+    }
+}
+
 /// La livraison quand les clés manquent : elle échoue avec sa cause.
-struct SansLivraison;
+struct SansLivraison {
+    cause: String,
+}
 
 impl LivraisonPush for SansLivraison {
     fn envoie<'a>(
@@ -59,9 +69,12 @@ impl LivraisonPush for SansLivraison {
         _ttl: std::time::Duration,
     ) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<(), ErreurLivraison>> + Send + 'a>>
     {
-        Box::pin(async {
+        Box::pin(async move {
             Err(ErreurLivraison::Autre {
-                detail: String::from("clés VAPID indisponibles : envoi impossible"),
+                detail: format!(
+                    "clés VAPID indisponibles, envoi impossible : {}",
+                    self.cause
+                ),
             })
         })
     }

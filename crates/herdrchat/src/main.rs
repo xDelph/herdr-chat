@@ -26,6 +26,18 @@ async fn main() {
         return;
     }
     let environnement: HashMap<String, String> = std::env::vars().collect();
+    /*
+      ⚠️ **Sans abonné, chaque `tracing::warn!` était perdu.** Les dégradations
+      de flux, les pannes SQLite, les livraisons push échouées étaient écrites…
+      vers personne : `tracing-subscriber` n'était jamais initialisé. Les traces
+      vont sur `stderr` (que le service redirige vers `out.log`), filtrées par
+      `RUST_LOG`, `info` par défaut.
+    */
+    if let Err(cause) =
+        herdrchat::logging::initialise_traces(environnement.get("RUST_LOG").map(String::as_str))
+    {
+        eprintln!("{cause}");
+    }
     let maison = environnement
         .get("HOME")
         .cloned()
@@ -77,9 +89,53 @@ async fn demarre(config: &Config) -> Result<(), String> {
     // 3) Les artefacts : confinés aux racines de CHAQUE requête.
     let artefacts = Arc::new(files::port::PortArtefacts::nouveau());
     // 4) Les notifications : le store compatible, à côté du journal.
-    let notifications = Arc::new(notifications::port::PortNotifications::nouveau(Arc::new(
-        notifications::store::GardienDeStore::nouveau(config.push_store_path.clone(), None),
-    )));
+    //
+    // ⚠️ Avant d'ouvrir le store, on rapatrie celui de l'ancien emplacement
+    // (`<cwd>/.herdr-remote/push.json`, E10) : sans cela, les abonnements déjà
+    // enregistrés restent orphelins et les notifications s'arrêtent sans un
+    // mot. Une erreur est DITE, jamais masquée — et n'empêche pas de servir.
+    if let Ok(dossier) = std::env::current_dir() {
+        let ancien = dossier.join(".herdr-remote").join("push.json");
+        match notifications::store::rapatrie_store(&config.push_store_path, &ancien) {
+            Ok(Some(depuis)) => {
+                tracing::warn!("abonnements Web Push rapatriés depuis {}", depuis.display())
+            }
+            Ok(None) => {}
+            Err(erreur) => tracing::warn!(
+                "rapatriement du store push impossible ({} → {}) : {erreur:?}",
+                ancien.display(),
+                config.push_store_path.display()
+            ),
+        }
+    }
+    // Les surcharges VAPID de l'environnement : une paire PARTIELLE ou
+    // incohérente est refusée au démarrage, jamais complétée en silence.
+    let clefs_env = notifications::store::ClefsVapid::depuis_env(
+        config.vapid_cle_publique.clone(),
+        config.vapid_cle_privee.clone(),
+    )
+    .map_err(|erreur| {
+        format!(
+            "clés VAPID de l'environnement refusées : {}",
+            notifications::port::erreur_de_port(&erreur).description()
+        )
+    })?;
+    let store_push = Arc::new(notifications::store::GardienDeStore::nouveau(
+        config.push_store_path.clone(),
+        clefs_env,
+    ));
+    // UNE livraison réelle, partagée par le port (H15/H16) et le notifieur de
+    // la veille — le `sub` du JWT est le sujet configuré.
+    let livraison =
+        notifications::port::livraison_reelle(&store_push, config.vapid_sujet_resolu.clone());
+    let notifications = Arc::new(notifications::port::PortNotifications::avec_livraison(
+        Arc::clone(&store_push),
+        Arc::clone(&livraison),
+    ));
+    let notifieur = Arc::new(notifications::notifieur::Notifieur::nouveau(
+        livraison,
+        Arc::clone(&store_push),
+    ));
     // 5) Les sessions : les racines de la configuration, lues par les
     //    lecteurs par famille.
     let port_sessions: Arc<dyn application::ports::SessionPort> = Arc::new(
@@ -135,8 +191,11 @@ async fn demarre(config: &Config) -> Result<(), String> {
       `session_changed` : la PWA retombait sur son filet (30 s / 120 s), donc
       ni statut en direct, ni message en direct — même écran ouvert.
     */
-    let mut veille =
-        herdrchat::veille::Veille::demarre(Arc::clone(&services), Arc::clone(&maintenant));
+    let mut veille = herdrchat::veille::Veille::demarre(
+        Arc::clone(&services),
+        Arc::clone(&maintenant),
+        Some(notifieur),
+    );
     // 8) Le routeur, l'écoute et le cycle de vie.
     let adresse = format!("{}:{}", config.hostname, config.port);
     let adresse: std::net::SocketAddr = adresse

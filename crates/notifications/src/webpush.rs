@@ -4,6 +4,14 @@
 //!
 //! ⚠️ Le délai de 15 s est appliqué par le worker (T044/T045) : le client
 //! `web-push` ne timeout jamais lui-même.
+//!
+//! ⚠️ **Le `sub` du JWT est celui de la configuration**, jamais celui du
+//! crate. Sans `sub` explicite, `web-push` signe avec
+//! `mailto:example@example.com` : un sujet que personne n'a choisi, et que
+//! le service push d'Apple est en droit de refuser (`BadJwtToken`). Le fil
+//! résolvait le sujet (`HERDR_REMOTE_VAPID_SUBJECT`, puis la première origine
+//! HTTPS configurée, puis `mailto:herdr-remote@example.com`, CURRENT §6) et
+//! le passait à `setVapidDetails` : on fait de même.
 
 use crate::delivery::{ErreurLivraison, LivraisonPush};
 use crate::store::{AbonnementPush, ClefsVapid};
@@ -11,25 +19,51 @@ use std::future::Future;
 use std::pin::Pin;
 use std::time::Duration;
 use web_push::{
-    ContentEncoding, HyperWebPushClient, SubscriptionInfo, VapidSignatureBuilder, WebPushClient,
-    WebPushError, WebPushMessageBuilder,
+    ContentEncoding, HyperWebPushClient, SubscriptionInfo, VapidSignature, VapidSignatureBuilder,
+    WebPushClient, WebPushError, WebPushMessageBuilder,
 };
 
-/// Le client réel — le TTL 60 s du contrat, la clé privée du store.
+/// Le sujet VAPID par défaut — celui du fil, quand ni le sujet explicite ni
+/// une origine HTTPS configurée n'existent.
+pub const SUJET_PAR_DEFAUT: &str = "mailto:herdr-remote@example.com";
+
+/// Le client réel — le TTL 60 s du contrat, la clé privée du store, le sujet
+/// de la configuration.
 pub struct LivraisonWebPush {
     client: HyperWebPushClient,
     clefs: ClefsVapid,
+    sujet: String,
 }
 
 impl LivraisonWebPush {
-    /// Le client sur les clés VAPID du store.
+    /// Le client sur les clés VAPID du store et le sujet (`sub`) résolu par
+    /// la configuration.
     #[must_use]
-    pub fn nouvelle(clefs: ClefsVapid) -> Self {
+    pub fn nouvelle(clefs: ClefsVapid, sujet: String) -> Self {
         Self {
             client: HyperWebPushClient::new(),
             clefs,
+            sujet,
         }
     }
+}
+
+/// La signature VAPID d'un envoi : la clé privée brute (forme Node), le
+/// `sub` EXPLICITE — le JWT porte toujours le sujet configuré.
+pub fn signature_vapid(
+    clefs: &ClefsVapid,
+    sujet: &str,
+    info: &SubscriptionInfo,
+) -> Result<VapidSignature, ErreurLivraison> {
+    let mut builder = VapidSignatureBuilder::from_base64_no_sub(&clefs.private_key)
+        .map_err(|cause| ErreurLivraison::Autre {
+            detail: cause.to_string(),
+        })?
+        .add_sub_info(info);
+    builder.add_claim("sub", sujet);
+    builder.build().map_err(|cause| ErreurLivraison::Autre {
+        detail: cause.to_string(),
+    })
 }
 
 impl LivraisonPush for LivraisonWebPush {
@@ -45,15 +79,7 @@ impl LivraisonPush for LivraisonWebPush {
                 &abonnement.keys.p256dh,
                 &abonnement.keys.auth,
             );
-            let signature = VapidSignatureBuilder::from_base64_no_sub(&self.clefs.private_key)
-                .map_err(|cause| ErreurLivraison::Autre {
-                    detail: cause.to_string(),
-                })?
-                .add_sub_info(&info)
-                .build()
-                .map_err(|cause| ErreurLivraison::Autre {
-                    detail: cause.to_string(),
-                })?;
+            let signature = signature_vapid(&self.clefs, &self.sujet, &info)?;
             let mut builder = WebPushMessageBuilder::new(&info);
             builder.set_ttl(ttl.as_secs() as u32);
             builder.set_vapid_signature(signature);

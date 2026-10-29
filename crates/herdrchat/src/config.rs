@@ -91,6 +91,11 @@ pub struct Config {
     /// `HERDR_REMOTE_VAPID_SUBJECT` — brut ; la dérivation (HTTPS configuré,
     /// puis mailto) vit dans les abonnements (T052).
     pub vapid_sujet: Option<String>,
+    /// Le sujet VAPID **résolu** — le `sub` du JWT de chaque envoi push :
+    /// `HERDR_REMOTE_VAPID_SUBJECT`, sinon la première origine HTTPS de
+    /// `HERDR_REMOTE_PUBLIC_ORIGINS` (le pluriel seul, comme le fil), sinon
+    /// `mailto:herdr-remote@example.com` (CURRENT §6).
+    pub vapid_sujet_resolu: String,
     /// `HERDR_REMOTE_VAPID_PUBLIC_KEY` — brut ; les deux surcharges doivent
     /// venir ENSEMBLE (une paire partielle est une erreur, T044).
     pub vapid_cle_publique: Option<String>,
@@ -235,9 +240,36 @@ pub fn config_depuis_avec(
             },
         )),
         vapid_sujet: env.get("HERDR_REMOTE_VAPID_SUBJECT").cloned(),
+        vapid_sujet_resolu: sujet_vapid(env),
         vapid_cle_publique: env.get("HERDR_REMOTE_VAPID_PUBLIC_KEY").cloned(),
         vapid_cle_privee: env.get("HERDR_REMOTE_VAPID_PRIVATE_KEY").cloned(),
     })
+}
+
+/// Le sujet VAPID résolu (CURRENT §6) : explicite, puis première origine
+/// HTTPS du pluriel `HERDR_REMOTE_PUBLIC_ORIGINS`, puis le `mailto:` du fil.
+///
+/// ⚠️ Divergence assumée : un sujet explicite **vide** n'est pas retenu (le
+/// fil l'aurait signé tel quel, un JWT au `sub` vide que les services push
+/// refusent) — on passe alors au repli suivant.
+#[must_use]
+pub fn sujet_vapid(env: &HashMap<String, String>) -> String {
+    if let Some(sujet) = env
+        .get("HERDR_REMOTE_VAPID_SUBJECT")
+        .map(|sujet| sujet.trim())
+        .filter(|sujet| !sujet.is_empty())
+    {
+        return sujet.to_string();
+    }
+    env.get("HERDR_REMOTE_PUBLIC_ORIGINS")
+        .and_then(|origines| {
+            origines
+                .split(',')
+                .map(str::trim)
+                .find(|origine| origine.starts_with("https://"))
+                .map(str::to_string)
+        })
+        .unwrap_or_else(|| String::from(notifications::webpush::SUJET_PAR_DEFAUT))
 }
 
 /// Valide le bind (C10) : le loopback par défaut, sinon une adresse PARCÉE
