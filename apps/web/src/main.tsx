@@ -15,7 +15,7 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./app/App.tsx";
 import { reportError } from "./api.ts";
-import { ecouteNavigationWorker } from "./navigation-worker.ts";
+import { ecouteNavigationWorker, reprendNavigation } from "./navigation-worker.ts";
 import {
   lireStyleMarque,
   lireTheme,
@@ -39,12 +39,34 @@ window
   .matchMedia("(prefers-color-scheme: dark)")
   .addEventListener("change", rafraichirCouleurDeBarre);
 
+const vaVers = (hash: string) => {
+  if (window.location.hash !== hash) window.location.hash = hash;
+};
+// La cible retenue par le worker (iOS perd parfois `navigate` et le
+// message) : reprise au démarrage et à chaque retour au premier plan — puis
+// un peu après, le clic pouvant être traité juste APRÈS le réveil de la page.
+const reprend = async () => {
+  try {
+    await reprendNavigation("caches" in window ? caches : undefined, Date.now(), vaVers);
+  } catch (cause) {
+    reportError("pending navigation unreadable", {
+      message: cause instanceof Error ? cause.message : String(cause),
+    });
+  }
+};
+const repriseAuReveil = () => {
+  if (document.visibilityState !== "visible") return;
+  void reprend();
+  for (const delai of [400, 1_200]) window.setTimeout(() => void reprend(), delai);
+};
+
 if ("serviceWorker" in navigator) {
   // Après un appui sur une notification, le worker peut demander d'ouvrir une
   // conversation : le fragment change, le routage suit (`hashchange`).
-  ecouteNavigationWorker(navigator.serviceWorker, (hash) => {
-    if (window.location.hash !== hash) window.location.hash = hash;
-  });
+  ecouteNavigationWorker(navigator.serviceWorker, vaVers);
+  repriseAuReveil();
+  document.addEventListener("visibilitychange", repriseAuReveil);
+  window.addEventListener("pageshow", repriseAuReveil);
   void (async () => {
     try {
       await navigator.serviceWorker.register("/sw.js", { scope: "/" });

@@ -83,7 +83,18 @@ const bac = (fenetres: Fenetre[], journal: string[] = []): Bac => {
   runInNewContext(SOURCE, {
     URL,
     atob,
-    caches: { delete: async () => true, keys: async () => [] },
+    caches: {
+      delete: async () => true,
+      keys: async () => [],
+      open: async (nom: string) => ({
+        put: async (cle: string, reponse: Response) => {
+          journal.push(
+            `retient ${nom} ${cle} ${String(Reflect.get(await reponse.json(), "hash"))}`,
+          );
+        },
+      }),
+    },
+    Response,
     console: { error: () => undefined },
     fetch: faussesRequetes,
     self,
@@ -160,7 +171,28 @@ describe("service worker — clic sur une notification", () => {
     await declenche("notificationclick", {
       notification: { close: () => journal.push("ferme"), data: { url: "/#/agent/w1%3Ap1" } },
     });
-    expect(journal).toEqual(["ferme", "focus", `navigue ${ORIGINE}/#/agent/w1%3Ap1`]);
+    // La cible est retenue (sans retarder le focus : fenêtre d'activation).
+    expect(journal).toContain(
+      "retient herdr-navigation /__herdr/navigation-en-attente #/agent/w1%3Ap1",
+    );
+    expect(journal.filter((ligne) => !ligne.startsWith("retient"))).toEqual([
+      "ferme",
+      "focus",
+      `navigue ${ORIGINE}/#/agent/w1%3Ap1`,
+      `message ${JSON.stringify({ hash: "#/agent/w1%3Ap1", type: "herdr:navigate", url: `${ORIGINE}/#/agent/w1%3Ap1` })}`,
+    ]);
+  });
+
+  test("chaque fenêtre de l'app reçoit le message, même quand `navigate` a « réussi » (iOS gelé)", async () => {
+    const journal: string[] = [];
+    const { declenche } = bac(
+      [fenetre(`${ORIGINE}/`, journal), fenetre(`${ORIGINE}/#/agent/w2%3Ap1`, journal)],
+      journal,
+    );
+    await declenche("notificationclick", {
+      notification: { close: () => undefined, data: { url: "/#/agent/w1%3Ap1" } },
+    });
+    expect(journal.filter((ligne) => ligne.startsWith("message"))).toHaveLength(2);
   });
 
   test("une fenêtre non contrôlée reçoit l'adresse par message", async () => {
@@ -169,8 +201,12 @@ describe("service worker — clic sur une notification", () => {
     await declenche("notificationclick", {
       notification: { close: () => undefined, data: { url: "/#/agent/w1%3Ap1" } },
     });
-    expect(journal[0]).toBe("focus");
-    expect(journal[1]).toBe(
+    expect(journal).toContain(
+      "retient herdr-navigation /__herdr/navigation-en-attente #/agent/w1%3Ap1",
+    );
+    const sansReserve = journal.filter((ligne) => !ligne.startsWith("retient"));
+    expect(sansReserve[0]).toBe("focus");
+    expect(sansReserve[1]).toBe(
       `message ${JSON.stringify({ hash: "#/agent/w1%3Ap1", type: "herdr:navigate", url: `${ORIGINE}/#/agent/w1%3Ap1` })}`,
     );
   });
@@ -181,7 +217,10 @@ describe("service worker — clic sur une notification", () => {
     await declenche("notificationclick", {
       notification: { close: () => undefined, data: { url: "/#/agent/w1%3Ap1" } },
     });
-    expect(journal).toEqual([`ouvre ${ORIGINE}/#/agent/w1%3Ap1`]);
+    expect(journal[0]).toBe(`ouvre ${ORIGINE}/#/agent/w1%3Ap1`);
+    expect(journal).toContain(
+      "retient herdr-navigation /__herdr/navigation-en-attente #/agent/w1%3Ap1",
+    );
   });
 });
 

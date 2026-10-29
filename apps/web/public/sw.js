@@ -1,8 +1,10 @@
 /*
   Service worker de Herdr Chat — **notifications push uniquement**.
 
-  ⚠️ Il ne met RIEN en cache et n'intercepte aucune requête (pas de `fetch`) :
-  l'app ne fait que parler au démon, et sa fraîcheur vient du serveur
+  ⚠️ Il ne met aucune RÉPONSE en cache et n'intercepte aucune requête (pas de
+  `fetch`) — seule exception, une entrée de quelques octets : la conversation
+  à ouvrir après un appui sur une notification (`retiensNavigation`). L'app
+  ne fait que parler au démon, et sa fraîcheur vient du serveur
   (`index.html` en no-cache, fichiers hachés en immutable). Une version périmée
   ne peut donc pas être servie par ce worker.
 
@@ -28,6 +30,31 @@ const signale = async (message, cause) => {
     });
   } catch {
     // Signaler une erreur ne doit jamais en produire une : la console l'a déjà.
+  }
+};
+
+/*
+  ⚠️ **La conversation à ouvrir, retenue.** Retour du 2026-10-29 : un appui sur
+  la notification ouvrait l'app sans ouvrir l'agent. Sur iOS, l'app suspendue
+  revient au premier plan pendant que `navigate()` et le message du worker
+  peuvent se perdre (page encore gelée). La cible est donc AUSSI posée ici ;
+  la page la reprend en revenant au premier plan (`navigation-worker.ts`),
+  moins d'une minute après, puis l'efface.
+*/
+const CACHE_NAVIGATION = "herdr-navigation";
+const CLE_NAVIGATION = "/__herdr/navigation-en-attente";
+
+const retiensNavigation = async (cible) => {
+  try {
+    const cache = await caches.open(CACHE_NAVIGATION);
+    await cache.put(
+      CLE_NAVIGATION,
+      new Response(JSON.stringify({ at: Date.now(), hash: cible.hash }), {
+        headers: { "content-type": "application/json" },
+      }),
+    );
+  } catch (cause) {
+    await signale("pending navigation not stored", cause);
   }
 };
 
@@ -94,21 +121,28 @@ self.addEventListener("push", (event) => {
   ⚠️ **Le focus d'abord.** `focus()` n'est permis que pendant la courte fenêtre
   d'activation ouverte par le clic : attendre une navigation avant de focaliser
   la consomme, et la fenêtre reste derrière (iOS, Chrome). On focalise, PUIS on
-  amène l'app sur l'agent : `navigate` (une navigation de fragment, l'app suit
-  `hashchange`), sinon un message `herdr:navigate` à la fenêtre. Sans fenêtre,
-  on en ouvre une directement sur l'agent.
+  amène l'app sur l'agent par trois chemins, car iOS en perd : `navigate` (une
+  navigation de fragment, l'app suit `hashchange`), un message
+  `herdr:navigate` à chaque fenêtre, et la cible retenue que la page reprend
+  au retour au premier plan. Sans fenêtre, on en ouvre une directement sur
+  l'agent.
 */
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const cible = new URL(event.notification.data?.url || "/", self.location.origin);
   event.waitUntil(
     (async () => {
+      // Lancée tout de suite, attendue après : `focus`/`openWindow` doivent
+      // partir dans la fenêtre d'activation du clic.
+      const retenue = cible.hash.startsWith("#/") ? retiensNavigation(cible) : Promise.resolve();
       const fenetres = await self.clients.matchAll({ includeUncontrolled: true, type: "window" });
-      const existante = fenetres.find(
+      const notres = fenetres.filter(
         (client) => new URL(client.url).origin === self.location.origin,
       );
+      const existante = notres[0];
       if (existante === undefined) {
         await self.clients.openWindow(cible.href);
+        await retenue;
         return;
       }
       let fenetre = existante;
@@ -117,15 +151,21 @@ self.addEventListener("notificationclick", (event) => {
       } catch (cause) {
         await signale("window not focused", cause);
       }
-      if (fenetre.url === cible.href) return;
-      try {
-        if (typeof fenetre.navigate !== "function") throw new Error("navigate unavailable");
-        await fenetre.navigate(cible.href);
-      } catch {
-        // Une fenêtre non contrôlée ne se navigue pas : on lui dit où aller.
-        // (`Client.postMessage(message, transfer)` n'a pas de `targetOrigin` :
-        // la liste de transfert est vide.)
-        fenetre.postMessage({ hash: cible.hash, type: "herdr:navigate", url: cible.href }, []);
+      await retenue;
+      if (fenetre.url !== cible.href) {
+        try {
+          if (typeof fenetre.navigate !== "function") throw new Error("navigate unavailable");
+          await fenetre.navigate(cible.href);
+        } catch {
+          // Une fenêtre non contrôlée ne se navigue pas : le message suit.
+        }
+      }
+      // Le message part TOUJOURS, à chaque fenêtre de l'app : une navigation
+      // peut « réussir » sans effet sur une page gelée (iOS). La page ignore
+      // une adresse où elle est déjà. (`Client.postMessage(message, transfer)`
+      // n'a pas de `targetOrigin` : la liste de transfert est vide.)
+      for (const client of notres) {
+        client.postMessage({ hash: cible.hash, type: "herdr:navigate", url: cible.href }, []);
       }
     })(),
   );
