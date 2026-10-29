@@ -48,15 +48,26 @@ fn source_de_port(port: &dyn SessionPort, agent: &AgentObservation) -> Option<So
     // bloquants déguisés) — `Pending` serait un branchement cassé.
     let mut futur = port.resolve(hint);
     let issue = attend_session(&mut futur).ok().flatten()?;
+    // L'en-tête d'un fichier (Pi) déclare identifiant, dossier et parent ;
+    // un en-tête absent laisse ces champs absents (D09), jamais devinés.
+    let en_tete = match issue.kind {
+        SourceKind::File => attend_session(&mut port.metadata(issue.clone())).ok(),
+        SourceKind::Sqlite => None,
+    }
+    .unwrap_or_default();
     Some(SourceDeSession {
         kind: match issue.kind {
             SourceKind::File => SessionRefKind::Path,
             SourceKind::Sqlite => SessionRefKind::Id,
         },
         base: Some(issue.base),
-        session_id: issue.session_id,
-        cwd: None,
-        parent: None,
+        session_id: issue
+            .session_id
+            .or_else(|| en_tete.session_id.map(application::noyau::SessionId::from)),
+        cwd: en_tete.cwd,
+        parent: en_tete
+            .parent_session
+            .map(application::noyau::SessionId::from),
     })
 }
 

@@ -354,3 +354,49 @@ fn une_ligne_de_comptabilite_n_est_jamais_une_demande() {
         lue.texte
     );
 }
+
+/// Régression (P0) : la résolution de l'accueil portait `cwd`/`parent` en dur
+/// à `None` et jetait l'identifiant de l'en-tête — `sessionCwd` et
+/// `sessionCwdMatches` absents pour toutes les sessions Pi.
+#[test]
+fn la_resolution_porte_ce_que_declare_l_en_tete_d_une_session_pi() {
+    use application::overview::ResoutSessions;
+    use herdrchat::assemblage::ResoutSessionsViaPort;
+    let racine = racine("assemblee-entete");
+    let fichier = racine.join("s.jsonl");
+    let contenu = concat!(
+        r#"{"type":"session","version":3,"id":"s-7","cwd":"/tmp/projet","parentSession":"p-1"}"#,
+        "\n"
+    );
+    match std::fs::write(&fichier, contenu) {
+        Ok(()) => (),
+        Err(cause) => panic!("écriture : {cause}"),
+    }
+    let port = sessions::port::PortSessions::nouveau(sessions::resolver::Racines {
+        pi_sessions: racine.clone(),
+        claude_projects: racine.join("claude"),
+        codex_home: racine.join("codex-home"),
+        codex_sessions: racine.join("codex-sessions"),
+        devin_db: racine.join("devin.db"),
+        opencode_db: racine.join("opencode.db"),
+    });
+    let resolveur = ResoutSessionsViaPort {
+        port: Arc::new(port),
+    };
+    let mut agent = test_support::fixtures::snapshot_de_base().agents[0].clone();
+    agent.agent = Some(domain::ids::AgentKind::from(String::from("pi")));
+    agent.session = Some(domain::observation::AgentSessionRef {
+        kind: domain::observation::SessionRefKind::Path,
+        value: fichier.to_string_lossy().to_string(),
+    });
+    let source = resolveur
+        .source_de(&agent)
+        .unwrap_or_else(|| panic!("la session publiée doit se résoudre"));
+    assert_eq!(source.cwd.as_deref(), Some("/tmp/projet"));
+    assert_eq!(
+        source.session_id.as_ref().map(|id| id.as_str()),
+        Some("s-7")
+    );
+    assert_eq!(source.parent.as_ref().map(|id| id.as_str()), Some("p-1"));
+    let _ = std::fs::remove_dir_all(&racine);
+}

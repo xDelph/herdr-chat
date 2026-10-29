@@ -550,17 +550,33 @@ impl domain::ports::SessionPort for PortSessions {
         Box::pin(async move {
             // ⚠️ Aucun modèle « par défaut » : ce que le fichier déclare, ou
             // rien. Le réducteur complet (T026) vit dans `metadata` ; ici on
-            // lit l'en-tête et on laisse le reste absent.
+            // lit l'EN-TÊTE — identifiant, dossier, parent — et rien d'autre.
+            //
+            // ⚠️ **L'en-tête était lu, puis jeté** : la méthode rendait
+            // toujours le défaut. Mesuré sur le vrai démon : `sessionCwd` et
+            // `sessionCwdMatches` absents pour 13 agents sur 13 (TS : 6/13),
+            // `sessionId` d'une session Pi jamais exposé.
             if source.kind != SourceKind::File {
                 return Ok(SessionMetadata::default());
             }
+            // La même garde que la lecture : un chemin annoncé hors des
+            // racines (S03) n'est jamais ouvert, même pour son en-tête.
+            let Ok(source) = self.garde(&source) else {
+                return Ok(SessionMetadata::default());
+            };
+            // D09 : un en-tête illisible ou absent n'est pas une panne — les
+            // champs restent absents, rien n'est deviné.
             let Ok(Some(en_tete)) =
                 crate::storage::jsonl::history::en_tete(Path::new(&source.base))
             else {
                 return Ok(SessionMetadata::default());
             };
-            let _ = en_tete;
-            Ok(SessionMetadata::default())
+            Ok(SessionMetadata {
+                session_id: en_tete.id,
+                cwd: en_tete.cwd,
+                parent_session: en_tete.parent_session,
+                ..SessionMetadata::default()
+            })
         })
     }
 }
