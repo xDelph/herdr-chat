@@ -12,6 +12,7 @@
  */
 import { useEffect, useId, useLayoutEffect, useRef, type ReactNode } from "react";
 import { ouvreDialogue } from "../dialogue.ts";
+import { SousLeCorps } from "./portail.tsx";
 import { Icone } from "./Icone.tsx";
 
 export const Feuille = ({
@@ -57,31 +58,33 @@ export const Feuille = ({
   }, []);
 
   return (
-    <dialog
-      ref={ref}
-      className={large ? "feuille feuille--large" : "feuille"}
-      aria-labelledby={idTitre}
-    >
-      <div className="feuille__corps">
-        <div className="feuille__poignee" aria-hidden="true" />
-        <header className="feuille__tete">
-          {retour === undefined ? null : (
-            <button
-              type="button"
-              className="bouton-icone"
-              onClick={retour.action}
-              aria-label={retour.libelle}
-            >
-              <Icone nom="back" />
+    <SousLeCorps>
+      <dialog
+        ref={ref}
+        className={large ? "feuille feuille--large" : "feuille"}
+        aria-labelledby={idTitre}
+      >
+        <div className="feuille__corps">
+          <div className="feuille__poignee" aria-hidden="true" />
+          <header className="feuille__tete">
+            {retour === undefined ? null : (
+              <button
+                type="button"
+                className="bouton-icone"
+                onClick={retour.action}
+                aria-label={retour.libelle}
+              >
+                <Icone nom="back" />
+              </button>
+            )}
+            <h2 id={idTitre}>{titre}</h2>
+            <button type="button" className="bouton-icone" onClick={onClose} aria-label="Fermer">
+              <Icone nom="x" />
             </button>
-          )}
-          <h2 id={idTitre}>{titre}</h2>
-          <button type="button" className="bouton-icone" onClick={onClose} aria-label="Fermer">
-            <Icone nom="x" />
-          </button>
-        </header>
-        <div className="feuille__contenu">{children}</div>
-      </div>
-    </dialog>
+          </header>
+          <div className="feuille__contenu">{children}</div>
+        </div>
+      </dialog>
+    </SousLeCorps>
   );
 };

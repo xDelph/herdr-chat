@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { pleinEcran } from "../app/services.ts";
 import { Icone } from "./Icone.tsx";
+import { SousLeCorps } from "./portail.tsx";
 
 export const PleinEcran = () => {
   const image = useSyncExternalStore(pleinEcran.souscrire, pleinEcran.lit);
@@ -36,43 +37,45 @@ export const PleinEcran = () => {
 
   if (image === null) return null;
   return (
-    <dialog
-      ref={boite}
-      className={reelle ? "plein-ecran plein-ecran--reelle" : "plein-ecran"}
-      aria-label={image.legende}
-      // Échap : le navigateur annule la modale ; on ferme par le magasin.
-      onCancel={(evenement) => {
-        evenement.preventDefault();
-        pleinEcran.ferme();
-      }}
-    >
-      {/* L'appui à côté de l'image ferme ; l'image, elle, bascule le zoom. */}
-      <button
-        type="button"
-        className="plein-ecran__fond"
-        aria-label="Fermer l'image"
-        tabIndex={-1}
-        onClick={() => pleinEcran.ferme()}
-      />
-      <div className="plein-ecran__cadre">
+    <SousLeCorps>
+      <dialog
+        ref={boite}
+        className={reelle ? "plein-ecran plein-ecran--reelle" : "plein-ecran"}
+        aria-label={image.legende}
+        // Échap : le navigateur annule la modale ; on ferme par le magasin.
+        onCancel={(evenement) => {
+          evenement.preventDefault();
+          pleinEcran.ferme();
+        }}
+      >
+        {/* L'appui à côté de l'image ferme ; l'image, elle, bascule le zoom. */}
         <button
           type="button"
-          className="plein-ecran__image"
-          onClick={() => setReelle((valeur) => !valeur)}
-          aria-label={reelle ? "Ajuster à l'écran" : "Taille réelle"}
+          className="plein-ecran__fond"
+          aria-label="Fermer l'image"
+          tabIndex={-1}
+          onClick={() => pleinEcran.ferme()}
+        />
+        <div className="plein-ecran__cadre">
+          <button
+            type="button"
+            className="plein-ecran__image"
+            onClick={() => setReelle((valeur) => !valeur)}
+            aria-label={reelle ? "Ajuster à l'écran" : "Taille réelle"}
+          >
+            <img src={image.source} alt={image.legende} />
+          </button>
+        </div>
+        <button
+          type="button"
+          ref={fermer}
+          className="plein-ecran__fermer"
+          aria-label="Fermer"
+          onClick={() => pleinEcran.ferme()}
         >
-          <img src={image.source} alt={image.legende} />
+          <Icone nom="x" />
         </button>
-      </div>
-      <button
-        type="button"
-        ref={fermer}
-        className="plein-ecran__fermer"
-        aria-label="Fermer"
-        onClick={() => pleinEcran.ferme()}
-      >
-        <Icone nom="x" />
-      </button>
-    </dialog>
+      </dialog>
+    </SousLeCorps>
   );
 };
