@@ -202,6 +202,9 @@ async fn demarre(config: &Config) -> Result<(), String> {
         Arc::clone(&maintenant),
         Some(notifieur),
     );
+    // Le ping de démarrage (O03) : à côté, jamais devant l'écoute — un Herdr
+    // injoignable est un avertissement dans les traces, pas un démon muet.
+    let _ping = herdrchat::demarrage::lance_ping_de_demarrage(Arc::clone(&controle_port));
     // 8) Le routeur, l'écoute et le cycle de vie.
     let adresse = format!("{}:{}", config.hostname, config.port);
     let adresse: std::net::SocketAddr = adresse
