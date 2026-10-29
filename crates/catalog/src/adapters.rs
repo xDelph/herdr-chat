@@ -151,7 +151,7 @@ pub fn parse_claude() -> ResultatCatalogue {
 /// modèle » sans rien déduire.
 pub fn parse_codex(sortie: &str) -> Result<Vec<ModeleCatalogue>, String> {
     let brut: Value =
-        serde_json::from_str(sortie).map_err(|cause| format!("JSON illisible : {cause}"))?;
+        serde_json::from_str(sortie).map_err(|cause| format!("unreadable JSON: {cause}"))?;
     let modeles = brut
         .get("models")
         .and_then(Value::as_array)
@@ -338,10 +338,10 @@ pub fn catalogue_de(genre: &str) -> ResultatCatalogue {
     match adaptateur_de(genre) {
         None => ResultatCatalogue {
             erreur: Some(format!(
-                "kind {genre} : pas de catalogue connu — rien n'est inventé"
+                "kind {genre}: no known catalog — nothing is invented"
             )),
             modeles: Vec::new(),
-            source: format!("aucun adaptateur pour {genre}"),
+            source: format!("no adapter for {genre}"),
             niveaux: Vec::new(),
         },
         Some(adaptateur) => catalogue_d_adaptateur(adaptateur, &commande_par_defaut(genre)),
@@ -391,7 +391,7 @@ pub fn catalogue_d_adaptateur(adaptateur: &Adaptateur, commande: &[String]) -> R
             if resultat.code != Some(0) {
                 return ResultatCatalogue {
                     erreur: Some(format!(
-                        "code de sortie {} : {}",
+                        "exit code {}: {}",
                         resultat
                             .code
                             .map(|c| c.to_string())

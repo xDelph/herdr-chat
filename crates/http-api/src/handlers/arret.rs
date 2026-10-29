@@ -56,10 +56,10 @@ pub fn erreur_en_domaine(erreur: ErreurArret) -> ErreurDomaine {
             ErreurDomaine::sans_source("no Herdr agent in this pane")
         }
         ErreurArret::SnapshotIndisponible { detail } => {
-            ErreurDomaine::amont_injoignable(format!("snapshot Herdr indisponible: {detail}"))
+            ErreurDomaine::amont_injoignable(format!("Herdr snapshot unavailable: {detail}"))
         }
         ErreurArret::SnapshotIllisible { detail } => {
-            ErreurDomaine::amont_malforme(format!("snapshot Herdr illisible: {detail}"))
+            ErreurDomaine::amont_malforme(format!("unreadable Herdr snapshot: {detail}"))
         }
         ErreurArret::Transmission { cible, detail } => {
             ErreurDomaine::amont_refus(format!("Ctrl+C refused for {}: {detail}", cible.as_str()))

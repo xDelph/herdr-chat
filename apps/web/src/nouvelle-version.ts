@@ -75,3 +75,14 @@ export const creeMagasinVersion = (deps: {
     },
   };
 };
+
+/**
+ * L'offre « recharger » n'apparaît qu'à une frontière SÛRE (C21) : une
+ * nouvelle version servie, et ni envoi en attente ni brouillon — recharger
+ * effacerait l'un ou l'autre (volontairement jamais écrits sur le disque).
+ */
+export const offreRechargement = (etat: {
+  readonly nouvelle: boolean;
+  readonly enAttente: boolean;
+  readonly brouillon: boolean;
+}): boolean => etat.nouvelle && !etat.enAttente && !etat.brouillon;

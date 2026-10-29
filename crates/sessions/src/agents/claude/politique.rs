@@ -80,6 +80,9 @@ pub fn ligne_claude_vers_pi(ligne: &Value) -> Option<LignePi> {
     if super::harnais::est_injection_du_harnais(ligne) {
         return None;
     }
+    if let Some(shell) = execution_shell(ligne) {
+        return Some(shell);
+    }
     messages::ligne_vers_pi(ligne)
         .map(rapport_final_en_texte)
         .or_else(|| demande_en_cours_de_tour(ligne))
@@ -164,4 +167,72 @@ pub fn demande_en_cours_de_tour(ligne: &Value) -> Option<LignePi> {
         complet["id"] = json!(format!("claude:{uuid}"));
     }
     serde_json::from_value(complet).ok()
+}
+
+/// Une commande du mode shell de Claude Code (`!commande`) → une exécution
+/// shell de la forme commune (`bashExecution`), jamais une demande.
+///
+/// ⚠️ **Mesuré sur des sessions réelles (2026-10-29, Claude Code 2.1.310,
+/// 5 occurrences).** Le mode `!` écrit DEUX lignes `user` consécutives, de
+/// contenu chaîne :
+///
+/// 1. `<bash-input> commande</bash-input>` ;
+/// 2. `<bash-stdout>sortie</bash-stdout><bash-stderr>erreurs</bash-stderr>`
+///    (`parentUuid` = la ligne 1).
+///
+/// Sans cette lecture, les deux comptaient comme des demandes de
+/// l'utilisateur : bulles de balises brutes, et `lastPrompt` d'une session
+/// devenait une commande shell. Le codec est sans état (une ligne à la
+/// fois) : la ligne 1 rend la commande sans sortie, la ligne 2 la sortie sans
+/// commande — la PWA réunit la paire en un seul bloc shell. Le code de sortie
+/// n'est écrit nulle part : il reste inconnu (`null`), jamais deviné.
+#[must_use]
+pub fn execution_shell(ligne: &Value) -> Option<LignePi> {
+    let objet = ligne.as_object()?;
+    if objet.get("type").and_then(Value::as_str) != Some("user") {
+        return None;
+    }
+    let contenu = objet.get("message")?.get("content")?.as_str()?.trim();
+    let (commande, sortie) = if let Some(commande) = entre_balises(contenu, "bash-input") {
+        (commande.trim().to_string(), String::new())
+    } else if contenu.starts_with("<bash-stdout>") || contenu.starts_with("<bash-stderr>") {
+        let sortie = entre_balises(contenu, "bash-stdout").unwrap_or_default();
+        let erreurs = entre_balises(contenu, "bash-stderr").unwrap_or_default();
+        let sortie = match (sortie.trim_end().is_empty(), erreurs.trim_end().is_empty()) {
+            (_, true) => sortie.to_string(),
+            (true, false) => erreurs.to_string(),
+            (false, false) => format!("{}\n{erreurs}", sortie.trim_end()),
+        };
+        (String::new(), sortie)
+    } else {
+        return None;
+    };
+    let mut complet = json!({
+        "type": "message",
+        "message": {
+            "role": "bashExecution",
+            "command": commande,
+            "output": sortie,
+            "exitCode": null,
+            "cancelled": false,
+            "truncated": false,
+            "content": [],
+        },
+    });
+    if let Some(horodatage) = objet.get("timestamp").and_then(Value::as_str) {
+        complet["timestamp"] = json!(horodatage);
+    }
+    if let Some(uuid) = objet.get("uuid").and_then(Value::as_str) {
+        complet["id"] = json!(format!("claude:{uuid}"));
+    }
+    serde_json::from_value(complet).ok()
+}
+
+/// Le texte entre `<balise>` et `</balise>`, quand les deux y sont.
+fn entre_balises<'a>(texte: &'a str, balise: &str) -> Option<&'a str> {
+    let ouvrante = format!("<{balise}>");
+    let fermante = format!("</{balise}>");
+    let debut = texte.find(&ouvrante)? + ouvrante.len();
+    let fin = debut + texte[debut..].find(&fermante)?;
+    Some(&texte[debut..fin])
 }

@@ -181,7 +181,7 @@ export const Modele = ({
   };
 
   return (
-    <Feuille titre={`Modèle · ${agentNom}`} onClose={onClose}>
+    <Feuille titre={`Model · ${agentNom}`} onClose={onClose}>
       {resultats.length > 0 ? (
         <output className="feuille__resultats">
           {resultats.map(({ commande, resultat }) => (
@@ -193,17 +193,17 @@ export const Modele = ({
       ) : null}
       {erreur !== null ? (
         <Avis ton="erreur">
-          Catalogue de {kind} illisible : {erreur}
+          Unreadable {kind} catalog: {erreur}
         </Avis>
       ) : catalogue === null ? (
-        <output className="discret">Lecture du catalogue…</output>
+        <output className="discret">Loading the catalog…</output>
       ) : catalogue.models.length === 0 ? (
-        <Avis ton="attention">{catalogue.error ?? `Aucun catalogue vérifié pour ${kind}.`}</Avis>
+        <Avis ton="attention">{catalogue.error ?? `No verified catalog for ${kind}.`}</Avis>
       ) : (
         <>
           {kind === "pi" ? (
             <fieldset className="champ">
-              <legend>Fournisseur</legend>
+              <legend>Provider</legend>
               <select
                 className="choix-liste"
                 value={fournisseurCourant ?? ""}
@@ -215,7 +215,7 @@ export const Modele = ({
                   setFiltre("");
                 }}
               >
-                <option value="">Choisir…</option>
+                <option value="">Choose…</option>
                 {fournisseurs.map((candidat) => (
                   <option key={candidat} value={candidat}>
                     {candidat}
@@ -225,14 +225,14 @@ export const Modele = ({
             </fieldset>
           ) : null}
           <fieldset className="champ">
-            <legend>Modèle</legend>
+            <legend>Model</legend>
             {visibles.length > 8 || filtre.length > 0 ? (
               <input
                 type="search"
                 className="champ__filtre"
                 value={filtre}
-                placeholder={`Filtrer ${String(visibles.length)} modèles`}
-                aria-label="Filtrer les modèles"
+                placeholder={`Filter ${String(visibles.length)} models`}
+                aria-label="Filter models"
                 onChange={(evenement) => setFiltre(evenement.target.value)}
               />
             ) : null}
@@ -258,34 +258,32 @@ export const Modele = ({
                   />
                   <span>{candidat.label ?? candidat.id}</span>
                   <span className="modele__id">
-                    {candidat.id === actuel ? "actuel" : candidat.id}
+                    {candidat.id === actuel ? "current" : candidat.id}
                   </span>
                 </label>
               ))}
-              {visibles.length === 0 ? (
-                <p className="discret modele">Aucun modèle ne correspond.</p>
-              ) : null}
+              {visibles.length === 0 ? <p className="discret modele">No model matches.</p> : null}
             </div>
             <p className="discret">
               {actuel === null
-                ? "Le modèle actuel n'est pas déclaré dans la session."
-                : `Actuel : ${actuel}`}
+                ? "The current model is not declared in the session."
+                : `Current: ${actuel}`}
             </p>
           </fieldset>
         </>
       )}
       {!enSession ? (
         <p className="discret">
-          La réflexion de {agentNom} ne se change pas en cours de session depuis ici : seule la
-          commande « /thinking » de Pi est vérifiée.
+          {agentNom}'s thinking level cannot be changed mid-session from here: only Pi's “/thinking”
+          command is verified.
           {catalogue !== null && catalogue.thinkingLevels.length > 0
-            ? ` Niveaux proposés au lancement : ${catalogue.thinkingLevels.map(libelleReflexion).join(", ")}.`
+            ? ` Levels offered at launch: ${catalogue.thinkingLevels.map(libelleReflexion).join(", ")}.`
             : ""}
         </p>
       ) : niveaux.length > 0 ? (
         <fieldset className="champ">
-          <legend>Réflexion</legend>
-          <fieldset className="seg seg--plein" aria-label="Niveau de réflexion">
+          <legend>Thinking</legend>
+          <fieldset className="seg seg--plein" aria-label="Thinking level">
             {niveaux.map((candidat) => (
               <button
                 key={candidat}
@@ -300,17 +298,17 @@ export const Modele = ({
           </fieldset>
           <p className="discret">
             {reflexionActuelle === undefined
-              ? "Niveau actuel inconnu."
-              : `Actuel : ${libelleReflexion(reflexionActuelle)}`}
+              ? "Current level unknown."
+              : `Current: ${libelleReflexion(reflexionActuelle)}`}
             {modele === null && catalogue !== null
-              ? " — niveaux déclarés pour le type, le modèle actuel n'étant pas au catalogue."
+              ? " — levels declared for the agent type, since the current model is not in the catalog."
               : ""}
           </p>
         </fieldset>
       ) : modele !== null ? (
-        <p className="discret">Ce modèle ne déclare pas de niveau de réflexion.</p>
+        <p className="discret">This model declares no thinking level.</p>
       ) : catalogue !== null ? (
-        <p className="discret">Le catalogue ne déclare aucun niveau de réflexion.</p>
+        <p className="discret">The catalog declares no thinking level.</p>
       ) : null}
       <button
         type="button"
@@ -318,10 +316,10 @@ export const Modele = ({
         disabled={occupe || (!changeModele && !changeReflexion)}
         onClick={() => void appliquer()}
       >
-        {occupe ? "Envoi…" : "Appliquer"}
+        {occupe ? "Sending…" : "Apply"}
       </button>
       <p className="discret">
-        Une confirmation dit que la commande a atteint l'agent, pas que le réglage a été appliqué.
+        A confirmation means the command reached the agent, not that the setting was applied.
       </p>
     </Feuille>
   );

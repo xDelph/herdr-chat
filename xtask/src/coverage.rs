@@ -312,7 +312,7 @@ pub fn verifie(racine: &Path, entrees: &[Entree]) -> Rapport {
 pub fn identifiants_attendus() -> (BTreeSet<String>, BTreeSet<String>) {
     let mut capacites = BTreeSet::new();
     for (prefixe, nombre) in [
-        ("H", 18),
+        ("H", 21),
         ("D", 22),
         ("A", 15),
         ("E", 10),
@@ -329,7 +329,7 @@ pub fn identifiants_attendus() -> (BTreeSet<String>, BTreeSet<String>) {
 
 /// Charge le document, vérifie chaque entrée, et rend le rapport.
 ///
-/// `exige_inventaire` : les 89 capacités et 27 corrections doivent toutes
+/// `exige_inventaire` : les 92 capacités et 27 corrections doivent toutes
 /// être présentes (le document réel) ; les matrices synthétiques des tests le
 /// désactivent.
 pub fn verifie_document_avec(

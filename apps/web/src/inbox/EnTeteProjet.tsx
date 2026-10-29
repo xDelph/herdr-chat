@@ -30,7 +30,7 @@ export const EnTeteProjet = memo(
   }) => (
     <div className="projet-tete">
       <a className="lien projet-tete__retour" href={HOME}>
-        <Icone nom="back" petite /> Tous les agents
+        <Icone nom="back" petite /> All agents
       </a>
       <div className="projet-tete__ligne">
         <h2>{nom}</h2>
@@ -40,12 +40,12 @@ export const EnTeteProjet = memo(
           disabled={lu && !existe}
           onClick={onLancer}
         >
-          <Icone nom="plus" petite /> Nouvel agent
+          <Icone nom="plus" petite /> New agent
         </button>
       </div>
       {lu && !existe ? (
         <Avis ton="attention" annonce="statut">
-          Ce projet n'existe plus dans Herdr.
+          This project no longer exists in Herdr.
         </Avis>
       ) : null}
     </div>

@@ -35,7 +35,7 @@ export const etatConnexion = (etat: {
 }): EtatConnexion => {
   if (!etat.enLigne) {
     return {
-      cause: "l'appareil n'a pas de réseau",
+      cause: "the device has no network",
       dernierSucces: etat.dernierSucces,
       phase: "hors-ligne",
     };
@@ -51,8 +51,8 @@ export const etatConnexion = (etat: {
 
 /** Le mot de l'indicateur. */
 export const LIBELLE_CONNEXION: Record<EtatConnexion["phase"], string> = {
-  connexion: "Connexion…",
-  direct: "En direct",
-  "hors-ligne": "Hors ligne",
-  reconnexion: "Reconnexion…",
+  connexion: "Connecting…",
+  direct: "Live",
+  "hors-ligne": "Offline",
+  reconnexion: "Reconnecting…",
 };

@@ -61,7 +61,7 @@ export const Diff = ({
         </div>
       ))}
       {lignes.length > LIGNES_DIFF ? (
-        <div className="diff__sep">… {String(lignes.length - LIGNES_DIFF)} lignes de plus</div>
+        <div className="diff__sep">… {String(lignes.length - LIGNES_DIFF)} more lines</div>
       ) : null}
     </div>
   );
@@ -71,14 +71,14 @@ export const Diff = ({
 const Sortie = ({ texte, erreur }: { readonly texte: string; readonly erreur: boolean }) => {
   const [tout, setTout] = useState(false);
   const lignes = texte.replace(/\s+$/, "").split("\n");
-  if (texte.trim().length === 0) return <p className="discret">Aucune sortie.</p>;
+  if (texte.trim().length === 0) return <p className="discret">No output.</p>;
   const visibles = tout ? lignes : lignes.slice(0, LIGNES_SORTIE);
   return (
     <>
       <pre className={erreur ? "sortie sortie--erreur" : "sortie"}>{visibles.join("\n")}</pre>
       {lignes.length > LIGNES_SORTIE ? (
         <button type="button" className="lien" onClick={() => setTout((valeur) => !valeur)}>
-          {tout ? "Replier" : `Afficher tout (${String(lignes.length)} lignes)`}
+          {tout ? "Collapse" : `Show all (${String(lignes.length)} lines)`}
         </button>
       ) : null}
     </>
@@ -121,10 +121,10 @@ const DetailBloc = ({ block }: { readonly block: Block }) => {
                 type="button"
                 key={`${image.mimeType}:${image.data.slice(0, 32)}`}
                 className="fil__vignette"
-                onClick={() => pleinEcran.ouvre({ legende: "Rendu de l'outil", source })}
-                aria-label="Afficher en plein écran"
+                onClick={() => pleinEcran.ouvre({ legende: "Tool output", source })}
+                aria-label="Show full screen"
               >
-                <img src={source} alt="Rendu de l'outil" />
+                <img src={source} alt="Tool output" />
               </button>
             );
           })}
@@ -135,8 +135,8 @@ const DetailBloc = ({ block }: { readonly block: Block }) => {
         <>
           <pre className="sortie sortie--commande">{block.command}</pre>
           <Sortie texte={block.output} erreur={block.exitCode !== null && block.exitCode !== 0} />
-          {block.cancelled ? <p className="discret">Commande interrompue.</p> : null}
-          {block.truncated ? <p className="discret">Sortie tronquée par l'agent.</p> : null}
+          {block.cancelled ? <p className="discret">Command interrupted.</p> : null}
+          {block.truncated ? <p className="discret">Output truncated by the agent.</p> : null}
         </>
       );
     case "thinking":
@@ -168,7 +168,7 @@ const DetailBloc = ({ block }: { readonly block: Block }) => {
 const resultatDe = (
   ligne: LigneCommande,
 ): { readonly texte: string; readonly ton: "ok" | "err" | "neutre" } | "coche" | null => {
-  if (ligne.enEchec) return { texte: "échec", ton: "err" };
+  if (ligne.enEchec) return { texte: "failed", ton: "err" };
   if (ligne.action.delta !== null) {
     return {
       texte: `+${String(ligne.action.delta.added)} −${String(ligne.action.delta.removed)}`,
@@ -182,7 +182,7 @@ const resultatDe = (
   const sortie = ligne.details.find((block) => block.kind === "toolResult");
   if (sortie?.kind !== "toolResult") return null;
   const lignes = sortie.text.split("\n").filter((texte) => texte.trim().length > 0).length;
-  if (ligne.action.icone === "file") return { texte: `${String(lignes)} l.`, ton: "neutre" };
+  if (ligne.action.icone === "file") return { texte: `${String(lignes)} lines`, ton: "neutre" };
   if (ligne.action.icone === "find") return { texte: String(lignes), ton: "neutre" };
   return "coche";
 };
@@ -222,7 +222,7 @@ const LigneOutil = memo(
             {cible === null ? null : <span className="outil__cible">{cible}</span>}
           </span>
           {resultat === null ? null : resultat === "coche" ? (
-            <span className="outil__res outil__res--ok" aria-label="réussi">
+            <span className="outil__res outil__res--ok" aria-label="succeeded">
               <Icone nom="check" petite />
             </span>
           ) : (
@@ -233,7 +233,7 @@ const LigneOutil = memo(
           <button
             type="button"
             className="outil__fichier"
-            aria-label={`Ouvrir ${cible ?? action.cible}`}
+            aria-label={`Open ${cible ?? action.cible}`}
             onClick={() => onOuvrirFichier(action.cible ?? "")}
           >
             <Icone nom="file" petite />
@@ -277,9 +277,7 @@ const SousGroupe = ({
           <span className="outil__cible outil__cible--texte">{ligne.commands.length}</span>
         </span>
         {echecs > 0 ? (
-          <span className="outil__res outil__res--err num">
-            {echecs} échec{echecs > 1 ? "s" : ""}
-          </span>
+          <span className="outil__res outil__res--err num">{echecs} failed</span>
         ) : (
           <Icone nom={ouvert ? "down" : "chev"} petite />
         )}
@@ -354,16 +352,14 @@ export const GroupeOutils = memo(
           {enCours ? (
             <span className="etat etat--work">
               <span className="spin" aria-hidden="true" />
-              en cours
+              running
             </span>
           ) : echecs > 0 ? (
-            <span className="etat outils__echec">
-              {echecs} échec{echecs > 1 ? "s" : ""}
-            </span>
+            <span className="etat outils__echec">{echecs} failed</span>
           ) : (
             <span className="etat etat--ok">
               <Icone nom="check" petite />
-              terminée{actions.length > 1 ? "s" : ""}
+              done
             </span>
           )}
           <span className={ouvert ? "outils__chevron outils__chevron--ouvert" : "outils__chevron"}>
@@ -379,13 +375,13 @@ export const GroupeOutils = memo(
                 className="outils__apercu"
                 onClick={() =>
                   pleinEcran.ouvre({
-                    legende: "Rendu d’un outil",
+                    legende: "Tool output",
                     source: `data:${image.mimeType};base64,${image.data}`,
                   })
                 }
-                aria-label="Afficher en plein écran"
+                aria-label="Show full screen"
               >
-                <img src={`data:${image.mimeType};base64,${image.data}`} alt="Rendu d’un outil" />
+                <img src={`data:${image.mimeType};base64,${image.data}`} alt="Tool output" />
               </button>
             ))}
           </div>
@@ -394,7 +390,7 @@ export const GroupeOutils = memo(
           <div className="outils__corps">
             {masquees > 0 ? (
               <button type="button" className="outils__plus" onClick={() => setToutes(true)}>
-                {masquees} étape{masquees > 1 ? "s" : ""} précédente{masquees > 1 ? "s" : ""}
+                {masquees} earlier step{masquees > 1 ? "s" : ""}
               </button>
             ) : null}
             {lignes

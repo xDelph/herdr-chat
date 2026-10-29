@@ -11,7 +11,6 @@
 //! ⚠️ **Aucun substitut** : une page illisible devient une `ErreurDeLecture`
 //! avec sa cause ; un type absent n'est pas inventé.
 
-use application::commands::launch::ConstructeurArgs;
 use application::conversations::{
     EntreeLu, ErreurDeLecture, GenreDeLigne, GenreTache, LitSessions, OutilAppele, RoleDeSession,
     StatutTache, TacheDeFond,
@@ -396,7 +395,7 @@ impl LitSessions for LitSessionsViaPort {
         let Some(base) = source.base.as_ref() else {
             return Err(ErreurDeLecture {
                 benin: true,
-                cause: String::from("aucune base de session"),
+                cause: String::from("no session database"),
             });
         };
         let demande = SessionPageRequest {
@@ -456,7 +455,7 @@ impl LitSessions for LitSessionsViaPort {
             }
             SessionPageOutcome::Absente(_) => Err(ErreurDeLecture {
                 benin: true,
-                cause: String::from("session absente"),
+                cause: String::from("missing session"),
             }),
             SessionPageOutcome::Invalide { detail } => Err(ErreurDeLecture {
                 benin: false,
@@ -662,20 +661,6 @@ impl InventaireTypes for TypesViaCatalogue {
     }
 }
 
-/// La validation des args : la fonction du catalogue, telle quelle.
-#[must_use]
-pub fn constructeur_d_args() -> Arc<ConstructeurArgs> {
-    Arc::new(Box::new(
-        |kind: &str, modele: Option<&str>, thinking: Option<&str>| {
-            let issue = catalog::args::construit_args(kind, modele, thinking);
-            match issue.erreur {
-                Some(erreur) => Err(erreur),
-                None => Ok(issue.args),
-            }
-        },
-    ))
-}
-
 /// Le lecteur de branches — git, borné, injecté.
 #[must_use]
 pub fn lecteur_de_branches(maintenant: Arc<dyn SourceMaintenant>) -> LecteurBranches {
@@ -727,4 +712,52 @@ impl application::observation::ObservateurDeSessions for ObservateurViaHub {
             observation,
         )
     }
+}
+
+/// Le store push du démon : le rapatriement de l'ancien emplacement, PUIS
+/// les clés VAPID de l'environnement (E08, E10).
+///
+/// ⚠️ **Avant d'ouvrir le store, on rapatrie celui de l'ancien emplacement**
+/// (`<cwd>/.herdr-remote/push.json`, E10) : sans cela, les abonnements déjà
+/// enregistrés restent orphelins et les notifications s'arrêtent sans un mot.
+/// Une erreur de rapatriement est DITE (trace), jamais masquée — et
+/// n'empêche pas de servir.
+///
+/// Les surcharges VAPID de l'environnement : une paire PARTIELLE ou
+/// incohérente est refusée au démarrage, jamais complétée en silence.
+///
+/// # Errors
+/// La paire VAPID de l'environnement est refusée (partielle ou mélangée).
+pub fn store_push(
+    config: &crate::config::Config,
+    dossier_courant: Option<&std::path::Path>,
+) -> Result<Arc<notifications::store::GardienDeStore>, String> {
+    if let Some(dossier) = dossier_courant {
+        let ancien = dossier.join(".herdr-remote").join("push.json");
+        match notifications::store::rapatrie_store(&config.push_store_path, &ancien) {
+            Ok(Some(depuis)) => {
+                tracing::warn!("abonnements Web Push rapatriés depuis {}", depuis.display())
+            }
+            Ok(None) => {}
+            Err(erreur) => tracing::warn!(
+                "rapatriement du store push impossible ({} → {}) : {erreur:?}",
+                ancien.display(),
+                config.push_store_path.display()
+            ),
+        }
+    }
+    let clefs_env = notifications::store::ClefsVapid::depuis_env(
+        config.vapid_cle_publique.clone(),
+        config.vapid_cle_privee.clone(),
+    )
+    .map_err(|erreur| {
+        format!(
+            "VAPID keys from the environment refused: {}",
+            notifications::port::erreur_de_port(&erreur).description()
+        )
+    })?;
+    Ok(Arc::new(notifications::store::GardienDeStore::nouveau(
+        config.push_store_path.clone(),
+        clefs_env,
+    )))
 }

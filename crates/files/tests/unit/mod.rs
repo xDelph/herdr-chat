@@ -6,3 +6,4 @@ pub(crate) mod confined;
 pub(crate) mod mime;
 pub(crate) mod port;
 pub(crate) mod scan;
+pub(crate) mod soutien;

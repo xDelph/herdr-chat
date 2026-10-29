@@ -8,7 +8,7 @@
  * navigateur le teste mieux que nous.
  *
  * Fermeture : Échap (`cancel`), appui sur le voile (clic hors de la feuille),
- * ou le bouton « Fermer ».
+ * ou le bouton « Close ».
  */
 import { useEffect, useId, useLayoutEffect, useRef, type ReactNode } from "react";
 import { ouvreDialogue } from "../dialogue.ts";
@@ -78,7 +78,7 @@ export const Feuille = ({
               </button>
             )}
             <h2 id={idTitre}>{titre}</h2>
-            <button type="button" className="bouton-icone" onClick={onClose} aria-label="Fermer">
+            <button type="button" className="bouton-icone" onClick={onClose} aria-label="Close">
               <Icone nom="x" />
             </button>
           </header>

@@ -219,7 +219,7 @@ pub fn fallback_json_404(demande: Request) -> Response {
     if chemin.starts_with("/api/") {
         (
             StatusCode::NOT_FOUND,
-            axum::Json(serde_json::json!({ "error": "route inconnue" })),
+            axum::Json(serde_json::json!({ "error": "unknown route" })),
         )
             .into_response()
     } else {
@@ -229,7 +229,7 @@ pub fn fallback_json_404(demande: Request) -> Response {
             StatusCode::SERVICE_UNAVAILABLE,
             axum::Json(serde_json::json!({
                 "error": "PWA not built",
-                "hint": "le build statique arrive avec T054"
+                "hint": "run `bun run --cwd apps/web build`"
             })),
         )
             .into_response()
@@ -292,7 +292,7 @@ pub fn cause_de_reponse(corps: &[u8]) -> String {
         Err(_) => String::from_utf8_lossy(corps).trim().to_string(),
     };
     if texte.is_empty() {
-        return String::from("(corps vide)");
+        return String::from("(empty body)");
     }
     texte.chars().take(300).collect()
 }

@@ -239,6 +239,7 @@ pub fn snapshot_de_base() -> Snapshot {
             version: String::from("0.9.3"),
             protocol: 22,
         }),
+        ..Snapshot::default()
     }
 }
 

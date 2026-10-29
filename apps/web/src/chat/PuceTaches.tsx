@@ -24,7 +24,7 @@ export const PuceTaches = memo(
         type="button"
         className={enCours ? "puce-taches puce-taches--en-cours" : "puce-taches"}
         onClick={onOuvrir}
-        aria-label={`${enCours ? nombreDeTaches(compte.enCours) : nombreDeTaches(compte.total)} — voir le détail`}
+        aria-label={`${enCours ? nombreDeTaches(compte.enCours) : nombreDeTaches(compte.total)} — see details`}
       >
         {enCours ? <span className="spin" aria-hidden="true" /> : <Icone nom="brain" petite />}
         <span className="num">

@@ -12,5 +12,6 @@ mod assets_pwa {
 pub mod composition;
 pub mod config;
 pub mod cycle;
+pub mod demarrage;
 pub mod logging;
 pub mod veille;

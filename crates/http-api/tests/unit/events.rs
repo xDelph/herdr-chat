@@ -249,7 +249,7 @@ async fn flux_503_au_neuvieme() {
     let corps: serde_json::Value =
         serde_json::from_slice(&octets).unwrap_or_else(|cause| panic!("JSON : {cause:?}"));
     let message = corps["error"].as_str().unwrap_or_else(|| panic!("error"));
-    assert!(message.contains("trop de flux"), "{message}");
+    assert!(message.contains("too many streams"), "{message}");
     drop(gardes);
 }
 

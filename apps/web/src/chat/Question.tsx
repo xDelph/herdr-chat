@@ -22,9 +22,9 @@ import { Icone } from "../ui/Icone.tsx";
 import { IssueAction } from "../ui/IssueAction.tsx";
 
 const heureLueA = (instant: number | null): string => {
-  if (instant === null) return "à une heure inconnue";
+  if (instant === null) return "at an unknown time";
   const date = new Date(instant);
-  return `à ${date.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
+  return `at ${date.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}`;
 };
 
 export const Question = memo(
@@ -50,17 +50,17 @@ export const Question = memo(
 
     if (trust !== undefined) {
       return (
-        <section className="dock" aria-label="Confiance demandée">
+        <section className="dock" aria-label="Trust requested">
           <div className="dock__de">
             <span className="losange" aria-hidden="true" />
-            {agentNom} demande l'accès
+            {agentNom} requests access
           </div>
           <p className="dock__q">
-            Faire confiance au dossier <span className="mono">{trust.folder}</span>&nbsp;?
+            Trust the folder <span className="mono">{trust.folder}</span>?
           </p>
           <p className="discret">
-            L'agent pourra y lire, écrire et exécuter du code sans redemander. Le choix est
-            enregistré sur le Mac.
+            The agent will be able to read, write and run code there without asking again. The
+            choice is saved on the Mac.
           </p>
           <div className="dock__boutons">
             <button
@@ -69,7 +69,7 @@ export const Question = memo(
               disabled={occupe}
               onClick={() => void faireConfiance(paneId, trust.folder, true)}
             >
-              Faire confiance
+              Trust
             </button>
             <button
               type="button"
@@ -80,7 +80,7 @@ export const Question = memo(
               {libelleRefus(trust.kind)}
             </button>
           </div>
-          <IssueAction issue={issue} enCours="Envoi de la décision…" />
+          <IssueAction issue={issue} enCours="Sending the decision…" />
         </section>
       );
     }
@@ -88,10 +88,10 @@ export const Question = memo(
     if (question !== undefined) {
       const optionLibre = question.choix.find((choix) => estOptionSaisieLibre(choix.libelle));
       return (
-        <section className="dock" aria-label="Question de l'agent">
+        <section className="dock" aria-label="Agent question">
           <div className="dock__de">
             <span className="losange" aria-hidden="true" />
-            {agentNom} demande
+            {agentNom} asks
           </div>
           <p className="dock__q">{question.texte}</p>
           {question.contexte.length > 0 ? (
@@ -126,49 +126,49 @@ export const Question = memo(
               }}
             >
               <label className="sr" htmlFor={idLibre}>
-                Autre réponse
+                Other answer
               </label>
               <input
                 id={idLibre}
                 value={libre}
-                placeholder="Autre réponse…"
+                placeholder="Other answer…"
                 onChange={(evenement) => setLibre(evenement.target.value)}
               />
               <button
                 type="submit"
                 className="rond rond--envoi"
-                aria-label="Envoyer la réponse"
+                aria-label="Send the answer"
                 disabled={occupe || libre.trim().length === 0}
               >
                 <Icone nom="up" />
               </button>
             </form>
           )}
-          <IssueAction issue={issue} enCours="Envoi de la réponse…" />
+          <IssueAction issue={issue} enCours="Sending the answer…" />
           <p className="dock__pied">
-            Lue sur l'écran de l'agent {heureLueA(lueA)} · choix revérifié par le serveur avant
-            l'envoi
+            Read from the agent's screen {heureLueA(lueA)} · choice re-checked by the server before
+            sending
           </p>
         </section>
       );
     }
 
     return (
-      <section className="dock" aria-label="Ce que l'agent attend">
+      <section className="dock" aria-label="What the agent is waiting for">
         <div className="dock__de">
           <span className="losange" aria-hidden="true" />
-          {agentNom} attend
+          {agentNom} is waiting
         </div>
         {waiting === undefined ? (
           <p className="discret">
-            Herdr signale que l'agent attend, mais son écran ne montre ni question ni choix.
+            Herdr reports the agent is waiting, but its screen shows no question or choices.
           </p>
         ) : (
           <pre className="dock__ecran">{waiting}</pre>
         )}
         <p className="dock__pied">
-          Aucun choix numéroté : répondez dans le champ ci-dessous — le texte est tapé dans l'invite
-          de l'agent.
+          No numbered choices: answer in the field below — the text is typed into the agent's
+          prompt.
         </p>
       </section>
     );

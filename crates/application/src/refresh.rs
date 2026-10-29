@@ -86,6 +86,8 @@ struct Depot {
     en_vol: bool,
     /// Le verdict du dernier vol — `Some` seulement en cas de panne.
     dernier_verdict: Option<PortError>,
+    /// Les lectures qui attendent le verdict du vol en cours.
+    joints: usize,
 }
 
 #[derive(Default)]
@@ -204,6 +206,17 @@ impl ServiceSnapshots {
             .generation
     }
 
+    /// Le nombre de lectures jointes au vol en cours — l'observation qui
+    /// permet de prouver le partage d'un vol sans dormir en espérant que
+    /// les joints soient arrivés.
+    #[must_use]
+    pub fn joints_en_attente(&self) -> usize {
+        self.depot
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .joints
+    }
+
     fn fraiche(&self, observe_a: Instant, fenetre: Duration) -> bool {
         self.maintenant
             .maintenant()
@@ -225,7 +238,9 @@ impl ServiceSnapshots {
             // Un vol est en cours : on s'y JOINT (une seule requête amont
             // pour les signaux simultanés) et on réévalue après son verdict.
             if depot.en_vol {
+                depot.joints += 1;
                 depot = self.vol.wait(depot).unwrap_or_else(PoisonError::into_inner);
+                depot.joints -= 1;
                 match &depot.dernier_verdict {
                     // Le verdict partagé : une panne nomme la cause à tous
                     // les joints (jamais des données périmées en

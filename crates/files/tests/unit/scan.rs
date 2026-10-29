@@ -2,6 +2,7 @@
 //! plafonds global et par dossier, tri par récence, exclusions, liens,
 //! dégradation — le tout contre de vrais fichiers temporaires, aucun service.
 
+use crate::unit::soutien::{Jetable, temporaire};
 use files::scan::{
     CompteurDeBalayage, FICHIERS_MAX, IMAGE_EXTENSIONS, ImageRecente, LIMITE_DEFAUT, PAR_DOSSIER,
     PROFONDEUR_MAX, RACINES_CONCOURANTES, est_image, liste_images_recentes,
@@ -11,20 +12,11 @@ use std::fs;
 use std::io::Write;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, SystemTime};
 
-static NONCE: AtomicU32 = AtomicU32::new(0);
-
-fn temporaire(prefixe: &str) -> PathBuf {
-    let base = std::env::temp_dir();
-    let pid = std::process::id();
-    let nonce = NONCE.fetch_add(1, Ordering::SeqCst);
-    let chemin = base.join(format!("{prefixe}-{pid}-{nonce}"));
-    match fs::create_dir(&chemin) {
-        Ok(()) => chemin,
-        Err(cause) => panic!("racine temporaire refusée : {cause}"),
-    }
+/// Les chemins des dossiers jetables — la forme que prend le balayage.
+fn chemins(racines: &[Jetable]) -> Vec<PathBuf> {
+    racines.iter().map(|racine| racine.to_path_buf()).collect()
 }
 
 /// Crée un fichier avec une modification datée (relative à maintenant) —
@@ -176,7 +168,7 @@ fn le_budget_est_global_entre_les_racines() {
         }
         racines.push(racine);
     }
-    let images = liste_images_recentes(&racines, 100_000);
+    let images = liste_images_recentes(&chemins(&racines), 100_000);
     assert!(
         images.len() <= FICHIERS_MAX,
         "le budget global : {} collectées",
@@ -200,8 +192,11 @@ fn le_pic_de_balayage_ne_depasse_jamais_quatre() {
         }
         racines.push(racine);
     }
-    let compteur = CompteurDeBalayage::nouveau();
-    let _ = liste_images_recentes_comptee(&racines, 60, &compteur);
+    // Rendez-vous injecté : chaque parcours attend que les quatre soient
+    // en vol — la concurrence ne dépend plus de l'ordonnanceur.
+    let compteur =
+        CompteurDeBalayage::avec_rendezvous(RACINES_CONCOURANTES, Duration::from_secs(10));
+    let _ = liste_images_recentes_comptee(&chemins(&racines), 60, &compteur);
     let pic = compteur.pic();
     assert!(
         pic >= 2,
@@ -291,7 +286,14 @@ fn une_racine_illisible_ne_vide_pas_l_ecran() {
     fs::remove_dir(&disparue).unwrap_or_else(|cause| panic!("suppression : {cause}"));
     let bonne = temporaire("herdr-bonne");
     image(&bonne.join("visible.png"), 1);
-    let images = liste_images_recentes(&[mauvaise.clone(), disparue, bonne.clone()], 60);
+    let images = liste_images_recentes(
+        &[
+            mauvaise.to_path_buf(),
+            disparue.to_path_buf(),
+            bonne.to_path_buf(),
+        ],
+        60,
+    );
     // L'image interdite est peut-être servie (le stat passe avant le chmod
     // de la concurrence ? non : le chmod précède le balayage). Elle doit
     // être ABSENTE — le dossier est illisible.

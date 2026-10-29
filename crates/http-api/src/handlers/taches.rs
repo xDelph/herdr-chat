@@ -74,7 +74,7 @@ fn erreur_d_issue(issue: IssueTaches) -> ErreurDomaine {
             ErreurDomaine::sans_source("this agent kind exposes no background tasks")
         }
         IssueTaches::Erreur(cause) => ErreurDomaine::source_illisible(cause),
-        IssueTaches::Liste(_) => ErreurDomaine::invariant_viole("liste rendue comme erreur"),
+        IssueTaches::Liste(_) => ErreurDomaine::invariant_viole("list returned as an error"),
     }
 }
 

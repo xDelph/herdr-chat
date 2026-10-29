@@ -39,6 +39,11 @@ describe("sonde du flux de session : route absente ≠ pane refusé", () => {
     expect((await sondeFluxSession(url)).nature).toBe("route-absente");
   });
 
+  test("404 « unknown route » (démon en anglais) : la route manque aussi", async () => {
+    repond(JSON.stringify({ error: "unknown route" }), 404, "application/json");
+    expect((await sondeFluxSession(url)).nature).toBe("route-absente");
+  });
+
   test("405 : la route ne sert pas ce flux", async () => {
     repond(JSON.stringify({ error: "method not allowed" }), 405, "application/json");
     expect((await sondeFluxSession(url)).nature).toBe("route-absente");
@@ -79,14 +84,30 @@ describe("une lecture a un délai (P2)", () => {
     );
     const erreur = await fetchSession("w1:p1", { tail: 1 }).catch((cause: unknown) => cause);
     expect(signal).toBeInstanceOf(AbortSignal);
-    expect(erreur instanceof Error ? erreur.message : "").toBe("Le démon n'a pas répondu en 10 s");
+    expect(erreur instanceof Error ? erreur.message : "").toBe(
+      "The daemon did not respond within 10s",
+    );
   });
 });
 
 describe("les erreurs du démon, en français (P2)", () => {
   test("la phrase connue est traduite, et la cause brute suit sur sa ligne", () => {
     expect(erreurLisible("no usable session path for this agent")).toBe(
-      "Herdr n'expose pas de session lisible pour cet agent\nCause : no usable session path for this agent",
+      "Herdr exposes no readable session for this agent\nCause: no usable session path for this agent",
+    );
+  });
+
+  test("l'arrêt sans agent est expliqué tel que le démon l'écrit", () => {
+    // Le démon dit « no Herdr agent in this pane » (arret.rs) : le motif ne
+    // reconnaissait que « … in pane X ».
+    expect(erreurLisible("no Herdr agent in this pane")).toBe(
+      "Herdr knows no agent in this pane\nCause: no Herdr agent in this pane",
+    );
+    expect(erreurLisible("no Herdr agent in pane w1:p2")).toBe(
+      "Herdr knows no agent in pane w1:p2\nCause: no Herdr agent in pane w1:p2",
+    );
+    expect(erreurLisible("unreadable Herdr snapshot: socket")).toBe(
+      "Herdr's state is unreadable\nCause: unreadable Herdr snapshot: socket",
     );
   });
 
@@ -102,7 +123,7 @@ describe("les erreurs du démon, en français (P2)", () => {
     );
     const erreur = await fetchSession("w1:p1").catch((cause: unknown) => cause);
     expect(erreur instanceof Error ? erreur.message : "").toContain(
-      "Herdr n'expose pas de session lisible pour cet agent",
+      "Herdr exposes no readable session for this agent",
     );
   });
 

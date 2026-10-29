@@ -129,20 +129,20 @@ fn traduit(refus: RefusOuverture) -> ErreurFichier {
             raison: String::from("symlink escaping the project folders"),
         },
         RefusOuverture::Absent => ErreurFichier::Indisponible {
-            raison: String::from("fichier introuvable"),
+            raison: String::from("file not found"),
         },
         RefusOuverture::PasUnFichierRegulier => ErreurFichier::Refuse {
             raison: String::from("not a file"),
         },
         RefusOuverture::TropGros { taille, maximum } => ErreurFichier::Refuse {
             raison: format!(
-                "fichier trop gros ({} Mo, maximum {} Mo)",
+                "file too large ({} MB, maximum {} MB)",
                 taille / 1024 / 1024,
                 maximum / 1024 / 1024
             ),
         },
         RefusOuverture::LectureIllisible(cause) => ErreurFichier::Indisponible {
-            raison: format!("fichier illisible : {cause}"),
+            raison: format!("unreadable file: {cause}"),
         },
     }
 }

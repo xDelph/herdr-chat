@@ -103,7 +103,7 @@ impl ClientHerdr {
             Ok(resultat)
         } else {
             Err(ErreurTransport::EnveloppeInvalide(format!(
-                "result non-objet ({methode}) : {}",
+                "non-object result ({methode}): {}",
                 resultat
             )))
         }
@@ -223,7 +223,7 @@ impl ClientHerdr {
         )?;
         let cree: OngletCree = serde_json::from_value(resultat).map_err(|_| {
             ErreurTransport::EnveloppeInvalide(String::from(
-                "`tab.create` sans pane racine utilisable",
+                "`tab.create` without a usable root pane",
             ))
         })?;
         Ok(cree)

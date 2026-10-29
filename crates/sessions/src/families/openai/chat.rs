@@ -51,6 +51,6 @@ pub fn ligne_vers_pi(parsed: &Value) -> Option<LignePi> {
             "type": "message",
             "message": { "content": blocs, "role": role },
         }))
-        .unwrap_or_else(|cause| panic!("ligne chat reconstruite invalide : {cause}")),
+        .unwrap_or_else(|cause| panic!("rebuilt chat line invalid: {cause}")),
     )
 }

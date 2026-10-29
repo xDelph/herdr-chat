@@ -33,7 +33,7 @@ describe("U21 — un appel se raconte en une ligne", () => {
   test("une commande : son icône, son verbe, sa première ligne", () => {
     const action = actionDe("bash", { command: "npm test\nnpm run build" });
     expect(action.icone).toBe("term");
-    expect(action.singulier).toBe("Lancé");
+    expect(action.singulier).toBe("Ran");
     // ⚠️ Une commande peut contenir un script entier : l'afficher en entier
     // défait la ligne compacte.
     expect(action.cible).toBe("npm test");
@@ -49,14 +49,14 @@ describe("U21 — un appel se raconte en une ligne", () => {
 
   test("une création se distingue d'une modification", () => {
     // « Créé » et « modifié » ne se relisent pas de la même façon.
-    expect(actionDe("write", { path: "a.ts" }).singulier).toBe("Créé");
-    expect(actionDe("edit", { path: "a.ts" }).singulier).toBe("Modifié");
+    expect(actionDe("write", { path: "a.ts" }).singulier).toBe("Created");
+    expect(actionDe("edit", { path: "a.ts" }).singulier).toBe("Edited");
   });
 
   test("une suppression a sa propre famille", () => {
     const action = actionDe("rm", { path: "vieux.ts" });
     expect(action.icone).toBe("delete");
-    expect(action.singulier).toBe("Supprimé");
+    expect(action.singulier).toBe("Deleted");
     expect(action.estFichier).toBe(true);
   });
 
@@ -70,8 +70,8 @@ describe("U21 — un appel se raconte en une ligne", () => {
   });
 
   test("la casse du nom ne change pas la reconnaissance", () => {
-    expect(actionDe("BASH", { command: "ls" }).singulier).toBe("Lancé");
-    expect(actionDe(" Edit ", { path: "a" }).singulier).toBe("Modifié");
+    expect(actionDe("BASH", { command: "ls" }).singulier).toBe("Ran");
+    expect(actionDe(" Edit ", { path: "a" }).singulier).toBe("Edited");
   });
 
   test("un chemin vide ne devient pas une cible cliquable", () => {
@@ -85,12 +85,12 @@ describe("U21 — le résumé dit ce qui a été fait", () => {
     // « 7 appels » ne dit pas **ce qui a été fait** — la seule question qu'on se
     // pose devant un groupe replié.
     expect(resumeDuGroupe(["bash", "edit", "read", "bash"])).toBe(
-      "Fichiers modifiés, commandes lancées, fichiers lus",
+      "Edited files, ran commands, read files",
     );
   });
 
   test("une famille répétée n'apparaît qu'une fois", () => {
-    expect(resumeDuGroupe(["bash", "bash", "bash"])).toBe("Commandes lancées");
+    expect(resumeDuGroupe(["bash", "bash", "bash"])).toBe("Ran commands");
   });
 
   test("un groupe vide ne produit pas de résumé", () => {
@@ -116,13 +116,13 @@ describe("U21 — les jetons se lisent d'un regard", () => {
      * Quatre chiffres suivis d'un `k` ne se lisent pas ; l'utilisateur l'a
      * signalé. On change d'unité au million.
      */
-    expect(jetonsCourts(1_200_000)).toBe("1,2 M");
-    expect(jetonsCourts(2_156_000)).toBe("2,2 M");
+    expect(jetonsCourts(1_200_000)).toBe("1.2M");
+    expect(jetonsCourts(2_156_000)).toBe("2.2M");
   });
 
   test("sous 10 000 on garde une décimale", () => {
     // `1,5k` et `2k` ne disent pas la même chose quand on compare deux travaux.
-    expect(jetonsCourts(1500)).toBe("1,5k");
+    expect(jetonsCourts(1500)).toBe("1.5k");
     expect(jetonsCourts(999)).toBe("999");
   });
 
@@ -134,22 +134,22 @@ describe("U21 — les jetons se lisent d'un regard", () => {
 
 describe("U21 — la durée d'un travail", () => {
   test("les minutes et les secondes", () => {
-    expect(dureeEnMots(14 * 60_000 + 20_000)).toBe("14 min 20 s");
+    expect(dureeEnMots(14 * 60_000 + 20_000)).toBe("14m 20s");
   });
 
   test("sous la minute, en secondes", () => {
-    expect(dureeEnMots(42_000)).toBe("42 s");
+    expect(dureeEnMots(42_000)).toBe("42s");
   });
 
   test("les secondes disparaissent au-delà d'une heure", () => {
     // « 1 h 4 min 12 s » se déchiffre ; « 1 h 4 min » se lit.
-    expect(dureeEnMots(64 * 60_000 + 12_000)).toBe("1 h 4 min");
+    expect(dureeEnMots(64 * 60_000 + 12_000)).toBe("1h 4m");
   });
 
   test("plancher, jamais d'arrondi vers le haut", () => {
     // Un âge exagéré est exactement ce que l'utilisateur compare avec son
     // souvenir.
-    expect(dureeEnMots(119_000)).toBe("1 min 59 s");
+    expect(dureeEnMots(119_000)).toBe("1m 59s");
   });
 
   test("une durée nulle ou négative ne s'affiche pas", () => {
@@ -380,8 +380,8 @@ const pensee = (cle: string): LigneTravail => ({
     delta: null,
     estFichier: false,
     icone: "brain",
-    pluriel: "Réflexion",
-    singulier: "Réflexion",
+    pluriel: "Thinking",
+    singulier: "Thinking",
   },
   cle,
   details: [],
@@ -402,7 +402,7 @@ describe("points 2b — la fusion couvre aussi les pensées", () => {
     expect(lignes).toHaveLength(1);
     expect(lignes[0]?.kind).toBe("commands");
     if (lignes[0]?.kind !== "commands") return;
-    expect(lignes[0].libelle).toBe("Réflexion");
+    expect(lignes[0].libelle).toBe("Thinking");
     expect(lignes[0].commands).toHaveLength(4);
   });
 
@@ -424,5 +424,52 @@ describe("points 2b — la fusion couvre aussi les pensées", () => {
       pensee("d"),
     ]);
     expect(lignes.map((ligne) => ligne.kind)).toEqual(["commands", "texte", "commands"]);
+  });
+});
+
+const shellClaude = (id: string, command: string, output: string): RenderedMessage => ({
+  at: null,
+  blocks: [
+    {
+      cancelled: false,
+      command,
+      exitCode: null,
+      kind: "bashExecution",
+      output,
+      truncated: false,
+    },
+  ],
+  id,
+  meta: {},
+  role: "bashExecution",
+  text: `${command}\n${output}`,
+});
+
+describe("mode shell de Claude", () => {
+  test("la commande et sa sortie, écrites sur deux lignes, font un seul bloc", () => {
+    const lignes = lignesDeTravail([
+      shellClaude("m1", "git status", ""),
+      shellClaude("m2", "", "propre"),
+    ]);
+    expect(lignes).toHaveLength(1);
+    const ligne = lignes[0];
+    expect(ligne?.kind).toBe("action");
+    if (ligne?.kind === "action") {
+      expect(ligne.details).toEqual([
+        {
+          cancelled: false,
+          command: "git status",
+          exitCode: null,
+          kind: "bashExecution",
+          output: "propre",
+          truncated: false,
+        },
+      ]);
+    }
+  });
+
+  test("deux commandes Pi complètes ne fusionnent pas", () => {
+    const lignes = lignesDeTravail([shellClaude("m1", "ls", "a"), shellClaude("m2", "pwd", "/")]);
+    expect(lignes).toHaveLength(2);
   });
 });

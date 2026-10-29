@@ -156,8 +156,7 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for Field<T> {
         impl<'de, T: Deserialize<'de>> serde::de::Visitor<'de> for Visiteur<T> {
             type Value = Field<T>;
             fn expecting(&self, formateur: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                formateur
-                    .write_str("une valeur ou une absence — null refusé pour un champ optionnel")
+                formateur.write_str("a value or an absence — null refused for an optional field")
             }
             fn visit_some<D: Deserializer<'de>>(
                 self,
@@ -167,12 +166,12 @@ impl<'de, T: Deserialize<'de>> Deserialize<'de> for Field<T> {
             }
             fn visit_none<E: serde::de::Error>(self) -> Result<Field<T>, E> {
                 Err(E::custom(
-                    "null explicite refusé : un champ optionnel est absent ou a une valeur",
+                    "explicit null refused: an optional field is absent or has a value",
                 ))
             }
             fn visit_unit<E: serde::de::Error>(self) -> Result<Field<T>, E> {
                 Err(E::custom(
-                    "null explicite refusé : un champ optionnel est absent ou a une valeur",
+                    "explicit null refused: an optional field is absent or has a value",
                 ))
             }
         }
@@ -207,7 +206,7 @@ pub fn optionnel_nullable<'de, T: Deserialize<'de>, D: Deserializer<'de>>(
     impl<'de, T: Deserialize<'de>> serde::de::Visitor<'de> for Visiteur<T> {
         type Value = Option<Nullable<T>>;
         fn expecting(&self, formateur: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            formateur.write_str("une valeur, null, ou une absence — trois cas distincts")
+            formateur.write_str("a value, null, or an absence — three distinct cases")
         }
         fn visit_some<D: Deserializer<'de>>(
             self,

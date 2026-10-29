@@ -166,7 +166,7 @@ async fn travaille(
                     return (
                         abonnement,
                         Err(ErreurLivraison::Autre {
-                            detail: String::from("sémaphore fermé"),
+                            detail: String::from("semaphore closed"),
                         }),
                     );
                 };
@@ -175,7 +175,7 @@ async fn travaille(
                         .await
                         .unwrap_or_else(|_| {
                             Err(ErreurLivraison::Autre {
-                                detail: String::from("délai de livraison dépassé"),
+                                detail: String::from("delivery timed out"),
                             })
                         });
                 (abonnement, resultat)
@@ -188,11 +188,11 @@ async fn travaille(
                 Ok((abonnement, Err(ErreurLivraison::Expire))) => expires.push(abonnement),
                 Ok((_abonnement, Err(ErreurLivraison::Autre { detail }))) => {
                     mesures.echecs.fetch_add(1, Ordering::SeqCst);
-                    warn!("livraison push échouée : {detail}");
+                    warn!("push delivery failed: {detail}");
                 }
                 Err(panne) => {
                     mesures.echecs.fetch_add(1, Ordering::SeqCst);
-                    warn!("tâche de livraison interrompue : {panne}");
+                    warn!("delivery task interrupted: {panne}");
                 }
             }
         }

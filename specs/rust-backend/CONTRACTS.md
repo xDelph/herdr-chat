@@ -1774,6 +1774,8 @@ const ConversationSummary = Schema.Struct({
 });
 ```
 
+> **Démon Rust (2026-10-29).** Le contrat généré (`crates/contracts` → `packages/shared/generated/`) ajoute deux champs omissibles : `tourDebut` (ms epoch, instant du message qui a ouvert le tour courant) et `tachesDeFond` (`{enCours, total}`, présent seulement pour une famille qui expose des tâches de fond). Les routes H19–H21 et les statuts corrigés de H04/H07 sont décrits dans [CURRENT.md §9](CURRENT.md#9-écarts-du-démon-rust-état-au-2026-10-29).
+
 ### ConversationsResponse
 
 [Source at line 589](https://github.com/xDelph/herdr-chat/blob/576bbf4902a00d3ef9702b4df315c943c7ac5680/packages/shared/src/api.ts#L589)

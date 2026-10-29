@@ -57,7 +57,7 @@ fn enveloppe(
         complet["timestamp"] = json!(horodatage);
     }
     serde_json::from_value(complet)
-        .unwrap_or_else(|cause| panic!("ligne codex reconstruite invalide : {cause}"))
+        .unwrap_or_else(|cause| panic!("rebuilt codex line invalid: {cause}"))
 }
 
 /// Le texte d'un contenu d'événement utilisateur : chaîne ou blocs.

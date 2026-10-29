@@ -5,7 +5,6 @@ pub mod agents;
 pub mod cursor;
 pub mod families;
 pub mod hub;
-pub mod index;
 pub mod metadata;
 pub mod normalisation;
 pub mod path_policy;

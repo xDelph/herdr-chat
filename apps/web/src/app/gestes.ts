@@ -66,15 +66,15 @@ export const repondre = (
       const resultat = await answerQuestion(paneId, numero, texte);
       switch (resultat.state) {
         case "appliquee":
-          return { phase: "fini", texte: `Réponse ${String(numero)} appliquée.`, ton: "ok" };
+          return { phase: "fini", texte: `Answer ${String(numero)} applied.`, ton: "ok" };
         case "transmise":
           return {
             phase: "fini",
-            texte: `Réponse ${String(numero)} transmise — Herdr n'a pas confirmé qu'elle a été appliquée. ${resultat.detail}`,
+            texte: `Answer ${String(numero)} sent — Herdr has not confirmed it was applied. ${resultat.detail}`,
             ton: "attention",
           };
         default:
-          return { phase: "fini", texte: `Réponse refusée : ${resultat.detail}`, ton: "erreur" };
+          return { phase: "fini", texte: `Answer rejected: ${resultat.detail}`, ton: "erreur" };
       }
     },
     { message: "failed to answer a question", paneId },
@@ -106,10 +106,10 @@ export const arreter = (paneId: string): Promise<void> =>
       return resultat.status === "interrupt-sent"
         ? {
             phase: "fini",
-            texte: "Interruption envoyée par Herdr — l'agent n'a pas encore confirmé l'arrêt.",
+            texte: "Interrupt sent by Herdr — the agent has not confirmed it stopped yet.",
             ton: "attention",
           }
-        : { phase: "fini", texte: "Herdr indique que l'agent ne travaille plus.", ton: "ok" };
+        : { phase: "fini", texte: "Herdr reports the agent is no longer working.", ton: "ok" };
     },
     { message: "failed to interrupt the agent", notifie: true, paneId },
   );
@@ -126,7 +126,7 @@ export const montrerSurMac = (paneId: string): Promise<void> =>
     cleAction(paneId, "focus"),
     async () => {
       await focusAgent(paneId);
-      return { phase: "fini", texte: "Pane affiché sur le Mac.", ton: "ok" };
+      return { phase: "fini", texte: "Pane shown on the Mac.", ton: "ok" };
     },
     { message: "failed to focus a pane", notifie: true, paneId },
   );

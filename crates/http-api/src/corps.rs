@@ -19,7 +19,7 @@ pub async fn lire_corps_borne(corps: Body, max: usize) -> Result<Vec<u8>, Respon
         let portion = portion.map_err(|_| {
             (
                 StatusCode::BAD_REQUEST,
-                axum::Json(serde_json::json!({ "error": "corps illisible" })),
+                axum::Json(serde_json::json!({ "error": "unreadable body" })),
             )
                 .into_response()
         })?;
@@ -27,7 +27,7 @@ pub async fn lire_corps_borne(corps: Body, max: usize) -> Result<Vec<u8>, Respon
             return Err((
                 StatusCode::PAYLOAD_TOO_LARGE,
                 axum::Json(serde_json::json!({
-                    "error": format!("corps trop grand (maximum {max} octets)")
+                    "error": format!("body too large (maximum {max} bytes)")
                 })),
             )
                 .into_response());
@@ -68,7 +68,7 @@ pub fn verifie_prompt(texte: &str) -> Result<(), Box<Response>> {
             (
                 StatusCode::PAYLOAD_TOO_LARGE,
                 axum::Json(serde_json::json!({
-                    "error": format!("texte trop grand (maximum {MAX_PROMPT_OCTETS} octets UTF-8)")
+                    "error": format!("text too large (maximum {MAX_PROMPT_OCTETS} UTF-8 bytes)")
                 })),
             )
                 .into_response(),

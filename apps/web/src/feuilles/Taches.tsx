@@ -143,16 +143,16 @@ const Transcription = ({
     <div className="tache-fil">
       {erreur === null ? null : (
         <Avis ton="erreur" annonce="alerte">
-          Transcription illisible : {erreur}
+          Unreadable transcript: {erreur}
         </Avis>
       )}
       {avant === undefined ? null : (
         <button type="button" className="rapport__plus" onClick={() => void plusAncien()}>
-          Charger le début
+          Load earlier
         </button>
       )}
       {charge && items.length === 0 && erreur === null ? (
-        <p className="discret">Transcription vide pour l'instant.</p>
+        <p className="discret">Transcript empty for now.</p>
       ) : null}
       {items.map((item) => (
         <ElementFil
@@ -185,7 +185,7 @@ export const Taches = ({
   const [ouverte, setOuverte] = useState<BackgroundTask | null>(null);
   const maintenant = useMaintenant(1_000);
   const retour = useMemo(
-    () => ({ action: () => setOuverte(null), libelle: "Retour aux tâches de fond" }),
+    () => ({ action: () => setOuverte(null), libelle: "Back to background tasks" }),
     [],
   );
 
@@ -219,7 +219,7 @@ export const Taches = ({
       <Feuille titre={courante.description ?? courante.id} onClose={onClose} large retour={retour}>
         <p className="tache__meta tache__meta--tete">
           <FormeTache status={courante.status} />{" "}
-          {[sorteDeTache(courante), STATUT_TACHE[courante.status].mot].join(" · ")} · lecture seule
+          {[sorteDeTache(courante), STATUT_TACHE[courante.status].mot].join(" · ")} · read-only
         </p>
         <Transcription
           paneId={paneId}
@@ -232,20 +232,20 @@ export const Taches = ({
   }
 
   return (
-    <Feuille titre="Tâches de fond" onClose={onClose}>
+    <Feuille titre="Background tasks" onClose={onClose}>
       {erreur === null ? null : (
         <Avis ton="erreur" annonce="alerte">
-          Tâches illisibles : {erreur}
+          Unreadable tasks: {erreur}
         </Avis>
       )}
       {!prise ? (
-        <p className="discret">Cet agent n'expose pas de tâches de fond lisibles.</p>
+        <p className="discret">This agent exposes no readable background tasks.</p>
       ) : taches === null ? (
         erreur === null ? (
-          <p className="discret">Lecture…</p>
+          <p className="discret">Loading…</p>
         ) : null
       ) : taches.length === 0 ? (
-        <p className="discret">Aucune tâche de fond dans cette session.</p>
+        <p className="discret">No background tasks in this session.</p>
       ) : (
         <ul className="taches">
           {taches.map((tache) => (

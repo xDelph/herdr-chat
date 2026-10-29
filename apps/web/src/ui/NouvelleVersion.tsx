@@ -5,6 +5,7 @@
 import { useEffect, useSyncExternalStore } from "react";
 import { envois, version } from "../app/services.ts";
 import { unBrouillonExiste } from "../brouillons.ts";
+import { offreRechargement } from "../nouvelle-version.ts";
 
 const jamais = () => false;
 
@@ -27,12 +28,12 @@ export const NouvelleVersion = () => {
     };
   }, []);
 
-  if (!nouvelle || enAttente || unBrouillonExiste()) return null;
+  if (!offreRechargement({ brouillon: unBrouillonExiste(), enAttente, nouvelle })) return null;
   return (
     <output className="nouvelle-version">
-      Nouvelle version disponible
+      New version available
       <button type="button" className="lien" onClick={() => window.location.reload()}>
-        Recharger
+        Reload
       </button>
     </output>
   );

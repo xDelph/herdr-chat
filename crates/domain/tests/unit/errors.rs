@@ -9,10 +9,10 @@ use std::io::ErrorKind;
 fn chaque_cause_de_lecture_produit_le_verdict_exact_du_fil() {
     // VERDICTS (ReadCause.ts) : messages distincts, benign marqué vraiment.
     let attendus: [(ReadCause, &str, bool); 4] = [
-        (ReadCause::Absente, "session absente", true),
-        (ReadCause::Vide, "session vide", true),
-        (ReadCause::Invalide, "session illisible", false),
-        (ReadCause::Io, "session inaccessible", false),
+        (ReadCause::Absente, "missing session", true),
+        (ReadCause::Vide, "empty session", true),
+        (ReadCause::Invalide, "unreadable session", false),
+        (ReadCause::Io, "inaccessible session", false),
     ];
     for (cause, message, benign) in attendus {
         let verdict = verdict_of(cause);
@@ -54,7 +54,7 @@ fn la_session_illisible_porte_son_detail_et_n_est_pas_une_panne_reseau() {
     assert!(!verdict.benign);
     assert_eq!(
         verdict.message,
-        "session illisible (ligne 12 : JSON tronqué)"
+        "unreadable session (ligne 12 : JSON tronqué)"
     );
 }
 
@@ -65,7 +65,7 @@ fn le_fichier_manquant_est_une_session_absente_pas_un_io() {
     let verdict = verdict_of_io(&not_found);
     assert_eq!(verdict.cause, ReadCause::Absente);
     assert!(verdict.benign, "l'absence n'est pas une panne");
-    assert_eq!(verdict.message, "session absente");
+    assert_eq!(verdict.message, "missing session");
 }
 
 #[test]
@@ -77,7 +77,7 @@ fn la_permission_refusee_garde_io_et_son_message() {
     let verdict = verdict_of_io(&refuse);
     assert_eq!(verdict.cause, ReadCause::Io);
     assert!(!verdict.benign);
-    assert_eq!(verdict.message, "session inaccessible");
+    assert_eq!(verdict.message, "inaccessible session");
 }
 
 #[test]

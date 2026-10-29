@@ -311,7 +311,7 @@ fn la_creation_donglet_exige_un_pane_racine_utilisable() {
     let mut client = connecte(&faux);
     match client.creation_onglet(Some("/projets/atelier"), false, None, Some("wA")) {
         Err(cause) => assert!(
-            format!("{cause}").contains("racine"),
+            format!("{cause}").contains("root pane"),
             "l'échec dit pourquoi : {cause}"
         ),
         Ok(_) => panic!("un onglet sans pane racine ne passe pas"),

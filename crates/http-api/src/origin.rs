@@ -174,7 +174,7 @@ pub fn describe_refus(raison: RaisonGarde, attendue: Option<&str>, recue: Option
         RaisonGarde::Methode => String::from("method not allowed on this route"),
         RaisonGarde::ContentType => String::from("expected Content-Type: application/json"),
         RaisonGarde::CorpsTropGrand => {
-            format!("corps trop grand (maximum {MAX_BODY_BYTES} octets)")
+            format!("body too large (maximum {MAX_BODY_BYTES} bytes)")
         }
     }
 }

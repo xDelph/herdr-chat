@@ -61,7 +61,7 @@ describe("une ligne montre branche · modèle · réflexion", () => {
         titre: "titre",
       }),
     );
-    expect(html).toContain("main · gpt-5 · haute");
+    expect(html).toContain("main · gpt-5 · high");
   });
 
   test("rien à dire : pas de ligne vide", () => {
@@ -133,26 +133,26 @@ const boite = (projet: string | null, ordre: "recent" | "nom" = "recent") =>
 describe("le détail d'un projet (`#/projet/<id>`)", () => {
   test("ses agents seulement, avec « Nouvel agent » et le retour", () => {
     const html = boite("w2");
-    expect(html).toContain("Nouvel agent");
-    expect(html).toContain("Tous les agents");
+    expect(html).toContain("New agent");
+    expect(html).toContain("All agents");
     expect(html).toContain("alpha");
     expect(html).not.toContain("zeta");
   });
 
   test("un projet disparu le dit, et ne propose pas de lancer", () => {
     const html = boite("w9");
-    expect(html).toContain("Ce projet n'existe plus dans Herdr.");
+    expect(html).toContain("This project no longer exists in Herdr.");
   });
 
   test("la liste entière n'a pas d'en-tête de projet", () => {
-    expect(boite(null)).not.toContain("Nouvel agent");
+    expect(boite(null)).not.toContain("New agent");
   });
 });
 
 describe("le tri de la liste est un choix, plus un « récent » figé", () => {
   test("le bouton dit l'ordre courant", () => {
-    expect(boite(null, "nom")).toContain("Par nom");
-    expect(boite(null, "recent")).toContain("Plus récent");
+    expect(boite(null, "nom")).toContain("By name");
+    expect(boite(null, "recent")).toContain("Most recent");
   });
 });
 

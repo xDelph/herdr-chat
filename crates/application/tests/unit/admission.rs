@@ -1,14 +1,80 @@
 //! L'admission (T034) : A/B indépendants (parallèles), non-entrelacement par
 //! pane, saturation explicite, annulation après effet sans rejeu.
 
-use application::commands::admission::{ErreurAdmission, FILE_PANE_MAX, Tourniquet};
+use application::commands::admission::{ErreurAdmission, FILE_PANE_MAX, Tourniquet, partage};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 fn pane(nom: &str) -> domain::ids::PaneId {
     domain::ids::PaneId::from(String::from(nom))
+}
+
+/// Le délai de garde des attentes : large (une machine chargée à ~20 reste
+/// très en deçà), il ne borne qu'un essai cassé — jamais le chemin vert.
+const GARDE: Duration = Duration::from_secs(10);
+
+/// Attend qu'une condition OBSERVÉE devienne vraie — au lieu de dormir en
+/// espérant que l'ordonnanceur ait servi les autres fils (⚠️ ces essais
+/// tombaient sous une charge de ~20 : un `sleep(30 ms)` ne garantit rien).
+fn attends_que(quoi: &str, condition: impl Fn() -> bool) {
+    let debut = Instant::now();
+    while !condition() {
+        assert!(
+            debut.elapsed() < GARDE,
+            "{quoi} : jamais observé en {GARDE:?}"
+        );
+        thread::sleep(Duration::from_millis(1));
+    }
+}
+
+/// Une porte que les effets attendent : fermée, elle les retient en vol ;
+/// ouverte, elle les libère tous.
+#[derive(Clone, Default)]
+struct Porte(Arc<(std::sync::Mutex<bool>, std::sync::Condvar)>);
+
+impl Porte {
+    fn attends(&self) {
+        let (ouverte, signal) = &*self.0;
+        let garde = ouverte
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let (garde, delai) = signal
+            .wait_timeout_while(garde, GARDE, |ouverte| !*ouverte)
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        assert!(
+            *garde && !delai.timed_out(),
+            "la porte n'a jamais été ouverte"
+        );
+    }
+
+    fn ouvre(&self) {
+        let (ouverte, signal) = &*self.0;
+        *ouverte
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = true;
+        signal.notify_all();
+    }
+}
+
+/// Un rendez-vous à `attendus` : chaque fil entrant attend les autres (au
+/// plus [`GARDE`]). Deux effets sérialisés ne s'y retrouvent jamais.
+#[derive(Clone, Default)]
+struct RendezVous(Arc<(std::sync::Mutex<usize>, std::sync::Condvar)>);
+
+impl RendezVous {
+    fn rejoins(&self, attendus: usize) {
+        let (arrives, signal) = &*self.0;
+        let mut garde = arrives
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *garde += 1;
+        signal.notify_all();
+        let _ = signal
+            .wait_timeout_while(garde, GARDE, |arrives| *arrives < attendus)
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+    }
 }
 
 #[test]
@@ -16,19 +82,23 @@ fn a_et_b_sont_indépendants_parallèles() {
     let tourniquet = Arc::new(Tourniquet::nouveau());
     let en_cours = Arc::new(AtomicUsize::new(0));
     let pic = Arc::new(AtomicUsize::new(0));
-    // Deux panes, deux effets lents CONCURRENTS : le pic de concurrence = 2.
+    let rendezvous = RendezVous::default();
+    // Deux panes, deux effets CONCURRENTS : chacun attend l'autre DANS son
+    // effet (rendez-vous) — sérialisés, ils ne se retrouveraient jamais et
+    // le pic resterait à 1. Le pic de concurrence = 2.
     let poignees: Vec<_> = (0..2)
         .map(|rang| {
             let tourniquet_fils = Arc::clone(&tourniquet);
             let en_cours_fils = Arc::clone(&en_cours);
             let pic_fils = Arc::clone(&pic);
+            let rendezvous = rendezvous.clone();
             thread::spawn(move || {
                 let pane_courant = pane(&format!("p{rang}"));
                 tourniquet_fils
                     .admet(&pane_courant, || {
                         let niveau = en_cours_fils.fetch_add(1, Ordering::SeqCst) + 1;
                         pic_fils.fetch_max(niveau, Ordering::SeqCst);
-                        thread::sleep(Duration::from_millis(150));
+                        rendezvous.rejoins(2);
                         let _ = en_cours_fils.fetch_sub(1, Ordering::SeqCst);
                         Result::<(), String>::Ok(())
                     })
@@ -83,14 +153,16 @@ fn les_séquences_dun_même_pane_ne_sentrelacent_pas() {
 #[test]
 fn la_saturation_est_explicite() {
     let tourniquet = Arc::new(Tourniquet::nouveau());
-    // Les 8 admissions ENGAGÉES (fils lents)…
+    let porte = Porte::default();
+    // Les 8 admissions ENGAGÉES (retenues par la porte)…
     let poignees: Vec<_> = (0..FILE_PANE_MAX)
         .map(|rang| {
             let tourniquet_fils = Arc::clone(&tourniquet);
+            let porte = porte.clone();
             thread::spawn(move || {
                 tourniquet_fils
                     .admet(&pane("wA:p2"), move || {
-                        thread::sleep(Duration::from_millis(250));
+                        porte.attends();
                         Result::<usize, String>::Ok(rang)
                     })
                     .unwrap_or_else(|erreur| {
@@ -99,16 +171,17 @@ fn la_saturation_est_explicite() {
             })
         })
         .collect();
-    // PENDANT que les huit tiennent (effets de 250 ms), la neuvième
-    // demande → Saturation (NAMÉ). Le fil principal dort 30 ms puis
-    // frappe : les huit tiennent encore (8 × 250 ms sérialisés par le
-    // tour = 2 s au total — la fenêtre est large).
-    thread::sleep(Duration::from_millis(30));
+    // PENDANT que les huit tiennent (porte fermée — OBSERVÉ, pas supposé),
+    // la neuvième demande → Saturation (NOMMÉE).
+    attends_que("huit galets pris", || {
+        tourniquet.occupation(&pane("wA:p2")) == FILE_PANE_MAX
+    });
     match tourniquet.admet(&pane("wA:p2"), || Result::<(), String>::Ok(())) {
         Err(Ok(ErreurAdmission::Saturation)) => (),
         Ok(_) => panic!("la 9e admission devait être REFUSÉE (file pleine)"),
         Err(Err(_)) => panic!("l'effet ne devait pas tourner"),
     }
+    porte.ouvre();
     for poignee in poignees {
         let _ = poignee.join();
     }
@@ -167,6 +240,8 @@ struct PortLent {
     faux: HerdrFaux,
     lenteur: Duration,
     journal: Mutex<Vec<String>>,
+    /// Une porte qui retient chaque prompt en vol jusqu'à son ouverture.
+    porte: Option<Porte>,
 }
 
 impl PortLent {
@@ -175,7 +250,19 @@ impl PortLent {
             faux: HerdrFaux::nouveau(),
             lenteur,
             journal: Mutex::new(Vec::new()),
+            porte: None,
         }
+    }
+
+    fn retenu(porte: Porte) -> Self {
+        Self {
+            porte: Some(porte),
+            ..Self::nouveau(Duration::ZERO)
+        }
+    }
+
+    fn a_note(&self, evenement: &str) -> bool {
+        self.journal().iter().any(|note| note == evenement)
     }
 
     fn note(&self, evenement: &str) {
@@ -213,6 +300,9 @@ impl ControlPort for PortLent {
     fn prompt(&self, request: TargetedPrompt) -> PortFuture<'_, PromptEvidence> {
         Box::pin(async move {
             self.note("début prompt");
+            if let Some(porte) = &self.porte {
+                porte.attends();
+            }
             thread::sleep(self.lenteur);
             let preuve = self.faux.prompt(request).await;
             self.note("fin prompt");
@@ -293,7 +383,8 @@ fn un_prompt_et_une_reponse_ne_s_entrelacent_pas() {
     let prompt = thread::spawn(move || {
         envoieur.envoie(port_prompt.as_ref(), &pane("wT:p2"), "continue", false)
     });
-    thread::sleep(Duration::from_millis(30));
+    // Le prompt tient le pane — OBSERVÉ (il a commencé), pas supposé.
+    attends_que("le prompt a commencé", || port.a_note("début prompt"));
     let port_reponse = Arc::clone(&port);
     let reponse = thread::spawn(move || {
         application::commands::repondre_question(port_reponse.as_ref(), &pane("wT:p2"), 1, None)
@@ -319,7 +410,8 @@ fn un_prompt_et_une_reponse_ne_s_entrelacent_pas() {
 fn un_prompt_sur_un_pane_sature_est_refuse_sans_envoi() {
     // Huit prompts lents tiennent la file du pane ; le neuvième est refusé
     // TOUT DE SUITE, nommé, et n'atteint jamais Herdr.
-    let port = Arc::new(PortLent::nouveau(Duration::from_millis(150)));
+    let porte = Porte::default();
+    let port = Arc::new(PortLent::retenu(porte.clone()));
     let envoieur = Arc::new(EnvoieurPrompt::nouveau());
     let poignees: Vec<_> = (0..FILE_PANE_MAX)
         .map(|rang| {
@@ -335,13 +427,18 @@ fn un_prompt_sur_un_pane_sature_est_refuse_sans_envoi() {
             })
         })
         .collect();
-    thread::sleep(Duration::from_millis(60));
+    // Les huit tiennent la file (porte fermée) — OBSERVÉ sur le tourniquet
+    // partagé, celui que traversent les commandes.
+    attends_que("huit prompts admis", || {
+        partage().occupation(&pane("wT:p3")) == FILE_PANE_MAX
+    });
     match envoieur.envoie(port.as_ref(), &pane("wT:p3"), "le neuvième", false) {
         Err(RefusEnvoi::Sature { detail, .. }) => {
             assert!(detail.contains("retry"), "{detail}");
         }
         autre => panic!("le neuvième devait être refusé (file pleine) : {autre:?}"),
     }
+    porte.ouvre();
     for poignee in poignees {
         assert!(
             poignee.join().unwrap_or_else(|_| panic!("fil")).is_ok(),
@@ -366,7 +463,7 @@ fn le_focus_passe_par_la_file_du_pane() {
     let port_prompt = Arc::clone(&port);
     let prompt =
         thread::spawn(move || envoieur.envoie(port_prompt.as_ref(), &pane("wT:p4"), "go", false));
-    thread::sleep(Duration::from_millis(30));
+    attends_que("le prompt a commencé", || port.a_note("début prompt"));
     let issue = application::commands::focus::FocaliseurAgent::nouveau()
         .focalise(port.as_ref(), &pane("wT:p4"));
     assert!(issue.focalise, "{issue:?}");

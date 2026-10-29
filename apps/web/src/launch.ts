@@ -118,15 +118,14 @@ export const verifierLancement = ({
   if (thinking.length > 0 && model.length === 0) {
     return {
       envoyable: false,
-      raison:
-        "Un niveau de réflexion exige un modèle : les niveaux acceptés dépendent du modèle choisi.",
+      raison: "A thinking level requires a model: the accepted levels depend on the chosen model.",
     };
   }
 
   if (catalog === null) {
     return {
       envoyable: false,
-      raison: `catalogue de ${kind} illisible : « ${model} » ne peut pas être vérifié.`,
+      raison: `${kind} catalog unreadable: “${model}” cannot be verified.`,
     };
   }
 
@@ -137,8 +136,8 @@ export const verifierLancement = ({
       envoyable: false,
       raison:
         nombre === 0
-          ? `aucun modèle vérifié pour ${catalog.kind} : « ${model} » ne peut pas être confirmé.`
-          : `« ${model} » ne fait pas partie des ${nombre} modèles vérifiés de ${catalog.kind}.`,
+          ? `no verified model for ${catalog.kind}: “${model}” cannot be confirmed.`
+          : `“${model}” is not among the ${nombre} verified models of ${catalog.kind}.`,
     };
   }
 
@@ -148,8 +147,8 @@ export const verifierLancement = ({
       envoyable: false,
       raison:
         acceptes.length === 0
-          ? `« ${model} » ne déclare aucun niveau de réflexion.`
-          : `« ${thinking} » n'est pas un niveau de « ${model} » (${acceptes.join(", ")}).`,
+          ? `“${model}” declares no thinking level.`
+          : `“${thinking}” is not a level of “${model}” (${acceptes.join(", ")}).`,
     };
   }
 

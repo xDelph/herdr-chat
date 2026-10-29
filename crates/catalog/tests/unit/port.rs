@@ -109,7 +109,7 @@ fn la_validation_exige_un_nom_et_laisse_la_politique_au_moteur() {
     };
     match valide(&sans_nom) {
         Err(PortError::Unsupported { feature }) => {
-            assert!(feature.contains("politique de nom"), "{feature}");
+            assert!(feature.contains("naming policy"), "{feature}");
         }
         autre => panic!("un nom absent est refusé : {autre:?}"),
     }

@@ -2,23 +2,9 @@
 //! 0700/0600, une panne à chaque étape laisse l'ancien ou le nouveau fichier
 //! valide, jamais un fichier à moitié écrit.
 
+use crate::unit::soutien::temporaire;
 use files::atomic::ecrit_atomique;
 use std::fs;
-use std::path::PathBuf;
-use std::sync::atomic::{AtomicU32, Ordering};
-
-static NONCE: AtomicU32 = AtomicU32::new(0);
-
-fn temporaire(prefixe: &str) -> PathBuf {
-    let base = std::env::temp_dir();
-    let pid = std::process::id();
-    let nonce = NONCE.fetch_add(1, Ordering::SeqCst);
-    let chemin = base.join(format!("{prefixe}-{pid}-{nonce}"));
-    match fs::create_dir(&chemin) {
-        Ok(()) => chemin,
-        Err(cause) => panic!("racine temporaire refusée : {cause}"),
-    }
-}
 
 #[cfg(unix)]
 fn mode(chemin: &std::path::Path) -> u32 {

@@ -265,23 +265,29 @@ impl NamingContext {
     }
 }
 
-/// Les panes situés d'un snapshot : les `cwd` portés par les agents, dans
-/// l'ordre du snapshot — la matière du dossier de travail d'un projet
-/// (T037 au lancement, T039 à l'accueil : UNE seule construction).
+/// Les panes situés d'un snapshot : les panes du fil (`panes[]`, agents ou
+/// non) dans l'ordre du snapshot, puis les agents qu'ils ne listent pas —
+/// la matière du dossier de travail d'un projet (T037 au lancement, T039 à
+/// l'accueil : UNE seule construction).
 ///
 /// ⚠️ `SituatedPane.cwd` est la source du dossier quand le worktree n'est
-/// pas lié ; le premier pane du projet qui en porte un fait foi.
+/// pas lié ; le premier pane du projet qui en porte un fait foi (D02, comme
+/// le fil TS). Ne lire que les agents laissait sans dossier tout projet
+/// dont les panes sont des shells (2 projets sur 10 mesurés).
 #[must_use]
 pub fn panes_situes(snapshot: &Snapshot) -> Vec<SituatedPane> {
-    snapshot
-        .agents
-        .iter()
-        .map(|agent| SituatedPane {
+    let mut situes = snapshot.panes.clone();
+    for agent in &snapshot.agents {
+        if situes.iter().any(|pane| pane.pane_id == agent.pane_id) {
+            continue;
+        }
+        situes.push(SituatedPane {
             pane_id: agent.pane_id.clone(),
             workspace_id: Some(agent.workspace_id.clone()),
             cwd: agent.cwd.clone(),
-        })
-        .collect()
+        });
+    }
+    situes
 }
 
 /// Un pane placé pour le classement, avec ou sans rectangle.

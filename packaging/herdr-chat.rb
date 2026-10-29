@@ -7,7 +7,7 @@
 class HerdrChat < Formula
   desc "PWA distante pour Herdr (serveur Rust, binaire unique)"
   homepage "https://github.com/herdr/remote"
-  version "0.0.0"
+  version "0.2.0"
   license "MIT"
 
   on_macos do

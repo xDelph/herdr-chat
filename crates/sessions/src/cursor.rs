@@ -39,10 +39,14 @@ pub enum ErreurCurseur {
 impl fmt::Display for ErreurCurseur {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ErreurCurseur::Illisible => f.write_str("curseur illisible"),
-            ErreurCurseur::Exclusifs => f.write_str("cursor et before sont exclusifs"),
-            ErreurCurseur::SessionEtrangere => f.write_str("curseur d'une autre session"),
-            ErreurCurseur::Perime => f.write_str("curseur d'historique périmé"),
+            ErreurCurseur::Illisible => f.write_str("cursor rejected: unreadable"),
+            ErreurCurseur::Exclusifs => {
+                f.write_str("cursor rejected: cursor and before are exclusive")
+            }
+            ErreurCurseur::SessionEtrangere => {
+                f.write_str("cursor rejected: it belongs to another session")
+            }
+            ErreurCurseur::Perime => f.write_str("cursor rejected: stale history cursor"),
         }
     }
 }

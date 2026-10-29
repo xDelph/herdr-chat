@@ -457,7 +457,7 @@ impl LanceStatutServe for LanceurServeReel {
                         // Le processus tardif est tué, la sortie ne s'étire pas.
                         let _ = enfant.kill();
                         let _ = enfant.wait();
-                        return Err(String::from("tailscale serve status : délai dépassé"));
+                        return Err(String::from("tailscale serve status: timed out"));
                     }
                     std::thread::sleep(Duration::from_millis(10));
                 }
@@ -469,7 +469,7 @@ impl LanceStatutServe for LanceurServeReel {
         enfant
             .stdout
             .take()
-            .ok_or_else(|| String::from("stdout indisponible"))?
+            .ok_or_else(|| String::from("stdout unavailable"))?
             .read_to_end(&mut sortie)
             .map_err(|cause| cause.to_string())?;
         String::from_utf8(sortie).map_err(|cause| cause.to_string())

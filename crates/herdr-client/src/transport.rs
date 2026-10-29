@@ -79,20 +79,20 @@ pub enum ErreurTransport {
 impl std::fmt::Display for ErreurTransport {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ErreurTransport::Ferme => f.write_str("socket fermé par l'amont"),
-            ErreurTransport::CadreTropGrand => f.write_str("cadre au-delà de 16 MiB"),
-            ErreurTransport::JsonInvalide(detail) => write!(f, "JSON invalide : {detail}"),
+            ErreurTransport::Ferme => f.write_str("socket closed by upstream"),
+            ErreurTransport::CadreTropGrand => f.write_str("frame beyond 16 MiB"),
+            ErreurTransport::JsonInvalide(detail) => write!(f, "invalid JSON: {detail}"),
             ErreurTransport::EnveloppeInvalide(detail) => {
-                write!(f, "enveloppe invalide : {detail}")
+                write!(f, "invalid envelope: {detail}")
             }
             ErreurTransport::AmontRefus { code, message } => {
-                write!(f, "refus amont {code} : {message}")
+                write!(f, "upstream refusal {code}: {message}")
             }
             ErreurTransport::MauvaiseCorrelation { attendu, recu } => {
-                write!(f, "corrélation rompue : attendu {attendu}, reçu {recu}")
+                write!(f, "correlation broken: expected {attendu}, got {recu}")
             }
-            ErreurTransport::DelaiDepasse => f.write_str("délai dépassé sans verdict"),
-            ErreurTransport::Socket(detail) => write!(f, "socket : {detail}"),
+            ErreurTransport::DelaiDepasse => f.write_str("timed out without a verdict"),
+            ErreurTransport::Socket(detail) => write!(f, "socket: {detail}"),
         }
     }
 }
@@ -233,14 +233,14 @@ impl TransportUnix {
         // représentation.
         let recu = match reponse.get("id") {
             Some(Value::String(texte)) => texte.parse::<u64>().map_err(|_| {
-                ErreurTransport::EnveloppeInvalide(format!("id non numérique : {texte}"))
+                ErreurTransport::EnveloppeInvalide(format!("non-numeric id: {texte}"))
             })?,
             Some(valeur) => valeur.as_u64().ok_or_else(|| {
-                ErreurTransport::EnveloppeInvalide(String::from("id absent ou non numérique"))
+                ErreurTransport::EnveloppeInvalide(String::from("missing or non-numeric id"))
             })?,
             None => {
                 return Err(ErreurTransport::EnveloppeInvalide(String::from(
-                    "id absent",
+                    "missing id",
                 )));
             }
         };
@@ -264,10 +264,10 @@ impl TransportUnix {
                 })
             }
             (Some(_), Some(_)) => Err(ErreurTransport::EnveloppeInvalide(String::from(
-                "result ET error présents : enveloppe ambiguë",
+                "both result AND error present: ambiguous envelope",
             ))),
             (None, None) => Err(ErreurTransport::EnveloppeInvalide(String::from(
-                "ni result ni error",
+                "neither result nor error",
             ))),
         }
     }

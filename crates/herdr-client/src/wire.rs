@@ -103,16 +103,16 @@ where
     impl<'de, T: serde::de::DeserializeOwned> serde::de::Visitor<'de> for Visiteur<T> {
         type Value = Option<T>;
         fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.write_str("valeur ou absence — null refusé (omissible simple)")
+            f.write_str("value or absence — null refused (simple omissible)")
         }
         fn visit_some<D2: serde::Deserializer<'de>>(self, d: D2) -> Result<Option<T>, D2::Error> {
             T::deserialize(d).map(Some)
         }
         fn visit_none<E: serde::de::Error>(self) -> Result<Option<T>, E> {
-            Err(E::custom("null refusé sur champ omissible du fil amont"))
+            Err(E::custom("null refused on an omissible upstream field"))
         }
         fn visit_unit<E: serde::de::Error>(self) -> Result<Option<T>, E> {
-            Err(E::custom("null refusé sur champ omissible du fil amont"))
+            Err(E::custom("null refused on an omissible upstream field"))
         }
     }
     deserialiseur.deserialize_option(Visiteur(std::marker::PhantomData))
@@ -127,7 +127,7 @@ where
     impl<'de, T: serde::de::DeserializeOwned> serde::de::Visitor<'de> for Visiteur<T> {
         type Value = Option<Option<T>>;
         fn expecting(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            f.write_str("valeur, null ou absence — trois faits distincts")
+            f.write_str("value, null or absence — three distinct facts")
         }
         fn visit_some<D2: serde::Deserializer<'de>>(
             self,
@@ -268,6 +268,21 @@ pub struct InfoDisposition {
     pub panes: Vec<PaneDisposition>,
 }
 
+/// Un pane du snapshot (`panes[]`, `PaneInfo` du schéma Herdr 0.9).
+///
+/// ⚠️ **Seul porteur du dossier d'un projet sans agent.** `agents[]` ne
+/// décrit que les panes d'agent ; un projet dont le seul pane est un shell
+/// (mesuré : `jarvis`, `herdr-agent`) n'avait aucun `cwd` connu, donc aucun
+/// `checkoutPath` (le fil TS le lisait ici). On ne décode que ce qu'on lit :
+/// identité et `cwd` (nullable au schéma, présent sur 31 panes sur 31).
+#[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
+pub struct InfoPaneSnapshot {
+    pub pane_id: String,
+    pub workspace_id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+}
+
 /// La photo complète du fil (`session.snapshot` — l'enveloppe porte
 /// protocol + version, mesuré).
 #[derive(Clone, PartialEq, Eq, Debug, Serialize, Deserialize)]
@@ -289,6 +304,13 @@ pub struct PhotoSession {
         skip_serializing_if = "Option::is_none"
     )]
     pub layouts: Option<Vec<InfoDisposition>>,
+    /// Tous les panes, agents ou non (`panes[]`) — absent du fil = `None`.
+    #[serde(
+        default,
+        deserialize_with = "presence_refus_null",
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub panes: Option<Vec<InfoPaneSnapshot>>,
     #[serde(
         default,
         deserialize_with = "presence_refus_null",

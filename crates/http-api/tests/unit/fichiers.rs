@@ -145,7 +145,7 @@ async fn fichier_403_snapshot_illisible() {
     )
     .await;
     assert_eq!(statut, StatusCode::FORBIDDEN);
-    assert_eq!(corps["error"], "Herdr illisible");
+    assert_eq!(corps["error"], "Herdr unreadable");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -181,7 +181,7 @@ async fn images_502_balayage_en_panne() {
     });
     let (statut, corps) = requete_get(routeur(services, vec![]), "/api/images").await;
     assert_eq!(statut, StatusCode::BAD_GATEWAY);
-    assert_eq!(corps["error"], "balayage impossible");
+    assert_eq!(corps["error"], "scan failed");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -193,7 +193,7 @@ async fn images_502_snapshot_illisible() {
     let services = services_retouches(faux, |_| {});
     let (statut, corps) = requete_get(routeur(services, vec![]), "/api/images").await;
     assert_eq!(statut, StatusCode::BAD_GATEWAY);
-    assert_eq!(corps["error"], "Herdr illisible");
+    assert_eq!(corps["error"], "Herdr unreadable");
 }
 
 #[tokio::test(flavor = "multi_thread")]

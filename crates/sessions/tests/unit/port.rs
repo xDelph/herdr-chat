@@ -366,18 +366,25 @@ fn un_chemin_publie_hors_des_racines_n_est_jamais_lu() {
     let chemin = dehors.join("secret.jsonl");
     ecrit_session(&chemin);
     let port = PortSessions::nouveau(racines(&racine));
-    let issue = attend(port.page(SessionPageRequest {
+    // C04 : un REFUS de chemin (403), distinct d'un résultat invalide (422).
+    match attend(port.page(SessionPageRequest {
         source: source_fichier(&chemin),
         cursor: None,
         previous_cursor: None,
         limit: 512 * 1024,
-    }))
-    .unwrap_or_else(|cause| panic!("page : {cause:?}"));
-    match issue {
-        SessionPageOutcome::Invalide { detail } => {
-            assert!(detail.contains("outside"), "la cause est dite : {detail}");
+    })) {
+        Err(erreur) => {
+            assert_eq!(
+                erreur.nature,
+                domain::errors::Nature::PathDenied,
+                "{erreur:?}"
+            );
+            assert!(
+                erreur.detail.contains("outside"),
+                "la cause est dite : {erreur:?}"
+            );
         }
-        autre => panic!("un chemin hors racine est refusé : {autre:?}"),
+        Ok(autre) => panic!("un chemin hors racine est refusé : {autre:?}"),
     }
     let _ = std::fs::remove_dir_all(&racine);
     let _ = std::fs::remove_dir_all(&dehors);

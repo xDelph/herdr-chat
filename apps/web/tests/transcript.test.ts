@@ -139,7 +139,7 @@ describe("le tour en cours", () => {
     );
     expect(tour.debutMs).toBe(Date.parse("2026-10-29T13:52:00Z"));
     expect(tour.jetons).toBe(1500);
-    expect(tour.derniereAction?.singulier).toBe("Lu");
+    expect(tour.derniereAction?.singulier).toBe("Read");
     expect(tour.derniereAction?.cible).toBe("/p/main.rs");
   });
 

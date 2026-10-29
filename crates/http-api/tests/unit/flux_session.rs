@@ -29,6 +29,8 @@ use tower::ServiceExt;
 struct PortQuiGrandit {
     lignes: Arc<Mutex<Vec<&'static str>>>,
     demandes: Arc<Mutex<Vec<Option<String>>>>,
+    /// Le chemin publié est refusé par la garde (403 sur H04).
+    refuse: Arc<std::sync::atomic::AtomicBool>,
 }
 
 impl PortQuiGrandit {
@@ -59,6 +61,13 @@ impl SessionPort for PortQuiGrandit {
             .lock()
             .unwrap_or_else(PoisonError::into_inner)
             .push(demande.cursor.clone());
+        if self.refuse.load(std::sync::atomic::Ordering::SeqCst) {
+            return Box::pin(async {
+                Err(domain::errors::ErreurDomaine::chemin_refuse(
+                    "session path outside the allowed root",
+                ))
+            });
+        }
         let lignes = self
             .lignes
             .lock()
@@ -431,4 +440,22 @@ async fn une_ligne_frontiere_relue_ne_fait_pas_boucler_le_flux() {
     let reecrite = client.suivante().await;
     assert_eq!(reecrite.genre, "entries");
     assert!(reecrite.donnees.contains("Bonjour"), "{}", reecrite.donnees);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn un_chemin_refuse_ferme_le_flux_avec_sa_cause() {
+    // Le vrai port refuse un chemin publié hors des racines (403 sur H04) :
+    // le flux le dit (`gone`, cause réelle) et se ferme — jamais une attente
+    // muette de révisions qui ne serviront rien.
+    let (services, port, _observateur) = monde();
+    port.refuse.store(true, std::sync::atomic::Ordering::SeqCst);
+    let (statut, mut client) = ouvre(Arc::clone(&services), "/api/agents/w1:p1/stream", None).await;
+    assert_eq!(statut, StatusCode::OK);
+    let trame = client.suivante().await;
+    assert_eq!(trame.genre, "gone", "{trame:?}");
+    assert!(
+        trame.donnees.contains("outside the allowed root"),
+        "{}",
+        trame.donnees
+    );
 }

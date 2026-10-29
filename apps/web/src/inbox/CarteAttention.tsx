@@ -40,7 +40,7 @@ export const CarteAttention = memo(
     const occupe = issue?.phase === "en-cours";
 
     return (
-      <article className="carte" aria-label={`${projet} attend une décision`}>
+      <article className="carte" aria-label={`${projet} needs a decision`}>
         <div className="carte__qui">
           <Marque kind={conversation.agent} />
           <span className="carte__projet">{projet}</span>
@@ -54,11 +54,11 @@ export const CarteAttention = memo(
         {trust !== undefined ? (
           <>
             <p className="carte__q">
-              Faire confiance au dossier <span className="mono">{trust.folder}</span>&nbsp;?
+              Trust the folder <span className="mono">{trust.folder}</span>?
             </p>
             <p className="discret">
-              L'agent pourra y lire, écrire et exécuter du code sans redemander. Ce choix est
-              enregistré sur le Mac.
+              The agent will be able to read, write and run code there without asking again. This
+              choice is saved on the Mac.
             </p>
             <div className="carte__options">
               <button
@@ -67,7 +67,7 @@ export const CarteAttention = memo(
                 disabled={occupe}
                 onClick={() => void faireConfiance(paneId, trust.folder, true)}
               >
-                Faire confiance
+                Trust
               </button>
               <button
                 type="button"
@@ -90,7 +90,7 @@ export const CarteAttention = memo(
                 estOptionSaisieLibre(choix.libelle) ? (
                   <a key={choix.numero} className="bouton" href={lien}>
                     <span className="k">{choix.numero}</span>
-                    Répondre librement…
+                    Answer freely…
                   </a>
                 ) : (
                   <button
@@ -107,7 +107,7 @@ export const CarteAttention = memo(
                 ),
               )}
               <a className="lien" href={lien}>
-                Ouvrir
+                Open
               </a>
             </div>
           </>
@@ -115,20 +115,20 @@ export const CarteAttention = memo(
           <>
             <p className="carte__q">
               {waiting === undefined
-                ? "L'agent attend, mais son écran ne montre rien de lisible."
-                : "L'agent attend une saisie — aucun choix numéroté."}
+                ? "The agent is waiting, but its screen shows nothing readable."
+                : "The agent is waiting for input — no numbered choices."}
             </p>
             {waiting === undefined ? null : (
               <pre className="carte__ecran">{waiting.split("\n").slice(-6).join("\n")}</pre>
             )}
             <div className="carte__options">
               <a className="bouton" href={lien}>
-                Ouvrir pour répondre
+                Open to answer
               </a>
             </div>
           </>
         )}
-        <IssueAction issue={issue} enCours="Envoi de la réponse…" />
+        <IssueAction issue={issue} enCours="Sending the answer…" />
       </article>
     );
   },

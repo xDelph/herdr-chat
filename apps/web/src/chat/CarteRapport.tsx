@@ -64,7 +64,7 @@ const Corps = ({ source }: { readonly source: string }) => {
           aria-expanded={deplie}
           onClick={() => setDeplie((valeur) => !valeur)}
         >
-          {deplie ? "Replier" : "Tout lire"}
+          {deplie ? "Collapse" : "Read all"}
         </button>
       ) : null}
     </>
@@ -96,7 +96,7 @@ export const CarteRapport = memo(({ message }: { readonly message: RenderedMessa
         <span className="rapport__titre">{titre.join(" · ")}</span>
         <span className="rapport__meta num">
           {rapport.dureeMs === null ? null : <span>{dureeLongue(rapport.dureeMs)}</span>}
-          {message.meta["pendantTour"] === "1" ? <span>pendant le travail</span> : null}
+          {message.meta["pendantTour"] === "1" ? <span>during the turn</span> : null}
           {heure === null ? null : <span>{heure}</span>}
         </span>
       </header>

@@ -1,5 +1,5 @@
 /**
- * Les mots de l'interface — **un seul endroit**, en français.
+ * Les mots de l'interface — **un seul endroit**, en anglais (décision T072).
  *
  * Couleur = état : chaque statut a un mot, une forme et une couleur, et les
  * trois sont décidés ici et dans `ui/atomes.tsx`, nulle part ailleurs.
@@ -7,30 +7,30 @@
 import type { AgentStatus } from "@herdr-remote/shared";
 
 export const LIBELLE_STATUT: Record<AgentStatus, string> = {
-  blocked: "À toi",
-  done: "Terminé",
-  idle: "Au repos",
-  unknown: "Inconnu",
-  working: "Travaille",
+  blocked: "Needs you",
+  done: "Done",
+  idle: "Idle",
+  unknown: "Unknown",
+  working: "Working",
 };
 
 /** Libellé d'un niveau de réflexion. Un niveau inconnu s'affiche tel quel. */
 export const libelleReflexion = (niveau: string): string => {
   switch (niveau) {
     case "off":
-      return "aucune";
+      return "off";
     case "minimal":
-      return "minimale";
+      return "minimal";
     case "low":
-      return "faible";
+      return "low";
     case "medium":
-      return "moyenne";
+      return "medium";
     case "high":
-      return "haute";
+      return "high";
     case "xhigh":
-      return "très haute";
+      return "extra high";
     case "max":
-      return "maximale";
+      return "max";
     default:
       return niveau;
   }
@@ -87,33 +87,20 @@ export const dossierDe = (chemin: string | null | undefined): string | null => {
   return morceaux.at(-1) ?? null;
 };
 
-const JOURS = ["dim.", "lun.", "mar.", "mer.", "jeu.", "ven.", "sam."];
-const MOIS = [
-  "janv.",
-  "févr.",
-  "mars",
-  "avr.",
-  "mai",
-  "juin",
-  "juil.",
-  "août",
-  "sept.",
-  "oct.",
-  "nov.",
-  "déc.",
-];
+const JOURS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MOIS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 /**
  * Le temps écoulé depuis une activité, au format de la liste.
  *
- * `à l'instant`, `25 min`, `3 h`, `hier`, `lun.`, puis la date. Plancher, jamais
+ * `just now`, `25 min`, `3h`, `yesterday`, `Mon`, puis la date (`Sep 3`). Plancher, jamais
  * d'arrondi vers le haut : une durée exagérée est ce qu'on compare avec son
  * souvenir.
  */
 export const quand = (instant: number, maintenant: number): string => {
   const ecart = Math.max(0, maintenant - instant);
   const minutes = Math.floor(ecart / 60_000);
-  if (minutes < 1) return "à l'instant";
+  if (minutes < 1) return "just now";
   if (minutes < 60) return `${String(minutes)} min`;
   const heures = Math.floor(minutes / 60);
   const date = new Date(instant);
@@ -123,11 +110,11 @@ export const quand = (instant: number, maintenant: number): string => {
     aujourdhui.getMonth(),
     aujourdhui.getDate(),
   ).getTime();
-  if (instant >= debutDuJour) return `${String(heures)} h`;
+  if (instant >= debutDuJour) return `${String(heures)}h`;
   const jours = Math.ceil((debutDuJour - instant) / 86_400_000);
-  if (jours <= 1) return "hier";
+  if (jours <= 1) return "yesterday";
   if (jours < 7) return JOURS[date.getDay()] ?? "";
-  return `${String(date.getDate())} ${MOIS[date.getMonth()] ?? ""}`;
+  return `${MOIS[date.getMonth()] ?? ""} ${String(date.getDate())}`;
 };
 
 /** Un chronomètre : `0:38`, `4:05`, `1:02:03`. */
@@ -141,12 +128,12 @@ export const chrono = (ms: number): string => {
   return `${String(heures)}:${String(minutes).padStart(2, "0")}:${ss}`;
 };
 
-/** Des jetons, lisibles d'un regard : `850`, `18,4 k`, `1,2 M`. */
+/** Des jetons, lisibles d'un regard : `850`, `18.4k`, `1.2M`. */
 export const jetons = (nombre: number): string => {
   if (!Number.isFinite(nombre) || nombre <= 0) return "";
   if (nombre < 1000) return String(Math.round(nombre));
-  if (nombre < 1_000_000) return `${(nombre / 1000).toFixed(1).replace(".", ",")} k`;
-  return `${(nombre / 1_000_000).toFixed(1).replace(".", ",")} M`;
+  if (nombre < 1_000_000) return `${(nombre / 1000).toFixed(1)}k`;
+  return `${(nombre / 1_000_000).toFixed(1)}M`;
 };
 
 /** L'heure d'un horodatage ISO, ou `null` s'il est illisible. */
@@ -172,13 +159,13 @@ export const apercuTexte = (markdown: string): string =>
     .replace(/\s+/g, " ")
     .trim();
 
-/** Une durée longue, en mots : `45 s`, `7 min`, `3 h 12 min`, `2 j 4 h`. */
+/** Une durée longue, en mots : `45s`, `7 min`, `3h 12m`, `2d 4h`. */
 export const dureeLongue = (ms: number): string => {
   const secondes = Math.max(0, Math.floor(ms / 1000));
-  if (secondes < 60) return `${String(secondes)} s`;
+  if (secondes < 60) return `${String(secondes)}s`;
   const minutes = Math.floor(secondes / 60);
   if (minutes < 60) return `${String(minutes)} min`;
   const heures = Math.floor(minutes / 60);
-  if (heures < 24) return `${String(heures)} h ${String(minutes % 60)} min`;
-  return `${String(Math.floor(heures / 24))} j ${String(heures % 24)} h`;
+  if (heures < 24) return `${String(heures)}h ${String(minutes % 60)}m`;
+  return `${String(Math.floor(heures / 24))}d ${String(heures % 24)}h`;
 };

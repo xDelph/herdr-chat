@@ -3,26 +3,13 @@
 //! projet révoqué, erreur détaillée — rien d'inventé.
 //! Prouve : S04.
 
+use crate::unit::soutien::temporaire;
 use files::authorized_file::{
     ErreurFichier, FichierServi, MAX_FILE_BYTES, describe_erreur_fichier, lit_fichier_autorise,
 };
 use std::fs;
 use std::io::Write;
-use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering};
-
-static NONCE: AtomicU32 = AtomicU32::new(0);
-
-fn temporaire(prefixe: &str) -> PathBuf {
-    let base = std::env::temp_dir();
-    let pid = std::process::id();
-    let nonce = NONCE.fetch_add(1, Ordering::SeqCst);
-    let chemin = base.join(format!("{prefixe}-{pid}-{nonce}"));
-    match fs::create_dir(&chemin) {
-        Ok(()) => chemin,
-        Err(cause) => panic!("racine temporaire refusée : {cause}"),
-    }
-}
+use std::path::Path;
 
 fn ecrit(chemin: &Path, contenu: &[u8]) {
     let mut fichier = fs::File::create(chemin).unwrap_or_else(|cause| panic!("écriture : {cause}"));
@@ -49,7 +36,7 @@ fn lit_un_fichier_legitime_sous_la_racine() {
     let racine = temporaire("herdr-autorise");
     let fichier = racine.join("capture.png");
     ecrit(&fichier, b"\x89PNG\r\n\x1a\ncontenu");
-    let servi = lit_fichier_autorise(std::slice::from_ref(&racine), &fichier)
+    let servi = lit_fichier_autorise(std::slice::from_ref(&*racine), &fichier)
         .unwrap_or_else(|cause| panic!("lecture refusée : {cause:?}"));
     assert_eq!(servi.octets, b"\x89PNG\r\n\x1a\ncontenu");
     assert_eq!(
@@ -70,7 +57,7 @@ fn le_projet_revoque_est_refuse() {
     let autre_racine = temporaire("herdr-autre");
     refuse(
         "projet révoqué",
-        lit_fichier_autorise(&[autre_racine], &fichier),
+        lit_fichier_autorise(&[autre_racine.to_path_buf()], &fichier),
         "outside the project folders",
     );
 }
@@ -99,7 +86,7 @@ fn un_chemin_qui_remonte_est_refuse() {
     let demande = parent.join("..").join("herdr-montee").join("contenu.txt");
     refuse(
         "remontée",
-        lit_fichier_autorise(&[racine], &demande),
+        lit_fichier_autorise(&[racine.to_path_buf()], &demande),
         "outside the project folders",
     );
 }
@@ -117,7 +104,7 @@ fn un_lien_echappant_est_refuse() {
         .unwrap_or_else(|cause| panic!("lien symbolique : {cause}"));
     refuse(
         "lien échappant",
-        lit_fichier_autorise(&[racine], &lien),
+        lit_fichier_autorise(&[racine.to_path_buf()], &lien),
         "symlink escaping the project folders",
     );
 }
@@ -127,13 +114,13 @@ fn un_repertoire_est_refuse_et_une_absence_est_indisponible() {
     let racine = temporaire("herdr-dossier");
     refuse(
         "répertoire",
-        lit_fichier_autorise(std::slice::from_ref(&racine), &racine),
+        lit_fichier_autorise(std::slice::from_ref(&*racine), &racine),
         "not a file",
     );
     let manquant = racine.join("absent.txt");
-    match lit_fichier_autorise(&[racine], &manquant) {
+    match lit_fichier_autorise(&[racine.to_path_buf()], &manquant) {
         Err(ErreurFichier::Indisponible { raison }) => {
-            assert_eq!(raison, "fichier introuvable");
+            assert_eq!(raison, "file not found");
         }
         Err(ErreurFichier::Refuse { raison }) => {
             panic!("indisponible attendu, refus « {raison} »")
@@ -150,11 +137,11 @@ fn un_fichier_trop_gros_est_refuse_pas_tronque() {
     let fichier = racine.join("gros.bin");
     let contenu = vec![0u8; (MAX_FILE_BYTES + 1) as usize];
     ecrit(&fichier, &contenu);
-    match lit_fichier_autorise(&[racine], &fichier) {
+    match lit_fichier_autorise(&[racine.to_path_buf()], &fichier) {
         Err(ErreurFichier::Refuse { raison }) => {
-            assert!(raison.contains("trop gros"), "raison : {raison}");
+            assert!(raison.contains("too large"), "raison : {raison}");
             assert!(
-                raison.contains("12 Mo"),
+                raison.contains("12 MB"),
                 "taille réelle dans la raison : {raison}"
             );
         }
@@ -173,7 +160,7 @@ fn la_longueur_servie_est_celle_des_octets_lus() {
     let racine = temporaire("herdr-court");
     let fichier = racine.join("court.bin");
     ecrit(&fichier, b"0123456789");
-    let servi = lit_fichier_autorise(&[racine], &fichier)
+    let servi = lit_fichier_autorise(&[racine.to_path_buf()], &fichier)
         .unwrap_or_else(|cause| panic!("lecture refusée : {cause:?}"));
     assert_eq!(servi.taille, 10);
     assert_eq!(servi.octets.len(), 10);
@@ -190,7 +177,7 @@ fn le_nom_et_le_type_viennent_du_chemin_reel() {
     let lien = racine.join("apercu.txt");
     std::os::unix::fs::symlink(&cible, &lien)
         .unwrap_or_else(|cause| panic!("lien symbolique : {cause}"));
-    let servi = lit_fichier_autorise(&[racine], &lien)
+    let servi = lit_fichier_autorise(&[racine.to_path_buf()], &lien)
         .unwrap_or_else(|cause| panic!("lecture refusée : {cause:?}"));
     assert_eq!(servi.nom, "capture.png");
     assert_eq!(servi.content_type, "image/png");
@@ -205,7 +192,7 @@ fn une_racine_disparue_ne_fait_pas_echouer_les_autres() {
     let vivante = temporaire("herdr-vivante");
     let fichier = vivante.join("contenu.txt");
     ecrit(&fichier, b"contenu");
-    let servi = lit_fichier_autorise(&[disparue, vivante], &fichier)
+    let servi = lit_fichier_autorise(&[disparue.to_path_buf(), vivante.to_path_buf()], &fichier)
         .unwrap_or_else(|cause| panic!("lecture refusée : {cause:?}"));
     assert_eq!(servi.octets, b"contenu");
 }
@@ -216,7 +203,7 @@ fn decrit_une_erreur_sans_divulguer_la_structure() {
     let fichier = racine.join("contenu.txt");
     ecrit(&fichier, b"contenu");
     let autre = temporaire("herdr-autre");
-    let erreur = lit_fichier_autorise(&[autre], &fichier)
+    let erreur = lit_fichier_autorise(&[autre.to_path_buf()], &fichier)
         .err()
         .unwrap_or_else(|| panic!("refus attendu"));
     assert_eq!(

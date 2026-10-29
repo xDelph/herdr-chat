@@ -124,20 +124,20 @@ interface Modele {
 const SHELL: Modele = {
   famille: "shell",
   icone: "term",
-  pluriel: "Commandes lancées",
-  singulier: "Lancé",
+  pluriel: "Ran commands",
+  singulier: "Ran",
 };
 const EDITION: Modele = {
   famille: "edition",
   icone: "edit",
-  pluriel: "Fichiers modifiés",
-  singulier: "Modifié",
+  pluriel: "Edited files",
+  singulier: "Edited",
 };
 const RECHERCHE: Modele = {
   famille: "recherche",
   icone: "find",
-  pluriel: "Recherches",
-  singulier: "Cherché",
+  pluriel: "Searches",
+  singulier: "Searched",
 };
 
 const FAMILLES: Record<string, Modele> = {
@@ -145,19 +145,24 @@ const FAMILLES: Record<string, Modele> = {
   shell: SHELL,
   exec: SHELL,
   exec_command: SHELL,
-  js: { famille: "shell", icone: "term", pluriel: "Scripts lancés", singulier: "Script lancé" },
+  js: { famille: "shell", icone: "term", pluriel: "Ran scripts", singulier: "Ran script" },
   edit: EDITION,
   multiedit: EDITION,
-  write: { famille: "edition", icone: "edit", pluriel: "Fichiers créés", singulier: "Créé" },
-  read: { famille: "lecture", icone: "file", pluriel: "Fichiers lus", singulier: "Lu" },
+  write: { famille: "edition", icone: "edit", pluriel: "Created files", singulier: "Created" },
+  read: { famille: "lecture", icone: "file", pluriel: "Read files", singulier: "Read" },
   grep: RECHERCHE,
   glob: RECHERCHE,
-  webfetch: { famille: "recherche", icone: "web", pluriel: "Pages lues", singulier: "Page lue" },
+  webfetch: {
+    famille: "recherche",
+    icone: "web",
+    pluriel: "Fetched pages",
+    singulier: "Fetched page",
+  },
   websearch: {
     famille: "recherche",
     icone: "web",
-    pluriel: "Recherches web",
-    singulier: "Recherche web",
+    pluriel: "Web searches",
+    singulier: "Web search",
   },
 };
 
@@ -195,13 +200,13 @@ export const actionDe = (nom: string, args: Readonly<Record<string, unknown>>): 
       const delta = deltaDe(minuscule, args);
       const seul = kinds.size === 1;
       const singulier =
-        seul && kinds.has("add") ? "Créé" : seul && kinds.has("delete") ? "Supprimé" : "Modifié";
+        seul && kinds.has("add") ? "Created" : seul && kinds.has("delete") ? "Deleted" : "Edited";
       const pluriel =
         seul && kinds.has("add")
-          ? "Fichiers créés"
+          ? "Created files"
           : seul && kinds.has("delete")
-            ? "Fichiers supprimés"
-            : "Fichiers modifiés";
+            ? "Deleted files"
+            : "Edited files";
       return {
         cible: patches.length === 1 ? (patches[0]?.path ?? null) : null,
         delta,
@@ -219,8 +224,8 @@ export const actionDe = (nom: string, args: Readonly<Record<string, unknown>>): 
       delta: null,
       estFichier: true,
       icone: "delete",
-      pluriel: "Fichiers supprimés",
-      singulier: "Supprimé",
+      pluriel: "Deleted files",
+      singulier: "Deleted",
     };
   }
 
@@ -309,8 +314,8 @@ const titreDeGroupe = (ligne: LigneCommande): string | undefined => {
     la même réflexion sans être le même objet, et une comparaison par référence
     la laisserait hors du groupe.
   */
-  if (ligne.action.pluriel === ACTION_REFLEXION.pluriel) return "Réflexion";
-  if (estCommande(ligne)) return "Commandes lancées";
+  if (ligne.action.pluriel === ACTION_REFLEXION.pluriel) return "Thinking";
+  if (estCommande(ligne)) return "Ran commands";
   return undefined;
 };
 
@@ -357,7 +362,7 @@ export const regrouperCommandes = (
 /**
  * Résumé d'un groupe : les familles rencontrées, dans l'ordre de lecture.
  *
- * « Fichiers modifiés, commandes lancées » et non « 7 appels » : un compte ne
+ * « Edited files, ran commands » et non « 7 appels » : un compte ne
  * dit pas **ce qui a été fait**, et c'est la seule question qu'on se pose
  * devant un groupe replié.
  */
@@ -372,13 +377,13 @@ export const resumeDuGroupe = (noms: ReadonlyArray<string>): string => {
   return (
     ORDRE.filter((famille) => familles.has(famille))
       .map((famille) => {
-        if (famille === "suppression") return "Fichiers supprimés";
+        if (famille === "suppression") return "Deleted files";
         const modele = Object.values(FAMILLES).find((entree) => entree.famille === famille);
         return modele?.pluriel ?? "Actions";
       })
-      // ⚠️ **Seul le premier garde sa majuscule.** « Fichiers modifiés, Commandes
-      // lancées » se lit comme trois phrases ; c'est une énumération, et le
-      // français n'y met pas de capitale après la virgule.
+      // ⚠️ **Seul le premier garde sa majuscule.** « Edited files, Ran
+      // commands » se lit comme trois phrases ; c'est une énumération, sans
+      // capitale après la virgule.
       .map((fragment, index) => (index === 0 ? fragment : fragment.toLowerCase()))
       .join(", ")
   );
@@ -388,7 +393,7 @@ export const resumeDuGroupe = (noms: ReadonlyArray<string>): string => {
  * Nombre de jetons, en forme courte.
  *
  * ⚠️ `65000` ne se lit pas au doigt, et prend la place de trois mots. `65k` se
- * lit d'un regard. Sous 10 000 on garde une décimale — `1,5k` et `2k` ne
+ * lit d'un regard. Sous 10 000 on garde une décimale — `1.5k` et `2k` ne
  * disent pas la même chose quand on compare deux travaux.
  */
 export const jetonsCourts = (nombre: number): string => {
@@ -396,13 +401,13 @@ export const jetonsCourts = (nombre: number): string => {
   if (nombre < 1000) return String(Math.round(nombre));
 
   const milliers = nombre / 1000;
-  if (milliers < 10) return `${milliers.toFixed(1).replace(".", ",")}k`;
+  if (milliers < 10) return `${milliers.toFixed(1)}k`;
   // ⚠️ Au-delà du million, `2156k` ne se lit pas : on passe au million. Sans
   // cette borne, un gros travail s'affichait « 2156k ».
   if (milliers < 1000) return `${String(Math.round(milliers))}k`;
 
   const millions = milliers / 1000;
-  return `${millions.toFixed(1).replace(".", ",")} M`;
+  return `${millions.toFixed(1)}M`;
 };
 
 /**
@@ -410,25 +415,23 @@ export const jetonsCourts = (nombre: number): string => {
  *
  * ⚠️ **Plancher, jamais d'arrondi vers le haut** : une durée exagérée est
  * exactement ce que l'utilisateur compare avec son souvenir. Et les secondes
- * disparaissent au-delà d'une heure : « 1 h 4 min » se lit, « 1 h 4 min 12 s »
+ * disparaissent au-delà d'une heure : « 1h 4m » se lit, « 1h 4m 12s »
  * se déchiffre.
  */
 export const dureeEnMots = (millisecondes: number): string => {
   if (!Number.isFinite(millisecondes) || millisecondes <= 0) return "";
   const secondes = Math.floor(millisecondes / 1000);
-  if (secondes < 60) return `${String(secondes)} s`;
+  if (secondes < 60) return `${String(secondes)}s`;
   const minutes = Math.floor(secondes / 60);
   const resteSecondes = secondes % 60;
   if (minutes < 60) {
     return resteSecondes === 0
       ? `${String(minutes)} min`
-      : `${String(minutes)} min ${String(resteSecondes)} s`;
+      : `${String(minutes)}m ${String(resteSecondes)}s`;
   }
   const heures = Math.floor(minutes / 60);
   const resteMinutes = minutes % 60;
-  return resteMinutes === 0
-    ? `${String(heures)} h`
-    : `${String(heures)} h ${String(resteMinutes)} min`;
+  return resteMinutes === 0 ? `${String(heures)}h` : `${String(heures)}h ${String(resteMinutes)}m`;
 };
 
 /** Instant d'un message, en millisecondes, ou `null` si illisible. */
@@ -554,8 +557,8 @@ const ACTION_REFLEXION: Action = {
   delta: null,
   estFichier: false,
   icone: "brain",
-  pluriel: "Réflexion",
-  singulier: "Réflexion",
+  pluriel: "Thinking",
+  singulier: "Thinking",
 };
 
 /**
@@ -605,14 +608,33 @@ export const lignesDeTravail = (
         continue;
       }
       if (block.kind === "bashExecution") {
+        /*
+          ⚠️ **Le mode shell de Claude (`!commande`) écrit deux lignes** : la
+          commande (sortie vide), puis la sortie (commande vide). Le démon les
+          traduit une à une ; elles sont réunies ici en UN bloc shell, sinon
+          la sortie apparaissait comme une commande sans nom.
+        */
+        const precedente = lignes.at(-1);
+        const commande = precedente?.kind === "action" ? precedente.details[0] : undefined;
+        if (
+          block.command === "" &&
+          precedente?.kind === "action" &&
+          precedente.details.length === 1 &&
+          commande?.kind === "bashExecution" &&
+          commande.command !== "" &&
+          commande.output === ""
+        ) {
+          precedente.details[0] = { ...commande, output: block.output, truncated: block.truncated };
+          continue;
+        }
         lignes.push({
           action: {
             cible: block.command.split("\n")[0] ?? null,
             delta: null,
             estFichier: false,
             icone: "term",
-            pluriel: "Commandes lancées",
-            singulier: "Lancé",
+            pluriel: "Ran commands",
+            singulier: "Ran",
           },
           cle,
           details: [block],
@@ -628,8 +650,8 @@ export const lignesDeTravail = (
             delta: null,
             estFichier: false,
             icone: "brain",
-            pluriel: "Sous-agents",
-            singulier: "Sous-agents",
+            pluriel: "Subagents",
+            singulier: "Subagents",
           },
           cle,
           details: [block],
@@ -646,12 +668,12 @@ export const lignesDeTravail = (
             cible:
               block.tokensBefore === null
                 ? null
-                : `${block.tokensBefore.toLocaleString("fr-FR")} jetons avant`,
+                : `${block.tokensBefore.toLocaleString("en-US")} tokens before`,
             delta: null,
             estFichier: false,
             icone: "result",
-            pluriel: "Contexte résumé",
-            singulier: "Contexte résumé",
+            pluriel: "Context compacted",
+            singulier: "Context compacted",
           },
           cle,
           details: [block],
@@ -689,8 +711,8 @@ export const lignesDeTravail = (
                 delta: null,
                 estFichier: false,
                 icone: "result",
-                pluriel: "Résultats",
-                singulier: "Échec",
+                pluriel: "Results",
+                singulier: "Failure",
               },
               cle: `${cle}:echec`,
               details: [block],
@@ -718,8 +740,8 @@ export const lignesDeTravail = (
             delta: null,
             estFichier: false,
             icone: "result",
-            pluriel: "Résultats",
-            singulier: "Résultat",
+            pluriel: "Results",
+            singulier: "Result",
           },
           cle,
           details: [block],
@@ -757,8 +779,8 @@ export const actionDeBloc = (block: Block): Action => {
         delta: null,
         estFichier: false,
         icone: "term",
-        pluriel: "Commandes lancées",
-        singulier: "Lancé",
+        pluriel: "Ran commands",
+        singulier: "Ran",
       };
     case "toolResult":
       return {
@@ -766,8 +788,8 @@ export const actionDeBloc = (block: Block): Action => {
         delta: null,
         estFichier: false,
         icone: "result",
-        pluriel: "Résultats",
-        singulier: "Résultat",
+        pluriel: "Results",
+        singulier: "Result",
       };
     default:
       // Les blocs qui ne sont pas du travail — texte, image, compaction — ne

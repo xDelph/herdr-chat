@@ -3,10 +3,10 @@
 //! ⚠️ Ce qui compte ici : un refus est un `PathRejected` (403 nommé), jamais
 //! une panne ; et le type servi suit le chemin RÉEL, pas le nom d'appel.
 
+use crate::unit::soutien::{Jetable, temporaire};
 use domain::errors::PortError;
 use domain::ports::{ArtifactPort, AuthorizedFileRequest, AuthorizedRoots, PortFuture};
 use files::port::{PortArtefacts, erreur_de_port};
-use std::path::PathBuf;
 
 /// Attend un port : les adaptateurs répondent au premier poll (convention du
 /// socle) — pas besoin de runtime async pour les tester.
@@ -18,25 +18,9 @@ fn attends<T: Send>(mut futur: PortFuture<'_, T>) -> Result<T, PortError> {
     }
 }
 
-/// Compteur de dossiers : deux tests lancés dans la même nanoseconde
-/// partageaient leur dossier temporaire — un échec intermittent observé une
-/// fois sur `sessions` (test vert en isolation, rouge en parallèle).
-static COMPTEUR_DOSSIERS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-
 /// Un dossier temporaire isolé — jamais un dossier de l'utilisateur.
-fn dossier() -> PathBuf {
-    let unique = format!(
-        "files-port-{}-{}-{}",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|duree| duree.as_nanos())
-            .unwrap_or(0),
-        COMPTEUR_DOSSIERS.fetch_add(1, std::sync::atomic::Ordering::SeqCst)
-    );
-    let chemin = std::env::temp_dir().join(unique);
-    std::fs::create_dir_all(&chemin).unwrap_or_else(|cause| panic!("dossier : {cause}"));
-    chemin
+fn dossier() -> Jetable {
+    temporaire("files-port")
 }
 
 fn racines(chemin: &std::path::Path) -> AuthorizedRoots {

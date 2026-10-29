@@ -334,7 +334,7 @@ impl ServiceConversations {
         }
         self.lit
             .transcription_de_tache(&source, id)
-            .ok_or_else(|| IssueTaches::Erreur(format!("aucune transcription pour la tâche {id}")))
+            .ok_or_else(|| IssueTaches::Erreur(format!("no transcript for task {id}")))
     }
 
     /// Toutes les lignes d'une génération : pré-filtre de visibilité,

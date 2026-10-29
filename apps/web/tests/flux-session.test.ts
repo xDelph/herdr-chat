@@ -231,7 +231,7 @@ describe("ouverture : queue puis flux", () => {
     suivi.souscrire(() => avertissements.push(suivi.vue().avertissement));
     flux[0]?.emet("entries", "{pas du json");
     await attend();
-    expect(avertissements.some((texte) => texte?.includes("illisible") === true)).toBe(true);
+    expect(avertissements.some((texte) => texte?.includes("Unreadable") === true)).toBe(true);
     // La relecture qui suit est partie, depuis le dernier curseur sûr.
     expect(lectures).toEqual([{ tail: 256 * 1024 }, { cursor: "c9" }]);
   });

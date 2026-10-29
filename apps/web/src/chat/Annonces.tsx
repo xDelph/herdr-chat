@@ -35,14 +35,14 @@ export const annonceDeStatut = (
   if (avant === null || avant === apres) return null;
   switch (apres) {
     case "working":
-      return "L'agent travaille.";
+      return "The agent is working.";
     case "blocked":
-      return "L'agent attend une décision.";
+      return "The agent needs a decision.";
     case "done":
     case "idle": {
       if (avant !== "working") return null;
       const reponse = derniereReponse(items);
-      return reponse === null ? "Réponse terminée." : `Réponse terminée : ${reponse}`;
+      return reponse === null ? "Response finished." : `Response finished: ${reponse}`;
     }
     default:
       return null;

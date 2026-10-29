@@ -31,10 +31,10 @@ impl std::fmt::Display for ErreurNotification {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             ErreurNotification::Store(erreur) => {
-                write!(f, "abonnements push illisibles : {erreur:?}")
+                write!(f, "unreadable push subscriptions: {erreur:?}")
             }
             ErreurNotification::FilePleine => {
-                f.write_str("file de livraison push pleine : notification abandonnée")
+                f.write_str("push delivery queue full: notification dropped")
             }
         }
     }

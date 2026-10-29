@@ -60,10 +60,10 @@ fn verdict_fini(cause: ReadCause, message: &'static str, benign: bool) -> ReadVe
 
 fn verdict_cause(cause: ReadCause) -> ReadVerdict {
     match cause {
-        ReadCause::Absente => verdict_fini(ReadCause::Absente, "session absente", true),
-        ReadCause::Vide => verdict_fini(ReadCause::Vide, "session vide", true),
-        ReadCause::Invalide => verdict_fini(ReadCause::Invalide, "session illisible", false),
-        ReadCause::Io => verdict_fini(ReadCause::Io, "session inaccessible", false),
+        ReadCause::Absente => verdict_fini(ReadCause::Absente, "missing session", true),
+        ReadCause::Vide => verdict_fini(ReadCause::Vide, "empty session", true),
+        ReadCause::Invalide => verdict_fini(ReadCause::Invalide, "unreadable session", false),
+        ReadCause::Io => verdict_fini(ReadCause::Io, "inaccessible session", false),
     }
 }
 
@@ -83,7 +83,7 @@ pub fn invalid_session(detail: &str) -> ReadVerdict {
     ReadVerdict {
         cause: ReadCause::Invalide,
         benign: false,
-        message: format!("session illisible ({detail})"),
+        message: format!("unreadable session ({detail})"),
     }
 }
 
@@ -252,7 +252,7 @@ impl Diagnostic {
             .iter()
             .any(|fragment| cle_basse.contains(fragment))
         {
-            return Err(format!("clé de contexte refusée (matériel privé) : {cle}"));
+            return Err(format!("context key refused (private material): {cle}"));
         }
         self.entrees.push((cle.to_string(), valeur.into()));
         Ok(())
@@ -332,7 +332,7 @@ impl ErreurDomaine {
     pub fn message_sur(&self) -> String {
         let nettoie = supprime_identifiants(&self.detail);
         if nettoie.trim().is_empty() {
-            String::from("erreur sans message")
+            String::from("error without a message")
         } else {
             nettoie
         }
@@ -423,8 +423,8 @@ fn remplace_si_identifiant(jeton: &str) -> &str {
         return jeton;
     }
     match lettres[0] {
-        b'p' => "le nouvel onglet",
-        b't' => "son onglet",
+        b'p' => "the new tab",
+        b't' => "its tab",
         _ => jeton,
     }
 }

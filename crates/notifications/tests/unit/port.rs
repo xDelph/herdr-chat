@@ -215,7 +215,7 @@ fn un_abonnement_expire_est_declare_inconnu_pas_delivre() {
         .unwrap_or_else(|cause| panic!("remise : {cause:?}"));
     match issue {
         DeliveryOutcome::Unknown { detail } => {
-            assert!(detail.contains("expiré"), "{detail}");
+            assert!(detail.contains("expired"), "{detail}");
         }
         autre => panic!("un abonnement expiré n'est pas « délivré » : {autre:?}"),
     }

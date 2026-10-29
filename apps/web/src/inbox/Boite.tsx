@@ -182,12 +182,12 @@ export const Boite = ({
         <button
           type="button"
           className="bouton-icone"
-          aria-label="Lancer un agent"
+          aria-label="Launch an agent"
           onClick={onLancer}
         >
           <Icone nom="plus" />
         </button>
-        <button type="button" className="bouton-icone" aria-label="Réglages" onClick={onReglages}>
+        <button type="button" className="bouton-icone" aria-label="Settings" onClick={onReglages}>
           <Icone nom="gear" />
         </button>
       </header>
@@ -201,17 +201,17 @@ export const Boite = ({
       )}
       <label className="recherche">
         <Icone nom="search" petite />
-        <span className="sr">Rechercher</span>
+        <span className="sr">Search</span>
         <input
           type="search"
           value={recherche}
-          placeholder="Projet, agent, message…"
+          placeholder="Project, agent, message…"
           onChange={(evenement) => setRecherche(evenement.target.value)}
         />
       </label>
       <div className="boite__outils">
         {projet === null ? (
-          <fieldset className="seg" aria-label="Regrouper">
+          <fieldset className="seg" aria-label="Group">
             {GROUPEMENTS.map((option) => (
               <button
                 key={option}
@@ -232,7 +232,7 @@ export const Boite = ({
             className="bouton-tri"
             aria-pressed={ordre === "nom"}
             aria-label={
-              ordre === "nom" ? "Trié par nom — trier par date" : "Trié par date — trier par nom"
+              ordre === "nom" ? "Sorted by name — sort by date" : "Sorted by date — sort by name"
             }
             onClick={() => onOrdre(ordre === "nom" ? "recent" : "nom")}
           >
@@ -240,7 +240,7 @@ export const Boite = ({
           </button>
           <span className="discret num">
             {recherche.trim().length > 0
-              ? `${String(filtrees.length)} sur ${String(total)}`
+              ? `${String(filtrees.length)} of ${String(total)}`
               : `${String(total)} agent${total > 1 ? "s" : ""}`}
           </span>
         </span>
@@ -249,7 +249,7 @@ export const Boite = ({
       <div className="boite__liste">
         {etat.phase === "hors-ligne" ? (
           <Avis ton="attention" annonce="statut">
-            Hors ligne — dernière lecture à {heureLue(etat.dernierSucces) ?? "?"} ·{" "}
+            Offline — last read at {heureLue(etat.dernierSucces) ?? "?"} ·{" "}
             {donnees.erreurs.conversations}{" "}
             <button
               type="button"
@@ -257,43 +257,41 @@ export const Boite = ({
               disabled={donnees.chargement}
               onClick={onReessayer}
             >
-              {donnees.chargement ? "Lecture…" : "Réessayer"}
+              {donnees.chargement ? "Loading…" : "Retry"}
             </button>
           </Avis>
         ) : null}
         {etat.phase === "erreur" ? (
           <Avis ton="erreur" annonce="alerte">
-            Liste illisible : {etat.cause}{" "}
+            Unreadable list: {etat.cause}{" "}
             <button
               type="button"
               className="lien lien--avis"
               disabled={donnees.chargement}
               onClick={onReessayer}
             >
-              {donnees.chargement ? "Lecture…" : "Réessayer"}
+              {donnees.chargement ? "Loading…" : "Retry"}
             </button>
           </Avis>
         ) : null}
         {donnees.erreurs.overview !== null && etat.phase !== "erreur" ? (
-          <Avis ton="attention">Projets illisibles : {donnees.erreurs.overview}</Avis>
+          <Avis ton="attention">Unreadable projects: {donnees.erreurs.overview}</Avis>
         ) : null}
         {etat.phase === "chargement" ? (
           <output className="boite__vide">
             {maintenant - OUVERTURE < FENETRE_DEMARRAGE_MS
-              ? "Connexion au démon…"
-              : "Lecture des agents…"}
+              ? "Connecting to the daemon…"
+              : "Loading agents…"}
           </output>
         ) : null}
         {etat.phase === "vide" ? (
-          <p className="boite__vide">Aucun agent ouvert dans Herdr. Lancez-en un avec +.</p>
+          <p className="boite__vide">No agent open in Herdr. Launch one with +.</p>
         ) : null}
         {projet !== null && etat.phase !== "vide" && total === 0 && conversations !== null ? (
-          <p className="boite__vide">
-            Aucun agent dans ce projet. Lancez-en un avec « Nouvel agent ».
-          </p>
+          <p className="boite__vide">No agent in this project. Launch one with “New agent”.</p>
         ) : null}
         {total > 0 && filtrees.length === 0 ? (
-          <p className="boite__vide">Rien ne correspond à « {recherche.trim()} ».</p>
+          <p className="boite__vide">Nothing matches “{recherche.trim()}”.</p>
         ) : null}
 
         {groupes.map((groupe) => (

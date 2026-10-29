@@ -23,7 +23,7 @@ fn decode_cle(raw: &str) -> Result<Vec<u8>, ErreurStore> {
     URL_SAFE_NO_PAD
         .decode(raw)
         .map_err(|cause| ErreurStore::ClefsInvalides {
-            raison: format!("clé non décodable : {cause}"),
+            raison: format!("undecodable key: {cause}"),
         })
 }
 
@@ -59,15 +59,13 @@ impl ClefsVapid {
         let privee = decode_cle(&self.private_key)?;
         let paire =
             ES256KeyPair::from_bytes(&privee).map_err(|cause| ErreurStore::ClefsInvalides {
-                raison: format!("clé privée illisible : {cause}"),
+                raison: format!("unreadable private key: {cause}"),
             })?;
         let derivee = paire.public_key().public_key().to_bytes_uncompressed();
         let declaree = decode_cle(&self.public_key)?;
         if derivee != declaree {
             return Err(ErreurStore::ClefsInvalides {
-                raison: String::from(
-                    "la clé publique ne correspond pas à la clé privée (paire mélangée)",
-                ),
+                raison: String::from("the public key does not match the private key (mixed pair)"),
             });
         }
         Ok(())

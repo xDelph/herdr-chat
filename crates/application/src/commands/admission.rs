@@ -58,7 +58,7 @@ pub enum ErreurAdmission {
 
 impl std::fmt::Display for ErreurAdmission {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.write_str("la file du pane est pleine (8)")
+        f.write_str("the pane queue is full (8)")
     }
 }
 
@@ -83,6 +83,19 @@ impl Tourniquet {
                 })
             })
             .clone()
+    }
+
+    /// Le nombre de galets pris sur la file d'un pane (en vol + en attente
+    /// du tour) — l'observation qui permet aux essais d'attendre que la
+    /// file soit pleine au lieu de dormir en espérant qu'elle le soit.
+    #[must_use]
+    pub fn occupation(&self, pane: &PaneId) -> usize {
+        let file = self.file_de(pane);
+        let pris = file
+            .pris
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        *pris
     }
 
     /// Admet une opération sur un pane : un galet (file ≤ 8), PUIS le tour

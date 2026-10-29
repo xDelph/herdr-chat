@@ -336,10 +336,17 @@ fn les_signaux_simultanes_partagent_aussi_la_lecture_forcee() {
             lecture_forcee(&service).generation
         }));
     }
-    // Le temps que les sept rejoignent le vol (largement en deçà du
-    // déclenchement : un joineur retardé = nouvelle génération, le test
-    // tomberait sinon — la fenêtre du sleep est délibérée).
-    std::thread::sleep(Duration::from_millis(150));
+    // Les sept ONT rejoint le vol — observé, pas supposé : un joint retardé
+    // relancerait un vol (nouvelle génération). ⚠️ Un `sleep(150 ms)` tenait
+    // lieu de preuve et tombait sous une charge de ~20.
+    let debut = Instant::now();
+    while service.joints_en_attente() < 7 {
+        assert!(
+            debut.elapsed() < Duration::from_secs(10),
+            "les sept forces n'ont jamais rejoint le vol"
+        );
+        std::thread::sleep(Duration::from_millis(1));
+    }
     sas.lache_la_photo();
 
     let mut generations = vec![premier.join().unwrap_or_else(|_| panic!("premier paniqué"))];

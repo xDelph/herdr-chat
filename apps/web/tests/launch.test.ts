@@ -141,7 +141,7 @@ describe("U06 — l'envoi est bloqué, et la cause est dite", () => {
       thinking: "high",
     });
     expect(verdict.envoyable).toBe(false);
-    if (!verdict.envoyable) expect(verdict.raison).toContain("exige un modèle");
+    if (!verdict.envoyable) expect(verdict.raison).toContain("requires a model");
   });
 
   test("modèle absent du catalogue : bloqué, et le motif est vérifiable", () => {
@@ -153,7 +153,7 @@ describe("U06 — l'envoi est bloqué, et la cause est dite", () => {
     });
     expect(verdict.envoyable).toBe(false);
     // C'est exactement le symptôme du filtre mal utilisé comme sélection.
-    if (!verdict.envoyable) expect(verdict.raison).toContain("2 modèles vérifiés");
+    if (!verdict.envoyable) expect(verdict.raison).toContain("2 verified models");
   });
 
   test("catalogue illisible : bloqué plutôt que d'envoyer un identifiant inventé", () => {
@@ -175,7 +175,7 @@ describe("U06 — l'envoi est bloqué, et la cause est dite", () => {
       thinking: "",
     });
     expect(verdict.envoyable).toBe(false);
-    if (!verdict.envoyable) expect(verdict.raison).toContain("aucun modèle vérifié");
+    if (!verdict.envoyable) expect(verdict.raison).toContain("no verified model");
   });
 
   test("modèle sans niveau de réflexion déclaré : le refus le dit", () => {
@@ -186,7 +186,7 @@ describe("U06 — l'envoi est bloqué, et la cause est dite", () => {
       thinking: "high",
     });
     expect(verdict.envoyable).toBe(false);
-    if (!verdict.envoyable) expect(verdict.raison).toContain("aucun niveau de réflexion");
+    if (!verdict.envoyable) expect(verdict.raison).toContain("declares no thinking level");
   });
 });
 
@@ -224,7 +224,7 @@ describe("U06 — la feuille ne rejoue pas le défaut", () => {
   );
 
   test("le champ de filtre écrit dans le filtre, jamais dans le modèle", () => {
-    const champ = feuille.slice(feuille.indexOf('aria-label="Filtrer les modèles"'));
+    const champ = feuille.slice(feuille.indexOf('aria-label="Filter models"'));
     const gestionnaire = champ.slice(0, champ.indexOf("/>"));
     expect(gestionnaire).toContain("setFiltre(evenement.target.value)");
     expect(gestionnaire).not.toContain("setModele(");

@@ -38,22 +38,22 @@ describe("présence du pane", () => {
 describe("raison de ne pas envoyer", () => {
   test("pane fermé : on le dit", () => {
     expect(raisonSansEnvoi({ attente: null, phase: "pret", presence: "disparu" })).toContain(
-      "ne connaît plus ce pane",
+      "no longer knows this pane",
     );
   });
 
   test("question ou confiance à l'écran : le texte irait dans l'invite", () => {
     expect(raisonSansEnvoi({ attente: "question", phase: "pret", presence: "present" })).toContain(
-      "choix ci-dessus",
+      "choices above",
     );
     expect(raisonSansEnvoi({ attente: "confiance", phase: "pret", presence: "present" })).toContain(
-      "demande d'accès",
+      "access request",
     );
   });
 
   test("session pas encore lue : on attend, et on dit pourquoi", () => {
     expect(raisonSansEnvoi({ attente: null, phase: "chargement", presence: "present" })).toContain(
-      "Lecture de la conversation",
+      "Reading the conversation",
     );
   });
 
@@ -96,19 +96,19 @@ const rendu = (props: Partial<Parameters<typeof Composeur>[0]>, paneId: string):
 describe("le composeur suit la présence", () => {
   test("pane fermé : saisie désactivée, ni Arrêter ni envoi possible", () => {
     ecrireBrouillon("ferme:p1", "texte");
-    const html = rendu({ aide: "Herdr ne connaît plus ce pane", inactif: true }, "ferme:p1");
+    const html = rendu({ aide: "Herdr no longer knows this pane", inactif: true }, "ferme:p1");
     expect(html).toContain("disabled");
-    expect(html).not.toContain("Arrêter");
-    expect(html).toContain("Herdr ne connaît plus ce pane");
+    expect(html).not.toContain("Stop the agent");
+    expect(html).toContain("Herdr no longer knows this pane");
   });
 
   test("envoi impossible : le brouillon reste, Envoyer est désactivé, la raison est liée", () => {
     ecrireBrouillon("question:p1", "réponse");
     const html = rendu(
-      { aide: "Répondez avec les choix ci-dessus", envoiImpossible: true, travaille: false },
+      { aide: "Answer with the choices above", envoiImpossible: true, travaille: false },
       "question:p1",
     );
-    expect(html).toMatch(/aria-label="Envoyer" disabled=""/);
+    expect(html).toMatch(/aria-label="Send" disabled=""/);
     expect(html).toContain("aria-describedby");
     expect(html).toContain("réponse");
   });

@@ -80,25 +80,25 @@ describe("libellés", () => {
 
   test("temps relatif de la liste", () => {
     const maintenant = new Date(2026, 9, 29, 15, 0).getTime();
-    expect(quand(maintenant - 20_000, maintenant)).toBe("à l'instant");
+    expect(quand(maintenant - 20_000, maintenant)).toBe("just now");
     expect(quand(maintenant - 25 * 60_000, maintenant)).toBe("25 min");
-    expect(quand(maintenant - 3 * 3_600_000, maintenant)).toBe("3 h");
-    expect(quand(new Date(2026, 9, 28, 18, 0).getTime(), maintenant)).toBe("hier");
-    expect(quand(new Date(2026, 9, 26, 9, 0).getTime(), maintenant)).toBe("lun.");
-    expect(quand(new Date(2026, 8, 3, 9, 0).getTime(), maintenant)).toBe("3 sept.");
+    expect(quand(maintenant - 3 * 3_600_000, maintenant)).toBe("3h");
+    expect(quand(new Date(2026, 9, 28, 18, 0).getTime(), maintenant)).toBe("yesterday");
+    expect(quand(new Date(2026, 9, 26, 9, 0).getTime(), maintenant)).toBe("Mon");
+    expect(quand(new Date(2026, 8, 3, 9, 0).getTime(), maintenant)).toBe("Sep 3");
   });
 
   test("chronomètre, jetons, heure", () => {
     expect(chrono(72_000)).toBe("1:12");
     expect(chrono(245_000)).toBe("4:05");
     expect(chrono(3_723_000)).toBe("1:02:03");
-    expect(jetons(18_400)).toBe("18,4 k");
+    expect(jetons(18_400)).toBe("18.4k");
     expect(jetons(850)).toBe("850");
     expect(jetons(0)).toBe("");
     expect(heureDe("pas une date")).toBeNull();
     expect(dureeLongue(451_000)).toBe("7 min");
-    expect(dureeLongue(3 * 3_600_000 + 12 * 60_000)).toBe("3 h 12 min");
-    expect(dureeLongue(52 * 3_600_000)).toBe("2 j 4 h");
+    expect(dureeLongue(3 * 3_600_000 + 12 * 60_000)).toBe("3h 12m");
+    expect(dureeLongue(52 * 3_600_000)).toBe("2d 4h");
   });
 });
 

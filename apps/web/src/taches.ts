@@ -38,12 +38,12 @@ const lire = async (chemin: string): Promise<unknown> => {
   try {
     corps = JSON.parse(texte);
   } catch {
-    throw new Error(`réponse illisible (${String(reponse.status)})`);
+    throw new Error(`unreadable response (${String(reponse.status)})`);
   }
   if (!reponse.ok) {
     const erreur = Option.getOrUndefined(Schema.decodeUnknownOption(ErreurApi)(corps));
     // La cause réelle, jamais un message générique.
-    throw new Error(erreur?.error ?? `échec (${String(reponse.status)})`);
+    throw new Error(erreur?.error ?? `failed (${String(reponse.status)})`);
   }
   return corps;
 };
@@ -52,7 +52,7 @@ const lire = async (chemin: string): Promise<unknown> => {
 export const fetchTaches = async (paneId: string): Promise<BackgroundTasksResponse> => {
   const corps = await lire(`/api/agents/${encodeURIComponent(paneId)}/taches`);
   const decode = Option.getOrUndefined(Schema.decodeUnknownOption(BackgroundTasksResponse)(corps));
-  if (decode === undefined) throw new Error("forme de réponse inattendue : taches");
+  if (decode === undefined) throw new Error("unexpected response shape: tasks");
   return decode;
 };
 
@@ -70,7 +70,7 @@ export const fetchSessionDeTache = async (
     `/api/agents/${encodeURIComponent(paneId)}/taches/${encodeURIComponent(id)}/session${suffixe}`,
   );
   const decode = Option.getOrUndefined(Schema.decodeUnknownOption(SessionResponse)(corps));
-  if (decode === undefined) throw new Error("forme de réponse inattendue : transcription");
+  if (decode === undefined) throw new Error("unexpected response shape: transcript");
   return decode;
 };
 
@@ -83,11 +83,11 @@ export const STATUT_TACHE: Record<
   BackgroundTaskStatus,
   { readonly mot: string; readonly ton: "work" | "ok" | "err" | "idle" | "unknown" }
 > = {
-  arretee: { mot: "arrêtée", ton: "idle" },
-  echouee: { mot: "échouée", ton: "err" },
-  en_cours: { mot: "en cours", ton: "work" },
-  inconnu: { mot: "état inconnu", ton: "unknown" },
-  terminee: { mot: "terminée", ton: "ok" },
+  arretee: { mot: "stopped", ton: "idle" },
+  echouee: { mot: "failed", ton: "err" },
+  en_cours: { mot: "running", ton: "work" },
+  inconnu: { mot: "unknown state", ton: "unknown" },
+  terminee: { mot: "completed", ton: "ok" },
 };
 
 /** Le statut écrit par le harnais (`<status>`) → le statut du contrat. */
@@ -109,13 +109,15 @@ export const statutDuHarnais = (status: string | null): BackgroundTaskStatus | n
   }
 };
 
-/** « 2 tâches de fond », « 1 tâche de fond ». */
+/** « 2 background tasks », « 1 background task ». */
 export const nombreDeTaches = (nombre: number): string =>
-  `${String(nombre)} ${nombre > 1 ? "tâches" : "tâche"} de fond`;
+  `${String(nombre)} background ${nombre > 1 ? "tasks" : "task"}`;
 
 /** Le libellé d'une ligne de liste qui attend ses tâches, ou `null`. */
 export const attenteDeTaches = (compte: { readonly enCours: number } | undefined): string | null =>
-  compte === undefined || compte.enCours <= 0 ? null : `Attend ${nombreDeTaches(compte.enCours)}`;
+  compte === undefined || compte.enCours <= 0
+    ? null
+    : `Waiting on ${nombreDeTaches(compte.enCours)}`;
 
 /**
  * Le résumé d'une tâche, s'il dit quelque chose de plus que son titre :
@@ -132,7 +134,7 @@ export const resumeUtile = (tache: BackgroundTask): string | null => {
 
 /** La sorte d'une tâche, en mots. */
 export const sorteDeTache = (tache: BackgroundTask): string =>
-  tache.kind === "commande" ? "Commande" : (tache.agentType ?? "Sous-agent");
+  tache.kind === "commande" ? "Command" : (tache.agentType ?? "Subagent");
 
 // ---------------------------------------------------------------------------
 // Messages du harnais (forme commune `custom`)
@@ -247,7 +249,7 @@ export const infosDesTaches = (
   return infos;
 };
 
-/** Le titre d'une carte de rapport : « Rapport de sous-agent · Audit · terminée ». */
+/** Le titre d'une carte de rapport : « Subagent report · Audit · completed ». */
 export const titreDuRapport = (
   rapport: RapportDeTache,
   info: InfoTache | undefined,
@@ -256,11 +258,11 @@ export const titreDuRapport = (
   const tete =
     rapport.sorte === "subagent-report"
       ? rapport.handback
-        ? "Rapport de sous-agent"
-        : "Message d'un agent"
+        ? "Subagent report"
+        : "Message from an agent"
       : genre === "commande"
-        ? "Commande de fond"
-        : "Tâche de fond";
+        ? "Background command"
+        : "Background task";
   const description = rapport.description ?? info?.description ?? null;
   const statut =
     rapport.status ?? (rapport.sorte === "subagent-report" ? (info?.status ?? null) : null);
@@ -273,14 +275,14 @@ export const titreDuRapport = (
 export const dureesDe = (tache: BackgroundTask, maintenant: number): ReadonlyArray<string> => {
   const morceaux: string[] = [];
   if (tache.startedAt !== undefined && tache.endedAt !== undefined) {
-    morceaux.push(`durée ${dureeLongue(tache.endedAt - tache.startedAt)}`);
+    morceaux.push(`took ${dureeLongue(tache.endedAt - tache.startedAt)}`);
   } else if (tache.startedAt !== undefined && tache.status === "en_cours") {
-    morceaux.push(`depuis ${chrono(maintenant - tache.startedAt)}`);
+    morceaux.push(`running for ${chrono(maintenant - tache.startedAt)}`);
   } else if (tache.startedAt !== undefined) {
-    morceaux.push(`lancée ${quand(tache.startedAt, maintenant)}`);
+    morceaux.push(`started ${quand(tache.startedAt, maintenant)}`);
   }
   if (tache.lastActivity !== undefined && tache.endedAt === undefined) {
-    morceaux.push(`activité ${quand(tache.lastActivity, maintenant)}`);
+    morceaux.push(`last activity ${quand(tache.lastActivity, maintenant)}`);
   }
   return morceaux;
 };

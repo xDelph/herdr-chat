@@ -50,7 +50,7 @@ fn les_identifiants_internes_sont_retires_de_la_ligne() {
     let entree = EntreeDiagnostic::nouvelle(Niveau::Warn, "server", "no Herdr agent in pane w1:p2");
     let ligne = ligne_de(&entree, 0);
     assert!(!ligne.contains("w1:p2"), "{ligne}");
-    assert!(ligne.contains("le nouvel onglet"), "{ligne}");
+    assert!(ligne.contains("the new tab"), "{ligne}");
 }
 
 #[test]

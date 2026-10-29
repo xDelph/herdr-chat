@@ -80,6 +80,18 @@ fn nb_collectes(collecte: &Mutex<Vec<ImageRecente>>) -> usize {
 pub struct CompteurDeBalayage {
     en_cours: AtomicUsize,
     pic: AtomicUsize,
+    rendezvous: Option<RendezVous>,
+}
+
+/// Un point de rendez-vous injecté par les essais : chaque parcours entrant
+/// attend que `attendus` parcours soient entrés (ou que le délai expire).
+/// Sans lui, prouver la concurrence réelle dépendait de l'ordonnanceur — un
+/// essai vert au repos, rouge sous une charge de ~20.
+struct RendezVous {
+    arrives: Mutex<usize>,
+    signal: std::sync::Condvar,
+    attendus: usize,
+    delai: std::time::Duration,
 }
 
 impl CompteurDeBalayage {
@@ -88,12 +100,42 @@ impl CompteurDeBalayage {
         Self {
             en_cours: AtomicUsize::new(0),
             pic: AtomicUsize::new(0),
+            rendezvous: None,
+        }
+    }
+
+    /// Le compteur avec rendez-vous : chaque parcours entré attend que
+    /// `attendus` parcours soient en vol, au plus `delai`. Un balayage
+    /// séquentiel ne les réunit jamais — le délai expire et le pic le dit.
+    #[must_use]
+    pub fn avec_rendezvous(attendus: usize, delai: std::time::Duration) -> Self {
+        Self {
+            rendezvous: Some(RendezVous {
+                arrives: Mutex::new(0),
+                signal: std::sync::Condvar::new(),
+                attendus,
+                delai,
+            }),
+            ..Self::nouveau()
         }
     }
 
     fn entre(&self) {
         let courant = self.en_cours.fetch_add(1, Ordering::SeqCst) + 1;
         self.pic.fetch_max(courant, Ordering::SeqCst);
+        if let Some(rendezvous) = &self.rendezvous {
+            let mut arrives = rendezvous
+                .arrives
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            *arrives += 1;
+            rendezvous.signal.notify_all();
+            let attendus = rendezvous.attendus;
+            let _ = rendezvous
+                .signal
+                .wait_timeout_while(arrives, rendezvous.delai, |arrives| *arrives < attendus)
+                .unwrap_or_else(PoisonError::into_inner);
+        }
     }
 
     fn sort(&self) {

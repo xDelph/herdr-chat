@@ -427,7 +427,7 @@ export const toSubagent = (
       exitCode: result.exitCode ?? null,
       id: result.id ?? "sa",
       model: result.model ?? null,
-      status: result.status ?? "inconnu",
+      status: result.status ?? "unknown",
       stopReason: result.stopReason ?? null,
     })),
   };
@@ -663,12 +663,78 @@ export const decodeRawLine = (raw: string): typeof SessionLine.Type | undefined 
  * Retourne `undefined` pour tout ce qui n'est pas un message, ou pour un message
  * sans rien à montrer.
  */
+/** Le rôle d'une ligne de session ignorée par le démon (trop grande). */
+export const ROLE_LIGNE_IGNOREE = "ligneIgnoree";
+
+const OCTETS_PAR_MO = 1_048_576;
+
+/**
+ * La taille d'une ligne que le démon a ignorée parce que trop grande, ou
+ * `undefined`.
+ *
+ * ⚠️ **Elle n'apparaissait jamais.** Au-delà de 16 MiB, le démon (cadrage
+ * `crates/sessions`) sert une entrée `unknown` qui DIT qu'une ligne a été
+ * ignorée (`{"ignored":true,"bytes":N,"reason":"line too large (N bytes)
+ * skipped"}`) ; la PWA ne rendait aucune entrée `unknown` : un trou muet dans
+ * la conversation. On lit `bytes`, sinon la raison (texte anglais ou ancien
+ * texte français du démon).
+ */
+export const octetsDeLigneIgnoree = (entry: {
+  readonly raw: string;
+  readonly type: string;
+}): number | undefined => {
+  if (entry.type !== "unknown") return undefined;
+  const motif = /(?:line too large|ligne trop grande) \((\d+) (?:bytes|octets)\)/;
+  try {
+    const valeur: unknown = JSON.parse(entry.raw);
+    if (
+      typeof valeur === "object" &&
+      valeur !== null &&
+      "ignored" in valeur &&
+      valeur.ignored === true &&
+      "bytes" in valeur &&
+      typeof valeur.bytes === "number"
+    ) {
+      return valeur.bytes;
+    }
+    if (typeof valeur === "object" && valeur !== null && "reason" in valeur) {
+      const raison = valeur.reason;
+      if (typeof raison === "string") {
+        const trouve = motif.exec(raison);
+        if (trouve?.[1] !== undefined) return Number(trouve[1]);
+      }
+    }
+  } catch {
+    // Le brut n'est pas du JSON : la raison peut être le texte lui-même.
+  }
+  const trouve = motif.exec(entry.raw);
+  return trouve?.[1] === undefined ? undefined : Number(trouve[1]);
+};
+
+/** « A line of 17.2 MB was skipped (too large) » — discret, mais dit. */
+export const avisDeLigneIgnoree = (octets: number): string => {
+  const mo = Math.round((octets / OCTETS_PAR_MO) * 10) / 10;
+  return `A line of ${mo.toLocaleString("en-US")} MB was skipped (too large)`;
+};
+
 export const toRenderedMessage = (entry: {
   readonly id?: string | undefined;
   readonly raw: string;
   readonly timestamp?: string | undefined;
   readonly type: string;
 }): RenderedMessage | undefined => {
+  const ignoree = octetsDeLigneIgnoree(entry);
+  if (ignoree !== undefined) {
+    const avis = avisDeLigneIgnoree(ignoree);
+    return {
+      at: entry.timestamp ?? null,
+      blocks: [{ kind: "text", text: avis }],
+      id: entry.id ?? `ignoree:${stableHash(entry.raw)}`,
+      meta: {},
+      role: ROLE_LIGNE_IGNOREE,
+      text: avis,
+    };
+  }
   const line = decodeRawLine(entry.raw);
   if (line === undefined) return undefined;
 

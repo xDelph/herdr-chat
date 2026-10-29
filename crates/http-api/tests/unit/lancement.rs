@@ -249,3 +249,78 @@ async fn lancement_400_niveau_non_offert_par_le_modele() {
         "aucun onglet pour une demande refusée"
     );
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn lancement_201_apres_deux_refus_de_coquille() {
+    // A08 : `not an available shell` (ShellNotReady, traduit par le client
+    // Herdr) se rejoue à travers le routeur composé — deux refus, puis le
+    // démarrage : 201, trois tentatives, UN onglet.
+    let faux = monde();
+    faux.repond_creation_tab(CreatedTab {
+        pane: domain::ids::PaneId::from(String::from("w1:p4")),
+        tab: domain::ids::TabId::from(String::from("w1:t2")),
+    });
+    let refus = || StartEvidence::ShellNotReady {
+        detail: String::from("is not an available shell"),
+    };
+    faux.scripte_lancements(vec![
+        refus(),
+        refus(),
+        StartEvidence::Started {
+            pane: domain::ids::PaneId::from(String::from("w1:p4")),
+        },
+    ]);
+    let (services, _) = services(faux.clone(), Default::default(), Default::default());
+    let (statut, corps) = envoie_post(
+        routeur(services, vec![]),
+        "/api/workspaces/w1/agents",
+        corps("pi"),
+    )
+    .await;
+    assert_eq!(statut, StatusCode::CREATED, "corps : {corps}");
+    let compte = |op: Op| {
+        faux.actions()
+            .iter()
+            .filter(|action| action.op == op)
+            .count()
+    };
+    assert_eq!(compte(Op::LancementAgent), 3, "deux refus puis le succès");
+    assert_eq!(compte(Op::CreationTab), 1, "jamais un second onglet");
+    assert_eq!(
+        compte(Op::FermetureOnglet),
+        0,
+        "l'onglet d'un agent lancé reste"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn lancement_502_coquille_jamais_prete_ferme_l_onglet_possede() {
+    // A08 : le budget de retries épuisé, l'agent n'a jamais amorcé —
+    // l'onglet créé par CETTE requête est fermé, lui seul, et la cause dit
+    // lequel c'était.
+    let faux = monde();
+    faux.repond_creation_tab(CreatedTab {
+        pane: domain::ids::PaneId::from(String::from("w1:p4")),
+        tab: domain::ids::TabId::from(String::from("w1:t2")),
+    });
+    faux.scripte_lancements(vec![StartEvidence::ShellNotReady {
+        detail: String::from("is not an available shell"),
+    }]);
+    let (services, _) = services(faux.clone(), Default::default(), Default::default());
+    let (statut, corps) = envoie_post(
+        routeur(services, vec![]),
+        "/api/workspaces/w1/agents",
+        corps("pi"),
+    )
+    .await;
+    assert_eq!(statut, StatusCode::BAD_GATEWAY, "corps : {corps}");
+    let message = corps["error"].as_str().unwrap_or_default();
+    assert!(message.contains("shell never became ready"), "{message}");
+    let fermetures: Vec<_> = faux
+        .actions()
+        .into_iter()
+        .filter(|action| action.op == Op::FermetureOnglet)
+        .collect();
+    assert_eq!(fermetures.len(), 1, "{fermetures:?}");
+    assert_eq!(fermetures[0].cible, "w1:t2", "exactement l'onglet possédé");
+}

@@ -70,10 +70,10 @@ describe("VoiceOver : le fil se parcourt, il ne se lit pas jeton par jeton", () 
 
   test("on annonce la réponse terminée, avec son début — pas chaque morceau", () => {
     expect(annonceDeStatut("working", "done", items)).toBe(
-      "Réponse terminée : Voici la réponse complète.",
+      "Response finished: Voici la réponse complète.",
     );
-    expect(annonceDeStatut("idle", "working", items)).toBe("L'agent travaille.");
-    expect(annonceDeStatut("working", "blocked", items)).toBe("L'agent attend une décision.");
+    expect(annonceDeStatut("idle", "working", items)).toBe("The agent is working.");
+    expect(annonceDeStatut("working", "blocked", items)).toBe("The agent needs a decision.");
     // Pas d'annonce au montage, ni sans changement.
     expect(annonceDeStatut(null, "done", items)).toBeNull();
     expect(annonceDeStatut("done", "done", items)).toBeNull();
@@ -89,10 +89,10 @@ describe("VoiceOver : le fil se parcourt, il ne se lit pas jeton par jeton", () 
 describe("l'historique se charge dans un emplacement de hauteur fixe", () => {
   test("même emplacement en chargement, au début, et entre les deux", () => {
     expect(fil({ chargementAncien: true })).toContain(
-      '<div class="fil__haut"><output class="fil__info">Chargement de l\'historique…</output></div>',
+      '<div class="fil__haut"><output class="fil__info">Loading history…</output></div>',
     );
     expect(fil({ precedent: null })).toContain(
-      '<div class="fil__haut"><p class="fil__info">Début de la conversation</p></div>',
+      '<div class="fil__haut"><p class="fil__info">Start of the conversation</p></div>',
     );
     expect(fil({})).toContain('<div class="fil__haut"></div>');
   });
@@ -100,9 +100,9 @@ describe("l'historique se charge dans un emplacement de hauteur fixe", () => {
 
 describe("réglages en français", () => {
   test("la permission des notifications n'est jamais un mot anglais brut", () => {
-    expect(LIBELLE_PERMISSION.granted).toBe("accordée");
-    expect(LIBELLE_PERMISSION.denied).toContain("refusée");
-    expect(LIBELLE_PERMISSION.default).toBe("pas encore demandée");
+    expect(LIBELLE_PERMISSION.granted).toBe("granted");
+    expect(LIBELLE_PERMISSION.denied).toContain("denied");
+    expect(LIBELLE_PERMISSION.default).toBe("not requested yet");
   });
 });
 

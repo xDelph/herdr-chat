@@ -71,10 +71,7 @@ impl LivraisonPush for SansLivraison {
     {
         Box::pin(async move {
             Err(ErreurLivraison::Autre {
-                detail: format!(
-                    "clés VAPID indisponibles, envoi impossible : {}",
-                    self.cause
-                ),
+                detail: format!("VAPID keys unavailable, cannot send: {}", self.cause),
             })
         })
     }
@@ -91,18 +88,16 @@ pub fn erreur_de_port(erreur: &ErreurStore) -> PortError {
         code: String::from("store"),
         message: match erreur {
             ErreurStore::Illisible { chemin, cause } => {
-                format!("store illisible ({}): {cause}", chemin.display())
+                format!("unreadable store ({}): {cause}", chemin.display())
             }
             ErreurStore::Ecriture { chemin, cause } => {
-                format!("store non inscriptible ({}): {cause}", chemin.display())
+                format!("store not writable ({}): {cause}", chemin.display())
             }
             // Une paire partielle ou incohérente est REFUSÉE, jamais
             // complétée ni régénérée en silence.
-            ErreurStore::PaireEnvPartielle => {
-                String::from("paire VAPID partielle dans l'environnement")
-            }
+            ErreurStore::PaireEnvPartielle => String::from("partial VAPID pair in the environment"),
             ErreurStore::ClefsInvalides { raison } => {
-                format!("clés VAPID invalides : {raison}")
+                format!("invalid VAPID keys: {raison}")
             }
         },
     }
@@ -172,7 +167,7 @@ impl NotificationPort for PortNotifications {
                 // Toute incertitude est DÉCLARÉE, jamais « envoyé » (A02).
                 Err(ErreurLivraison::Autre { detail }) => Ok(DeliveryOutcome::Unknown { detail }),
                 Err(ErreurLivraison::Expire) => Ok(DeliveryOutcome::Unknown {
-                    detail: String::from("abonnement expiré (404/410) — à élaguer"),
+                    detail: String::from("subscription expired (404/410) — to prune"),
                 }),
             }
         })

@@ -41,7 +41,7 @@ async fn fichier_sur_place(
         Ok(racines) => racines,
         // Le snapshot est illisible : on ne peut pas savoir ce qui est
         // autorisé, donc rien ne l'est.
-        Err(_) => return refus_403("Herdr illisible"),
+        Err(_) => return refus_403("Herdr unreadable"),
     };
     // 3) La lecture — la garde vit dans le port (résolution puis contrôle).
     match services
@@ -88,7 +88,7 @@ async fn images_sur_place(
         Err(_) => {
             return (
                 axum::http::StatusCode::BAD_GATEWAY,
-                axum::Json(serde_json::json!({ "error": "Herdr illisible" })),
+                axum::Json(serde_json::json!({ "error": "Herdr unreadable" })),
             )
                 .into_response();
         }
@@ -111,7 +111,7 @@ async fn images_sur_place(
             .into_response(),
         Err(_) => (
             axum::http::StatusCode::BAD_GATEWAY,
-            axum::Json(serde_json::json!({ "error": "balayage impossible" })),
+            axum::Json(serde_json::json!({ "error": "scan failed" })),
         )
             .into_response(),
     }

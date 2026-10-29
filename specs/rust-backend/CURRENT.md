@@ -21,6 +21,8 @@ No TLS server, account system, public deployment mode, background job service, o
 
 ## 2. HTTP surface: all 18 registered paths
 
+> Démon Rust : 21 routes (H19–H21 ajoutées) et quelques statuts corrigés — voir [§9](#9-écarts-du-démon-rust-état-au-2026-10-29). Le tableau ci-dessous reste la photographie du fil TS.
+
 `Api.ts` returns the authoritative route table. The table below gives intended methods. All eight mutation handlers explicitly reject non-POST methods with 405 and `Allow: POST`. The ten read handlers do not enforce GET themselves: Bun's route map binds them by path, without a method map. There is no public raw terminal, arbitrary shell, model-update, workspace-create, session-write, or agent-delete endpoint. Model/thinking changes during a session use the ordinary prompt pathway from the webapp.
 
 All POST routes share these rejection branches: missing/foreign Origin **403**, non-JSON Content-Type **415**, declared Content-Length over 64 KiB **413**, wrong method **405**. Guard failures normally use `ApiErrorResponse`; the 405 body also has `{error}`. A serialization contract failure is **500** with `{error,hint}`. Other statuses are listed below.
@@ -329,3 +331,42 @@ Tailscale origin discovery executes `tailscale serve status --json` once at star
 | Log rotation / retained previous generations / repeat window | >4 MiB / 1 / 60 s |
 
 All remaining internal typed ports, errors, source models and constant vocabularies are recorded in the generated declaration appendix and source map. This inventory establishes the review baseline; actual migration parity will require executable fixture coverage, not an assumption that comments or this document prove runtime support.
+
+## 9. Écarts du démon Rust (état au 2026-10-29)
+
+Les sections 1 à 8 photographient le fil TS (commit de base). Cette section dit ce que le démon Rust fait **différemment**, route par route ; chaque ligne a sa preuve composée dans `compatibility/coverage.json`.
+
+### Routes modifiées
+
+| ID | Fil TS | Démon Rust | Preuve |
+|---|---|---|---|
+| H04 | curseurs : JSON base64 `{dev,ino,offset}` ; curseur SQLite sans identité de session ; base SQLite absente 503 | curseurs **versionnés et liés** à leur source (empreinte + session) : illisible, `cursor`+`before` ensemble, ou curseur d'une **autre** session → **400** ; curseur d'historique d'un fichier remplacé → **409** ; chemin publié hors des racines → **403** ; base SQLite absente → **503** ; base présente mais illisible → 502 | `crates/herdrchat/tests/unit/composition.rs` (vrai `PortSessions` derrière le routeur) |
+| H04 | — | une ligne JSONL > 16 MiB n'est pas lue : une entrée `unknown` la remplace (`{"type":"unknown","ignored":true,"bytes":N,"reason":"line too large (N bytes) skipped"}`), la PWA affiche « A line of N MB was skipped (too large) » | `crates/sessions/tests/unit/port_curseurs.rs`, `apps/web/tests/blocks.test.ts` |
+| H19 | un chemin publié refusé : `gone` | un chemin refusé par la garde (403 sur H04) ferme le flux par `gone` avec la cause réelle, jamais une attente muette | `crates/http-api/tests/unit/flux_session.rs` |
+| H04 / H19 | `parentId` omis quand la ligne n'en porte pas | `parentId` **toujours présent** sur chaque `SessionEntry` : la valeur, ou `null` (forme `Schema.optional(Schema.NullOr)` respectée, jamais omis côté démon) | `crates/http-api/tests/unit/session.rs` |
+| H07 | refus de validation (modèle, niveau) → 502 | refus de validation → **400** `{error: "invalid launch request: <cause>"}`, **avant** tout onglet ; un niveau que le modèle n'offre pas est refusé (`niveau_supporte`) ; `not an available shell` rejoué (10 essais, 3 s), puis l'onglet **possédé** est fermé et la réponse est 502 | `crates/http-api/tests/unit/lancement.rs`, `crates/herdrchat/tests/unit/composition.rs` |
+| H08 | libellé et état reconstruits côté serveur | `label` et `state` viennent **d'Herdr** (`integration.list`), tels quels ; la liste reste celle des types lançables ; un type sans état mesuré → 502 nommé | `crates/http-api/tests/unit/catalogues.rs` |
+| O03 | ping au démarrage | ping au démarrage sur un fil à côté de l'écoute : `info` (protocole, version) ou `warn` avec la cause réelle ; le serveur HTTP ne l'attend jamais | `crates/herdrchat/tests/unit/demarrage.rs` |
+
+### Routes ajoutées
+
+| ID | Méthode et chemin | Entrée | Succès | Autres réponses |
+|---|---|---|---|---|
+| H19 | GET `/api/agents/:paneId/stream` | `Last-Event-ID` (prioritaire) ou `?cursor=` | 200 `text/event-stream` : `entries` (`SessionStreamEntries`), `reset` (`SessionResponse`), `gone` (`SessionStreamGone`), battement 15 s — contrat complet dans [STREAMING.md](STREAMING.md) | 404 pane inconnu ; 503 plus de 16 flux ; un curseur refusé n'est pas une erreur HTTP : il produit un `reset` |
+| H20 | GET `/api/agents/:paneId/taches` | aucune | 200 `BackgroundTasksResponse` `{paneId, supported, tasks[]}` — `supported:false` = capacité absente (famille sans tâches de fond), jamais une liste vide inventée | 404 pane inconnu ou sans session ; 502 lecture en panne |
+| H21 | GET `/api/agents/:paneId/taches/:id/session` | `tail?`, `cursor?`, `before?` comme H04 | 200 `SessionResponse` de la transcription de la tâche | 404 tâche inconnue ou sans transcription ; 403 chemin de transcription hors des racines ; 422 résultat invalide ; autres statuts comme H04 |
+
+`BackgroundTask` : `id`, `kind` (`agent` \| `commande`), `status` (`en_cours` \| `terminee` \| `echouee` \| `arretee` \| `inconnu` — sans fin écrite ni activité depuis 30 min, une tâche est `inconnu`, jamais `en_cours`), `transcript` (booléen), et, quand la source les porte : `description`, `agentType`, `startedAt`, `endedAt`, `lastActivity`, `summary`.
+
+### Champs ajoutés à `ConversationSummary` (H03)
+
+| Champ | Forme | Sens |
+|---|---|---|
+| `tourDebut` | `number` (ms epoch), omis si inconnu | l'instant du message qui a **ouvert** le tour courant : la dernière vraie demande — ni une demande envoyée pendant le travail (`details.midTurn`), ni un message du harnais injecté dans le tour |
+| `tachesDeFond` | `{enCours: number, total: number}`, omis si la famille n'expose pas de tâches | le décompte des tâches de fond de l'agent (H20) |
+
+`lastPrompt` ne compte que les demandes de l'utilisateur : les messages du harnais Claude (rapports de sous-agents, fins de tâches de fond) deviennent des messages `custom`, et les lignes du mode shell de Claude (`<bash-input>`, `<bash-stdout>`/`<bash-stderr>`) des `bashExecution` (commande, sortie, `exitCode: null`) — ni l'un ni l'autre n'est jamais une demande.
+
+### Interface
+
+Tout le texte visible (PWA, notifications push, corps `error` du démon) est en **anglais** (décision T072) ; les codes et énumérations du contrat (`cause: "absente"`, `en_cours`…) ne changent pas.

@@ -54,7 +54,7 @@ pub async fn flux(
                 StatusCode::SERVICE_UNAVAILABLE,
                 axum::Json(serde_json::json!({
                     "error": format!(
-                        "trop de flux ouverts (maximum {ABONNEMENTS_MAX}) — réessayez"
+                        "too many streams open (maximum {ABONNEMENTS_MAX}) — retry"
                     )
                 })),
             )

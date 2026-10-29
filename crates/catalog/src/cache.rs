@@ -75,7 +75,7 @@ impl CacheCatalogues {
                     .unwrap_or_else(std::sync::PoisonError::into_inner);
             }
             return Arc::clone(pose.as_ref().unwrap_or(&Arc::new(ResultatCatalogue {
-                erreur: Some(String::from("attente interrompue")),
+                erreur: Some(String::from("wait interrupted")),
                 modeles: Vec::new(),
                 source: String::new(),
                 niveaux: Vec::new(),
@@ -87,10 +87,10 @@ impl CacheCatalogues {
             Some(adaptateur) => Arc::new(catalogue_d_adaptateur(adaptateur, commande_injectee)),
             None => Arc::new(ResultatCatalogue {
                 erreur: Some(format!(
-                    "kind {genre} : pas de catalogue connu — rien n'est inventé"
+                    "kind {genre}: no known catalog — nothing is invented"
                 )),
                 modeles: Vec::new(),
-                source: format!("aucun adaptateur pour {genre}"),
+                source: format!("no adapter for {genre}"),
                 niveaux: Vec::new(),
             }),
         };

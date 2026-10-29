@@ -279,7 +279,7 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
 
   const echecDeLecture = (cause: unknown): void => {
     const texte = message(cause);
-    deps.signale?.("lecture de session en échec", { cause: texte, paneId: deps.paneId });
+    deps.signale?.("session read failed", { cause: texte, paneId: deps.paneId });
     // Un fil déjà affiché reste affiché : l'erreur dit qu'on n'a pas pu lire
     // *maintenant*, pas que la conversation n'existe plus (session-vue.ts).
     publie(
@@ -363,14 +363,14 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
     if (ferme || vue.transport !== "repli") return;
     switch (verdict.nature) {
       case "route-absente": {
-        const cause = "le démon ne sert pas le flux de session";
+        const cause = "the daemon does not serve the session stream";
         deps.fluxIndisponible?.(cause);
         publie({ causeRepli: cause });
         return;
       }
       case "pane":
         publie({
-          causeRepli: `le démon refuse le flux pour ce pane${
+          causeRepli: `the daemon refuses the stream for this pane${
             verdict.detail === null ? "" : ` (${verdict.detail})`
           }`,
         });
@@ -433,7 +433,7 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
     try {
       courante = ouvrir(urlDuFlux(deps.paneId, curseur));
     } catch (cause) {
-      passeEnRepli(`flux de session impossible à ouvrir : ${message(cause)}`);
+      passeEnRepli(`session stream could not be opened: ${message(cause)}`);
       return;
     }
     const url = urlDuFlux(deps.paneId, curseur);
@@ -471,7 +471,7 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
       if (lu === undefined) {
         // Un événement illisible ne se devine pas : on le dit, et on relit par
         // HTTP depuis le dernier curseur sûr.
-        publie({ avertissement: "Événement « entries » illisible — relecture de la session." });
+        publie({ avertissement: "Unreadable “entries” event — reloading the session." });
         void litIncrement();
         return;
       }
@@ -489,7 +489,7 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
       marqueOuvert();
       const page = Option.getOrUndefined(decodeReset(lireJson(evenement.data)));
       if (page === undefined) {
-        publie({ avertissement: "Événement « reset » illisible — relecture de la session." });
+        publie({ avertissement: "Unreadable “reset” event — reloading the session." });
         curseur = undefined;
         void litIncrement();
         return;
@@ -504,7 +504,7 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
       source = null;
       // ⚠️ Fin définitive : pas de reconnexion en boucle, la cause est montrée.
       publie({
-        fin: lu?.reason ?? "le démon a fermé le flux sans donner de raison",
+        fin: lu?.reason ?? "the daemon closed the stream without giving a reason",
         transport: "aucun",
       });
     });
@@ -516,8 +516,8 @@ export const creeSuiviSession = (deps: DependancesSuivi): SuiviSession => {
         if (courante.readyState === FERME || echecsFlux >= ECHECS_FLUX_MAX) {
           passeEnRepli(
             courante.readyState === FERME
-              ? "le flux de session a été refusé pour ce pane"
-              : `le flux de session n'a pas pu s'ouvrir (${String(echecsFlux)} essais)`,
+              ? "the session stream was refused for this pane"
+              : `the session stream could not be opened (${String(echecsFlux)} attempts)`,
           );
           void qualifieEchec(url);
         }

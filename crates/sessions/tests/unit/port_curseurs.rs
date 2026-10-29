@@ -460,7 +460,7 @@ fn une_ligne_geante_est_ignoree_et_le_reste_reste_lisible() {
     assert_eq!(entrees.len(), 2, "{entrees:?}");
     assert_eq!(entrees[0].kind, "unknown");
     assert!(
-        entrees[0].raw.contains("ligne trop grande") && entrees[0].raw.len() < 1024,
+        entrees[0].raw.contains("line too large") && entrees[0].raw.len() < 1024,
         "{}",
         entrees[0].raw
     );

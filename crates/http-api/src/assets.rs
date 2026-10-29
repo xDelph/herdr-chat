@@ -202,7 +202,7 @@ pub fn reponse_asset(fournisseur: &dyn FournisseurAssets, chemin: &str) -> Respo
             StatusCode::SERVICE_UNAVAILABLE,
             axum::Json(serde_json::json!({
                 "error": "PWA not built",
-                "hint": "lancez `bun run --cwd apps/web build`, ou utilisez le serveur de développement Vite",
+                "hint": "run `bun run --cwd apps/web build`, or use the Vite dev server",
             })),
         )
             .into_response(),

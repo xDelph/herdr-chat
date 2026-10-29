@@ -92,7 +92,7 @@ const attenteAffichee = (
 /** La ligne sous le composeur : pourquoi l'envoi est fermé, sinon où le texte ira. */
 const aideDuComposeur = (sansEnvoi: string | null, saisieBrute: boolean): string | null => {
   if (sansEnvoi !== null) return sansEnvoi;
-  return saisieBrute ? "L'agent attend : votre message est tapé dans son invite." : null;
+  return saisieBrute ? "The agent is waiting: your message is typed into its prompt." : null;
 };
 
 export const Conversation = ({
@@ -271,13 +271,13 @@ export const Conversation = ({
       <Voisins agents={voisins} courant={paneId} />
       {disparu ? (
         <Avis ton="attention" annonce="statut">
-          Herdr ne connaît plus ce pane — il a été fermé. Affichage des derniers éléments lus ; rien
-          ne peut plus lui être envoyé.
+          Herdr no longer knows this pane — it was closed. Showing the last items read; nothing can
+          be sent to it anymore.
         </Avis>
       ) : null}
       {vue.fin === null ? null : (
         <Avis ton="attention" annonce="statut">
-          Le flux de la session s'est arrêté : {vue.fin}
+          The session stream stopped: {vue.fin}
         </Avis>
       )}
       {vue.erreur !== null && vue.entries.length > 0 ? (
