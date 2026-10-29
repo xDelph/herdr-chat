@@ -88,7 +88,9 @@ export const Boite = ({
 
   // L'horloge bat à la seconde seulement si un chronomètre est visible.
   const chronometres = (conversations ?? []).some(
-    (conversation) => conversation.status === "working" && debutsTravail.has(conversation.paneId),
+    (conversation) =>
+      conversation.status === "working" &&
+      (conversation.tourDebut !== undefined || debutsTravail.has(conversation.paneId)),
   );
   const maintenant = useMaintenant(chronometres ? 1_000 : 30_000);
   // Les temps relatifs (« 25 min ») n'ont pas besoin de la seconde : les lignes

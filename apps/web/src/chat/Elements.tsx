@@ -7,9 +7,10 @@
  */
 import { memo, useState } from "react";
 import { fileUrl } from "../api.ts";
-import type { Block, Item, RenderedMessage } from "../blocks.ts";
+import { estMessageDuHarnais, type Block, type Item, type RenderedMessage } from "../blocks.ts";
 import { heureDe } from "../libelles.ts";
 import { Markdown } from "../Markdown.tsx";
+import { CarteRapport } from "./CarteRapport.tsx";
 import { GroupeOutils } from "./Outils.tsx";
 import { pleinEcran } from "../app/services.ts";
 
@@ -89,6 +90,9 @@ const Demande = ({
       {repere === null ? null : <span className="fil__repere">{repere}</span>}
       <div className="moi" data-demande="">
         <p className="moi__texte">{texte}</p>
+        {message.meta["pendantTour"] === "1" ? (
+          <span className="moi__etat">envoyé pendant le travail</span>
+        ) : null}
         {message.blocks
           .filter((block) => block.kind !== "text")
           .map((block, index) => (
@@ -128,6 +132,13 @@ export const ElementFil = memo(
       );
     }
     const { message } = item;
+    if (estMessageDuHarnais(message)) {
+      return (
+        <div className="fil__el">
+          <CarteRapport message={message} />
+        </div>
+      );
+    }
     if (message.role === "user") {
       return (
         <div className="fil__el fil__el--moi">

@@ -1,9 +1,11 @@
 /**
  * Une ligne de la liste : un agent au travail, ou une conversation récente.
  *
- * - **au travail** : le chronomètre depuis le passage à `working` *observé*
- *   (absent si on ne l'a pas vu passer : on n'invente pas de durée), et la
- *   dernière chose que l'agent a écrite ;
+ * - **au travail** : le chronomètre depuis la demande qui a ouvert le tour,
+ *   lue dans la session (`tourDebut`, la même origine que le chat) ; à défaut,
+ *   depuis le passage à `working` *observé* ; sinon pas de durée inventée — et
+ *   la dernière chose que l'agent a écrite ;
+ * - **en attente de ses tâches de fond** : « Attend 2 tâches de fond » ;
  * - **récente** : le dernier message, le temps écoulé, et le point « non lu »
  *   tant qu'on ne l'a pas ouverte ici.
  *
@@ -14,6 +16,7 @@
 import { memo } from "react";
 import type { ConversationSummary } from "@herdr-remote/shared";
 import { apercuTexte, chrono, quand } from "../libelles.ts";
+import { attenteDeTaches } from "../taches.ts";
 import { routeToHash } from "../routing.ts";
 import { Etat, FormeEtat, Marque } from "../ui/atomes.tsx";
 
@@ -40,6 +43,9 @@ export const LigneAgent = memo(
   }) => {
     const texte = apercu(conversation);
     const auTravail = conversation.status === "working";
+    // La session d'abord : le chat et la liste partent du même instant.
+    const debut = conversation.tourDebut ?? debutTravail;
+    const attente = auTravail ? null : attenteDeTaches(conversation.tachesDeFond);
     return (
       <a
         className={nonLue ? "ligne ligne--non-lue" : "ligne"}
@@ -60,9 +66,11 @@ export const LigneAgent = memo(
         {auTravail ? (
           <Etat status="working">
             <span className="num">
-              {debutTravail === undefined ? "Travaille" : chrono(maintenant - debutTravail)}
+              {debut === undefined ? "Travaille" : chrono(maintenant - debut)}
             </span>
           </Etat>
+        ) : attente !== null ? (
+          <Etat status="working">{attente}</Etat>
         ) : (
           <span className="ligne__meta num">
             {conversation.status === "done" || conversation.status === "unknown" ? (

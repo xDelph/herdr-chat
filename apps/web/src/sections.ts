@@ -21,6 +21,7 @@
  * confondre avec une date à zéro la remonterait en tête de liste.
  */
 import type { AgentStatus, ConversationSummary } from "@herdr-remote/shared";
+import { attenteDeTaches } from "./taches.ts";
 
 export const SECTIONS = ["a-traiter", "en-cours", "recents"] as const;
 export type Section = (typeof SECTIONS)[number];
@@ -64,6 +65,20 @@ export const sectionOf = (status: AgentStatus): Section => {
       // les récents, qui affichent tout.
       return "recents";
   }
+};
+
+/**
+ * Section d'une **ligne** : son statut, et ses tâches de fond.
+ *
+ * ⚠️ Un agent au repos (ou fini) qui **attend ses tâches de fond** travaille
+ * encore, par procuration : il rejoint « En cours » — sinon trois sous-agents
+ * au travail disparaissaient dans les récents. `blocked` garde la priorité.
+ */
+export const sectionDe = (conversation: ConversationSummary): Section => {
+  const section = sectionOf(conversation.status);
+  return section === "recents" && attenteDeTaches(conversation.tachesDeFond) !== null
+    ? "en-cours"
+    : section;
 };
 
 /**
@@ -153,7 +168,7 @@ export const sectionConversations = (
   SECTIONS.map((section) => ({
     cle: section,
     conversations: trier(
-      conversations.filter((conversation) => sectionOf(conversation.status) === section),
+      conversations.filter((conversation) => sectionDe(conversation) === section),
       ordre,
     ),
     titre: SECTION_LABEL[section],
@@ -179,7 +194,7 @@ const SECTIONS_D_ATTENTION: ReadonlySet<Section> = new Set(["a-traiter", "en-cou
 
 /** L'agent demande-t-il une attention qui ne dépend pas de son projet ? */
 const attireLAttention = (conversation: ConversationSummary): boolean =>
-  SECTIONS_D_ATTENTION.has(sectionOf(conversation.status));
+  SECTIONS_D_ATTENTION.has(sectionDe(conversation));
 
 /**
  * Répartit et trie les conversations par **projet**.

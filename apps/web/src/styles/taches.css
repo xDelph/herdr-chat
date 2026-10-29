@@ -1,0 +1,139 @@
+/*
+  Tâches de fond et messages du harnais — cartes du fil, puce d'en-tête,
+  feuille des tâches. Couleur = état (jamais seule : forme + mot).
+*/
+
+/* ---------- carte du harnais (rapport, fin de tâche) ---------- */
+.rapport {
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--ink-3);
+  border-radius: var(--r-m);
+  background: var(--surface-2);
+  padding: 10px 12px;
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.rapport--fin {
+  padding: 8px 12px;
+}
+.rapport__tete {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+}
+.rapport__titre {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rapport__meta {
+  display: inline-flex;
+  gap: 8px;
+  color: var(--ink-3);
+  font-size: 12px;
+  flex: none;
+}
+.rapport__corps {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.rapport__corps--replie {
+  max-height: 14em;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 70%, transparent);
+}
+.rapport__plus {
+  justify-self: start;
+  border: 0;
+  background: none;
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  padding: 4px 0;
+  font-size: 13px;
+}
+.etat--err {
+  color: var(--err);
+}
+
+/* ---------- puce d'en-tête ---------- */
+.puce-taches {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-2);
+  padding: 4px 10px;
+  font-size: 12px;
+  white-space: nowrap;
+  flex: none;
+}
+.puce-taches--en-cours {
+  color: var(--work);
+  border-color: currentColor;
+  background: var(--work-fill);
+}
+.puce-taches .spin {
+  width: 11px;
+  height: 11px;
+}
+
+/* ---------- feuille des tâches ---------- */
+.taches {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+.tache {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  text-align: left;
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 10px 12px;
+  font: inherit;
+}
+.tache > .etat {
+  margin-top: 2px;
+}
+.tache__texte {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.tache__titre {
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.tache__meta,
+.tache__resume {
+  font-size: 12px;
+  color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+.tache__meta--tete {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 8px;
+}
+.tache-fil {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
