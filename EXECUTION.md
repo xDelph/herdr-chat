@@ -2748,3 +2748,58 @@ choix d'un projet     : #/projet/w3, écran projet rendu
 ```
 
 **Deux fausses alertes de ma part, corrigées par la mesure** — à noter pour ne pas les rechercher une troisième fois : `.conv__onglet` reste vide parce que Herdr ne publie que des libellés **numériques** (`1`, `2`…) que `useful_label` écarte à raison ; et « aucune feuille » venait de mon sélecteur (`.feuille` au lieu de `.sheet`), pas du code.
+
+## 2026-10-29 — lot/plan : T064 (re-marquage), T066, T067 (socle), T068, T069 (outillage), T070 (dossier)
+
+Worktree `.worktrees/lot-plan`, branche `lot/plan`, base `e7dd7d8`. Aucun service, formule, LaunchAgent ni réglage Tailscale touché ; aucun démon de production lancé ; aucune entrée envoyée à un agent.
+
+### T064 — la matrice de couverture devient honnête
+
+**Constat (audit en lecture du code).** « 110 prouvées » comptait des composants testés seuls mais jamais appelés par le démon : livraison push (`faut_notifier`, `payload_de_notification`, `Livreur` sans appelant — `crates/herdrchat/src/veille.rs:113-116` ne publie que dans le journal), issues de lancement `ShellNotReady`/trust inatteignables (`PortHerdr::start_agent` ne rend que `Started`/`Err`), `niveau_supporte` non appelé, validation de curseur et matrice 400/403/409/503 de H04 jamais produites (`PortSessions.page` rend toujours `Ok`, curseurs SQLite ignorés par `.ok()`), réducteur de résumés et `IndexSessions` morts. Trois preuves citaient des fichiers inexistants (C21/C22/C24), cinq des tests `apps/server` sur le mauvais sujet. Le test `routes_mutation_en_attente_501_avec_origine` bouclait sur `[] as [&str; 0]` : il ne pouvait pas échouer.
+
+**Modèle.** `proven` exige au moins une preuve sous `crates/http-api/tests/` (routeur composé), `crates/herdrchat/tests/` (démon assemblé) ou `apps/web/tests/` (corrections du front) ; `unit-only` = branché mais prouvé au niveau composant ; `not-wired` = non appelé ou issue inatteignable ; ces deux statuts exigent `gap`. Toute référence (`tests`, `unitTests`, `candidateTests`) doit exister sous un dossier `tests/` hors `src/`. Statut inconnu et identifiant manquant (89 capacités + 27 corrections) sont des défauts. La porte est dans `xtask verify`.
+
+| Commande | Résultat |
+|---|---|
+| `cargo run --offline -q -p xtask -- coverage` | `60 prouvée(s) par composition, 34 unit-only, 18 not-wired, 4 en attente, 0 défaut(s)` — exit 0 |
+| même commande, E09 semé `proven` sur son seul test unitaire | `1 défaut(s)` : `E09 : statut proven sans preuve composée …` — exit 1 ; fichier restauré |
+| `cargo test -p xtask` (7 nouveaux cas : proven unitaire, gap manquant, référence cassée, statut inconnu, inventaire, matrice du dépôt) | verts |
+| `cargo test -p http-api --test unit_tests router` | 15 verts, dont `toutes_les_routes_du_manifeste_sont_servies` (19 routes du manifeste) et `une_route_absente_du_routeur_est_rapportee` (2 routes semées → 2 rapportées) |
+
+`todoAfterMerge` (dans `coverage.json`, imprimé par `xtask coverage`) liste ce que l'intégrateur doit re-marquer après fusion des lots push (E06–E10, C14), lancement (A08, A15, H07, C07), curseurs (H04, C04, C12), résumés (D03, D09, D18, D19, D22), démon (O03, O07), web (C21) et O08–O10. **T064 reste ouverte** : la parité n'est pas prouvée.
+
+### T066 — workflow de publication
+
+`release-rust.yml` : job `portes` (xtask verify, xtask coverage, bun verify) → `binaires` (macos-15, **macos-15-intel** à la place de `macos-13` retiré, ubuntu-22.04, ubuntu-22.04-arm ; PWA avant `xtask release --target` natif ; manifeste `validee: true` et `pwa_embarquee > 0` exigés ; sonde `/api/health` + `/` ; aucun OpenSSL système) → `publication` (étiquette `v*` : quatre archives, `.sha256` vérifiés, `SHA256SUMS`, release GitHub). `release.yml` (tarball TS) retiré. `actionlint .github/workflows/*.yml` → exit 0. **Non déclenché** : aucune cible n'est encore validée en CI, T066 reste ouverte.
+
+### T068 — retrait du backend TS
+
+`apps/server/**` supprimé ; `rg` : aucun import de `apps/server` ni de `@herdr-remote/server` dans `apps/web`, `packages`, `scripts`. `bun install` retire le workspace du lockfile (55 lignes), `bun install --frozen-lockfile` ensuite sans changement. `bin/herdrchat` exécute le binaire Rust (absent → erreur avec commandes de build, vérifié ; `HERDRCHAT_BIN` invalide → erreur, vérifié). L'écrivain de fixture Pi est copié dans `compatibility/benchmark/fixture-pi.ts` : `bun compatibility/benchmark/generate.ts` régénère les 78 fichiers à l'identique (seul `generatedAtUtc` change, restauré). `bun run verify` : 589 tests verts sur 37 fichiers. `packages/shared` n'est pas élagué : le contrat y est déjà le façade générée depuis Rust (C01) ; les charges amont Herdr (`protocol.ts`) qui ne servaient qu'au serveur restent à examiner.
+
+### T067 (socle) — scénario navigateur contre un démon fixture
+
+`xtask fixture-daemon` : vrai `herdrchat`, fausse Herdr du banc (refuse toute mutation), sessions copiées du bundle, `HOME` temporaire, `PATH=/usr/bin:/bin`, port libre du loopback ; ligne `FIXTURE_PRETE <url>` puis arrêt à la fermeture de stdin. `bun scripts/scenario-fixture.ts <sortie>` (Chrome headless 390×844, profil jetable) :
+
+| Étape | Résultat mesuré |
+|---|---|
+| liste | 3 conversations en 711 ms |
+| chat | `#/agent/w0%3Ap1`, 387 éléments de fil en 462 ms |
+| historique | requête `before=` émise au défilement en haut ; 387 → 3 111 éléments |
+| reconnexion | **échec** : coupure CDP de 4 s (3 `ERR_INTERNET_DISCONNECTED`), puis **aucun flux SSE rouvert en 60 s** ; seul le sondage reprend (`/api/overview`, `/api/health`, `/api/conversations`) |
+| isolement | toutes les requêtes visent le démon fixture |
+
+Le constat de reconnexion est à traiter côté web (lot propriétaire de `apps/web`) puis à confirmer sur iPhone. Restent hors de ce socle : question/trust, fichier, mise à jour, tailles 320×568 et desktop, clavier simulé, matrice T072.
+
+### T069 — porte finale
+
+`xtask final-gate` enchaîne `xtask verify` (layout, couverture, graphe, fmt, clippy, tests) → `bun install --frozen-lockfile` → `bun run verify` → `bun run build` → `xtask release --native` → binaire empaqueté `--version` avec `PATH=/usr/bin:/bin`. Ordre et limites : `docs/FINAL-GATE.md`.
+
+| Commande | Résultat |
+|---|---|
+| `cargo run --offline -q -p xtask -- final-gate` (arbre de `a27adbe`) | **exit 0** — `[verify] coverage — ok (60 prouvées par composition, 34 unit-only, 18 not-wired, 4 en attente, 0 défaut)`, clippy et tests verts ; bun verify vert ; `herdr-chat-macos-arm64.tar.gz : validée` (6 015 155 octets, sha256 `54e177791aed568cefb9bdab1a2c640adc5d310c0096fecdeaf27875bcc8c606`) ; manifeste `validee: true`, `pwa_embarquee: 9`, liens système Apple uniquement (aucun libssl/libcrypto) ; `herdrchat --version` sous `PATH=/usr/bin:/bin` → `herdrchat 0.0.0` |
+
+⚠️ Le binaire se déclare `0.0.0` (`[workspace.package] version`) alors que `package.json` dit `0.1.8` : à aligner avant la première étiquette `v*`. **T069 reste ouverte** : la porte est verte sur ce lot seul ; elle doit être rejouée après fusion des autres lots, et T064/T066/T067 ne sont pas closes.
+
+### T070 — dossier de revue et procédure de bascule
+
+`docs/BASCULE.md` : changement de binaire derrière le même port (8791, Tailscale `:8790` et `/` inchangés), mêmes variables, store push lu sur place (même chemin, même format ; `rapatrie_store` non nécessaire et non branché), inventaire en lecture seule, sauvegarde, arrêt du seul propriétaire identifié, démarrage par formule native ou LaunchAgent (`packaging/dev.herdr.chat.plist`, `plutil -lint` → OK), contrôles `curl` en lecture, retour arrière, et lancement de l'ancien démon TS depuis l'historique. Limites connues reprises de la matrice (dont : **aucune notification push livrée**). **Rien n'a été exécuté** ; artefacts CI et empreintes à joindre après le premier run de `release-rust.yml`.
