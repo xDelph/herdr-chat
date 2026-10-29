@@ -460,8 +460,15 @@ impl LanceurServeReel {
 
 impl LanceStatutServe for LanceurServeReel {
     fn lance(&self, argv: &[&str], delai: Duration) -> Result<String, String> {
+        // ⚠️ **Mesuré le 2026-10-29 (Tailscale de l'App Store, macOS).** Le
+        // binaire de l'app ne se comporte en CLI que s'il voit un terminal
+        // (`TERM_PROGRAM` ou `TERM`) ; sinon il tente d'ouvrir son interface
+        // et échoue (« The Tailscale GUI failed to start »). Sous `brew
+        // services` (launchd), aucune de ces variables n'existe : aucune
+        // origine n'était dérivée, et chaque POST de la PWA prenait un 403.
         let mut enfant = std::process::Command::new(&self.chemin)
             .args(argv)
+            .env("TERM_PROGRAM", "herdrchat")
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::null())
             .spawn()
@@ -534,10 +541,24 @@ pub fn origines_tailscale(port: u16) -> Vec<String> {
 #[must_use]
 pub fn origines_tailscale_avec(port: u16, lanceur: &dyn LanceStatutServe) -> Vec<String> {
     let argv = ["serve", "status", "--json"];
+    // Son absence n'empêche pas de démarrer, mais elle n'est jamais muette :
+    // sans elle, l'interface servie par Serve prend 403 sur chaque envoi.
     match lanceur.lance(&argv, DELAI_TAILSCALE) {
-        Ok(sortie) => serde_json::from_str(&sortie)
-            .map(|valeur: Value| origines_de_serve(&valeur, port))
-            .unwrap_or_default(),
-        Err(_) => Vec::new(),
+        Ok(sortie) => match serde_json::from_str::<Value>(&sortie) {
+            Ok(valeur) => {
+                let origines = origines_de_serve(&valeur, port);
+                tracing::info!(?origines, "origines Tailscale Serve autorisées");
+                origines
+            }
+            Err(cause) => {
+                let debut: String = sortie.chars().take(120).collect();
+                tracing::warn!(%cause, sortie = %debut, "tailscale serve status illisible : aucune origine tailnet autorisée");
+                Vec::new()
+            }
+        },
+        Err(cause) => {
+            tracing::warn!(%cause, "tailscale serve status indisponible : aucune origine tailnet autorisée");
+            Vec::new()
+        }
     }
 }

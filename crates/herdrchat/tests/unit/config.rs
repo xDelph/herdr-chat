@@ -571,3 +571,35 @@ fn le_sujet_vapid_ignore_le_singulier() {
         "mailto:herdr-remote@example.com"
     );
 }
+
+/// Le lanceur réel donne un terminal à `tailscale` : le binaire de l'app
+/// Tailscale (App Store) ne répond en CLI que s'il en voit un — sous launchd
+/// (`brew services`), il n'y en a pas, et aucune origine n'était dérivée.
+#[test]
+fn le_lanceur_reel_donne_un_terminal_a_tailscale() {
+    let dossier = std::env::temp_dir().join(format!(
+        "herdr-ts-{}-{}",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or(0)
+    ));
+    std::fs::create_dir_all(&dossier).unwrap_or_else(|cause| panic!("{cause}"));
+    let faux = dossier.join("tailscale");
+    // Un faux `tailscale` qui, comme le vrai, refuse sans terminal.
+    std::fs::write(
+        &faux,
+        "#!/bin/sh\n[ \"$TERM_PROGRAM\" = herdrchat ] || { echo 'The Tailscale GUI failed to start'; exit 1; }\necho '{\"TCP\":{}}'\n",
+    )
+    .unwrap_or_else(|cause| panic!("{cause}"));
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(&faux, std::fs::Permissions::from_mode(0o755))
+        .unwrap_or_else(|cause| panic!("{cause}"));
+    let lanceur = herdrchat::config::LanceurServeReel::nouveau(faux.display().to_string());
+    let sortie = lanceur
+        .lance(&["serve", "status", "--json"], Duration::from_secs(5))
+        .unwrap_or_else(|cause| panic!("{cause}"));
+    assert_eq!(sortie.trim(), "{\"TCP\":{}}");
+    let _ = std::fs::remove_dir_all(&dossier);
+}

@@ -2833,3 +2833,9 @@ Restent : D04, D07, D10, A14 partiels (écart dit dans la matrice) ; O08–O10 a
 | Compactage Claude | le résumé (`isCompactSummary`) s'affichait comme une bulle de l'utilisateur | message `custom` `compaction` → repère « Context compacted » | `crates/sessions/tests/unit/agents_claude_harnais.rs`, `apps/web/tests/taches.test.ts` |
 | En-tête mobile | puce des tâches + « Working » : titre réduit à deux mots à 390 px | pastille réduite à sa forme sous 600 px (libellé lu par VoiceOver), puce resserrée | capture WebKit 390×844 |
 | herdr-client | `Invalid argument (os error 22)` intermittent | délai de lecture posé avant l'écriture (macOS refuse `setsockopt` après fermeture du pair) | 5 passes consécutives vertes |
+
+## Bascule en service brew (2026-10-29, nuit)
+
+| Point | Constat | Correction | Preuve |
+|---|---|---|---|
+| Origine Tailscale sous `brew services` | le service brew (launchd) refusait chaque POST de la PWA en 403 : `tailscale serve status` échouait (« The Tailscale GUI failed to start »), sans un mot au journal | le binaire de l'app Tailscale (App Store) n'agit en CLI que s'il voit un terminal : le lanceur pose `TERM_PROGRAM` ; un échec de lecture est journalisé (`warn`) avec sa cause | reproduit avec un environnement launchd (`env -i`) ; `crates/herdrchat/tests/unit/config.rs` (prouvé capable d'échouer) |
