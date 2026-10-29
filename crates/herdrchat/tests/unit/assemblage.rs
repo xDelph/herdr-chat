@@ -332,3 +332,25 @@ fn la_derniere_demande_est_retrouvee_au_dela_de_la_fenetre() {
     );
     let _ = std::fs::remove_dir_all(&dossier);
 }
+
+#[test]
+fn une_ligne_de_comptabilite_n_est_jamais_une_demande() {
+    // `api-request-blob` (Claude Code) porte un `message.role: "user"` : la
+    // requête API, pas une demande de l'utilisateur.
+    let comptabilite = SessionEntry {
+        kind: String::from("api-request-blob"),
+        id: None,
+        parent_id: None,
+        raw: String::from(
+            r#"{"type":"api-request-blob","message":{"role":"user","content":"consignes système"}}"#,
+        ),
+        timestamp: Some(String::from("2026-10-29T12:55:21Z")),
+    };
+    let lue = herdrchat::assemblage::entree_lue(&comptabilite);
+    assert_eq!(lue.role, application::conversations::RoleDeSession::Autre);
+    assert!(
+        lue.texte.is_none(),
+        "aucun texte de demande : {:?}",
+        lue.texte
+    );
+}

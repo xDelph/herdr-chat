@@ -349,7 +349,14 @@ impl LitSessions for LitSessionsViaPort {
 pub fn entree_lue(entree: &application::sessions_types::SessionEntry) -> EntreeLu {
     let valeur: serde_json::Value =
         serde_json::from_str(&entree.raw).unwrap_or(serde_json::Value::Null);
-    let message = valeur.get("message");
+    // ⚠️ **Seule une ligne `message` parle.** La comptabilité de Claude Code
+    // (`api-request-blob`) porte AUSSI un `message.role: "user"` — la requête
+    // envoyée à l'API, consignes et messages compris. Lue ici, elle pouvait
+    // devenir la « dernière demande » de la liste. La PWA, elle, ne rend que
+    // les lignes `message` : le résumé suit la même règle.
+    let message = (entree.kind == "message")
+        .then(|| valeur.get("message"))
+        .flatten();
     let role = message
         .and_then(|m| m.get("role"))
         .and_then(serde_json::Value::as_str)
