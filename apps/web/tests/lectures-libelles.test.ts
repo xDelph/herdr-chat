@@ -6,6 +6,7 @@ import { ecritLectures, estNonLue, litLectures, noteLecture } from "../src/lectu
 import {
   apercuTexte,
   chrono,
+  dureeLongue,
   heureDe,
   jetons,
   marqueAgent,
@@ -95,6 +96,9 @@ describe("libellés", () => {
     expect(jetons(850)).toBe("850");
     expect(jetons(0)).toBe("");
     expect(heureDe("pas une date")).toBeNull();
+    expect(dureeLongue(451_000)).toBe("7 min");
+    expect(dureeLongue(3 * 3_600_000 + 12 * 60_000)).toBe("3 h 12 min");
+    expect(dureeLongue(52 * 3_600_000)).toBe("2 j 4 h");
   });
 });
 

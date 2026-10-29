@@ -171,3 +171,14 @@ export const apercuTexte = (markdown: string): string =>
     .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
     .replace(/\s+/g, " ")
     .trim();
+
+/** Une durée longue, en mots : `45 s`, `7 min`, `3 h 12 min`, `2 j 4 h`. */
+export const dureeLongue = (ms: number): string => {
+  const secondes = Math.max(0, Math.floor(ms / 1000));
+  if (secondes < 60) return `${String(secondes)} s`;
+  const minutes = Math.floor(secondes / 60);
+  if (minutes < 60) return `${String(minutes)} min`;
+  const heures = Math.floor(minutes / 60);
+  if (heures < 24) return `${String(heures)} h ${String(minutes % 60)} min`;
+  return `${String(Math.floor(heures / 24))} j ${String(heures % 24)} h`;
+};

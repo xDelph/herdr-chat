@@ -23,7 +23,7 @@ import {
   type Groupement,
   type Theme,
 } from "../preferences.ts";
-import { dureeEnMots } from "../actions.ts";
+import { dureeLongue } from "../libelles.ts";
 import { Avis } from "../ui/atomes.tsx";
 import { Feuille } from "../ui/Feuille.tsx";
 
@@ -179,7 +179,7 @@ export const Reglages = ({
           <dd className="mono">{health?.herdr.socket ?? "inconnu"}</dd>
           <dt>Démon actif depuis</dt>
           <dd className="num">
-            {health?.uptimeMs === undefined ? "inconnu" : dureeEnMots(health.uptimeMs)}
+            {health?.uptimeMs === undefined ? "inconnu" : dureeLongue(health.uptimeMs)}
           </dd>
           <dt>Sessions</dt>
           <dd>
