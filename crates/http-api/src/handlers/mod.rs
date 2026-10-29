@@ -20,6 +20,7 @@ pub mod push;
 pub mod reponse;
 pub mod sante;
 pub mod session;
+pub mod taches;
 
 use crate::errors::ReponseErreur;
 use axum::response::{IntoResponse, Response};

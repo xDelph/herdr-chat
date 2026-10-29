@@ -11,7 +11,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import type { AgentView, ConversationSummary } from "@herdr-remote/shared";
 import { cleAction } from "../actions-locales.ts";
 import { envoisApparus } from "../apparition-envois.ts";
-import { touchedFilesOf } from "../blocks.ts";
+import { touchedFilesOf, type Block } from "../blocks.ts";
 import { arreter, montrerSurMac } from "../app/gestes.ts";
 import { useAction, useEnvois } from "../app/hooks.ts";
 import { envois } from "../app/services.ts";
@@ -23,6 +23,10 @@ import { BandeauConnexion } from "./BandeauConnexion.tsx";
 import { Fichiers } from "../feuilles/Fichiers.tsx";
 import { Modele } from "../feuilles/Modele.tsx";
 import { Visionneuse } from "../feuilles/Visionneuse.tsx";
+import { Taches } from "../feuilles/Taches.tsx";
+import { infosDesTaches, type RapportDeTache } from "../taches.ts";
+import { InfosTaches } from "./CarteRapport.tsx";
+import { useListeTaches } from "./useTaches.ts";
 import { Composeur, type PoigneeComposeur } from "./Composeur.tsx";
 import { EnTete, Voisins } from "./EnTete.tsx";
 import { Envois } from "./Envois.tsx";
@@ -33,6 +37,7 @@ import { useSuiviSession } from "./useSuiviSession.ts";
 
 type Feuille =
   | { readonly genre: "modele" }
+  | { readonly genre: "taches" }
   | { readonly genre: "fichiers" }
   | { readonly genre: "fichier"; readonly chemin: string; readonly depuisFichiers: boolean };
 
@@ -142,6 +147,20 @@ export const Conversation = ({
   const { messages, items } = useMemo(() => transcrire(vue.entries), [transcrire, vue.entries]);
   const tour = useMemo(() => tourEnCours(messages), [messages]);
   const reglages = useMemo(() => reglagesDeSession(vue.entries), [vue.entries]);
+  // Les cartes du harnais se titrent avec ce que le fil ET le démon savent.
+  const listeTaches = useListeTaches(paneId, conversation?.tachesDeFond);
+  const infosTaches = useMemo(
+    () =>
+      infosDesTaches(
+        messages.flatMap((message) =>
+          message.blocks.filter(
+            (block: Block): block is RapportDeTache => block.kind === "rapportTache",
+          ),
+        ),
+        listeTaches,
+      ),
+    [messages, listeTaches],
+  );
   const liste = useEnvois(paneId);
   const composeur = useRef<PoigneeComposeur | null>(null);
   const [feuille, setFeuille] = useState<Feuille | null>(null);
@@ -224,6 +243,8 @@ export const Conversation = ({
         causeRepli={vue.causeRepli}
         inactif={disparu}
         compteFichiers={compteFichiers}
+        tachesDeFond={conversation?.tachesDeFond}
+        onTaches={() => setFeuille({ genre: "taches" })}
         onRetour={onRetour}
         onMac={() => void montrerSurMac(paneId)}
         onModele={() => setFeuille({ genre: "modele" })}
@@ -252,19 +273,29 @@ export const Conversation = ({
         </Avis>
       )}
 
-      <Fil
-        paneId={paneId}
-        items={items}
-        vue={vue}
-        suivi={suivi}
-        status={status}
-        cwd={cwd}
-        onOuvrirFichier={ouvrirFichier}
-        aUneSession={aUneSession}
-        envoisEnAttente={liste.length}
-      >
-        {basDuFil}
-      </Fil>
+      <InfosTaches.Provider value={infosTaches}>
+        <Fil
+          paneId={paneId}
+          items={items}
+          vue={vue}
+          suivi={suivi}
+          status={status}
+          cwd={cwd}
+          onOuvrirFichier={ouvrirFichier}
+          aUneSession={aUneSession}
+          envoisEnAttente={liste.length}
+        >
+          {basDuFil}
+        </Fil>
+        {feuille?.genre === "taches" ? (
+          <Taches
+            paneId={paneId}
+            cwd={cwd}
+            onClose={() => setFeuille(null)}
+            onOuvrirFichier={ouvrirFichier}
+          />
+        ) : null}
+      </InfosTaches.Provider>
 
       {bloque && conversation !== null ? (
         <Question conversation={conversation} agentNom={agentNom} lueA={lueA} />

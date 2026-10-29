@@ -29,6 +29,7 @@ import "./styles/boite.css";
 import "./styles/conversation.css";
 import "./styles/feuilles.css";
 import "./styles/fiabilite.css";
+import "./styles/taches.css";
 
 poserTheme(lireTheme());
 poserStyleMarque(lireStyleMarque());

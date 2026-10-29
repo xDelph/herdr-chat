@@ -4,8 +4,9 @@
 //! confiance / attente), branche du dossier du pane.
 
 use application::conversations::{
-    BrancheDeProjet, ConfianceRequise, EntreeLu, ErreurDeLecture, GenreDeLigne, LitSessions,
-    MAX_SESSION_READS, OutilAppele, RoleDeSession, ServiceConversations,
+    BrancheDeProjet, CompteTaches, ConfianceRequise, EntreeLu, ErreurDeLecture, GenreDeLigne,
+    GenreTache, IssueTaches, LitSessions, MAX_SESSION_READS, OutilAppele, RoleDeSession,
+    ServiceConversations, StatutTache, TacheDeFond,
 };
 use application::overview::{ResoutSessions, SourceDeSession};
 use application::state::ObservationBorne;
@@ -31,6 +32,9 @@ struct FauxSessions {
     en_vol: Arc<AtomicU64>,
     pic: Arc<AtomicU64>,
     porte: Arc<(Mutex<bool>, Condvar)>,
+    /// Les tâches de fond rendues pour toute source — `None` : capacité
+    /// absente (la famille n'en expose pas).
+    taches: Option<Result<Vec<TacheDeFond>, String>>,
 }
 
 impl FauxSessions {
@@ -41,7 +45,13 @@ impl FauxSessions {
             en_vol: Arc::new(AtomicU64::new(0)),
             pic: Arc::new(AtomicU64::new(0)),
             porte: Arc::new((Mutex::new(true), Condvar::new())),
+            taches: None,
         }
+    }
+
+    fn avec_taches(mut self, taches: Result<Vec<TacheDeFond>, String>) -> Self {
+        self.taches = Some(taches);
+        self
     }
 
     fn avec_source(mut self, pane: &str, source: SourceDeSession) -> Self {
@@ -91,6 +101,18 @@ impl LitSessions for FauxSessions {
             Some(Err(panne)) => Err(panne.clone()),
             None => Ok(Vec::new()),
         }
+    }
+
+    fn taches(&self, _source: &SourceDeSession) -> Option<Result<Vec<TacheDeFond>, String>> {
+        self.taches.clone()
+    }
+
+    fn transcription_de_tache(&self, source: &SourceDeSession, id: &str) -> Option<String> {
+        let taches = self.taches.clone()?.ok()?;
+        taches
+            .iter()
+            .any(|tache| tache.id == id && tache.transcription)
+            .then(|| format!("{}/{id}.jsonl", source.base.clone().unwrap_or_default()))
     }
 }
 
@@ -189,6 +211,7 @@ fn entree_texte(role: RoleDeSession, texte: &str) -> EntreeLu {
         fournisseur: None,
         niveau_pensee: None,
         horodatage: Some(1_700_000_000_000),
+        en_cours_de_tour: false,
     }
 }
 
@@ -205,6 +228,7 @@ fn entree_outil(nom: &str, indice: &str) -> EntreeLu {
         fournisseur: None,
         niveau_pensee: None,
         horodatage: None,
+        en_cours_de_tour: false,
     }
 }
 
@@ -336,6 +360,7 @@ fn le_modele_et_la_pensee_en_vigueur_suivent_la_derniere_declaration() {
                     fournisseur: None,
                     niveau_pensee: None,
                     horodatage: None,
+                    en_cours_de_tour: false,
                 },
                 EntreeLu {
                     role: RoleDeSession::Autre,
@@ -346,6 +371,7 @@ fn le_modele_et_la_pensee_en_vigueur_suivent_la_derniere_declaration() {
                     fournisseur: Some(String::from("anthropic")),
                     niveau_pensee: Some(String::from("max")),
                     horodatage: None,
+                    en_cours_de_tour: false,
                 },
             ]),
         );
@@ -617,4 +643,237 @@ fn l_ordre_des_lignes_suit_celui_du_snapshot() {
     let ids: Vec<&str> = premiere.iter().map(|l| l.pane_id.as_str()).collect();
     assert_eq!(ids, vec!["p1", "p2"], "l'ordre du snapshot");
     assert_eq!(premiere, seconde, "deux appels identiques");
+}
+
+fn entree_datee(
+    role: RoleDeSession,
+    texte: &str,
+    horodatage: u64,
+    en_cours_de_tour: bool,
+) -> EntreeLu {
+    EntreeLu {
+        horodatage: Some(horodatage),
+        en_cours_de_tour,
+        ..entree_texte(role, texte)
+    }
+}
+
+fn tache(id: &str, statut: StatutTache) -> TacheDeFond {
+    TacheDeFond {
+        id: String::from(id),
+        genre: GenreTache::Agent,
+        description: Some(String::from("Audit")),
+        type_agent: Some(String::from("general-purpose")),
+        statut,
+        debut: Some(1_000),
+        fin: None,
+        derniere_activite: Some(2_000),
+        resume: None,
+        transcription: true,
+    }
+}
+
+#[test]
+fn le_harnais_n_est_jamais_la_derniere_demande() {
+    // Un rapport de sous-agent arrive APRÈS la demande : la ligne garde la
+    // demande de l'utilisateur, rognée.
+    let faux = FauxSessions::nouveau()
+        .avec_source("p1", source("/sessions/p1.jsonl"))
+        .avec_lecture(
+            "p1",
+            Ok(vec![
+                entree_datee(RoleDeSession::User, "lance l'audit\n", 1_000, false),
+                entree_datee(RoleDeSession::Assistant, "audit lancé", 1_100, false),
+                entree_datee(
+                    RoleDeSession::Harnais,
+                    "## Rapport du sous-agent",
+                    1_200,
+                    false,
+                ),
+            ]),
+        );
+    let lignes = service(faux).lignes(
+        &HerdrFaux::nouveau(),
+        &borne(vec![agent(
+            "p1",
+            Some("claude"),
+            AgentStatus::Working,
+            None,
+        )]),
+    );
+    assert_eq!(lignes[0].dernier_texte.as_deref(), Some("lance l'audit"));
+    assert_eq!(lignes[0].apercu.as_deref(), Some("audit lancé"));
+}
+
+#[test]
+fn le_tour_part_de_la_demande_qui_l_a_ouvert() {
+    // Une demande envoyée PENDANT le travail, et un rapport injecté dans le
+    // tour, ne relancent pas le chronomètre.
+    let faux = FauxSessions::nouveau()
+        .avec_source("p1", source("/sessions/p1.jsonl"))
+        .avec_lecture(
+            "p1",
+            Ok(vec![
+                entree_datee(RoleDeSession::User, "ancienne", 500, false),
+                entree_datee(RoleDeSession::User, "corrige le bug", 1_000, false),
+                entree_datee(RoleDeSession::Assistant, "je regarde", 1_100, false),
+                entree_datee(RoleDeSession::User, "et le test aussi", 1_500, true),
+                entree_datee(RoleDeSession::Harnais, "rapport", 1_600, true),
+            ]),
+        );
+    let lignes = service(faux).lignes(
+        &HerdrFaux::nouveau(),
+        &borne(vec![agent(
+            "p1",
+            Some("claude"),
+            AgentStatus::Working,
+            None,
+        )]),
+    );
+    assert_eq!(lignes[0].tour_debut, Some(1_000));
+    // La demande envoyée pendant le travail reste la dernière demande.
+    assert_eq!(lignes[0].dernier_texte.as_deref(), Some("et le test aussi"));
+
+    // Un rapport arrivé agent AU REPOS ouvre un tour : le chronomètre part
+    // de lui.
+    let faux = FauxSessions::nouveau()
+        .avec_source("p1", source("/sessions/p1.jsonl"))
+        .avec_lecture(
+            "p1",
+            Ok(vec![
+                entree_datee(RoleDeSession::User, "corrige le bug", 1_000, false),
+                entree_datee(RoleDeSession::Harnais, "rapport", 9_000, false),
+            ]),
+        );
+    let lignes = service(faux).lignes(
+        &HerdrFaux::nouveau(),
+        &borne(vec![agent(
+            "p1",
+            Some("claude"),
+            AgentStatus::Working,
+            None,
+        )]),
+    );
+    assert_eq!(lignes[0].tour_debut, Some(9_000));
+}
+
+#[test]
+fn les_taches_de_fond_sont_comptees_sur_la_ligne() {
+    let faux = FauxSessions::nouveau()
+        .avec_source("p1", source("/sessions/p1.jsonl"))
+        .avec_lecture("p1", Ok(vec![entree_texte(RoleDeSession::User, "go")]))
+        .avec_taches(Ok(vec![
+            tache("a1", StatutTache::EnCours),
+            tache("a2", StatutTache::EnCours),
+            tache("a3", StatutTache::Inconnu),
+            tache("a4", StatutTache::Terminee),
+        ]));
+    let lignes = service(faux).lignes(
+        &HerdrFaux::nouveau(),
+        &borne(vec![agent("p1", Some("claude"), AgentStatus::Done, None)]),
+    );
+    // `inconnu` n'est PAS compté en cours.
+    assert_eq!(
+        lignes[0].taches_de_fond,
+        Some(CompteTaches {
+            en_cours: 2,
+            total: 4
+        })
+    );
+    // Capacité absente : pas de décompte inventé.
+    let faux = FauxSessions::nouveau()
+        .avec_source("p1", source("/sessions/p1.jsonl"))
+        .avec_lecture("p1", Ok(vec![entree_texte(RoleDeSession::User, "go")]));
+    let lignes = service(faux).lignes(
+        &HerdrFaux::nouveau(),
+        &borne(vec![agent("p1", Some("pi"), AgentStatus::Done, None)]),
+    );
+    assert_eq!(lignes[0].taches_de_fond, None);
+}
+
+#[test]
+fn les_taches_d_un_pane_nomment_chaque_issue() {
+    let avec = FauxSessions::nouveau()
+        .avec_source("p1", source("/sessions/p1.jsonl"))
+        .avec_taches(Ok(vec![tache("a1", StatutTache::EnCours)]));
+    let photo = borne(vec![
+        agent("p1", Some("claude"), AgentStatus::Working, None),
+        agent("p2", Some("claude"), AgentStatus::Idle, None),
+    ]);
+    let service_avec = service(avec.clone());
+    assert!(matches!(
+        service_avec.taches_de(&photo, "p1"),
+        IssueTaches::Liste(taches) if taches.len() == 1
+    ));
+    assert_eq!(
+        service_avec.taches_de(&photo, "p2"),
+        IssueTaches::SansSource
+    );
+    assert_eq!(
+        service_avec.taches_de(&photo, "p9"),
+        IssueTaches::PaneInconnu
+    );
+    assert_eq!(
+        service_avec.transcription_de_tache(&photo, "p1", "a1"),
+        Ok(String::from("/sessions/p1.jsonl/a1.jsonl"))
+    );
+    assert!(matches!(
+        service_avec.transcription_de_tache(&photo, "p1", "absente"),
+        Err(IssueTaches::Erreur(_))
+    ));
+    let sans = FauxSessions::nouveau().avec_source("p1", source("/sessions/p1.jsonl"));
+    assert_eq!(
+        service(sans).taches_de(&photo, "p1"),
+        IssueTaches::NonPrisEnCharge
+    );
+    let panne = FauxSessions::nouveau()
+        .avec_source("p1", source("/sessions/p1.jsonl"))
+        .avec_taches(Err(String::from("permission refusée")));
+    assert_eq!(
+        service(panne).taches_de(&photo, "p1"),
+        IssueTaches::Erreur(String::from("permission refusée"))
+    );
+}
+
+#[test]
+fn le_fournisseur_du_meme_modele_tient_la_paire() {
+    let changement = |modele: &str, fournisseur: Option<&str>| EntreeLu {
+        role: RoleDeSession::Autre,
+        genre: GenreDeLigne::ChangementModele,
+        texte: None,
+        outil: None,
+        modele: Some(String::from(modele)),
+        fournisseur: fournisseur.map(String::from),
+        niveau_pensee: None,
+        horodatage: None,
+        en_cours_de_tour: false,
+    };
+    let reponse = |modele: &str| EntreeLu {
+        modele: Some(String::from(modele)),
+        ..entree_texte(RoleDeSession::Assistant, "fait")
+    };
+    let ligne_de = |entrees: Vec<EntreeLu>| {
+        let faux = FauxSessions::nouveau()
+            .avec_source("p1", source("/sessions/p1.jsonl"))
+            .avec_lecture("p1", Ok(entrees));
+        service(faux).lignes(
+            &HerdrFaux::nouveau(),
+            &borne(vec![agent("p1", Some("codex"), AgentStatus::Done, None)]),
+        )[0]
+        .clone()
+    };
+    // codex : le changement porte « openai », les réponses du même modèle non.
+    let ligne = ligne_de(vec![
+        changement("gpt-6-luna", Some("openai")),
+        reponse("gpt-6-luna"),
+    ]);
+    assert_eq!(ligne.modele.as_deref(), Some("gpt-6-luna"));
+    assert_eq!(ligne.fournisseur.as_deref(), Some("openai"));
+    // Un AUTRE modèle plus récent : le fournisseur de l'ancien n'est pas collé.
+    let ligne = ligne_de(vec![
+        changement("gpt-6-luna", Some("openai")),
+        reponse("autre-modele"),
+    ]);
+    assert_eq!(ligne.modele.as_deref(), Some("autre-modele"));
+    assert_eq!(ligne.fournisseur, None);
 }

@@ -415,6 +415,251 @@
         "title": "ApiErrorResponse",
         "type": "object"
       },
+      "BackgroundTask": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Une tâche de fond.",
+        "properties": {
+          "agentType": {
+            "description": "Le type de sous-agent (`general-purpose`, `fork`…).",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "endedAt": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "description": "La sorte d'une tâche de fond.",
+            "oneOf": [
+              {
+                "const": "agent",
+                "description": "Un sous-agent lancé en arrière-plan.",
+                "type": "string"
+              },
+              {
+                "const": "commande",
+                "description": "Une commande shell passée en arrière-plan.",
+                "type": "string"
+              }
+            ]
+          },
+          "lastActivity": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "startedAt": {
+            "description": "Millisecondes epoch — absent quand la source ne le date pas.",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "status": {
+            "description": "L'état d'une tâche de fond — union fermée.",
+            "oneOf": [
+              {
+                "enum": [
+                  "en_cours",
+                  "terminee",
+                  "echouee",
+                  "arretee"
+                ],
+                "type": "string"
+              },
+              {
+                "const": "inconnu",
+                "description": "Ni fin écrite, ni activité depuis 30 min : on ne sait pas.",
+                "type": "string"
+              }
+            ]
+          },
+          "summary": {
+            "description": "Le résumé écrit par l'agent à la fin.",
+            "type": "string"
+          },
+          "transcript": {
+            "description": "`true` : la transcription est lisible sur\n`/api/agents/{paneId}/taches/{id}/session`.",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "status",
+          "transcript"
+        ],
+        "title": "BackgroundTask",
+        "type": "object"
+      },
+      "BackgroundTaskCount": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "Le décompte porté par une ligne de liste (`ConversationSummary`).",
+        "properties": {
+          "enCours": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "total": {
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "enCours",
+          "total"
+        ],
+        "title": "BackgroundTaskCount",
+        "type": "object"
+      },
+      "BackgroundTaskKind": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "La sorte d'une tâche de fond.",
+        "oneOf": [
+          {
+            "const": "agent",
+            "description": "Un sous-agent lancé en arrière-plan.",
+            "type": "string"
+          },
+          {
+            "const": "commande",
+            "description": "Une commande shell passée en arrière-plan.",
+            "type": "string"
+          }
+        ],
+        "title": "BackgroundTaskKind"
+      },
+      "BackgroundTaskStatus": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "L'état d'une tâche de fond — union fermée.",
+        "oneOf": [
+          {
+            "enum": [
+              "en_cours",
+              "terminee",
+              "echouee",
+              "arretee"
+            ],
+            "type": "string"
+          },
+          {
+            "const": "inconnu",
+            "description": "Ni fin écrite, ni activité depuis 30 min : on ne sait pas.",
+            "type": "string"
+          }
+        ],
+        "title": "BackgroundTaskStatus"
+      },
+      "BackgroundTasksResponse": {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "description": "La réponse de H20.",
+        "properties": {
+          "paneId": {
+            "type": "string"
+          },
+          "supported": {
+            "description": "`false` : la famille de l'agent n'expose pas de tâches de fond\nlisibles — une capacité ABSENTE, pas une liste vide.",
+            "type": "boolean"
+          },
+          "tasks": {
+            "items": {
+              "description": "Une tâche de fond.",
+              "properties": {
+                "agentType": {
+                  "description": "Le type de sous-agent (`general-purpose`, `fork`…).",
+                  "type": "string"
+                },
+                "description": {
+                  "type": "string"
+                },
+                "endedAt": {
+                  "format": "uint64",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "id": {
+                  "type": "string"
+                },
+                "kind": {
+                  "description": "La sorte d'une tâche de fond.",
+                  "oneOf": [
+                    {
+                      "const": "agent",
+                      "description": "Un sous-agent lancé en arrière-plan.",
+                      "type": "string"
+                    },
+                    {
+                      "const": "commande",
+                      "description": "Une commande shell passée en arrière-plan.",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "lastActivity": {
+                  "format": "uint64",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "startedAt": {
+                  "description": "Millisecondes epoch — absent quand la source ne le date pas.",
+                  "format": "uint64",
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                "status": {
+                  "description": "L'état d'une tâche de fond — union fermée.",
+                  "oneOf": [
+                    {
+                      "enum": [
+                        "en_cours",
+                        "terminee",
+                        "echouee",
+                        "arretee"
+                      ],
+                      "type": "string"
+                    },
+                    {
+                      "const": "inconnu",
+                      "description": "Ni fin écrite, ni activité depuis 30 min : on ne sait pas.",
+                      "type": "string"
+                    }
+                  ]
+                },
+                "summary": {
+                  "description": "Le résumé écrit par l'agent à la fin.",
+                  "type": "string"
+                },
+                "transcript": {
+                  "description": "`true` : la transcription est lisible sur\n`/api/agents/{paneId}/taches/{id}/session`.",
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "id",
+                "kind",
+                "status",
+                "transcript"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "paneId",
+          "supported",
+          "tasks"
+        ],
+        "title": "BackgroundTasksResponse",
+        "type": "object"
+      },
       "ChangeKind": {
         "$schema": "https://json-schema.org/draft/2020-12/schema",
         "description": "Le genre de changement d'état, union fermée mesurée d'AgentWatcher\n(`\"status\" | \"appeared\" | \"disappeared\"`).",
@@ -636,6 +881,26 @@
             "minimum": 0,
             "type": "integer"
           },
+          "tachesDeFond": {
+            "description": "Les tâches de fond de l'agent — présent seulement pour une famille\nqui les expose (Claude) ; absent = capacité absente.",
+            "properties": {
+              "enCours": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              },
+              "total": {
+                "format": "uint64",
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "enCours",
+              "total"
+            ],
+            "type": "object"
+          },
           "thinking": {
             "type": "string"
           },
@@ -646,6 +911,12 @@
           },
           "title": {
             "type": "string"
+          },
+          "tourDebut": {
+            "description": "L'instant (ms) du message qui a ouvert le tour courant, lu dans la\nsession — la dernière vraie demande (ni une demande envoyée pendant\nle travail, ni un message du harnais injecté dans le tour).",
+            "format": "uint64",
+            "minimum": 0,
+            "type": "integer"
           },
           "trust": {
             "description": "La confiance exigée avant d'agir (`TrustRequiredResponse`).",
@@ -841,6 +1112,26 @@
                   "minimum": 0,
                   "type": "integer"
                 },
+                "tachesDeFond": {
+                  "description": "Les tâches de fond de l'agent — présent seulement pour une famille\nqui les expose (Claude) ; absent = capacité absente.",
+                  "properties": {
+                    "enCours": {
+                      "format": "uint64",
+                      "minimum": 0,
+                      "type": "integer"
+                    },
+                    "total": {
+                      "format": "uint64",
+                      "minimum": 0,
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "enCours",
+                    "total"
+                  ],
+                  "type": "object"
+                },
                 "thinking": {
                   "type": "string"
                 },
@@ -851,6 +1142,12 @@
                 },
                 "title": {
                   "type": "string"
+                },
+                "tourDebut": {
+                  "description": "L'instant (ms) du message qui a ouvert le tour courant, lu dans la\nsession — la dernière vraie demande (ni une demande envoyée pendant\nle travail, ni un message du harnais injecté dans le tour).",
+                  "format": "uint64",
+                  "minimum": 0,
+                  "type": "integer"
                 },
                 "trust": {
                   "description": "La confiance exigée avant d'agir (`TrustRequiredResponse`).",
@@ -3706,6 +4003,210 @@
               }
             },
             "description": "Réponse 404 — ApiErrorResponse"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 503 — ApiErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/agents/{paneId}/taches": {
+      "get": {
+        "operationId": "h20-taches-de-fond",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "paneId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "corps ignoré après garde",
+              "schema": {}
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BackgroundTasksResponse"
+                }
+              }
+            },
+            "description": "Réponse 200 — BackgroundTasksResponse"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 404 — ApiErrorResponse"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 502 — ApiErrorResponse"
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 503 — ApiErrorResponse"
+          }
+        }
+      }
+    },
+    "/api/agents/{paneId}/taches/{id}/session": {
+      "get": {
+        "operationId": "h21-session-de-tache",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "paneId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "id",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "tail",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "description": "corps ignoré après garde",
+              "schema": {}
+            }
+          },
+          "required": false
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionResponse"
+                }
+              }
+            },
+            "description": "Réponse 200 — SessionResponse"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 400 — ApiErrorResponse"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 403 — ApiErrorResponse"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 404 — ApiErrorResponse"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 409 — ApiErrorResponse"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 422 — ApiErrorResponse"
+          },
+          "502": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiErrorResponse"
+                }
+              }
+            },
+            "description": "Réponse 502 — ApiErrorResponse"
           },
           "503": {
             "content": {

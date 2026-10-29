@@ -137,6 +137,23 @@ pub fn statut(route: RouteId, erreur: &ErreurDomaine) -> u16 {
             Nature::InternalInvariant => 500,
             _ => 503,
         },
+        // H20 : 404 pane inconnu ou sans session ; 503 Herdr sans snapshot ;
+        // 502 lecture des tâches en échec (cause nommée).
+        RouteId::TachesDeFond => match nature {
+            Nature::NoSource => 404,
+            Nature::UpstreamUnavailable | Nature::Deadline | Nature::Overloaded => 503,
+            _ => 502,
+        },
+        // H21 : les clauses de H04, sur la transcription de la tâche.
+        RouteId::SessionDeTache => match nature {
+            Nature::InvalidInput => 400,
+            Nature::PathDenied => 403,
+            Nature::NoSource => 404,
+            Nature::SourceInvalid => 409,
+            Nature::UpstreamMalformed => 422,
+            Nature::SourceAbsent | Nature::UpstreamUnavailable | Nature::Deadline => 503,
+            _ => 502,
+        },
         // H19 : 404 pane inconnu ou sans source ; 503 plafond de flux.
         RouteId::FluxSession => match nature {
             Nature::NoSource => 404,

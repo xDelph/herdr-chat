@@ -97,6 +97,9 @@ fn port(
         port: Arc::new(Compteur { lectures, lignes }),
         familles: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         fenetres: Arc::new(std::sync::Mutex::new(CacheFenetres::default())),
+        taches: Arc::new(sessions::agents::claude::taches::LecteurTaches::nouveau(
+            std::env::temp_dir().join("herdrchat-taches-absentes"),
+        )),
     }
 }
 
@@ -202,6 +205,7 @@ fn le_cache_est_borne_et_evince_la_plus_ancienne() {
     let signature = Signature {
         octets: 1,
         mtime_ns: 1,
+        wal: None,
     };
     for indice in 0..(herdrchat::assemblage::CAPACITE_FENETRES + 10) {
         cache.pose(&format!("source-{indice}"), signature, Vec::new());
@@ -306,6 +310,9 @@ fn la_derniere_demande_est_retrouvee_au_dela_de_la_fenetre() {
         port: Arc::new(sessions::port::PortSessions::nouveau(racines)),
         familles: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
         fenetres: Arc::new(std::sync::Mutex::new(CacheFenetres::default())),
+        taches: Arc::new(sessions::agents::claude::taches::LecteurTaches::nouveau(
+            std::env::temp_dir().join("herdrchat-taches-absentes"),
+        )),
     };
     let entrees = lecteur
         .fenetre(
@@ -353,4 +360,287 @@ fn une_ligne_de_comptabilite_n_est_jamais_une_demande() {
         "aucun texte de demande : {:?}",
         lue.texte
     );
+}
+
+fn entree(kind: &str, raw: &str) -> SessionEntry {
+    SessionEntry {
+        kind: String::from(kind),
+        id: None,
+        parent_id: None,
+        raw: String::from(raw),
+        timestamp: Some(String::from("2026-10-29T12:00:00Z")),
+    }
+}
+
+#[test]
+fn l_appel_d_outil_de_l_assistant_fait_l_apercu() {
+    // `toolName` n'existe que sur les résultats : un agent qui n'avait fait
+    // QUE des appels avait un aperçu vide.
+    let lue = herdrchat::assemblage::entree_lue(&entree(
+        "message",
+        r#"{"type":"message","message":{"role":"assistant","content":[{"type":"thinking","thinking":"…"},{"type":"toolCall","id":"c1","name":"bash","arguments":{"command":"cargo test --workspace\nsuite"}}]}}"#,
+    ));
+    let outil = lue.outil.unwrap_or_else(|| panic!("l'appel est lu"));
+    assert_eq!(outil.nom, "bash");
+    assert_eq!(
+        outil.indice.as_deref(),
+        Some("cargo test --workspace\nsuite")
+    );
+    // Arguments en chaîne (codex) : la première ligne, 80 caractères.
+    let longue = "x".repeat(120);
+    let lue = herdrchat::assemblage::entree_lue(&entree(
+        "message",
+        &format!(
+            r#"{{"type":"message","message":{{"role":"assistant","content":[{{"type":"toolCall","id":"c1","name":"exec","arguments":"{longue}\nautre"}}]}}}}"#
+        ),
+    ));
+    let outil = lue.outil.unwrap_or_else(|| panic!("l'appel est lu"));
+    assert_eq!(outil.indice.map(|indice| indice.chars().count()), Some(80));
+}
+
+#[test]
+fn le_fournisseur_et_le_niveau_d_un_changement_sont_a_la_racine() {
+    let modele = herdrchat::assemblage::entree_lue(&entree(
+        "model_change",
+        r#"{"type":"model_change","modelId":"gpt-5.5","provider":"openai"}"#,
+    ));
+    assert_eq!(modele.modele.as_deref(), Some("gpt-5.5"));
+    assert_eq!(modele.fournisseur.as_deref(), Some("openai"));
+    let niveau = herdrchat::assemblage::entree_lue(&entree(
+        "thinking_level_change",
+        r#"{"type":"thinking_level_change","thinkingLevel":"high"}"#,
+    ));
+    assert_eq!(niveau.niveau_pensee.as_deref(), Some("high"));
+}
+
+#[test]
+fn le_harnais_et_la_demande_pendant_le_tour_sont_distingues() {
+    use application::conversations::RoleDeSession;
+    let rapport = herdrchat::assemblage::entree_lue(&entree(
+        "message",
+        r#"{"type":"message","message":{"role":"custom","customType":"subagent-report","content":[{"type":"text","text":"rapport"}],"details":{"midTurn":true}}}"#,
+    ));
+    assert_eq!(rapport.role, RoleDeSession::Harnais);
+    assert!(rapport.en_cours_de_tour);
+    let demande = herdrchat::assemblage::entree_lue(&entree(
+        "message",
+        r#"{"type":"message","message":{"role":"user","content":[{"type":"text","text":"et aussi"}],"details":{"midTurn":true}}}"#,
+    ));
+    assert_eq!(demande.role, RoleDeSession::User);
+    assert!(demande.en_cours_de_tour);
+    let ordinaire = herdrchat::assemblage::entree_lue(&entree(
+        "message",
+        r#"{"type":"message","message":{"role":"user","content":"go"}}"#,
+    ));
+    assert!(!ordinaire.en_cours_de_tour);
+}
+
+#[test]
+fn le_journal_wal_change_la_signature() {
+    // opencode/Devin en mode WAL : un message neuf va dans `-wal`, la base
+    // ne bouge pas avant le checkpoint.
+    let dossier = racine("assemblage-wal");
+    let base = dossier.join("opencode.db");
+    std::fs::write(&base, b"base").unwrap_or_else(|cause| panic!("{cause}"));
+    let chemin = base.display().to_string();
+    let avant = signature_de(&chemin).unwrap_or_else(|| panic!("signature"));
+    assert_eq!(avant.wal, None);
+    std::fs::write(dossier.join("opencode.db-wal"), b"un message")
+        .unwrap_or_else(|cause| panic!("{cause}"));
+    let apres = signature_de(&chemin).unwrap_or_else(|| panic!("signature"));
+    assert_ne!(avant, apres, "le WAL qui grandit invalide la fenêtre");
+    let _ = std::fs::remove_dir_all(&dossier);
+}
+
+#[test]
+fn les_taches_ne_sont_lues_que_pour_une_session_claude() {
+    use application::overview::ResoutSessions;
+    let dossier = racine("assemblage-taches");
+    let projet = dossier.join("claude").join("-projet");
+    std::fs::create_dir_all(projet.join("s1").join("subagents"))
+        .unwrap_or_else(|cause| panic!("{cause}"));
+    let session = projet.join("s1.jsonl");
+    std::fs::write(
+        &session,
+        "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"go\"}}\n",
+    )
+    .unwrap_or_else(|cause| panic!("{cause}"));
+    std::fs::write(
+        projet
+            .join("s1")
+            .join("subagents")
+            .join("agent-ab1.meta.json"),
+        r#"{"agentType":"fork","description":"Audit","requestShape":"background","finished":true}"#,
+    )
+    .unwrap_or_else(|cause| panic!("{cause}"));
+    std::fs::write(
+        projet.join("s1").join("subagents").join("agent-ab1.jsonl"),
+        "{}\n",
+    )
+    .unwrap_or_else(|cause| panic!("{cause}"));
+
+    struct Resout(String);
+    impl SessionPort for Resout {
+        fn resolve(&self, hint: SessionHint) -> SessionFuture<'_, Option<ResolvedSource>> {
+            let base = self.0.clone();
+            Box::pin(async move {
+                Ok(Some(ResolvedSource {
+                    kind: application::sessions_types::SourceKind::File,
+                    base,
+                    session_id: None,
+                    family: hint.agent,
+                }))
+            })
+        }
+        fn page(&self, _r: SessionPageRequest) -> SessionFuture<'_, SessionPageOutcome> {
+            Box::pin(async {
+                Ok(SessionPageOutcome::Io {
+                    detail: String::from("inutile"),
+                })
+            })
+        }
+        fn metadata(
+            &self,
+            _source: ResolvedSource,
+        ) -> SessionFuture<'_, domain::session::SessionMetadata> {
+            Box::pin(async { Ok(domain::session::SessionMetadata::default()) })
+        }
+    }
+    let lecteur = LitSessionsViaPort {
+        port: Arc::new(Resout(session.display().to_string())),
+        familles: Arc::new(std::sync::Mutex::new(std::collections::HashMap::new())),
+        fenetres: Arc::new(std::sync::Mutex::new(CacheFenetres::default())),
+        taches: Arc::new(sessions::agents::claude::taches::LecteurTaches::nouveau(
+            dossier.join("claude"),
+        )),
+    };
+    let agent = |kind: &str| domain::observation::AgentObservation {
+        agent: Some(domain::ids::AgentKind::from(String::from(kind))),
+        ..test_support::fixtures::snapshot_de_base().agents[0].clone()
+    };
+    let claude = lecteur
+        .source_de(&agent("claude"))
+        .unwrap_or_else(|| panic!("source"));
+    let taches = lecteur
+        .taches(&claude)
+        .unwrap_or_else(|| panic!("Claude expose ses tâches"))
+        .unwrap_or_else(|cause| panic!("{cause}"));
+    assert_eq!(taches.len(), 1);
+    assert_eq!(
+        taches[0].statut,
+        application::conversations::StatutTache::Terminee
+    );
+    assert!(lecteur.transcription_de_tache(&claude, "ab1").is_some());
+    assert!(lecteur.transcription_de_tache(&claude, "../s1").is_none());
+    // Une autre famille : capacité absente, jamais le profil de Claude.
+    let pi = lecteur
+        .source_de(&agent("pi"))
+        .unwrap_or_else(|| panic!("source"));
+    assert!(lecteur.taches(&pi).is_none());
+    let _ = std::fs::remove_dir_all(&dossier);
+}
+
+/// Un port à deux pages : la plus récente (avec un « avant »), puis la
+/// précédente — pour prouver ce que la remontée va chercher.
+struct DeuxPages {
+    recente: Vec<String>,
+    ancienne: Vec<String>,
+    lectures: Arc<AtomicUsize>,
+}
+
+impl SessionPort for DeuxPages {
+    fn resolve(&self, _hint: SessionHint) -> SessionFuture<'_, Option<ResolvedSource>> {
+        Box::pin(async { Ok(None) })
+    }
+
+    fn page(&self, request: SessionPageRequest) -> SessionFuture<'_, SessionPageOutcome> {
+        self.lectures.fetch_add(1, Ordering::SeqCst);
+        let ancienne = request.previous_cursor.is_some();
+        let lignes = if ancienne {
+            &self.ancienne
+        } else {
+            &self.recente
+        };
+        let page = SessionPage {
+            session_path: request.source.base.clone(),
+            entries: lignes
+                .iter()
+                .map(|raw| {
+                    let valeur: serde_json::Value =
+                        serde_json::from_str(raw).unwrap_or(serde_json::Value::Null);
+                    SessionEntry {
+                        kind: valeur["type"].as_str().unwrap_or("message").to_string(),
+                        id: None,
+                        parent_id: None,
+                        raw: raw.clone(),
+                        timestamp: None,
+                    }
+                })
+                .collect(),
+            incremental: false,
+            cursor: None,
+            previous_cursor: (!ancienne).then(|| String::from("avant")),
+            has_more: !ancienne,
+            reset: false,
+            rattrape: true,
+        };
+        Box::pin(async move { Ok(SessionPageOutcome::Page(page)) })
+    }
+
+    fn metadata(
+        &self,
+        _source: ResolvedSource,
+    ) -> SessionFuture<'_, domain::session::SessionMetadata> {
+        Box::pin(async { Ok(domain::session::SessionMetadata::default()) })
+    }
+}
+
+#[test]
+fn la_remontee_cherche_le_fournisseur_des_familles_qui_l_ecrivent() {
+    let recente = vec![
+        String::from(
+            r#"{"type":"message","message":{"role":"user","content":"go"},"timestamp":"2026-10-29T10:00:00Z"}"#,
+        ),
+        String::from(
+            r#"{"type":"message","message":{"role":"assistant","content":"fait","model":"gpt-6-luna"}}"#,
+        ),
+    ];
+    let ancienne = vec![String::from(
+        r#"{"type":"model_change","modelId":"gpt-6-luna","provider":"openai"}"#,
+    )];
+    for (famille, attendu, lectures_attendues) in [
+        ("codex", Some("openai"), 2),
+        // Claude n'écrit jamais de fournisseur : aucune remontée pour lui.
+        ("claude", None, 1),
+    ] {
+        let lectures = Arc::new(AtomicUsize::new(0));
+        let lecteur = LitSessionsViaPort {
+            port: Arc::new(DeuxPages {
+                recente: recente.clone(),
+                ancienne: ancienne.clone(),
+                lectures: Arc::clone(&lectures),
+            }),
+            familles: Arc::new(std::sync::Mutex::new(std::collections::HashMap::from([(
+                String::from("/sessions/s.jsonl"),
+                domain::ids::AgentKind::from(String::from(famille)),
+            )]))),
+            fenetres: Arc::new(std::sync::Mutex::new(CacheFenetres::default())),
+            taches: Arc::new(sessions::agents::claude::taches::LecteurTaches::nouveau(
+                std::env::temp_dir().join("herdrchat-taches-absentes"),
+            )),
+        };
+        let entrees = lecteur
+            .fenetre(
+                &PaneId::from(String::from("w1:p1")),
+                &source("/sessions/s.jsonl"),
+            )
+            .unwrap_or_else(|cause| panic!("fenêtre : {}", cause.cause));
+        let fournisseur = entrees.iter().find_map(|entree| entree.fournisseur.clone());
+        assert_eq!(fournisseur.as_deref(), attendu, "{famille}");
+        assert_eq!(
+            lectures.load(Ordering::SeqCst),
+            lectures_attendues,
+            "{famille}"
+        );
+    }
 }

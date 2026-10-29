@@ -58,6 +58,23 @@ pub struct PiMessage {
     pub provider: Option<String>,
     #[serde(rename = "thinkingLevel")]
     pub thinking_level: Option<String>,
+    /// La sorte d'un message `custom` — la forme de pi (`CustomMessage` :
+    /// `role: "custom"`, `customType`, `details`). Claude Code y range ce que
+    /// le harnais injecte en rôle `user` sans que l'utilisateur l'ait écrit
+    /// (rapport de sous-agent, fin de tâche de fond).
+    ///
+    /// ⚠️ Omis du fil quand absent : les messages existants gardent leur
+    /// forme exacte.
+    #[serde(
+        rename = "customType",
+        default,
+        skip_serializing_if = "Option::is_none"
+    )]
+    pub custom_type: Option<String>,
+    /// Les détails structurés d'un message (`details` de pi) — libres, lus
+    /// à la demande ; omis quand absents.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub details: Option<serde_json::Value>,
 }
 
 /// Une ligne **message**, dans la forme commune pi.

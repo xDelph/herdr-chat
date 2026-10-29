@@ -20,6 +20,7 @@
  * `read` (499), `write` (372), `todo` (19), `subagent` (9).
  */
 import { Option, Schema } from "effect";
+import { estPendantTour, rapportDe, type RapportDeTache } from "./taches.ts";
 
 // ---------------------------------------------------------------------------
 // Blocs de contenu
@@ -72,7 +73,9 @@ export type Block =
       readonly exitCode: number | null;
       readonly output: string;
       readonly truncated: boolean;
-    };
+    }
+  /** Ce que le harnais de l'agent a écrit (rapport de sous-agent, fin de tâche). */
+  | RapportDeTache;
 
 /**
  * Résultat d'un sous-agent, tel que Pi le rapporte.
@@ -146,6 +149,10 @@ const MessageBody = Schema.Struct({
   cancelled: Schema.optional(Schema.Boolean),
   content: Schema.optional(Schema.Unknown),
   command: Schema.optional(Schema.String),
+  /** La sorte d'un message `custom` (forme pi) — harnais de l'agent. */
+  customType: Schema.optional(Schema.String),
+  /** Détails structurés (`custom`), et `midTurn` (arrivé pendant un tour). */
+  details: Schema.optional(Schema.Unknown),
   exitCode: Schema.optional(Schema.NullOr(Schema.Number)),
   isError: Schema.optional(Schema.Boolean),
   model: Schema.optional(Schema.String),
@@ -637,6 +644,8 @@ export const decodeRawLine = (raw: string): typeof SessionLine.Type | undefined 
   const compact = {
     message: {
       content: champ("content"),
+      customType: texte("customType"),
+      details: champ("details") ?? undefined,
       model: texte("model"),
       provider: texte("provider"),
       role: texte("role"),
@@ -728,6 +737,26 @@ export const toRenderedMessage = (entry: {
   const role = body?.role;
   if (role === undefined) return undefined;
 
+  /*
+    ⚠️ **Le harnais n'est pas l'utilisateur.** Claude Code écrit en rôle `user`
+    les rapports de ses sous-agents et les fins de tâches de fond ; le démon les
+    rend en `custom` (`customType`). Ils ont leur carte, jamais une bulle de
+    demande — c'était le défaut : un rapport s'affichait comme envoyé par soi.
+  */
+  if (role === "custom") {
+    const rapport = rapportDe(body?.customType, body?.details, contentToText(body?.content));
+    if (rapport !== undefined) {
+      return {
+        at: entry.timestamp ?? null,
+        blocks: [rapport],
+        id: entry.id ?? `entry:${stableHash(entry.raw)}`,
+        meta: estPendantTour(body?.details) ? { pendantTour: "1" } : {},
+        role,
+        text: rapport.corps,
+      };
+    }
+  }
+
   const isToolResult = role === "toolResult";
 
   // Un résultat de sous-agent porte une structure riche : on l'affiche comme
@@ -772,11 +801,14 @@ export const toRenderedMessage = (entry: {
     return expanded;
   });
 
+  // Une demande envoyée PENDANT le travail : une demande, marquée — elle
+  // n'ouvre pas de tour (le chronomètre ne repart pas d'elle).
+  const meta = metaOf(body);
   return {
     at: entry.timestamp ?? null,
     blocks: withImages,
     id: entry.id ?? `entry:${stableHash(entry.raw)}`,
-    meta: metaOf(body),
+    meta: estPendantTour(body?.details) ? { ...meta, pendantTour: "1" } : meta,
     role,
     text: withImages
       .map((block) => blockToText(block))
@@ -817,6 +849,8 @@ export const blockToText = (block: Block): string => {
       return block.results.map((result) => result.digest?.summary ?? "").join("\n");
     case "compaction":
       return block.summary;
+    case "rapportTache":
+      return block.corps;
     default:
       return "";
   }
@@ -1094,6 +1128,10 @@ const calculeItems = (
   _lastTurnInProgress = false,
 ): ReadonlyArray<Item> => toursDe(messages).flatMap((tour) => itemsDuTour(tour));
 
+/** Un message du harnais (rapport, fin de tâche), rendu par sa carte. */
+export const estMessageDuHarnais = (message: RenderedMessage): boolean =>
+  message.role === "custom" && message.blocks.some((block) => block.kind === "rapportTache");
+
 /**
  * Découpe les messages en **tours** : une demande et tout ce qui la suit.
  *
@@ -1177,7 +1215,8 @@ export const itemsDuTour = (messages: ReadonlyArray<RenderedMessage>): ReadonlyA
   };
 
   for (const message of messages) {
-    if (message.role === "user") {
+    // Une demande, ou une carte du harnais : un élément à part, à sa place.
+    if (message.role === "user" || estMessageDuHarnais(message)) {
       flush();
       items.push({ kind: "single", message });
       continue;

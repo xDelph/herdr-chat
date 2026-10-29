@@ -22,6 +22,7 @@ import type { Action } from "./actions.ts";
 import { actionDeBloc, estBlocDeTravail } from "./actions.ts";
 import {
   creeMemoMessages,
+  estMessageDuHarnais,
   itemsDuTour,
   toMessages,
   toursDe,
@@ -119,7 +120,16 @@ export interface TourEnCours {
 }
 
 /**
- * Le tour en cours : depuis la **dernière demande** de l'utilisateur.
+ * Le message qui **ouvre** un tour : une demande de l'utilisateur, ou une carte
+ * du harnais arrivée agent au repos (une fin de tâche réveille l'agent) — jamais
+ * ce qui arrive PENDANT le travail (`pendantTour`) : une demande envoyée en plein
+ * tour ne relance pas le chronomètre. La même règle que `tourDebut` du démon.
+ */
+export const ouvreUnTour = (message: RenderedMessage): boolean =>
+  (message.role === "user" || estMessageDuHarnais(message)) && message.meta["pendantTour"] !== "1";
+
+/**
+ * Le tour en cours : depuis la demande qui l'a **ouvert**.
  *
  * ⚠️ **Rien n'est inventé.** La durée part de l'horodatage de la demande tel que
  * la session l'écrit, pas de l'horloge de l'écran ; sans horodatage, pas de
@@ -128,7 +138,11 @@ export interface TourEnCours {
  */
 export const tourEnCours = (messages: ReadonlyArray<RenderedMessage>): TourEnCours => {
   let index = messages.length - 1;
-  while (index >= 0 && messages[index]?.role !== "user") index -= 1;
+  while (index >= 0) {
+    const message = messages[index];
+    if (message !== undefined && ouvreUnTour(message)) break;
+    index -= 1;
+  }
   const demande = index >= 0 ? messages[index] : undefined;
   const debut = demande?.at === null || demande?.at === undefined ? NaN : Date.parse(demande.at);
   let jetons = 0;

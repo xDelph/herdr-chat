@@ -7,13 +7,14 @@
  * explicite, avec son issue affichée.
  */
 import { memo, useEffect, useId, useRef, useState } from "react";
-import type { AgentStatus, AgentView } from "@herdr-remote/shared";
+import type { AgentStatus, AgentView, BackgroundTaskCount } from "@herdr-remote/shared";
 import { etiquetteDePane } from "@herdr-remote/shared";
 import type { Transport } from "../flux-session.ts";
 import { libelleReflexion } from "../libelles.ts";
 import { routeToHash } from "../routing.ts";
 import { FormeEtat, Marque, Pastille } from "../ui/atomes.tsx";
 import { Icone } from "../ui/Icone.tsx";
+import { PuceTaches } from "./PuceTaches.tsx";
 
 const TRANSPORT: Record<Transport, string> = {
   aucun: "Contenu : pas de lecture en cours",
@@ -33,6 +34,8 @@ export const EnTete = memo(
     causeRepli = null,
     inactif = false,
     compteFichiers,
+    tachesDeFond,
+    onTaches,
     onRetour,
     onMac,
     onModele,
@@ -51,6 +54,9 @@ export const EnTete = memo(
     readonly inactif?: boolean;
     /** Le nombre de fichiers modifiés — appelé seulement menu ouvert. */
     readonly compteFichiers: () => number;
+    /** Le décompte des tâches de fond (puce « 2 tâches de fond »), s'il existe. */
+    readonly tachesDeFond?: BackgroundTaskCount | undefined;
+    readonly onTaches?: (() => void) | undefined;
     readonly onRetour: () => void;
     readonly onMac: () => void;
     readonly onModele: () => void;
@@ -109,6 +115,7 @@ export const EnTete = memo(
             {reglages.join(" · ")}
           </span>
         </div>
+        {onTaches === undefined ? null : <PuceTaches compte={tachesDeFond} onOuvrir={onTaches} />}
         <Pastille status={status} />
         <div className="menu" ref={zone}>
           {/*

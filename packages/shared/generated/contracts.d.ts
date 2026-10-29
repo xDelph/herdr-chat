@@ -1,5 +1,5 @@
 // Généré par `cargo xtask contracts export` — ne pas éditer.
-// Source : contracts.schema.json (64 définitions).
+// Source : contracts.schema.json (69 définitions).
 
 /**
  * Un focus appliqué (`AgentFocusedResponse`).
@@ -379,6 +379,105 @@ export interface ApiErrorResponse {
 }
 
 /**
+ * Une tâche de fond.
+ */
+export interface BackgroundTask {
+  /**
+   * Le type de sous-agent (`general-purpose`, `fork`…).
+   */
+  agentType?: string;
+  description?: string;
+  endedAt?: number;
+  id: string;
+  /**
+   * La sorte d'une tâche de fond.
+   */
+  kind: "agent" | "commande";
+  lastActivity?: number;
+  /**
+   * Millisecondes epoch — absent quand la source ne le date pas.
+   */
+  startedAt?: number;
+  /**
+   * L'état d'une tâche de fond — union fermée.
+   */
+  status: ("en_cours" | "terminee" | "echouee" | "arretee") | "inconnu";
+  /**
+   * Le résumé écrit par l'agent à la fin.
+   */
+  summary?: string;
+  /**
+   * `true` : la transcription est lisible sur
+   * `/api/agents/{paneId}/taches/{id}/session`.
+   */
+  transcript: boolean;
+}
+
+/**
+ * Le décompte porté par une ligne de liste (`ConversationSummary`).
+ */
+export interface BackgroundTaskCount {
+  enCours: number;
+  total: number;
+}
+
+/**
+ * La sorte d'une tâche de fond.
+ */
+export type BackgroundTaskKind = "agent" | "commande";
+
+/**
+ * L'état d'une tâche de fond — union fermée.
+ */
+export type BackgroundTaskStatus = ("en_cours" | "terminee" | "echouee" | "arretee") | "inconnu";
+
+/**
+ * La réponse de H20.
+ */
+export interface BackgroundTasksResponse {
+  paneId: string;
+  /**
+   * `false` : la famille de l'agent n'expose pas de tâches de fond
+   * lisibles — une capacité ABSENTE, pas une liste vide.
+   */
+  supported: boolean;
+  /**
+   * Items: Une tâche de fond.
+   */
+  tasks: {
+    /**
+     * Le type de sous-agent (`general-purpose`, `fork`…).
+     */
+    agentType?: string;
+    description?: string;
+    endedAt?: number;
+    id: string;
+    /**
+     * La sorte d'une tâche de fond.
+     */
+    kind: "agent" | "commande";
+    lastActivity?: number;
+    /**
+     * Millisecondes epoch — absent quand la source ne le date pas.
+     */
+    startedAt?: number;
+    /**
+     * L'état d'une tâche de fond — union fermée.
+     */
+    status: ("en_cours" | "terminee" | "echouee" | "arretee") | "inconnu";
+    /**
+     * Le résumé écrit par l'agent à la fin.
+     */
+    summary?: string;
+    /**
+     * `true` : la transcription est lisible sur
+     * `/api/agents/{paneId}/taches/{id}/session`.
+     */
+    transcript: boolean;
+  }[];
+}
+
+/**
  * Le genre de changement d'état, union fermée mesurée d'AgentWatcher
  * (`"status" | "appeared" | "disappeared"`).
  */
@@ -525,9 +624,23 @@ export interface ConversationSummary {
   status: "idle" | "working" | "blocked" | "done" | "unknown";
   tabId: string;
   tabPaneCount: number;
+  /**
+   * Les tâches de fond de l'agent — présent seulement pour une famille
+   * qui les expose (Claude) ; absent = capacité absente.
+   */
+  tachesDeFond?: {
+    enCours: number;
+    total: number;
+  };
   thinking?: string;
   timestamp?: number;
   title: string;
+  /**
+   * L'instant (ms) du message qui a ouvert le tour courant, lu dans la
+   * session — la dernière vraie demande (ni une demande envoyée pendant
+   * le travail, ni un message du harnais injecté dans le tour).
+   */
+  tourDebut?: number;
   /**
    * La confiance exigée avant d'agir (`TrustRequiredResponse`).
    */
@@ -652,9 +765,23 @@ export interface ConversationsResponse {
     status: "idle" | "working" | "blocked" | "done" | "unknown";
     tabId: string;
     tabPaneCount: number;
+    /**
+     * Les tâches de fond de l'agent — présent seulement pour une famille
+     * qui les expose (Claude) ; absent = capacité absente.
+     */
+    tachesDeFond?: {
+      enCours: number;
+      total: number;
+    };
     thinking?: string;
     timestamp?: number;
     title: string;
+    /**
+     * L'instant (ms) du message qui a ouvert le tour courant, lu dans la
+     * session — la dernière vraie demande (ni une demande envoyée pendant
+     * le travail, ni un message du harnais injecté dans le tour).
+     */
+    tourDebut?: number;
     /**
      * La confiance exigée avant d'agir (`TrustRequiredResponse`).
      */

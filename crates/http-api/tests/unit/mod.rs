@@ -26,3 +26,4 @@ pub(crate) mod router;
 pub(crate) mod sante;
 pub(crate) mod session;
 pub(crate) mod support;
+pub(crate) mod taches;

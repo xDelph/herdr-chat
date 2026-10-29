@@ -1,5 +1,5 @@
 // Généré par `cargo xtask contracts export` — ne pas éditer.
-// Source : contracts.schema.json (64 définitions).
+// Source : contracts.schema.json (69 définitions).
 // Schemas Effect : le client décode avec EUX, comme le serveur sérialise avec le contrat.
 import { Schema } from "effect";
 
@@ -83,6 +83,55 @@ export const ApiErrorResponse = Schema.Struct({
 });
 export type ApiErrorResponse = typeof ApiErrorResponse.Type;
 
+/** Une tâche de fond. */
+export const BackgroundTask = Schema.Struct({
+  "agentType": Schema.optional(Schema.String),
+  "description": Schema.optional(Schema.String),
+  "endedAt": Schema.optional(Schema.Number),
+  "id": Schema.String,
+  "kind": Schema.Literals(["agent", "commande"]),
+  "lastActivity": Schema.optional(Schema.Number),
+  "startedAt": Schema.optional(Schema.Number),
+  "status": Schema.Union([Schema.Literals(["en_cours", "terminee", "echouee", "arretee"]), Schema.Literal("inconnu")]),
+  "summary": Schema.optional(Schema.String),
+  "transcript": Schema.Boolean,
+});
+export type BackgroundTask = typeof BackgroundTask.Type;
+
+/** Le décompte porté par une ligne de liste (`ConversationSummary`). */
+export const BackgroundTaskCount = Schema.Struct({
+  "enCours": Schema.Number,
+  "total": Schema.Number,
+});
+export type BackgroundTaskCount = typeof BackgroundTaskCount.Type;
+
+/** La sorte d'une tâche de fond. */
+export const BackgroundTaskKind = Schema.Literals(["agent", "commande"]);
+export type BackgroundTaskKind = typeof BackgroundTaskKind.Type;
+
+/** L'état d'une tâche de fond — union fermée. */
+export const BackgroundTaskStatus = Schema.Union([Schema.Literals(["en_cours", "terminee", "echouee", "arretee"]), Schema.Literal("inconnu")]);
+export type BackgroundTaskStatus = typeof BackgroundTaskStatus.Type;
+
+/** La réponse de H20. */
+export const BackgroundTasksResponse = Schema.Struct({
+  "paneId": Schema.String,
+  "supported": Schema.Boolean,
+  "tasks": Schema.Array(Schema.Struct({
+  "agentType": Schema.optional(Schema.String),
+  "description": Schema.optional(Schema.String),
+  "endedAt": Schema.optional(Schema.Number),
+  "id": Schema.String,
+  "kind": Schema.Literals(["agent", "commande"]),
+  "lastActivity": Schema.optional(Schema.Number),
+  "startedAt": Schema.optional(Schema.Number),
+  "status": Schema.Union([Schema.Literals(["en_cours", "terminee", "echouee", "arretee"]), Schema.Literal("inconnu")]),
+  "summary": Schema.optional(Schema.String),
+  "transcript": Schema.Boolean,
+})),
+});
+export type BackgroundTasksResponse = typeof BackgroundTasksResponse.Type;
+
 /** Le genre de changement d'état, union fermée mesurée d'AgentWatcher */
 export const ChangeKind = Schema.Literals(["status", "appeared", "disappeared"]);
 export type ChangeKind = typeof ChangeKind.Type;
@@ -140,9 +189,14 @@ export const ConversationSummary = Schema.Struct({
   "status": Schema.Literals(["idle", "working", "blocked", "done", "unknown"]),
   "tabId": Schema.String,
   "tabPaneCount": Schema.Number,
+  "tachesDeFond": Schema.optional(Schema.Struct({
+  "enCours": Schema.Number,
+  "total": Schema.Number,
+})),
   "thinking": Schema.optional(Schema.String),
   "timestamp": Schema.optional(Schema.Number),
   "title": Schema.String,
+  "tourDebut": Schema.optional(Schema.Number),
   "trust": Schema.optional(Schema.Struct({
   "folder": Schema.String,
   "kind": Schema.String,
@@ -182,9 +236,14 @@ export const ConversationsResponse = Schema.Struct({
   "status": Schema.Literals(["idle", "working", "blocked", "done", "unknown"]),
   "tabId": Schema.String,
   "tabPaneCount": Schema.Number,
+  "tachesDeFond": Schema.optional(Schema.Struct({
+  "enCours": Schema.Number,
+  "total": Schema.Number,
+})),
   "thinking": Schema.optional(Schema.String),
   "timestamp": Schema.optional(Schema.Number),
   "title": Schema.String,
+  "tourDebut": Schema.optional(Schema.Number),
   "trust": Schema.optional(Schema.Struct({
   "folder": Schema.String,
   "kind": Schema.String,

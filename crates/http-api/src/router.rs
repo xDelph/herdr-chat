@@ -49,6 +49,18 @@ pub fn routeur(services: Arc<Services>, origines: Vec<String>) -> Router<()> {
                 .fallback(en_async(methode_non_autorisee_lecture)),
         )
         .route(
+            "/api/agents/{paneId}/taches",
+            get(handlers::taches::taches)
+                .head(handlers::taches::taches)
+                .fallback(en_async(methode_non_autorisee_lecture)),
+        )
+        .route(
+            "/api/agents/{paneId}/taches/{id}/session",
+            get(handlers::taches::session_de_tache)
+                .head(handlers::taches::session_de_tache)
+                .fallback(en_async(methode_non_autorisee_lecture)),
+        )
+        .route(
             "/api/agents/{paneId}/stream",
             get(handlers::flux_session::flux_session)
                 .fallback(en_async(methode_non_autorisee_lecture)),

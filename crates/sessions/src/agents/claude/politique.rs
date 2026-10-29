@@ -50,7 +50,7 @@ impl ProfilClaude {
 #[must_use]
 pub fn ligne_traitee(ligne: &Value) -> Value {
     if messages::est_ligne_de_conversation(ligne) {
-        if messages::ligne_vers_pi(ligne).is_some() {
+        if ligne_claude_vers_pi(ligne).is_some() {
             return ligne.clone();
         }
         // Refusée ET de forme pi : privée de son message — sinon l'aperçu
@@ -61,11 +61,53 @@ pub fn ligne_traitee(ligne: &Value) -> Value {
     ligne.clone()
 }
 
-/// Une ligne Claude Code → forme commune : le codec Anthropic, puis les
-/// demandes envoyées **pendant** un tour.
+/// Une ligne Claude Code → forme commune : d'abord ce que le **harnais**
+/// injecte (rapports de sous-agents, fins de tâches de fond), puis le codec
+/// Anthropic, puis les demandes envoyées **pendant** un tour.
+///
+/// ⚠️ **L'ordre compte.** Le harnais écrit ses messages en rôle `user` : sans
+/// ce premier filtre, le codec les rendait comme des demandes de
+/// l'utilisateur (mesuré le 2026-10-29 : « Another Claude session sent a
+/// message: <agent-message …> » affiché comme une bulle de l'utilisateur).
 #[must_use]
 pub fn ligne_claude_vers_pi(ligne: &Value) -> Option<LignePi> {
-    messages::ligne_vers_pi(ligne).or_else(|| demande_en_cours_de_tour(ligne))
+    if let Some(harnais) = super::harnais::message_du_harnais(ligne) {
+        return Some(harnais);
+    }
+    if super::harnais::est_injection_du_harnais(ligne) {
+        return None;
+    }
+    messages::ligne_vers_pi(ligne)
+        .map(rapport_final_en_texte)
+        .or_else(|| demande_en_cours_de_tour(ligne))
+}
+
+/// Le rapport final d'un sous-agent est un APPEL d'outil (`SubagentHandback`,
+/// argument `message`) : rangé avec les actions, la transcription d'une tâche
+/// de fond finissait sur « 32 actions » sans sa conclusion (mesuré). C'est la
+/// réponse de l'agent : elle devient du texte, à sa place.
+fn rapport_final_en_texte(mut ligne: LignePi) -> LignePi {
+    if ligne.message.role.as_deref() != Some("assistant") {
+        return ligne;
+    }
+    if let Some(blocs) = ligne.message.content.as_array_mut() {
+        for bloc in blocs.iter_mut() {
+            let rapport = (bloc.get("type").and_then(Value::as_str) == Some("toolCall")
+                && bloc.get("name").and_then(Value::as_str) == Some("SubagentHandback"))
+            .then(|| {
+                bloc.get("arguments")
+                    .and_then(|arguments| arguments.get("message"))
+            })
+            .flatten()
+            .and_then(Value::as_str)
+            .filter(|texte| !texte.trim().is_empty())
+            .map(str::to_string);
+            if let Some(rapport) = rapport {
+                *bloc = json!({ "type": "text", "text": rapport });
+            }
+        }
+    }
+    ligne
 }
 
 /// Une demande envoyée pendant que l'agent travaille.
@@ -79,7 +121,7 @@ pub fn ligne_claude_vers_pi(ligne: &Value) -> Option<LignePi> {
 ///
 /// Les notifications internes du harnais (`commandMode: "task-notification"`,
 /// origine non humaine) passent par le même canal : elles ne sont PAS des
-/// demandes et restent écartées.
+/// demandes — [`super::harnais`] les rend comme messages `custom`.
 #[must_use]
 pub fn demande_en_cours_de_tour(ligne: &Value) -> Option<LignePi> {
     let objet = ligne.as_object()?;
@@ -101,9 +143,16 @@ pub fn demande_en_cours_de_tour(ligne: &Value) -> Option<LignePi> {
     if texte.is_empty() {
         return None;
     }
+    // `details.midTurn` : la demande est arrivée PENDANT le travail — elle
+    // reste une demande de l'utilisateur, mais n'ouvre pas un nouveau tour
+    // (le chronomètre ne repart pas d'elle).
     let mut complet = json!({
         "type": "message",
-        "message": { "role": "user", "content": [{ "type": "text", "text": texte }] },
+        "message": {
+            "role": "user",
+            "content": [{ "type": "text", "text": texte }],
+            "details": { "midTurn": true },
+        },
     });
     if let Some(horodatage) = objet.get("timestamp").and_then(Value::as_str) {
         complet["timestamp"] = json!(horodatage);
