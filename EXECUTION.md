@@ -2803,3 +2803,23 @@ Le constat de reconnexion est à traiter côté web (lot propriétaire de `apps/
 ### T070 — dossier de revue et procédure de bascule
 
 `docs/BASCULE.md` : changement de binaire derrière le même port (8791, Tailscale `:8790` et `/` inchangés), mêmes variables, store push lu sur place (même chemin, même format ; `rapatrie_store` non nécessaire et non branché), inventaire en lecture seule, sauvegarde, arrêt du seul propriétaire identifié, démarrage par formule native ou LaunchAgent (`packaging/dev.herdr.chat.plist`, `plutil -lint` → OK), contrôles `curl` en lecture, retour arrière, et lancement de l'ancien démon TS depuis l'historique. Limites connues reprises de la matrice (dont : **aucune notification push livrée**). **Rien n'a été exécuté** ; artefacts CI et empreintes à joindre après le premier run de `release-rust.yml`.
+
+## Lot finition (2026-10-29)
+
+Branche `lot/finition`, partie de `plan/rust-backend` intégré (lots notif, sessions, tâches fusionnés).
+
+| Point | Constat | Correction | Preuve |
+|---|---|---|---|
+| Couverture | 60 prouvées / 34 unit-only / 18 not-wired / 4 en attente (116) | preuves composées ajoutées ou retrouvées, matrice re-marquée, H19–H21 inscrites (modèle H01–H21) | `xtask coverage` : **85 / 31 / 0 / 3** (119) |
+| H04/C04/S04 | chemin hors racines → 422, base SQLite absente → 502 | 403 (`chemin_refuse`) et 503 (`source_absente`) ; le flux H19 ferme par `gone` | `crates/herdrchat/tests/unit/composition.rs` (vrai `PortSessions`) |
+| O03 | aucun ping au démarrage | `herdrchat::demarrage` : `info`/`warn` à côté de l'écoute | mesuré : `Herdr joignable au démarrage protocole=22 version=0.9.3` |
+| D02 | `checkoutPath` absent pour 2 projets sur 10 (panes shell seuls) | `panes[]` du snapshot décodé et utilisé | démon de test (port libre, store temporaire) : 10/10, identique au démon TS `:8791` ; `:8793` (ancien binaire) : 8/10 |
+| Essais intermittents | 17 149 dossiers temporaires jamais effacés, collisions `pid`+nonce sous charge ; attentes par `sleep` | dossier jetable exclusif (nanos + nonce, effacé), conditions observées (`occupation`, `joints_en_attente`, rendez-vous injecté) ; **vraie course** dans `LecteurBranches` (vol rendu avant la mise en cache → 2 git) corrigée | 20 passes `application` + `files` sous 8 brûleurs CPU (charge 19–35) : 39/40 avant le correctif git, 40/40 et 40/40 après |
+| Paquet PWA | 122,1 Ko gzip initial | Lancement et Réglages en `React.lazy` | 119,7 Ko gzip (index 75,8 + atomes 11,2 + IssueAction 32,7) |
+| T072 | PWA et démon repassés au français | ~330 chaînes PWA, sw.js, manifeste, messages du démon qui atteignent l'interface ; garde `apps/web/tests/interface-anglaise.test.ts` | `bun run verify` vert |
+| Ligne > 16 MiB | entrée `unknown` jamais montrée | note discrète « A line of N MB was skipped (too large) » | `apps/web/tests/blocks.test.ts` |
+| Mode `!` de Claude | `<bash-input>`/`<bash-stdout>` comptés comme demandes | `bashExecution` (commande, sortie, `exitCode: null`), paire réunie par la PWA | `crates/sessions/tests/unit/agents_claude.rs`, `apps/web/tests/actions.test.ts` |
+| Version | binaire `0.0.0`, `package.json` `0.1.8` | 0.2.0 partout | `crates/herdrchat/tests/unit/version.rs` |
+| Code mort (P3) | `IndexSessions`, second réducteur `metadata::reduis`, `constructeur_d_args` | retirés (seule `iso_vers_ms` reste) | `xtask verify` vert |
+
+Restent : D04, D07, D10, A14 partiels (écart dit dans la matrice) ; O08–O10 attendent une exécution réelle (CI de release, bascule, porte finale par l'intégrateur).
