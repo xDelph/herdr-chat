@@ -82,12 +82,29 @@ describe("écrans de démarrage iOS", () => {
   const html = readFileSync(join(racine, "index.html"), "utf8");
   const balises = [
     ...html.matchAll(
-      /href="\/splash\/(splash-\d+x\d+\.png)"\s+media="\(device-width: (\d+)px\) and \(device-height: (\d+)px\) and \(-webkit-device-pixel-ratio: (\d)\) and \(orientation: (portrait|landscape)\)"/g,
+      /href="\/splash\/(splash-(?:clair|sombre)-\d+x\d+\.png)"\s+media="(?:\(prefers-color-scheme: dark\) and )?\(device-width: (\d+)px\) and \(device-height: (\d+)px\) and \(-webkit-device-pixel-ratio: (\d)\) and \(orientation: (portrait|landscape)\)"/g,
     ),
   ];
 
   test("iPhone et iPad, sans quoi iOS lance la PWA sur un écran blanc", () => {
     expect(balises.length).toBeGreaterThanOrEqual(20);
+  });
+
+  test("chaque appareil a son écran clair et son écran sombre, le clair d'abord", () => {
+    const clairs = balises.filter(([, fichier]) => fichier?.startsWith("splash-clair-"));
+    const sombres = balises.filter(([, fichier]) => fichier?.startsWith("splash-sombre-"));
+    expect(clairs.length).toBe(sombres.length);
+    // Le sombre est conditionné, le clair non : un iOS qui ignorerait le thème
+    // retombe sur le clair, jamais sur le blanc.
+    for (const [complet] of sombres) expect(complet).toContain("prefers-color-scheme: dark");
+    for (const [complet] of clairs) expect(complet).not.toContain("prefers-color-scheme");
+    expect(html.indexOf("splash-clair-")).toBeLessThan(html.indexOf("splash-sombre-"));
+  });
+
+  test("l'écran de démarrage HTML montre la même icône, avant le JavaScript", () => {
+    expect(html).toContain('<div class="demarrage"');
+    expect(html).toContain('src="/icone-demarrage.png"');
+    expect(dimensionsPng(join(racine, "public/icone-demarrage.png"))).toEqual([264, 264]);
   });
 
   test("chaque image existe, aux dimensions exactes que sa requête annonce", () => {

@@ -57,6 +57,7 @@ import {
   stockageSession,
 } from "../memoire-defilement.ts";
 import { Avis } from "../ui/atomes.tsx";
+import { SqueletteFil } from "../ui/Squelettes.tsx";
 import { Icone } from "../ui/Icone.tsx";
 import { Annonces } from "./Annonces.tsx";
 import { ElementFil } from "./Elements.tsx";
@@ -362,7 +363,7 @@ export const Fil = memo(
               </p>
             )}
             {items.length > 0 ? null : vue.phase === "chargement" ? (
-              <output className="fil__info">Loading the conversation…</output>
+              <SqueletteFil libelle="Loading the conversation…" />
             ) : vue.phase === "erreur" ? (
               <Avis ton="erreur" annonce="alerte">
                 Unreadable conversation: {vue.erreur}

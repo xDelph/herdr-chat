@@ -24,6 +24,7 @@ import { useDonnees, useEtroit, useHauteurVisible, useRoute } from "./hooks.ts";
 import { Notifications } from "../ui/Notifications.tsx";
 import { NouvelleVersion } from "../ui/NouvelleVersion.tsx";
 import { PleinEcran } from "../ui/PleinEcran.tsx";
+import { SqueletteFil } from "../ui/Squelettes.tsx";
 import { envois, magasin, partageLecture } from "./services.ts";
 
 /**
@@ -52,9 +53,17 @@ const Reglages = lazy(async () => {
   return { default: module.Reglages };
 });
 
+/**
+ * L'attente du module de conversation (chargé à la demande) : déjà la forme
+ * d'un fil, pas un texte au milieu du vide.
+ */
 const ATTENTE_CONVERSATION = (
   <section className="conversation" aria-busy="true">
-    <output className="fil__info conversation__attente">Opening the conversation…</output>
+    <div className="fil">
+      <div className="fil__contenu">
+        <SqueletteFil libelle="Opening the conversation…" />
+      </div>
+    </div>
   </section>
 );
 

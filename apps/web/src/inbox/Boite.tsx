@@ -21,6 +21,7 @@ import { routeToHash } from "../routing.ts";
 import { groupesDe, ORDRE_LABEL, SECTIONS, type Groupe } from "../sections.ts";
 import { Avis } from "../ui/atomes.tsx";
 import { Icone } from "../ui/Icone.tsx";
+import { SqueletteListe } from "../ui/Squelettes.tsx";
 import { CarteAttention } from "./CarteAttention.tsx";
 import { EnTeteProjet } from "./EnTeteProjet.tsx";
 import { LigneAgent } from "./LigneAgent.tsx";
@@ -250,11 +251,14 @@ export const Boite = ({
           >
             {ORDRE_LABEL[ordre]}
           </button>
-          <span className="discret num">
-            {recherche.trim().length > 0
-              ? `${String(filtrees.length)} of ${String(total)}`
-              : `${String(total)} agent${total === 1 ? "" : "s"}`}
-          </span>
+          {/* Tant que la liste n'est pas lue, le compte n'est pas « 0 » : il est inconnu. */}
+          {conversations === null ? null : (
+            <span className="discret num">
+              {recherche.trim().length > 0
+                ? `${String(filtrees.length)} of ${String(total)}`
+                : `${String(total)} agent${total === 1 ? "" : "s"}`}
+            </span>
+          )}
         </span>
       </div>
 
@@ -316,11 +320,13 @@ export const Boite = ({
           <Avis ton="attention">Unreadable projects: {donnees.erreurs.overview}</Avis>
         ) : null}
         {etat.phase === "chargement" && !herdrInjoignable ? (
-          <output className="boite__vide">
-            {maintenant - OUVERTURE < FENETRE_DEMARRAGE_MS
-              ? "Connecting to the daemon…"
-              : "Loading agents…"}
-          </output>
+          <SqueletteListe
+            libelle={
+              maintenant - OUVERTURE < FENETRE_DEMARRAGE_MS
+                ? "Connecting to the daemon…"
+                : "Loading agents…"
+            }
+          />
         ) : null}
         {etat.phase === "vide" ? (
           <p className="boite__vide">No agent open in Herdr. Launch one with +.</p>

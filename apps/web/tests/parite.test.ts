@@ -254,3 +254,35 @@ describe("Herdr injoignable : une seule explication, la vraie", () => {
     expect(injoignable()).toContain("0 agents");
   });
 });
+
+describe("chargement : la forme de ce qui vient, pas un texte dans le vide", () => {
+  test("la liste en chargement montre ses lignes en squelette", () => {
+    const html = rendu(
+      createElement(Boite, {
+        donnees: {
+          ...donnees([]),
+          chargement: true,
+          conversations: null,
+          dernierSucces: null,
+          overview: null,
+        },
+        groupement: "statut",
+        lectures: new Map(),
+        onGroupement: () => undefined,
+        onLancer: () => undefined,
+        onOrdre: () => undefined,
+        onReessayer: () => undefined,
+        onReglages: () => undefined,
+        ordre: "recent",
+        paneCourant: null,
+        projet: null,
+      }),
+    );
+    expect(html).toContain('aria-busy="true"');
+    expect(html.match(/ligne--squelette/g)?.length).toBe(6);
+    // Le lecteur d'écran entend ce qui se passe.
+    expect(html).toContain("Connecting to the daemon…");
+    // Un compte inconnu n'est pas « 0 agents ».
+    expect(html).not.toContain("0 agents");
+  });
+});

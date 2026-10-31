@@ -1,0 +1,90 @@
+/*
+  Les écrans de chargement : des os qui miroitent, à la forme de ce qui vient.
+  Les couleurs dérivent de l'encre du thème : clair comme sombre, sans token
+  de plus.
+*/
+.squelette {
+  display: block;
+  --os: color-mix(in srgb, var(--ink) 7%, transparent);
+  --os-reflet: color-mix(in srgb, var(--ink) 13%, transparent);
+  animation: squelette-apparait 0.25s ease-out;
+}
+.os {
+  display: block;
+  border-radius: 6px;
+  background: linear-gradient(90deg, var(--os) 0%, var(--os-reflet) 50%, var(--os) 100%);
+  background-size: 200% 100%;
+  animation: os-miroite 1.4s ease-in-out infinite;
+}
+/* Le logo de l'agent : le carré de `.marque`. */
+.os--marque {
+  width: 22px;
+  height: 22px;
+}
+@keyframes os-miroite {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -50% 0;
+  }
+}
+@keyframes squelette-apparait {
+  from {
+    opacity: 0;
+  }
+}
+
+/* ---------- liste ---------- */
+.ligne--squelette {
+  pointer-events: none;
+}
+.ligne--squelette .ligne__texte,
+.ligne--squelette .ligne__details {
+  display: block;
+}
+
+/* ---------- fil ---------- */
+.squelette--fil {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 8px 0;
+}
+.squelette__bulle {
+  align-self: flex-end;
+  width: min(68%, 360px);
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 16px 16px 4px 16px;
+  background: var(--surface);
+}
+.squelette__bulle--courte {
+  width: min(42%, 220px);
+}
+.squelette__texte {
+  display: grid;
+  gap: 9px;
+  width: min(100%, 640px);
+}
+.squelette__carte {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-m);
+  background: var(--surface);
+}
+.squelette__carte .os:last-child {
+  flex: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .os,
+  .squelette {
+    animation: none;
+  }
+}
