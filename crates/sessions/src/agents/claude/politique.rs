@@ -3,6 +3,7 @@
 //! **raw** pour les lignes de conversation refusées (le piège propre à
 //! claude — une ligne refusée ne doit PAS rester lisible).
 
+use super::collages::texte_sans_collages;
 use crate::families::anthropic::messages;
 use crate::pipeline::{Capacites, Codec, Profil};
 use domain::session::LignePi;
@@ -88,7 +89,32 @@ pub fn ligne_claude_vers_pi(ligne: &Value) -> Option<LignePi> {
     }
     messages::ligne_vers_pi(ligne)
         .map(rapport_final_en_texte)
+        .map(demande_sans_collages)
         .or_else(|| demande_en_cours_de_tour(ligne))
+}
+
+/// Une demande de l'utilisateur, **sans** l'emballage des collages
+/// ([`super::collages`]) : le fil, la liste et la bulle d'envoi lisent le
+/// texte envoyé, jamais `<pasted_content id=…>`.
+fn demande_sans_collages(mut ligne: LignePi) -> LignePi {
+    if ligne.message.role.as_deref() != Some("user") {
+        return ligne;
+    }
+    match &mut ligne.message.content {
+        Value::String(texte) => *texte = texte_sans_collages(texte),
+        Value::Array(blocs) => {
+            for bloc in blocs.iter_mut() {
+                if bloc.get("type").and_then(Value::as_str) != Some("text") {
+                    continue;
+                }
+                if let Some(Value::String(texte)) = bloc.get_mut("text") {
+                    *texte = texte_sans_collages(texte);
+                }
+            }
+        }
+        _ => {}
+    }
+    ligne
 }
 
 /// Le rapport final d'un sous-agent est un APPEL d'outil (`SubagentHandback`,
@@ -148,7 +174,8 @@ pub fn demande_en_cours_de_tour(ligne: &Value) -> Option<LignePi> {
     {
         return None;
     }
-    let texte = piece.get("prompt").and_then(Value::as_str)?.trim();
+    let texte = texte_sans_collages(piece.get("prompt").and_then(Value::as_str)?);
+    let texte = texte.trim();
     if texte.is_empty() {
         return None;
     }

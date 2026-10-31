@@ -1,4 +1,5 @@
 //! Le profil **Claude** (T020/D14) — la session JSONL de Claude Code.
+pub mod collages;
 pub mod harnais;
 pub mod politique;
 pub mod taches;

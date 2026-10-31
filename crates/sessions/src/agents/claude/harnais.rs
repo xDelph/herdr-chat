@@ -356,11 +356,15 @@ pub fn operation_de_file(ligne: &Value) -> Option<LignePi> {
         return None;
     }
     let operation = objet.get("operation").and_then(Value::as_str)?;
-    let texte = objet
+    // ⚠️ Le collage est déballé AVANT le filtre des balises : emballée, une
+    // demande de plusieurs lignes commence par `<pasted_content` et passait
+    // pour une entrée du harnais — absente de la file affichée.
+    let deballe = objet
         .get("content")
         .and_then(Value::as_str)
-        .map(str::trim)
-        .unwrap_or("");
+        .map(super::collages::texte_sans_collages)
+        .unwrap_or_default();
+    let texte = deballe.trim();
     if texte.starts_with('<') {
         return None;
     }
