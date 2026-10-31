@@ -510,8 +510,12 @@ svg.i.s {
   background: var(--surface-2);
   border: 1px solid var(--line);
   font: 12.5px/1.5 var(--font-mono);
-  overflow-x: auto;
-  white-space: pre;
+  /* ⚠️ Retour du 2026-10-31 : une commande longue dans une liste ou une
+     citation élargissait tout le fil (mesuré : 1285 px sur un écran de 390).
+     Le code revient à la ligne en gardant son indentation ; un jeton sans
+     espace (URL, chemin) se coupe où il faut. */
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 .md-lang {
   display: block;

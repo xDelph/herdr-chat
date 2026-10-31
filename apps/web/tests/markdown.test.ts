@@ -13,6 +13,8 @@
  * était vide. On vérifie donc le **contenu des cellules**.
  */
 import { describe, expect, test } from "bun:test";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { Markdown } from "../src/Markdown.tsx";
@@ -89,5 +91,36 @@ describe("une liste peut contenir des blocs", () => {
     expect((html.match(/<ul/g) ?? []).length).toBe(1);
     expect(html).toContain("<li>Rapatrier</li>");
     expect(html).not.toContain("- Basculer");
+  });
+});
+
+/** Les déclarations d'une règle CSS de `styles/base.css`, par sélecteur exact. */
+const regle = (selecteur: string): string => {
+  const feuille = readFileSync(join(import.meta.dir, "..", "src", "styles", "base.css"), "utf8");
+  const debut = feuille.search(new RegExp(`(^|\\n)${selecteur.replaceAll(".", "\\.")}[,\\s{]`));
+  expect(debut).toBeGreaterThanOrEqual(0);
+  const ouvrante = feuille.indexOf("{", debut);
+  return feuille.slice(ouvrante + 1, feuille.indexOf("}", ouvrante));
+};
+
+describe("un bloc de code n'élargit jamais le fil", () => {
+  // ⚠️ Retour du 2026-10-31 : une commande longue dans une liste numérotée
+  // élargissait tout le fil — mesuré dans WebKit et Chromium, 1285 px de
+  // contenu pour un écran de 390. Le défilement interne du `<pre>` ne suffit
+  // pas : dans un élément de liste, sa largeur minimale est sa plus longue
+  // ligne. Le code revient donc à la ligne.
+  test("le bloc revient à la ligne et coupe les jetons sans espace", () => {
+    const declarations = regle(".md-pre");
+    expect(declarations).toContain("white-space: pre-wrap;");
+    expect(declarations).toContain("overflow-wrap: anywhere;");
+    expect(declarations).not.toMatch(/white-space:\s*pre;/);
+  });
+
+  test("le bloc de code d'une liste garde sa commande entière", () => {
+    const commande =
+      "herdr-chat --listen 127.0.0.1:8791 --log-file ~/Library/Logs/herdr-chat/daemon.log";
+    const html = rendre(`1. Lance :\n\n   \`\`\`bash\n   ${commande}\n   \`\`\`\n`);
+    expect(html).toContain('<pre class="md-pre">');
+    expect(html).toContain(commande);
   });
 });
