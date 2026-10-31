@@ -85,7 +85,7 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "application"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "domain",
  "interactions",
@@ -330,7 +330,7 @@ dependencies = [
 
 [[package]]
 name = "catalog"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "domain",
  "serde",
@@ -431,7 +431,7 @@ checksum = "3d52eff69cd5e647efe296129160853a42795992097e8af39800e1060caeea9b"
 
 [[package]]
 name = "contracts"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "domain",
  "schemars",
@@ -667,7 +667,7 @@ dependencies = [
 
 [[package]]
 name = "domain"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "schemars",
  "serde",
@@ -817,7 +817,7 @@ dependencies = [
 
 [[package]]
 name = "files"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "cap-std",
  "domain",
@@ -1055,7 +1055,7 @@ dependencies = [
 
 [[package]]
 name = "herdr-client"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "domain",
  "serde",
@@ -1066,7 +1066,7 @@ dependencies = [
 
 [[package]]
 name = "herdrchat"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "application",
  "axum",
@@ -1166,7 +1166,7 @@ dependencies = [
 
 [[package]]
 name = "http-api"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "application",
  "axum",
@@ -1467,7 +1467,7 @@ dependencies = [
 
 [[package]]
 name = "interactions"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "domain",
  "serde_json",
@@ -1787,7 +1787,7 @@ dependencies = [
 
 [[package]]
 name = "notifications"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "base64 0.23.1",
  "domain",
@@ -2504,7 +2504,7 @@ dependencies = [
 
 [[package]]
 name = "sessions"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "base64 0.23.1",
  "domain",
@@ -2802,7 +2802,7 @@ dependencies = [
 
 [[package]]
 name = "test-support"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "domain",
  "rusqlite",
@@ -3468,7 +3468,7 @@ checksum = "3ad82d2a33cdc9674dc7465672f271e096168fcdbe0f799d9e6db8c5892679dc"
 
 [[package]]
 name = "xtask"
-version = "0.2.3"
+version = "0.2.4"
 dependencies = [
  "contracts",
  "serde_json",
